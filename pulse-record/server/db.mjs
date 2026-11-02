@@ -221,3 +221,40 @@ export function deletePatient(db, id) {
   const info = db.prepare('DELETE FROM patients WHERE id = ?').run(id)
   return Number(info.changes) > 0
 }
+
+/* ---------------- 自定义符号（使用者自建，如「涩」记作 S） ---------------- */
+
+/**
+ * 讲义 p33–34 的固定符号代码，自定义符号不得占用。
+ * 与 src/domain/symbols.ts 的 SYMBOLS 保持一致（那边是前端 TS，这边是服务端 .mjs，无法互相 import）。
+ */
+export const RESERVED_SYMBOL_CODES = [
+  '0', '-', '+', '±', '++', '±±', '+++', '++++', '↑', '|', '#', 'TTT', 'DDX', 'X',
+]
+
+/** 自定义符号清单，按添加顺序 */
+export function listCustomSymbols(db) {
+  return db
+    .prepare('SELECT code, name FROM custom_symbols ORDER BY created_at, rowid')
+    .all()
+    .map((r) => ({ code: r.code, name: r.name }))
+}
+
+/** 新增／改名一个自定义符号（同名同代码则覆盖名称） */
+export function putCustomSymbol(db, symbol) {
+  const code = String(symbol?.code ?? '').trim()
+  const name = String(symbol?.name ?? '').trim()
+  if (!code || !name) return null
+  if (RESERVED_SYMBOL_CODES.includes(code)) return null
+  db.prepare(
+    `INSERT INTO custom_symbols (code, name, created_at) VALUES (?, ?, ?)
+     ON CONFLICT(code) DO UPDATE SET name = excluded.name`,
+  ).run(code, name, Date.now())
+  return { code, name }
+}
+
+/** 删掉一个自定义符号（不影响已录入的历史符号） */
+export function deleteCustomSymbol(db, code) {
+  const info = db.prepare('DELETE FROM custom_symbols WHERE code = ?').run(code)
+  return Number(info.changes) > 0
+}

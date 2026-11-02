@@ -1,7 +1,7 @@
 import type { RecordSet } from '../domain/types'
 import { cellKey } from '../domain/types'
 import { groupRows } from '../domain/layout'
-import { formatCodes } from '../domain/symbols'
+import { formatCodes, buildCustomLegend, collectUsedCodes, type CustomSymbol } from '../domain/symbols'
 import { evaluateRules, type RuleContext } from '../domain/rules'
 import { evaluateFormulas, STANDING_FORMULA_RULES, CONSTITUTION_TABLE, type FormulaHit } from '../domain/formulas'
 import { DRUG_BY_ID, DRUG_GROUPS, DRUGS } from '../domain/drugs'
@@ -50,7 +50,7 @@ function filterNote(dim: 'wuxing' | 'hand', keys: string[]): string | null {
 }
 
 /** 导出 Markdown 表格 —— 可直接进仓库笔记层 */
-export function toMarkdown(set: RecordSet, filters?: DimFilters): string {
+export function toMarkdown(set: RecordSet, filters?: DimFilters, customSymbols?: CustomSymbol[]): string {
   const groups = groupRows(set.layout)
   const heads = set.sessions.flatMap((s) => [`${s.label} 左`, `${s.label} 右`])
   const lines: string[] = []
@@ -74,6 +74,15 @@ export function toMarkdown(set: RecordSet, filters?: DimFilters): string {
       )
       lines.push(`| ${row.organ} | ${row.depth} | ${cells.join(' | ')} |`)
     }
+  }
+
+  // 自定义符号图例：读的人要知道格子里那个自造代码是什么意思
+  const legend = buildCustomLegend(customSymbols ?? [], collectUsedCodes(set.sessions))
+  if (legend.length > 0) {
+    lines.push('')
+    lines.push(
+      `> 自定义符号：${legend.map((s) => `${s.code}＝${s.name}`).join(' ｜ ')}　（使用者自建，不参与讲稿判读与用方比对）`,
+    )
   }
 
   const hits = set.sessions.flatMap((s) => {

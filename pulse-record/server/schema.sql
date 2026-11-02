@@ -7,6 +7,9 @@
 -- 一次记录（visit）的脉象值以 JSON 存一列：
 --   {"L|寸|浮": ["+"], "R|寸|沉": ["↑"]}　—— key 形如 `${hand}|${organ}|${depth}`
 -- 符号用字沿用讲义原文，不做简化或替换（详见 src/domain/symbols.ts）。
+--
+-- custom_symbols 是使用者自建的符号（如「涩」记作 S）：
+-- 讲义 p33–34 的固定符号集之外另加，与固定符号并列使用，代码不得与固定符号重复。
 
 PRAGMA foreign_keys = ON;
 
@@ -28,3 +31,9 @@ CREATE TABLE IF NOT EXISTS visits (
 );
 
 CREATE INDEX IF NOT EXISTS visits_by_patient ON visits (patient_id, seq);
+
+CREATE TABLE IF NOT EXISTS custom_symbols (
+  code       TEXT PRIMARY KEY,
+  name       TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);

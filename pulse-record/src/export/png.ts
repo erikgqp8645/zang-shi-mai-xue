@@ -1,7 +1,7 @@
 import type { RecordSet } from '../domain/types'
 import { cellKey } from '../domain/types'
 import { groupRows } from '../domain/layout'
-import { formatCodes } from '../domain/symbols'
+import { formatCodes, buildCustomLegend, collectUsedCodes, type CustomSymbol } from '../domain/symbols'
 
 /**
  * PNG 导出 —— 用 canvas 自绘，不依赖截图类库，色值与讲义原表一致。
@@ -35,16 +35,25 @@ const DATA_W = 66
 const HEAD_H = 42
 /** 正文行高 */
 const ROW_H = 40
+/** 自定义符号图例条高度（画在表格下方白底上，不动表格本体） */
+const LEGEND_H = 34
 
-export function renderTableCanvas(set: RecordSet): HTMLCanvasElement {
+export function renderTableCanvas(set: RecordSet, customSymbols: CustomSymbol[] = []): HTMLCanvasElement {
   const groups = groupRows(set.layout)
   const rowCount = groups.reduce((n, g) => n + g.rows.length, 0)
   const dataCols = set.sessions.length * 2
 
+  /** 图例：自定义符号表 ＋ 记录里用到但已从符号表删掉的代码 */
+  const legend = buildCustomLegend(customSymbols, collectUsedCodes(set.sessions))
+
   /** 标签区（部位列 + 取法列）总宽 */
   const labelW = ORGAN_W + DEPTH_W
   const width = labelW + dataCols * DATA_W
-  const height = HEAD_H * 2 + rowCount * ROW_H
+  /** 表格本体高度 */
+  const tableH = HEAD_H * 2 + rowCount * ROW_H
+  /** 自定义符号图例另占一条 */
+  const legendH = legend.length > 0 ? LEGEND_H : 0
+  const height = tableH + legendH
   const bodyY0 = HEAD_H * 2
 
   const dpr = 2
@@ -58,7 +67,7 @@ export function renderTableCanvas(set: RecordSet): HTMLCanvasElement {
   ctx.fillStyle = '#FFFFFF'
   ctx.fillRect(0, 0, width, height)
   ctx.fillStyle = FILL_CELL
-  ctx.fillRect(0, 0, width, height)
+  ctx.fillRect(0, 0, width, tableH)
 
   // 部位标签列（橙，纵向合并整组）——压在底色之上
   let gy = bodyY0
@@ -82,15 +91,15 @@ export function renderTableCanvas(set: RecordSet): HTMLCanvasElement {
 
   // 外框：顶边贯穿全宽（含姓名区上方），左边自姓名格起
   line(0, 0, width, 0, 1.6)
-  line(0, height, width, height, 1.6)
-  line(width, 0, width, height, 1.6)
-  line(0, HEAD_H, 0, height, 1.6)
+  line(0, tableH, width, tableH, 1.6)
+  line(width, 0, width, tableH, 1.6)
+  line(0, HEAD_H, 0, tableH, 1.6)
 
   // 数据区左缘（贯穿表头与正文）
-  line(labelW, 0, labelW, height, 1)
+  line(labelW, 0, labelW, tableH, 1)
 
   // 部位列 | 取法列（仅正文）
-  line(ORGAN_W, bodyY0, ORGAN_W, height, 1)
+  line(ORGAN_W, bodyY0, ORGAN_W, tableH, 1)
 
   // 姓名格：上边补齐（表头第一行的标签区留白，故姓名格自带上边）
   line(0, HEAD_H, labelW, HEAD_H, 1)
@@ -110,7 +119,7 @@ export function renderTableCanvas(set: RecordSet): HTMLCanvasElement {
   // 日期组之间：贯穿整列，粗线
   set.sessions.forEach((_, i) => {
     const x = labelW + (i * 2 + 2) * DATA_W
-    line(x, 0, x, height, 1.6)
+    line(x, 0, x, tableH, 1.6)
   })
 
   // 正文行线：组内从取法列起（不穿橙列），组界贯穿全宽
@@ -165,12 +174,25 @@ export function renderTableCanvas(set: RecordSet): HTMLCanvasElement {
     y += g.rows.length * ROW_H
   }
 
+  // 自定义符号图例：表下方白底一条，不动表格本体（讲义 p34 原表无图例）
+  if (legend.length > 0) {
+    ctx.fillStyle = '#000000'
+    ctx.font = `15px ${FONT_LABEL}`
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(
+      `自定义符号：${legend.map((s) => `${s.code}＝${s.name}`).join('　')}`,
+      2,
+      tableH + legendH / 2,
+    )
+  }
+
   return canvas
 }
 
 /** 触发 PNG 下载 */
-export function downloadPng(set: RecordSet, filename?: string) {
-  const canvas = renderTableCanvas(set)
+export function downloadPng(set: RecordSet, filename?: string, customSymbols: CustomSymbol[] = []) {
+  const canvas = renderTableCanvas(set, customSymbols)
   canvas.toBlob((blob) => {
     if (!blob) return
     const url = URL.createObjectURL(blob)

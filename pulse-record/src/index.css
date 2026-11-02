@@ -416,17 +416,39 @@ button:disabled {
   line-height: 1.7;
 }
 
-/* ---------- 双栏 ---------- */
+/* ---------- 判读提示独占一行 ---------- */
 
-.pr-columns {
-  display: grid;
-  grid-template-columns: minmax(340px, 1fr) minmax(340px, 1.2fr);
-  gap: 20px;
+.pr-findings-row {
   margin-top: 20px;
 }
 
+/* ---------- 底排：符号录入 ＋ 寸关尺图示（两块等高） ---------- */
+
+.pr-bottom {
+  display: grid;
+  grid-template-columns: minmax(320px, 380px) 1fr;
+  gap: 20px;
+  margin-top: 20px;
+  align-items: stretch;
+}
+
+/* 等高时「手输组合」沉到卡片底部，符号组仍从顶部排下来 */
+.pr-bottom > .pr-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.pr-bottom > .pr-panel .pr-manual {
+  margin-top: auto;
+}
+
+/* 图示卡片自带的下外边距会让两块差一截，网格里去掉才真等高 */
+.pr-bottom > .pr-diagram {
+  margin-bottom: 0;
+}
+
 @media (max-width: 900px) {
-  .pr-columns {
+  .pr-bottom {
     grid-template-columns: 1fr;
   }
 }
@@ -654,6 +676,56 @@ button:disabled {
 
 .pr-sym.is-on .pr-sym-label {
   color: var(--ink);
+}
+
+/* ---------- 自定义符号（使用者自建） ---------- */
+
+/* 自定义符号按钮 + 删除 × 的一组 */
+.pr-sym-wrap {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 1px;
+}
+
+.pr-sym.is-custom {
+  border-style: dashed;
+}
+
+.pr-grp-title .pr-add-symbol {
+  margin-left: 8px;
+  padding: 1px 8px !important;
+  font-size: 11px;
+  border-radius: 10px;
+}
+
+.pr-custom-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.pr-custom-form input {
+  font: inherit;
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 15px;
+  padding: 4px 8px;
+  border: 1px solid var(--divider);
+  border-radius: 3px;
+  width: 96px;
+}
+
+.pr-custom-err {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--high);
+}
+
+.pr-custom-hint {
+  margin: 4px 0 0;
+  font-size: 11px;
+  line-height: 1.6;
 }
 
 .pr-manual {

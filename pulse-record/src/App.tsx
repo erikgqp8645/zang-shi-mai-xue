@@ -10,6 +10,7 @@ import { SymbolPalette } from './components/SymbolPalette'
 import { Findings, type SessionHit, type SessionFormulaHit } from './components/Findings'
 import { HistoryPanel, type EditingRef } from './components/HistoryPanel'
 import { DIM_ORDER } from './domain/grouping'
+import { validateCustomSymbol, type CustomSymbol } from './domain/symbols'
 import { toCsv, toMarkdown } from './export/text'
 import { downloadPng } from './export/png'
 import {
@@ -22,6 +23,7 @@ import {
   updateVisit,
   type PatientSummary,
 } from './api/patients'
+import { deleteCustomSymbol, listCustomSymbols, saveCustomSymbol } from './api/symbols'
 import { sampleShaoJuan } from './domain/sample'
 
 function uid(): string {
@@ -58,6 +60,10 @@ export default function App() {
   /** 每次保存后自增，让病例面板把展开的明细重新拉一遍 */
   const [historyVersion, setHistoryVersion] = useState(0)
 
+  /** 自定义符号（使用者自建，如「涩」＝S）：存本机 SQLite，与病例记录同一套永久存储 */
+  const [customSymbols, setCustomSymbols] = useState<CustomSymbol[]>([])
+  const [symbolError, setSymbolError] = useState<string | null>(null)
+
   const refreshHistory = useCallback(async () => {
     try {
       setPatients(await listPatients())
@@ -76,6 +82,17 @@ export default function App() {
       .then((d) => setDbPath(d?.db ?? null))
       .catch(() => setDbPath(null))
   }, [refreshHistory])
+
+  /** 自定义符号清单 */
+  useEffect(() => {
+    void (async () => {
+      try {
+        setCustomSymbols(await listCustomSymbols())
+      } catch {
+        setCustomSymbols([])
+      }
+    })()
+  }, [])
 
   /** 分组筛选：按五行／按左右手时打开哪些组（页面与 Markdown 导出共用一份状态） */
   const [groupFilter, setGroupFilter] = useState<{ wuxing: string[]; hand: string[] }>(() => ({
@@ -324,6 +341,37 @@ export default function App() {
     setHighlight(new Set())
   }
 
+  /** 新增／改名一个自定义符号（成功返回 true，失败时错误写到 symbolError） */
+  const doAddCustomSymbol = async (code: string, name: string): Promise<boolean> => {
+    const err = validateCustomSymbol(code, name, customSymbols)
+    if (err) {
+      setSymbolError(err)
+      return false
+    }
+    try {
+      const saved = await saveCustomSymbol({ code: code.trim(), name: name.trim() })
+      setCustomSymbols((prev) => [...prev.filter((s) => s.code !== saved.code), saved])
+      setSymbolError(null)
+      return true
+    } catch (e) {
+      setSymbolError(String((e as Error)?.message ?? e))
+      return false
+    }
+  }
+
+  /** 删除一个自定义符号（已录入的历史符号不受影响） */
+  const doRemoveCustomSymbol = async (code: string): Promise<boolean> => {
+    try {
+      await deleteCustomSymbol(code)
+      setCustomSymbols((prev) => prev.filter((s) => s.code !== code))
+      setSymbolError(null)
+      return true
+    } catch (e) {
+      setSymbolError(String((e as Error)?.message ?? e))
+      return false
+    }
+  }
+
   const baseName = `脉象记录表-${set.name || '未命名'}`
 
   return (
@@ -337,8 +385,13 @@ export default function App() {
           </p>
         </div>
         <div className="pr-header-actions">
-          <button type="button" onClick={() => downloadPng(set, `${baseName}.png`)}>导出 PNG</button>
-          <button type="button" onClick={() => downloadText(`${baseName}.md`, toMarkdown(set, groupFilter), 'text/markdown')}>
+          <button type="button" onClick={() => downloadPng(set, `${baseName}.png`, customSymbols)}>
+            导出 PNG
+          </button>
+          <button
+            type="button"
+            onClick={() => downloadText(`${baseName}.md`, toMarkdown(set, groupFilter, customSymbols), 'text/markdown')}
+          >
             导出 Markdown
           </button>
           <button type="button" onClick={() => downloadText(`${baseName}.csv`, toCsv(set), 'text/csv')}>
@@ -473,19 +526,32 @@ export default function App() {
         onSelectSession={setActiveSessionId}
       />
 
-      <PulseDiagram
-        set={set}
-        activeSessionId={activeSessionId}
-        selected={selected}
-        onSelect={(ref) => {
-          setSelected(ref)
-          setHighlight(new Set())
-        }}
-        onSelectSession={setActiveSessionId}
-      />
+      {/* 符号录入 ＋ 寸关尺图示（并排相邻） */}
+      <div className="pr-bottom">
+        <SymbolPalette
+          codes={selectedCodes}
+          target={selectedTarget}
+          onChange={(c) => selected && setCellCodes(selected, c)}
+          customSymbols={customSymbols}
+          onAddCustom={doAddCustomSymbol}
+          onDeleteCustom={doRemoveCustomSymbol}
+          error={symbolError}
+        />
 
-      <div className="pr-columns">
-        <SymbolPalette codes={selectedCodes} target={selectedTarget} onChange={(c) => selected && setCellCodes(selected, c)} />
+        <PulseDiagram
+          set={set}
+          activeSessionId={activeSessionId}
+          selected={selected}
+          onSelect={(ref) => {
+            setSelected(ref)
+            setHighlight(new Set())
+          }}
+          onSelectSession={setActiveSessionId}
+        />
+      </div>
+
+      {/* 判读提示放最后 */}
+      <div className="pr-findings-row">
         <Findings
           hits={hits}
           formulaHits={formulaHits}
@@ -504,6 +570,12 @@ export default function App() {
           <code>++++</code> 非常有力 ｜ <code>↑</code> 顶 ｜ <code>|</code> 弦 ｜ <code>#</code> 变脉 ｜{' '}
           <code>X</code> 细 ｜ <code>TTT</code> 跳调停 ｜ <code>DDX</code> 大大小
         </p>
+        {customSymbols.length > 0 && (
+          <p>
+            自定义符号：{customSymbols.map((s) => `${s.code}＝${s.name}`).join(' ｜ ')}
+            <span className="pr-muted">（使用者自建，不参与讲稿判读与用方比对）</span>
+          </p>
+        )}
         <p className="pr-muted">
           提示只标出讲稿明确点名的脉象组合，不构成诊断；临床判断请由持证医师作出。
         </p>

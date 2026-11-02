@@ -8,6 +8,9 @@
  *   GET    /api/health             → { ok: true, db: <db 路径> }
  *   GET    /api/patients           → { patients: [...] }        患者列表（含就诊次数）
  *   GET    /api/search?q=…         → { patients: [...] }        搜索：姓名／日期标签／脉象符号
+ *   GET    /api/symbols             → { symbols: [...] }        自定义符号（使用者自建，如「涩」＝S）
+ *   POST   /api/symbols             → { symbol }                新增／改名自定义符号
+ *   DELETE /api/symbols/:code       → { ok: true }              删除自定义符号
  *   GET    /api/patients/:id       → { patient }                一位患者 ＋ 其全部就诊记录
  *   POST   /api/patients           → { patient }                整份保存（患者 ＋ 就诊记录）
  *   PATCH  /api/patients/:id       → { patient }                重命名
@@ -23,17 +26,21 @@ import { createServer } from 'node:http'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { join, extname, normalize } from 'node:path'
 import {
+  deleteCustomSymbol,
   deletePatient,
   deleteVisit,
   getPatient,
   getVisit,
+  listCustomSymbols,
   listPatients,
   openDb,
+  putCustomSymbol,
   putPatient,
   putVisit,
   renamePatient,
   searchPatients,
   DB_PATH,
+  RESERVED_SYMBOL_CODES,
 } from './db.mjs'
 
 const PORT = Number(process.env.PORT ?? 5178)
@@ -108,6 +115,48 @@ const server = createServer(async (req, res) => {
 
     if (path === '/api/search' && method === 'GET') {
       sendJson(res, 200, { patients: searchPatients(db, url.searchParams.get('q') ?? '') })
+      return
+    }
+
+    if (path === '/api/symbols' && method === 'GET') {
+      sendJson(res, 200, { symbols: listCustomSymbols(db) })
+      return
+    }
+
+    if (path === '/api/symbols' && method === 'POST') {
+      const body = await readJson(req)
+      const code = String(body?.code ?? '').trim()
+      const name = String(body?.name ?? '').trim()
+      if (!code || !name) {
+        sendJson(res, 400, { error: '请填写符号代码与名称' })
+        return
+      }
+      if (code.length > 3) {
+        sendJson(res, 400, { error: '符号代码最多 3 个字符' })
+        return
+      }
+      if (/\s/.test(code) || code.includes('/')) {
+        sendJson(res, 400, { error: '符号代码里不能有空格或「/」' })
+        return
+      }
+      if (name.length > 12) {
+        sendJson(res, 400, { error: '符号名称最多 12 个字符' })
+        return
+      }
+      if (RESERVED_SYMBOL_CODES.includes(code)) {
+        sendJson(res, 400, { error: `代码「${code}」与讲义固定符号重复，换一个` })
+        return
+      }
+      const symbol = putCustomSymbol(db, { code, name })
+      sendJson(res, 200, { symbol })
+      return
+    }
+
+    const sm = path.match(/^\/api\/symbols\/([^/]+)$/)
+    if (sm && method === 'DELETE') {
+      const code = decodeURIComponent(sm[1])
+      const ok = deleteCustomSymbol(db, code)
+      sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: '没有这个自定义符号' })
       return
     }
 
