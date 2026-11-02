@@ -1,0 +1,29 @@
+{
+  "name": "pulse-record",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "臧氏脉学 · 脉象记录表生成器",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "vite --port 5180 --strictPort",
+    "dev:api": "node server/index.mjs",
+    "build": "tsc --noEmit && vite build",
+    "start": "node server/index.mjs",
+    "seed:demo": "node scripts/seed-demo.mjs",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5"
+  }
+}

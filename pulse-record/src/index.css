@@ -1,0 +1,1172 @@
+/* 臧氏脉学 · 脉象记录表生成器
+   配色沿用宣纸/墨/黛/陶一族；表格取色自讲义 PDF p34 实例表 */
+
+:root {
+  --paper: #fdfbf7;
+  --ink: #2c2925;
+  --sage: #7c8974;
+  --clay: #b48464;
+  --divider: #e6e2d6;
+  --card: #ffffff;
+
+  --cell: #cce8cf;   /* 讲义原表底色 */
+  --organ: #ffc000;  /* 讲义原表部位标签色 */
+  --line: #000000;
+
+  --high: #b03a2e;
+  --warn: #b48464;
+  --info: #7c8974;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.pr-app {
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 28px 24px 64px;
+}
+
+/* ---------- 页头 ---------- */
+
+.pr-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--ink);
+}
+
+.pr-header h1 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  letter-spacing: 0.03em;
+}
+
+.pr-sub {
+  margin: 0;
+  color: var(--sage);
+  font-size: 13px;
+  max-width: 760px;
+}
+
+.pr-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.pr-header-actions button,
+.pr-toolbar button,
+.pr-panel button {
+  font: inherit;
+  border: 1px solid var(--ink);
+  background: var(--card);
+  color: var(--ink);
+  padding: 5px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.pr-header-actions button:hover,
+.pr-toolbar button:hover,
+.pr-panel button:hover:not(:disabled) {
+  background: var(--divider);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---------- 工具条 ---------- */
+
+.pr-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 28px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--divider);
+  margin-bottom: 20px;
+}
+
+.pr-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--sage);
+}
+
+.pr-field-wide {
+  flex: 1 1 340px;
+}
+
+.pr-field input[type='text'] {
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  padding: 5px 8px;
+  border: 1px solid var(--divider);
+  border-radius: 3px;
+  background: var(--card);
+  min-width: 130px;
+}
+
+.pr-field input[type='text']:focus {
+  outline: none;
+  border-color: var(--sage);
+}
+
+.pr-inline {
+  display: flex;
+  gap: 6px;
+}
+
+.pr-radio {
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.pr-radio label {
+  cursor: pointer;
+}
+
+.pr-radio label.is-on {
+  color: var(--clay);
+  font-weight: 600;
+}
+
+.pr-sessions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.pr-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--card);
+  border: 1px solid var(--divider);
+  border-radius: 3px;
+  padding: 2px 2px 2px 8px;
+}
+
+.pr-chip input[type='text'] {
+  border: none;
+  background: transparent;
+  padding: 2px 4px;
+  min-width: 70px;
+  font-size: 13px;
+}
+
+.pr-chip input[type='text']:focus {
+  outline: none;
+}
+
+.pr-x {
+  border: none !important;
+  background: transparent !important;
+  color: var(--sage) !important;
+  font-size: 15px;
+  line-height: 1;
+  padding: 2px 6px !important;
+}
+
+.pr-x:hover {
+  color: var(--high) !important;
+  background: transparent !important;
+}
+
+.pr-link {
+  border: none !important;
+  background: transparent !important;
+  color: var(--ink) !important;
+  padding: 2px 4px !important;
+  text-decoration: underline dotted var(--sage);
+}
+
+.pr-ghost {
+  border-style: dashed !important;
+  color: var(--sage) !important;
+}
+
+.pr-muted {
+  color: var(--sage);
+  font-size: 12px;
+}
+
+/* ---------- 表格 ---------- */
+
+.pr-table-wrap {
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.pr-table {
+  border-collapse: collapse;
+  background: var(--card);
+  font-size: 16px;
+}
+
+.pr-table th,
+.pr-table td {
+  border: 1px solid var(--line);
+  background: var(--cell);
+  padding: 0;
+  text-align: center;
+  vertical-align: middle;
+  font-weight: 400;
+}
+
+.pr-table thead th {
+  height: 42px;
+  font-size: 16px;
+}
+
+.pr-table thead tr + tr th {
+  height: 38px;
+  font-size: 15px;
+}
+
+/* 姓名框：横跨「部位 + 取法」两列，在表头第二行 */
+.pr-table .pr-name {
+  min-width: 108px;
+  font-size: 17px;
+  background: var(--cell);
+}
+
+/* 表头第一行的标签区：留白，不画边框（照讲义原表，姓名框上方不画线） */
+.pr-table .pr-lead {
+  border: none;
+  border-top: 1px solid var(--line);
+}
+
+/* 日期组右缘 / 组界：粗线 */
+.pr-table .pr-group-end {
+  border-right-width: 1.6px;
+}
+
+.pr-table .pr-group-start {
+  border-top-width: 1.6px;
+}
+
+.pr-table .pr-date {
+  border-bottom-width: 1px;
+  cursor: pointer;
+  user-select: none;
+}
+.pr-table .pr-date:hover {
+  background: #f2efe4;
+}
+.pr-table .pr-date.is-active {
+  background: #e8e2cd;
+  box-shadow: inset 0 -3px 0 var(--clay);
+}
+
+.pr-table .pr-organ {
+  background: var(--organ);
+  font-size: 21px;
+  width: 54px;
+  min-width: 54px;
+  border-left-width: 1.6px;
+}
+
+.pr-table .pr-depth {
+  width: 54px;
+  min-width: 54px;
+  font-size: 17px;
+}
+
+.pr-table tbody tr {
+  height: 40px;
+}
+
+.pr-table td.pr-cell {
+  width: 66px;
+  min-width: 66px;
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 18px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.pr-table td.pr-cell:hover {
+  background: #bde0c3;
+}
+
+.pr-table td.pr-cell.is-selected {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+
+.pr-table td.pr-cell.is-hit {
+  background: #ffe9a8;
+}
+
+/* 当前日期列（与寸关尺图示同步） */
+.pr-table td.pr-cell.is-active {
+  background: #f4f1e4;
+}
+.pr-table td.pr-cell.is-active:hover {
+  background: #e8e2cd;
+}
+.pr-table td.pr-cell.is-selected {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+
+.pr-empty {
+  color: var(--sage);
+  font-size: 13px;
+  padding: 12px 0;
+}
+
+/* ---------- 寸关尺图示 ---------- */
+
+.pr-diagram {
+  background: var(--card);
+  border: 1px solid var(--divider);
+  border-radius: 4px;
+  padding: 12px 16px 14px;
+  margin-bottom: 12px;
+}
+.pr-diagram-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--divider);
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+.pr-diagram-head h2 {
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
+.pr-diagram-head .pr-muted {
+  font-size: 11px;
+}
+.pr-diagram-dates {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.pr-diagram-date {
+  font-size: 12px;
+  padding: 2px 10px;
+  border: 1px solid var(--divider);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+}
+.pr-diagram-date:hover {
+  border-color: var(--clay);
+}
+.pr-diagram-date.is-active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fdfbf7;
+}
+.pr-diagram-canvas {
+  position: relative;
+  width: 100%;
+  max-width: 940px;
+  margin: 0 auto;
+}
+.pr-diagram-img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.pr-diagram-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+/* 图上「浮/中/沉」行：可点选主表对应格子 */
+.pr-diagram-row {
+  cursor: pointer;
+}
+.pr-diagram-row:hover rect {
+  fill: #e8e2cd;
+}
+.pr-diagram-note {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+/* ---------- 双栏 ---------- */
+
+.pr-columns {
+  display: grid;
+  grid-template-columns: minmax(340px, 1fr) minmax(340px, 1.2fr);
+  gap: 20px;
+  margin-top: 20px;
+}
+
+@media (max-width: 900px) {
+  .pr-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pr-panel {
+  background: var(--card);
+  border: 1px solid var(--divider);
+  border-radius: 4px;
+  padding: 14px 16px 16px;
+}
+
+/* ---------- 历史记录面板（存本机 SQLite） ---------- */
+
+.pr-history {
+  background: var(--card);
+  border: 1px solid var(--divider);
+  border-radius: 4px;
+  padding: 12px 16px 14px;
+  margin-bottom: 12px;
+}
+.pr-history-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  border-bottom: 1px solid var(--divider);
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+.pr-history-head h2 {
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
+.pr-history-head .pr-muted {
+  flex: 1;
+  font-size: 11px;
+}
+/* 搜索框：姓名 / 日期标签 / 脉象符号（如 ↑）都能搜 */
+.pr-history-search {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.pr-history-search input {
+  width: 220px;
+  font-size: 12px;
+  padding: 3px 20px 3px 7px;
+  border: 1px solid var(--divider);
+  border-radius: 3px;
+  background: #fff;
+  color: var(--ink);
+}
+.pr-history-search input:focus {
+  outline: none;
+  border-color: var(--clay);
+}
+.pr-history-search .pr-x {
+  position: absolute;
+  right: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 3px;
+}
+.pr-history-error {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--high);
+  line-height: 1.6;
+}
+.pr-history-list {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.pr-history-list th,
+.pr-history-list td {
+  border: 1px solid var(--divider);
+  padding: 5px 8px;
+  text-align: left;
+  vertical-align: middle;
+}
+.pr-history-list thead th {
+  background: var(--paper);
+  font-weight: 600;
+  color: var(--sage);
+  letter-spacing: 0.04em;
+}
+.pr-history-list tr.is-editing td {
+  background: #f6efe2;
+}
+.pr-history-name {
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 13px;
+}
+.pr-history-badge,
+.pr-badge-note {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--clay);
+}
+.pr-history-current {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--clay);
+}
+.pr-history-visits {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--divider);
+}
+.pr-history-sub {
+  margin: 0 0 8px;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--sage);
+  font-weight: 600;
+}
+.pr-history-summary {
+  font-size: 11px;
+  color: var(--sage);
+  line-height: 1.7;
+  max-width: 460px;
+}
+.pr-history-ops {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+.pr-history-preview {
+  margin-top: 10px;
+  overflow-x: auto;
+}
+.pr-history-table {
+  border-collapse: collapse;
+  font-size: 11px;
+  background: var(--card);
+}
+.pr-history-table th,
+.pr-history-table td {
+  border: 1px solid var(--line);
+  padding: 2px 7px;
+  text-align: center;
+  white-space: nowrap;
+}
+.pr-history-table thead th {
+  background: var(--paper);
+}
+.pr-history-organ {
+  background: var(--organ);
+  font-weight: 600;
+}
+.pr-history-depth {
+  background: var(--paper);
+  color: var(--sage);
+}
+
+.pr-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  border-bottom: 1px solid var(--divider);
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+}
+
+.pr-panel-head h2 {
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
+
+.pr-target {
+  font-size: 12px;
+  color: var(--sage);
+}
+
+/* ---------- 符号面板 ---------- */
+
+.pr-grp {
+  margin-bottom: 12px;
+}
+
+.pr-grp-title {
+  font-size: 12px;
+  color: var(--sage);
+  margin-bottom: 6px;
+}
+
+.pr-grp-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pr-sym {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 52px;
+  padding: 4px 8px !important;
+  border-radius: 3px;
+  font-family: 'Songti SC', 'STSong', serif;
+}
+
+.pr-sym.is-on {
+  background: var(--organ) !important;
+  border-color: var(--ink);
+}
+
+.pr-sym-code {
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.pr-sym-label {
+  font-size: 10px;
+  font-family: 'PingFang SC', sans-serif;
+  color: var(--sage);
+  white-space: nowrap;
+}
+
+.pr-sym.is-on .pr-sym-label {
+  color: var(--ink);
+}
+
+.pr-manual {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  border-top: 1px solid var(--divider);
+  padding-top: 12px;
+}
+
+.pr-manual label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--sage);
+  flex: 1;
+}
+
+.pr-manual input {
+  font: inherit;
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 17px;
+  padding: 5px 8px;
+  border: 1px solid var(--divider);
+  border-radius: 3px;
+}
+
+/* ---------- 判读提示 ---------- */
+
+.pr-findings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 460px;
+  overflow-y: auto;
+}
+
+.pr-finding {
+  border-left: 3px solid var(--divider);
+  padding: 8px 0 8px 10px;
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+
+.pr-finding:hover {
+  background: #faf6ef;
+}
+
+.pr-finding.is-high {
+  border-left-color: var(--high);
+}
+.pr-finding.is-warn {
+  border-left-color: var(--warn);
+}
+.pr-finding.is-info {
+  border-left-color: var(--info);
+}
+
+.pr-finding-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.pr-badge {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 2px;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.pr-badge.is-high {
+  background: var(--high);
+}
+.pr-badge.is-warn {
+  background: var(--warn);
+}
+.pr-badge.is-info {
+  background: var(--info);
+}
+
+.pr-finding-detail {
+  margin: 4px 0 2px;
+  font-size: 12px;
+  color: var(--ink);
+  line-height: 1.7;
+}
+
+.pr-finding-src {
+  margin: 0;
+  font-size: 11px;
+  color: var(--sage);
+}
+
+/* ---------- 判读面板：风险提示 / 依脉用方 ---------- */
+
+.pr-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.pr-tab {
+  font: inherit;
+  font-size: 12px;
+  border: 1px solid var(--divider);
+  background: var(--paper);
+  color: var(--sage);
+  padding: 3px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pr-tab:hover {
+  background: var(--divider);
+}
+
+.pr-tab.is-on {
+  border-color: var(--ink);
+  color: var(--ink);
+  background: var(--card);
+  font-weight: 600;
+}
+
+.pr-target-line {
+  margin: 0 0 10px;
+  font-size: 11px;
+  color: var(--sage);
+  line-height: 1.6;
+}
+
+/* ---------- 依脉开方 · 分组维度切换 ---------- */
+
+.pr-dim {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+
+.pr-dim-label {
+  font-size: 11px;
+  color: var(--sage);
+  letter-spacing: 0.06em;
+  margin-right: 2px;
+}
+
+.pr-dim-btn {
+  font: inherit;
+  font-size: 12px;
+  border: 1px solid var(--divider);
+  background: var(--paper);
+  color: var(--sage);
+  padding: 3px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pr-dim-btn:hover {
+  background: var(--divider);
+}
+
+.pr-dim-btn.is-on {
+  border-color: var(--ink);
+  color: var(--ink);
+  background: var(--card);
+  font-weight: 600;
+}
+
+/* ---------- 分组筛选开关（按五行／按左右手） ---------- */
+
+.pr-filter {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+.pr-filter-label {
+  font-size: 11px;
+  color: var(--sage);
+  letter-spacing: 0.06em;
+  margin-right: 2px;
+}
+.pr-filter-chip {
+  font: inherit;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  border: 1px solid var(--divider);
+  background: var(--paper);
+  color: var(--sage);
+  padding: 3px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.pr-filter-chip:hover {
+  background: var(--divider);
+}
+.pr-filter-chip.is-on {
+  border-color: var(--ink);
+  color: var(--ink);
+  background: var(--card);
+  font-weight: 600;
+}
+.pr-filter-chip:not(.is-on) {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+.pr-filter-key {
+  font-family: 'Songti SC', 'STSong', serif;
+  letter-spacing: 0.04em;
+}
+.pr-filter-num {
+  font-size: 10px;
+  opacity: 0.7;
+  font-weight: 400;
+  white-space: nowrap;
+}
+.pr-filter-act {
+  font: inherit;
+  font-size: 11px;
+  border: none;
+  background: none;
+  color: var(--sage);
+  cursor: pointer;
+  padding: 0 2px;
+  text-decoration: underline;
+}
+.pr-filter-act:hover {
+  color: var(--ink);
+}
+
+/* ---------- 五行／左右手 归类标记 ---------- */
+
+.pr-attr {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--sage);
+  flex-shrink: 0;
+}
+
+.pr-attr-main {
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 11px;
+  background: #f6efe2;
+  border: 1px solid #e0d2b8;
+  border-radius: 2px;
+  padding: 1px 6px;
+  color: #6b4f23;
+  letter-spacing: 0.04em;
+}
+
+.pr-attr-also {
+  font-size: 10px;
+  background: #eef1f6;
+  border: 1px solid #d2dae8;
+  border-radius: 2px;
+  padding: 1px 5px;
+  color: #3b4a63;
+}
+
+.pr-attr-site {
+  font-size: 10px;
+  opacity: 0.75;
+}
+
+.pr-attr-basis {
+  margin: 4px 0 2px;
+  font-size: 11px;
+  color: var(--sage);
+  line-height: 1.6;
+  padding-left: 2px;
+  border-left: 2px solid var(--divider);
+  padding-left: 8px;
+}
+
+.pr-formula-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pr-formula-group {
+  margin-bottom: 14px;
+}
+
+.pr-formula-route {
+  margin: 0 0 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--divider);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+}
+
+.pr-formula {
+  border-left: 3px solid var(--divider);
+  padding: 7px 0 7px 9px;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
+.pr-formula:hover {
+  background: #faf6ef;
+}
+
+.pr-formula.is-挡路 {
+  border-left-color: var(--clay);
+}
+
+.pr-formula.is-主线 {
+  border-left-color: var(--high);
+}
+
+.pr-formula.is-加味 {
+  border-left-color: var(--sage);
+}
+
+.pr-formula.is-禁忌 {
+  border-left-color: var(--ink);
+}
+
+.pr-formula-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+}
+
+.pr-formula-kind {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 2px;
+  background: var(--divider);
+  color: var(--sage);
+  flex-shrink: 0;
+}
+
+.pr-formula-therapy {
+  margin: 4px 0 2px;
+  font-size: 13px;
+  color: var(--ink);
+  line-height: 1.65;
+}
+
+.pr-formula-list-inline {
+  margin: 3px 0 2px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.pr-formula-chip {
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 12px;
+  background: #eef4ee;
+  border: 1px solid #cfe0d2;
+  border-radius: 2px;
+  padding: 1px 7px;
+  color: #24402a;
+}
+
+.pr-formula-quote {
+  margin: 4px 0 2px;
+  font-size: 12px;
+  color: var(--ink);
+  line-height: 1.75;
+}
+
+.pr-constitution {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.pr-constitution th,
+.pr-constitution td {
+  border: 1px solid var(--divider);
+  padding: 4px 7px;
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.6;
+}
+
+.pr-constitution th {
+  background: var(--paper);
+  color: var(--sage);
+  font-weight: 600;
+}
+
+.pr-constitution-mark {
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 16px;
+  text-align: center;
+  width: 34px;
+  background: var(--cell);
+}
+
+.pr-constitution-formulas {
+  font-family: 'Songti SC', 'STSong', serif;
+  color: #24402a;
+}
+
+/* ---------- 方剂卡片（组成／服法／加减／禁忌） ---------- */
+
+.pr-drugs {
+  margin: 6px 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pr-drug {
+  border: 1px solid var(--divider);
+  border-radius: 3px;
+  background: #faf8f2;
+  padding: 7px 9px 6px;
+}
+
+.pr-drug:hover {
+  background: #f6f1e7;
+}
+
+.pr-drug-head {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-bottom: 4px;
+}
+
+.pr-drug-head strong {
+  font-size: 13px;
+}
+
+.pr-drug-therapy {
+  font-size: 10px;
+  color: var(--sage);
+  border: 1px solid var(--divider);
+  border-radius: 2px;
+  padding: 0 5px;
+  white-space: nowrap;
+}
+
+.pr-drug-line {
+  margin: 2px 0;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--ink);
+}
+
+.pr-drug-line.is-warn {
+  color: var(--high);
+}
+
+.pr-drug-key {
+  display: inline-block;
+  min-width: 52px;
+  margin-right: 6px;
+  font-size: 11px;
+  color: var(--sage);
+}
+
+.pr-drug-line.is-warn .pr-drug-key {
+  color: var(--high);
+}
+
+.pr-drug-add {
+  display: flex;
+  flex-direction: column;
+}
+
+.pr-drug-add-item {
+  font-family: 'Songti SC', 'STSong', serif;
+}
+
+.pr-drug-group {
+  margin-bottom: 12px;
+}
+
+.pr-drug-group-title {
+  margin: 8px 0 5px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--clay);
+}
+
+/* ---------- 页脚 ---------- */
+
+.pr-footer {
+  margin-top: 28px;
+  padding-top: 14px;
+  border-top: 1px solid var(--divider);
+  font-size: 12px;
+  color: var(--sage);
+}
+
+.pr-footer code {
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 13px;
+  background: #f1ece1;
+  padding: 0 4px;
+  border-radius: 2px;
+  color: var(--ink);
+}
