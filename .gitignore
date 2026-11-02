@@ -1,0 +1,27 @@
+# macOS
+.DS_Store
+
+# 临时转换产物（docx/pdf 抽取中间件）
+*.tmp
+~$*
+.~lock.*
+__pycache__/
+
+# Python 虚拟环境
+.venv/
+venv/
+
+# Node / 前端子项目
+node_modules/
+dist/
+*.local
+
+# 病例记录库（运行产物，不进版本库）
+local-data/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# 运行时产物（Mavis canvas 缓存等）
+.mavis/
