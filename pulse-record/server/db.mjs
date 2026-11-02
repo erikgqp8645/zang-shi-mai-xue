@@ -1,0 +1,223 @@
+/**
+ * 病例记录库（SQLite）—— 永久存储层
+ *
+ * 存盘位置：pulse-record/local-data/history.sqlite（运行产物，不进版本库）
+ * 依赖：Node 22+ 内置 node:sqlite（DatabaseSync），无原生模块、无第三方依赖。
+ *
+ * 两级结构（表结构见 server/schema.sql）：
+ *   patient  一位受检者/患者
+ *   visit    该患者的一次就诊记录（日期标签 ＋ 这次的脉象符号）
+ * 这里只做读写，不含业务判断。
+ */
+
+import { DatabaseSync } from 'node:sqlite'
+import { mkdirSync, readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const here = dirname(fileURLToPath(import.meta.url))
+export const ROOT = join(here, '..')
+export const DB_PATH = process.env.PULSE_DB ?? join(ROOT, 'local-data', 'history.sqlite')
+
+/** 打开数据库（首次自动建库建表） */
+export function openDb() {
+  mkdirSync(dirname(DB_PATH), { recursive: true })
+  const db = new DatabaseSync(DB_PATH)
+  db.exec('PRAGMA foreign_keys = ON;')
+  db.exec(readFileSync(join(here, 'schema.sql'), 'utf8'))
+  return db
+}
+
+function parseValues(json) {
+  try {
+    const v = JSON.parse(json)
+    return v && typeof v === 'object' ? v : {}
+  } catch {
+    return {}
+  }
+}
+
+/** 一次就诊记录 */
+function rowToVisit(row) {
+  return {
+    id: row.id,
+    label: row.label,
+    at: Number(row.at),
+    values: parseValues(row.pulse_values),
+  }
+}
+
+/** 一位患者 ＋ 其全部就诊记录 */
+function rowToPatient(db, row) {
+  const visits = db
+    .prepare('SELECT id, label, at, pulse_values FROM visits WHERE patient_id = ? ORDER BY seq, at')
+    .all(row.id)
+    .map(rowToVisit)
+  return {
+    id: row.id,
+    name: row.name,
+    layout: row.layout,
+    at: visits.length ? visits[visits.length - 1].at : Number(row.updated_at),
+    visits,
+  }
+}
+
+/** 患者列表（含就诊次数与最近一次记录时间），按最近记录时间倒序 */
+export function listPatients(db) {
+  const rows = db
+    .prepare(
+      `SELECT p.id, p.name, p.layout, p.updated_at,
+              (SELECT COUNT(*) FROM visits v WHERE v.patient_id = p.id) AS visit_count,
+              (SELECT MAX(v.at) FROM visits v WHERE v.patient_id = p.id) AS last_at
+         FROM patients p
+        ORDER BY COALESCE(last_at, p.updated_at) DESC`,
+    )
+    .all()
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    layout: r.layout,
+    visitCount: Number(r.visit_count),
+    at: Number(r.last_at ?? r.updated_at),
+  }))
+}
+
+/**
+ * 搜索：按关键字找患者与其就诊记录。
+ * 命中口径 —— 患者姓名包含关键字，或某次就诊的日期标签包含关键字，或该次脉象里出现过该符号（如「↑」「X」）。
+ * 返回的每个患者带 matchType：all（无关键字，列出全部）／name（姓名命中）／visit（有次记录命中）。
+ */
+export function searchPatients(db, q) {
+  const kw = String(q ?? '').trim()
+  if (!kw) {
+    return listPatients(db).map((p) => ({ ...p, matchType: 'all', matchedVisits: [] }))
+  }
+  const rows = db.prepare('SELECT id, name, layout, updated_at FROM patients').all()
+  const out = []
+  for (const r of rows) {
+    const visits = db
+      .prepare('SELECT id, label, at, pulse_values FROM visits WHERE patient_id = ? ORDER BY seq, at')
+      .all(r.id)
+    const nameHit = r.name.includes(kw)
+    const hitVisits = visits.filter((v) => v.label.includes(kw) || String(v.pulse_values).includes(kw))
+    if (!nameHit && hitVisits.length === 0) continue
+    out.push({
+      id: r.id,
+      name: r.name,
+      layout: r.layout,
+      visitCount: visits.length,
+      at: visits.length ? Number(visits[visits.length - 1].at) : Number(r.updated_at),
+      matchType: nameHit ? 'name' : 'visit',
+      matchedVisits: hitVisits.map((v) => ({ id: v.id, label: v.label, at: Number(v.at) })),
+    })
+  }
+  out.sort((a, b) => b.at - a.at)
+  return out
+}
+
+export function getPatient(db, id) {
+  const row = db.prepare('SELECT id, name, layout, updated_at FROM patients WHERE id = ?').get(id)
+  return row ? rowToPatient(db, row) : null
+}
+
+export function getVisit(db, id) {
+  const row = db.prepare('SELECT id, patient_id, label, at, pulse_values FROM visits WHERE id = ?').get(id)
+  if (!row) return null
+  return { ...rowToVisit(row), patientId: row.patient_id }
+}
+
+/**
+ * 存一位患者及其就诊记录（整份覆盖语义）：
+ * - 已存在的 visit（同 id）更新；新 visit 插入；库里多出来、本次没有的 visit 删除
+ * - patients 行不存在则新建
+ */
+export function putPatient(db, patient) {
+  const now = Date.now()
+  const id = patient.id || `p${now.toString(36)}${Math.random().toString(36).slice(2, 6)}`
+  const layout = patient.layout === 'seven' ? 'seven' : 'nine'
+  const visits = Array.isArray(patient.visits) ? patient.visits : []
+
+  db.exec('BEGIN')
+  try {
+    const exists = db.prepare('SELECT id FROM patients WHERE id = ?').get(id)
+    if (exists) {
+      db.prepare('UPDATE patients SET name = ?, layout = ?, updated_at = ? WHERE id = ?').run(
+        patient.name || '未命名',
+        layout,
+        now,
+        id,
+      )
+    } else {
+      db.prepare('INSERT INTO patients (id, name, layout, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(
+        id,
+        patient.name || '未命名',
+        layout,
+        now,
+        now,
+      )
+    }
+
+    const keep = new Set()
+    const upsert = db.prepare(
+      `INSERT INTO visits (id, patient_id, label, at, pulse_values, seq)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET label = excluded.label, at = excluded.at,
+         pulse_values = excluded.pulse_values, seq = excluded.seq, patient_id = excluded.patient_id`,
+    )
+    visits.forEach((v, i) => {
+      const vid = v.id || `v${now.toString(36)}${Math.random().toString(36).slice(2, 8)}`
+      keep.add(vid)
+      upsert.run(vid, id, v.label || '', Number(v.at) || now, JSON.stringify(v.values ?? {}), i)
+    })
+
+    // 本次没有的旧记录：删掉（患者级编辑语义）
+    const olds = db.prepare('SELECT id FROM visits WHERE patient_id = ?').all(id)
+    const del = db.prepare('DELETE FROM visits WHERE id = ?')
+    for (const o of olds) if (!keep.has(o.id)) del.run(o.id)
+
+    db.exec('COMMIT')
+  } catch (e) {
+    db.exec('ROLLBACK')
+    throw e
+  }
+  return getPatient(db, id)
+}
+
+/** 只改某一次就诊记录（单次编辑语义，不动该患者的其它次） */
+export function putVisit(db, id, patch) {
+  const cur = getVisit(db, id)
+  if (!cur) return null
+  const label = typeof patch.label === 'string' ? patch.label : cur.label
+  const values = patch.values && typeof patch.values === 'object' ? patch.values : cur.values
+  const at = Number(patch.at) || cur.at
+  db.prepare('UPDATE visits SET label = ?, pulse_values = ?, at = ? WHERE id = ?').run(
+    label,
+    JSON.stringify(values),
+    at,
+    id,
+  )
+  db.prepare('UPDATE patients SET updated_at = ? WHERE id = ?').run(Date.now(), cur.patientId)
+  return getVisit(db, id)
+}
+
+/** 只改患者姓名 */
+export function renamePatient(db, id, name) {
+  const cur = getPatient(db, id)
+  if (!cur) return null
+  db.prepare('UPDATE patients SET name = ?, updated_at = ? WHERE id = ?').run(
+    name || '未命名',
+    Date.now(),
+    id,
+  )
+  return getPatient(db, id)
+}
+
+export function deleteVisit(db, id) {
+  const info = db.prepare('DELETE FROM visits WHERE id = ?').run(id)
+  return Number(info.changes) > 0
+}
+
+export function deletePatient(db, id) {
+  const info = db.prepare('DELETE FROM patients WHERE id = ?').run(id)
+  return Number(info.changes) > 0
+}
