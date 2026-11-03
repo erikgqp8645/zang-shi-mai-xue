@@ -10,6 +10,13 @@
 --
 -- custom_symbols 是使用者自建的符号（如「涩」记作 S）：
 -- 讲义 p33–34 的固定符号集之外另加，与固定符号并列使用，代码不得与固定符号重复。
+--
+-- medication 是「用药记录」：使用者自己填实际用的是什么方、加减与服法。
+-- 一次就诊（visit）可挂多条方（对服、并行、上中下焦分服等）。
+-- 表内只是使用者的记录，工具不替使用者加减方、不下诊断。
+-- pulse 是对应脉象的**文字**表述；symbols 是对应脉象的**符号**表述
+-- （JSON，key 同 visits.pulse_values：`手|部位|取法`，值为符号代码数组）——
+-- 两者并存，同一处用药可同时记文字与符号。
 
 PRAGMA foreign_keys = ON;
 
@@ -31,6 +38,22 @@ CREATE TABLE IF NOT EXISTS visits (
 );
 
 CREATE INDEX IF NOT EXISTS visits_by_patient ON visits (patient_id, seq);
+
+CREATE TABLE IF NOT EXISTS medication (
+  id         TEXT PRIMARY KEY,
+  patient_id TEXT NOT NULL REFERENCES patients (id) ON DELETE CASCADE,
+  visit_id   TEXT NOT NULL REFERENCES visits (id) ON DELETE CASCADE,
+  seq        INTEGER NOT NULL,
+  name       TEXT NOT NULL,
+  pulse      TEXT,
+  symbols    TEXT,
+  adjust     TEXT,
+  usage      TEXT,
+  note       TEXT,
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS medication_by_patient ON medication (patient_id, visit_id, seq);
 
 CREATE TABLE IF NOT EXISTS custom_symbols (
   code       TEXT PRIMARY KEY,

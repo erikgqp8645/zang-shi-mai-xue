@@ -449,27 +449,42 @@ button:disabled {
   margin-top: 20px;
 }
 
-/* ---------- 底排：符号录入 ＋ 寸关尺图示（两块等高） ---------- */
+/* ---------- 底排：左列「符号录入 → 用药记录」｜ 右列「寸关尺图示」 ---------- */
 
 .pr-bottom {
   display: grid;
-  grid-template-columns: minmax(320px, 380px) 1fr;
+  grid-template-columns: minmax(520px, 620px) 1fr;
   gap: 20px;
   margin-top: 20px;
-  align-items: stretch;
+  align-items: start;
 }
 
-/* 等高时「手输组合」沉到卡片底部，符号组仍从顶部排下来 */
-.pr-bottom > .pr-panel {
+/* 左列：符号录入在上，用药记录紧跟其下 */
+.pr-bottom-left {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+/* 左列里两块之间靠 flex gap 排开，别再叠加各自的上外边距 */
+.pr-bottom-left > .pr-panel,
+.pr-bottom-left > .pr-med {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* 「手输组合」沉到卡片底部，符号组仍从顶部排下来 */
+.pr-bottom-left > .pr-panel {
   display: flex;
   flex-direction: column;
 }
 
-.pr-bottom > .pr-panel .pr-manual {
+.pr-bottom-left > .pr-panel .pr-manual {
   margin-top: auto;
 }
 
-/* 图示卡片自带的下外边距会让两块差一截，网格里去掉才真等高 */
+/* 图示卡片自带的下外边距会让两块差一截，网格里去掉才真齐 */
 .pr-bottom > .pr-diagram {
   margin-bottom: 0;
 }
@@ -478,6 +493,422 @@ button:disabled {
   .pr-bottom {
     grid-template-columns: 1fr;
   }
+}
+
+/* ---------- 用药记录（使用者自己填实际用了什么方、加减、服法） ----------
+   表格外观照「病例记录」那张表：同一套边框、表头底色与字号（见 .pr-history-list 处的共用规则）。 */
+
+.pr-med {
+  background: var(--card);
+  border: 1px solid var(--divider);
+  border-radius: 4px;
+  padding: 12px 16px 14px;
+  margin-top: 20px;
+}
+
+.pr-med-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--divider);
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+.pr-med-head h2 {
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
+
+/* 每次就诊一小节：标题照病例记录的「每次就诊记录」，用虚线分隔 */
+.pr-med-group + .pr-med-group {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--divider);
+}
+.pr-med-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.pr-med-sub {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--sage);
+  font-weight: 600;
+}
+.pr-med-group-head .pr-link {
+  margin-left: auto;
+}
+.pr-med-flag {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--clay);
+}
+/* 当前日期的那一次，标题也标成同色 */
+.pr-med-group.is-active .pr-med-sub {
+  color: var(--clay);
+}
+
+/* 格内第二行：「选择」入口 ＋ 标注（讲稿有载／已选符号） */
+.pr-med-subline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 2px;
+}
+.pr-med-chip {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--clay);
+  border: 1px solid var(--divider);
+  border-radius: 2px;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+/* ---------- 选择器（弹窗）：左列处方 ＋ 右列脉象 ---------- */
+
+.pr-picker-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(44, 41, 37, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 50;
+}
+.pr-picker {
+  background: var(--card);
+  border: 1px solid var(--divider);
+  border-radius: 4px;
+  width: min(920px, 100%);
+  max-height: min(640px, 100%);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.pr-picker-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--divider);
+  padding: 10px 14px;
+}
+.pr-picker-head h3 {
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
+.pr-picker-head .pr-muted {
+  flex: 1;
+  font-size: 11px;
+}
+.pr-picker-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  overflow: hidden;
+  flex: 1;
+}
+.pr-picker-col {
+  padding: 10px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.pr-picker-col + .pr-picker-col {
+  border-left: 1px solid var(--divider);
+}
+.pr-picker-col h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--sage);
+  font-weight: 600;
+}
+.pr-picker-hint {
+  margin: 0 0 6px;
+  font-size: 11px;
+}
+.pr-picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 120px;
+}
+.pr-picker-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  border: none !important;
+  background: transparent !important;
+  padding: 4px 6px !important;
+  border-radius: 2px;
+  font: inherit;
+  color: var(--ink) !important;
+  cursor: pointer;
+}
+.pr-picker-item:hover {
+  background: var(--divider) !important;
+}
+.pr-picker-item.is-on {
+  background: #f6efe2 !important;
+}
+.pr-picker-no {
+  color: var(--sage);
+  font-size: 11px;
+  min-width: 20px;
+}
+.pr-picker-name {
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.pr-picker-ind {
+  color: var(--sage);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.pr-picker-codes {
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 14px;
+  white-space: nowrap;
+}
+.pr-picker-pulse .pr-picker-name {
+  min-width: 68px;
+}
+.pr-picker-none {
+  padding: 6px;
+  font-size: 12px;
+}
+/* 脉位筛选：选「右关」就只列右关的脉 */
+.pr-picker-pos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.pr-picker-chip {
+  font: inherit;
+  font-size: 12px;
+  border: 1px solid var(--divider) !important;
+  background: var(--card) !important;
+  color: var(--sage) !important;
+  border-radius: 999px;
+  padding: 1px 10px !important;
+  cursor: pointer;
+}
+.pr-picker-chip.is-on {
+  border-color: var(--ink) !important;
+  background: var(--ink) !important;
+  color: var(--paper) !important;
+}
+/* 脉位组合：一次选多个脉位（双关同治／肝肺同治…） */
+.pr-picker-sub {
+  margin: 4px 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sage);
+  letter-spacing: 0.04em;
+}
+.pr-picker-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 4px;
+}
+.pr-picker-grp {
+  font-size: 12px;
+}
+/* 这一组的成员也都在选择里，但不是使用者点的那一组（浅色，弱提示） */
+.pr-picker-grp.is-cover {
+  border-color: var(--clay) !important;
+  color: var(--clay) !important;
+  border-style: dashed !important;
+}
+.pr-picker-grp.is-off {
+  opacity: 0.4;
+  cursor: default;
+}
+/* 选中组合的出处（讲次／页码）：最多几行，太多就自己滚 */
+.pr-picker-srcs {
+  max-height: 5.6em;
+  overflow-y: auto;
+  margin: 0 0 6px;
+}
+.pr-picker-src {
+  margin: 0 0 2px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--clay);
+}
+/* 页脚：自动写入左格的那段文字 */
+.pr-picker-auto {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  max-width: 46%;
+}
+.pr-picker-foot {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--divider);
+  padding: 8px 14px;
+}
+.pr-picker-picked {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex: 1;
+  font-size: 12px;
+}
+.pr-picker-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+@media (max-width: 720px) {
+  .pr-picker-body {
+    grid-template-columns: 1fr;
+  }
+  .pr-picker-col + .pr-picker-col {
+    border-left: none;
+    border-top: 1px solid var(--divider);
+  }
+}
+.pr-med-empty {
+  margin: 0 0 8px;
+}
+
+/* 表内的输入框：默认就是普通文字，悬停/聚焦才显出框线 */
+.pr-med-table input[type='text'] {
+  width: 100%;
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 3px;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 2px;
+}
+.pr-med-table input[type='text']:hover {
+  border-color: var(--divider);
+}
+.pr-med-table input[type='text']:focus {
+  outline: none;
+  border-color: var(--clay);
+  background: var(--card);
+}
+.pr-med-table td .pr-med-flag {
+  display: block;
+  margin-top: 1px;
+}
+
+/* 列宽：窄栏里按内容分配 */
+.pr-med-table th:nth-of-type(1) {
+  width: 22%;
+}
+.pr-med-table th:nth-of-type(2) {
+  width: 23%;
+}
+.pr-med-table th:nth-of-type(3) {
+  width: 15%;
+}
+.pr-med-table th:nth-of-type(4) {
+  width: 17%;
+}
+.pr-med-table th:nth-of-type(5) {
+  width: 15%;
+}
+.pr-med-table th:nth-of-type(6) {
+  width: 40px;
+}
+
+/* 操作列：与病例记录的「操作」列同款。
+   注意：td 本身不能设 display:flex —— flex 格在 Chrome 里不随行高拉伸，
+   边框会缩成一个小方块；这里让 td 保持 table-cell，按钮内联排。 */
+.pr-med-ops {
+  white-space: nowrap;
+}
+.pr-med-ops > button {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 10px;
+}
+.pr-med-ops > button:last-child {
+  margin-right: 0;
+}
+
+/* 讲稿第二讲的组成／服法（原文照录，只读） */
+.pr-med-ref {
+  border-left: 3px solid var(--clay);
+  background: #faf6ee;
+  padding: 8px 12px;
+  margin: 4px 0 12px;
+  font-size: 13px;
+}
+.pr-med-ref p {
+  margin: 2px 0;
+}
+.pr-med-ref-title {
+  font-weight: 600;
+}
+
+/* 讲义 p42 原表对照 */
+.pr-med-refbox {
+  border-top: 1px solid var(--divider);
+  padding-top: 10px;
+}
+.pr-med-refbox-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.pr-med-search {
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 7px;
+  margin: 0 0 8px;
+  width: 320px;
+  max-width: 100%;
+  border: 1px solid var(--divider);
+  border-radius: 3px;
+  background: #fff;
+  color: var(--ink);
+}
+.pr-med-search:focus {
+  outline: none;
+  border-color: var(--clay);
+}
+/* 原表文字多，竖向顶格排 */
+.pr-med-reftable td {
+  vertical-align: top;
+}
+.pr-med-reftable td:nth-of-type(1) {
+  width: 34px;
+  color: var(--sage);
+  text-align: center;
+}
+.pr-med-reftable td:nth-of-type(2) {
+  width: 24%;
 }
 
 .pr-panel {
@@ -547,25 +978,35 @@ button:disabled {
   color: var(--high);
   line-height: 1.6;
 }
-.pr-history-list {
+/* 病例记录表与用药记录表共用同一套外观（边框／表头底色／字号） */
+.pr-history-list,
+.pr-med-table,
+.pr-med-reftable {
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
 }
 .pr-history-list th,
-.pr-history-list td {
+.pr-history-list td,
+.pr-med-table th,
+.pr-med-table td,
+.pr-med-reftable th,
+.pr-med-reftable td {
   border: 1px solid var(--divider);
   padding: 5px 8px;
   text-align: left;
   vertical-align: middle;
 }
-.pr-history-list thead th {
+.pr-history-list thead th,
+.pr-med-table thead th,
+.pr-med-reftable thead th {
   background: var(--paper);
   font-weight: 600;
   color: var(--sage);
   letter-spacing: 0.04em;
 }
-.pr-history-list tr.is-editing td {
+.pr-history-list tr.is-editing td,
+.pr-med-table tr.is-focus td {
   background: #f6efe2;
 }
 .pr-history-name {
@@ -601,11 +1042,17 @@ button:disabled {
   line-height: 1.7;
   max-width: 460px;
 }
+/* 操作列：按钮内联排（td 不设 flex，否则边框不随行高拉伸） */
 .pr-history-ops {
-  display: flex;
-  align-items: center;
-  gap: 10px;
   white-space: nowrap;
+}
+.pr-history-ops > button {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 10px;
+}
+.pr-history-ops > button:last-child {
+  margin-right: 0;
 }
 .pr-history-preview {
   margin-top: 10px;

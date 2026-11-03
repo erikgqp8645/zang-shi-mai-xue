@@ -25,7 +25,20 @@ export function openDb() {
   const db = new DatabaseSync(DB_PATH)
   db.exec('PRAGMA foreign_keys = ON;')
   db.exec(readFileSync(join(here, 'schema.sql'), 'utf8'))
+  migrate(db)
   return db
+}
+
+/**
+ * 旧库迁移：建表语句里的列是后加的，老库要补上。
+ * （CREATE TABLE IF NOT EXISTS 不会给已存在的表补列。）
+ */
+function migrate(db) {
+  const cols = db.prepare('PRAGMA table_info(medication)').all()
+  if (cols.length === 0) return
+  if (!cols.some((c) => c.name === 'symbols')) {
+    db.exec('ALTER TABLE medication ADD COLUMN symbols TEXT')
+  }
 }
 
 function parseValues(json) {
@@ -175,6 +188,9 @@ export function putPatient(db, patient) {
     const del = db.prepare('DELETE FROM visits WHERE id = ?')
     for (const o of olds) if (!keep.has(o.id)) del.run(o.id)
 
+    // 用药记录：整份覆盖（挂在本次的 visits 上；被删掉的 visit 其用药随之级联删除）
+    writeMedicationRows(db, id, patient.medications, null)
+
     db.exec('COMMIT')
   } catch (e) {
     db.exec('ROLLBACK')
@@ -190,13 +206,24 @@ export function putVisit(db, id, patch) {
   const label = typeof patch.label === 'string' ? patch.label : cur.label
   const values = patch.values && typeof patch.values === 'object' ? patch.values : cur.values
   const at = Number(patch.at) || cur.at
-  db.prepare('UPDATE visits SET label = ?, pulse_values = ?, at = ? WHERE id = ?').run(
-    label,
-    JSON.stringify(values),
-    at,
-    id,
-  )
-  db.prepare('UPDATE patients SET updated_at = ? WHERE id = ?').run(Date.now(), cur.patientId)
+  db.exec('BEGIN')
+  try {
+    db.prepare('UPDATE visits SET label = ?, pulse_values = ?, at = ? WHERE id = ?').run(
+      label,
+      JSON.stringify(values),
+      at,
+      id,
+    )
+    db.prepare('UPDATE patients SET updated_at = ? WHERE id = ?').run(Date.now(), cur.patientId)
+    // 用药：只写回这一次的（该患者其它次的用药不动）
+    if (Array.isArray(patch.medications)) {
+      writeMedicationRows(db, cur.patientId, patch.medications, id)
+    }
+    db.exec('COMMIT')
+  } catch (e) {
+    db.exec('ROLLBACK')
+    throw e
+  }
   return getVisit(db, id)
 }
 
@@ -219,6 +246,143 @@ export function deleteVisit(db, id) {
 
 export function deletePatient(db, id) {
   const info = db.prepare('DELETE FROM patients WHERE id = ?').run(id)
+  return Number(info.changes) > 0
+}
+
+/* ---------------- 用药记录（使用者自己填实际用什么方） ---------------- */
+
+/** 一条用药记录 */
+function rowToMedication(row) {
+  return {
+    id: row.id,
+    patientId: row.patient_id,
+    visitId: row.visit_id,
+    name: row.name,
+    pulse: row.pulse ?? '',
+    symbols: parseValues(row.symbols),
+    adjust: row.adjust ?? '',
+    usage: row.usage ?? '',
+    note: row.note ?? '',
+    createdAt: Number(row.created_at),
+  }
+}
+
+/** 某位患者的全部用药记录（按就诊顺序、组内顺序） */
+export function listMedication(db, patientId) {
+  return db
+    .prepare(
+      `SELECT id, patient_id, visit_id, name, pulse, symbols, adjust, usage, note, created_at
+         FROM medication WHERE patient_id = ? ORDER BY visit_id, seq, created_at`,
+    )
+    .all(patientId)
+    .map(rowToMedication)
+}
+
+/** 某一次就诊的用药记录 */
+export function listVisitMedication(db, visitId) {
+  return db
+    .prepare(
+      `SELECT id, patient_id, visit_id, name, pulse, symbols, adjust, usage, note, created_at
+         FROM medication WHERE visit_id = ? ORDER BY seq, created_at`,
+    )
+    .all(visitId)
+    .map(rowToMedication)
+}
+
+/**
+ * 写一批用药记录（**不开事务**，由调用方控制）。
+ * - 同 id 更新；新 id 插入；库里多出来、本次没有的删除
+ * - visitId 传 null 表示整位患者覆盖；传具体 id 表示只覆盖那一次就诊
+ * - visit_id 必须是该患者已有的就诊记录（外键约束）
+ */
+function writeMedicationRows(db, patientId, rows, visitId = null) {
+  const list = Array.isArray(rows) ? rows : []
+  const now = Date.now()
+  const upsert = db.prepare(
+    `INSERT INTO medication (id, patient_id, visit_id, seq, name, pulse, symbols, adjust, usage, note, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET visit_id = excluded.visit_id, seq = excluded.seq,
+       name = excluded.name, pulse = excluded.pulse, symbols = excluded.symbols,
+       adjust = excluded.adjust, usage = excluded.usage, note = excluded.note`,
+  )
+  const keep = new Set()
+  const hasVisitAny = db.prepare('SELECT id FROM visits WHERE id = ?')
+  const hasVisitOwn = db.prepare('SELECT id FROM visits WHERE id = ? AND patient_id = ?')
+  // 组内序号：同一次就诊内按传入顺序编号
+  const seqOf = new Map()
+  list.forEach((m) => {
+    const id = m.id || `m${now.toString(36)}${Math.random().toString(36).slice(2, 8)}`
+    const name = String(m.name ?? '').trim()
+    const pulse = String(m.pulse ?? '').trim()
+    const adjust = String(m.adjust ?? '').trim()
+    const usage = String(m.usage ?? '').trim()
+    const note = String(m.note ?? '').trim()
+    const symbols = m.symbols && typeof m.symbols === 'object' ? m.symbols : {}
+    const hasSymbols = Object.keys(symbols).some((k) => (symbols[k] ?? []).length > 0)
+    // 整行全空才丢（只填了「对应脉象」或只填了加减，也是使用者的记录，不能静默消失）
+    if (!name && !pulse && !adjust && !usage && !note && !hasSymbols) return
+    const vid = visitId ?? String(m.visitId ?? '')
+    // 外键保护：跳过指向不存在（或不属于该患者）就诊记录的用药，免得整个保存失败
+    const exists = visitId ? hasVisitAny.get(vid) : hasVisitOwn.get(vid, patientId)
+    if (!exists) return
+    keep.add(id)
+    const seq = seqOf.get(vid) ?? 0
+    seqOf.set(vid, seq + 1)
+    upsert.run(
+      id,
+      patientId,
+      vid,
+      seq,
+      name,
+      pulse,
+      JSON.stringify(symbols),
+      adjust,
+      usage,
+      note,
+      now,
+    )
+  })
+  // 本次没有的旧用药：删掉（整份覆盖语义）
+  const olds = visitId
+    ? db.prepare('SELECT id FROM medication WHERE visit_id = ?').all(visitId)
+    : db.prepare('SELECT id FROM medication WHERE patient_id = ?').all(patientId)
+  const del = db.prepare('DELETE FROM medication WHERE id = ?')
+  for (const o of olds) if (!keep.has(o.id)) del.run(o.id)
+}
+
+/**
+ * 写一位患者的用药记录（整份覆盖语义）。
+ */
+export function putMedication(db, patientId, rows) {
+  db.exec('BEGIN')
+  try {
+    writeMedicationRows(db, patientId, rows, null)
+    db.exec('COMMIT')
+  } catch (e) {
+    db.exec('ROLLBACK')
+    throw e
+  }
+  return listMedication(db, patientId)
+}
+
+/** 只改某一次就诊的用药（单次编辑语义，不动该患者的其它次） */
+export function putVisitMedication(db, visitId, rows) {
+  const cur = getVisit(db, visitId)
+  if (!cur) return null
+  db.exec('BEGIN')
+  try {
+    writeMedicationRows(db, cur.patientId, rows, visitId)
+    db.exec('COMMIT')
+  } catch (e) {
+    db.exec('ROLLBACK')
+    throw e
+  }
+  return listVisitMedication(db, visitId)
+}
+
+/** 删一条用药记录 */
+export function deleteMedication(db, id) {
+  const info = db.prepare('DELETE FROM medication WHERE id = ?').run(id)
   return Number(info.changes) > 0
 }
 

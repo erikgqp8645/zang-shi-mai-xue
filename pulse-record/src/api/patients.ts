@@ -41,6 +41,21 @@ export interface Patient extends PatientSummary {
   visits: Visit[]
 }
 
+/** 一条用药记录（使用者自己填实际用什么方、加减、服法） */
+export interface MedicationRow {
+  id: string
+  /** 挂在哪一次就诊 */
+  visitId: string
+  name: string
+  /** 对应脉象（文字表述） */
+  pulse: string
+  /** 对应脉象（符号表述）：key 同 visits.pulse_values，值为符号代码数组；与文字并存 */
+  symbols: Record<string, string[]>
+  adjust: string
+  usage: string
+  note: string
+}
+
 /** 服务端没起／起不来时，给出可照做的提示，而不是静默丢数据 */
 const OFFLINE =
   '连不上本地病例记录服务（/api/patients）。请用 npm run dev 起前后端（开发），或 npm run build && npm start（本地应用）。'
@@ -102,6 +117,19 @@ export async function savePatient(input: {
   name: string
   layout: LayoutMode
   visits: { id?: string; label: string; at?: number; values: Record<string, string[]> }[]
+  /** 用药记录（整份覆盖；挂在 visits 上） */
+  medications?: {
+    id?: string
+    visitId: string
+    name: string
+    /** 对应脉象（文字） */
+    pulse?: string
+    /** 对应脉象（符号），与文字并存 */
+    symbols?: Record<string, string[]>
+    adjust?: string
+    usage?: string
+    note?: string
+  }[]
 }): Promise<Patient> {
   const { patient } = await request<{ patient: Patient }>('/api/patients', {
     method: 'POST',
@@ -124,16 +152,66 @@ export async function deletePatient(id: string): Promise<void> {
   await request<{ ok: true }>(`/api/patients/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
-/** 改一次就诊记录（日期标签／脉象值） */
+/** 改一次就诊记录（日期标签／脉象值／该次用药） */
 export async function updateVisit(
   id: string,
-  patch: { label?: string; values?: Record<string, string[]>; at?: number },
+  patch: {
+    label?: string
+    values?: Record<string, string[]>
+    at?: number
+    medications?: {
+      id?: string
+      name: string
+      pulse?: string
+      symbols?: Record<string, string[]>
+      adjust?: string
+      usage?: string
+      note?: string
+    }[]
+  },
 ): Promise<Visit> {
   const { visit } = await request<{ visit: Visit }>(`/api/visits/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
   })
   return visit
+}
+
+/** 取某位患者的全部用药记录 */
+export async function listMedication(patientId: string): Promise<MedicationRow[]> {
+  const { medication } = await request<{ medication: MedicationRow[] }>(
+    `/api/patients/${encodeURIComponent(patientId)}/medication`,
+  )
+  return medication ?? []
+}
+
+/** 取某一次就诊的用药记录 */
+export async function listVisitMedication(visitId: string): Promise<MedicationRow[]> {
+  const { medication } = await request<{ medication: MedicationRow[] }>(
+    `/api/visits/${encodeURIComponent(visitId)}/medication`,
+  )
+  return medication ?? []
+}
+
+/** 整份覆盖某位患者的用药记录 */
+export async function saveMedication(
+  patientId: string,
+  rows: {
+    id?: string
+    visitId: string
+    name: string
+    pulse?: string
+    symbols?: Record<string, string[]>
+    adjust?: string
+    usage?: string
+    note?: string
+  }[],
+): Promise<MedicationRow[]> {
+  const { medication } = await request<{ medication: MedicationRow[] }>(
+    `/api/patients/${encodeURIComponent(patientId)}/medication`,
+    { method: 'POST', body: JSON.stringify({ medications: rows }) },
+  )
+  return medication ?? []
 }
 
 /** 删除一次就诊记录 */
