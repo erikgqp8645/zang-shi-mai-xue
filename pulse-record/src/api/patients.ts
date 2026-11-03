@@ -8,7 +8,7 @@
  * 与旧版的差别：不再写浏览器 localStorage —— 清缓存、换浏览器、换机都还在。
  */
 
-import type { LayoutMode } from '../domain/types'
+import type { Constitution, LayoutMode, Therapy } from '../domain/types'
 
 /** 一次就诊记录（某一天的脉象） */
 export interface Visit {
@@ -19,6 +19,10 @@ export interface Visit {
   at: number
   /** key = `${hand}|${organ}|${depth}`，值为符号代码数组 */
   values: Record<string, string[]>
+  /** 使用者自判的体质（讲义 p47「①判体质」）；null＝未判 */
+  constitution?: Constitution | null
+  /** 使用者自选的疗法（讲义 p47「②定疗法」）；null＝未定 */
+  therapy?: Therapy | null
 }
 
 /** 患者列表条目 */
@@ -116,7 +120,16 @@ export async function savePatient(input: {
   id?: string
   name: string
   layout: LayoutMode
-  visits: { id?: string; label: string; at?: number; values: Record<string, string[]> }[]
+  visits: {
+    id?: string
+    label: string
+    at?: number
+    values: Record<string, string[]>
+    /** 使用者自判的体质（null＝未判） */
+    constitution?: Constitution | null
+    /** 使用者自选的疗法（null＝未定） */
+    therapy?: Therapy | null
+  }[]
   /** 用药记录（整份覆盖；挂在 visits 上） */
   medications?: {
     id?: string
@@ -159,6 +172,10 @@ export async function updateVisit(
     label?: string
     values?: Record<string, string[]>
     at?: number
+    /** 使用者自判的体质（传 null＝清除） */
+    constitution?: Constitution | null
+    /** 使用者自选的疗法（传 null＝清除） */
+    therapy?: Therapy | null
     medications?: {
       id?: string
       name: string

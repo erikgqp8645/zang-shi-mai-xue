@@ -1,10 +1,13 @@
 import {
   BIANMAI_DEFINITION,
+  CONSTITUTION_OPTIONS,
   STATE_HINTS,
-  type Constituion,
+  THERAPY_OPTIONS,
+  therapyOf,
   type Prescription,
-  type TriadResult,
+  type TriadReference,
 } from '../domain/triad'
+import type { Constitution, Therapy } from '../domain/types'
 
 /**
  * 开方三部曲 · 框架
@@ -139,7 +142,7 @@ export function BianmaiNote() {
 }
 
 /** 状态佐证（图上两个云朵框；是佐证，不是脉象判据） */
-export function StateHints({ constitution }: { constitution: Constituion | null }) {
+export function StateHints({ constitution }: { constitution: Constitution | null }) {
   return (
     <div className="pr-triad-states">
       <span className="pr-triad-states-label">状态（佐证，不是脉象判据）</span>
@@ -155,10 +158,115 @@ export function StateHints({ constitution }: { constitution: Constituion | null 
   )
 }
 
+/* ------------------------------------------------------------------ */
+/* 手动选择：①判体质 / ②定疗法                                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * ①判体质 —— 由使用者自己判断后点选。
+ *
+ * 图上三个椭圆（讲义 p47）：肾虚体质 / 上盛下虚体质 / 平和体质。
+ * 工具只记录选择结果，不代判、不下诊断。
+ */
+export function ConstitutionPicker({
+  value,
+  onChange,
+  onClear,
+}: {
+  value: Constitution | null
+  onChange: (c: Constitution) => void
+  onClear?: () => void
+}) {
+  return (
+    <div className="pr-triad-pick">
+      <div className="pr-triad-pick-head">
+        <span className="pr-triad-pick-title">判体质</span>
+        <span className="pr-triad-pick-note">自己判断后点选（工具不代判）</span>
+        {value && (
+          <button type="button" className="pr-triad-pick-clear" onClick={onClear}>
+            清除
+          </button>
+        )}
+      </div>
+      <div className="pr-triad-pick-opts">
+        {CONSTITUTION_OPTIONS.map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            className={`pr-triad-pick-opt${value === o.id ? ' is-on' : ''}`}
+            onClick={() => onChange(o.id)}
+            title={o.path}
+          >
+            <span className="pr-triad-pick-name">{o.label}</span>
+            <span className="pr-triad-pick-path">{o.path}</span>
+            {o.stateHint && <span className="pr-triad-pick-hint">{o.stateHint}</span>}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * ②定疗法 —— 由使用者自己点选。
+ *
+ * 图上三个六边形（讲义 p47）：三焦疗法 / 五脏疗法 / 一体疗法。
+ * 选了体质会按图上的配对带出疗法（suggested），带出后仍可改。
+ */
+export function TherapyPicker({
+  value,
+  onChange,
+  onClear,
+  constitution,
+}: {
+  value: Therapy | null
+  onChange: (t: Therapy) => void
+  onClear?: () => void
+  /** 已选的体质；用来提示「这个疗法是随体质带出来的」 */
+  constitution?: Constitution | null
+}) {
+  const carried = constitution ? therapyOf(constitution) : null
+  return (
+    <div className="pr-triad-pick">
+      <div className="pr-triad-pick-head">
+        <span className="pr-triad-pick-title">定疗法</span>
+        <span className="pr-triad-pick-note">
+          {carried ? `随体质带出「${carried}」，仍可改` : '自己点选（工具不代判）'}
+        </span>
+        {value && (
+          <button type="button" className="pr-triad-pick-clear" onClick={onClear}>
+            清除
+          </button>
+        )}
+      </div>
+      <div className="pr-triad-pick-opts">
+        {THERAPY_OPTIONS.map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            className={`pr-triad-pick-opt${value === o.id ? ' is-on' : ''}${
+              carried === o.id && value !== o.id ? ' is-carried' : ''
+            }`}
+            onClick={() => onChange(o.id)}
+          >
+            <span className="pr-triad-pick-name">{o.label}</span>
+            <span className="pr-triad-pick-path">
+              {o.prescriptions.map((p) => p.name).join('、')}
+            </span>
+            {carried === o.id && value !== o.id && (
+              <span className="pr-triad-pick-hint">随体质带出</span>
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /** 开方药清单（③ 里照图列出的方名） */
 export function RxList({ prescriptions }: { prescriptions: Prescription[] }) {
   if (prescriptions.length === 0) {
-    return <p className="pr-triad-rx-empty">录入脉象后按讲义 p47 图上的判据列出</p>
+    return <p className="pr-triad-rx-empty">在 ② 选定疗法后，按讲义 p47 图列出那一支的方</p>
   }
   return (
     <ul className="pr-triad-rx-list">
@@ -173,12 +281,12 @@ export function RxList({ prescriptions }: { prescriptions: Prescription[] }) {
   )
 }
 
-/** 判据命中提示（框头用，可点击定位） */
+/** 参考判据命中提示（框头用，可点击定位） */
 export function HitNote({
   result,
   onFocusCells,
 }: {
-  result: TriadResult
+  result: TriadReference
   onFocusCells?: (cells: string[]) => void
 }) {
   const { bianmai, chimai, chimaiReached, recorded } = result
@@ -191,7 +299,7 @@ export function HitNote({
           onClick={() => onFocusCells?.(bianmai.cells)}
           title="定位到命中的格子"
         >
-          有变脉？已命中 {bianmai.cells.length} 处
+          参考：有变脉？已命中 {bianmai.cells.length} 处
         </button>
       )}
       {recorded && chimaiReached && chimai && (
@@ -201,11 +309,11 @@ export function HitNote({
           onClick={() => onFocusCells?.(chimai.cells)}
           title="定位到命中的格子"
         >
-          尺脉弱？已命中 {chimai.cells.length} 处
+          参考：尺脉弱？已命中 {chimai.cells.length} 处
         </button>
       )}
       {recorded && chimaiReached && !chimai && (
-        <span className="pr-triad-head-tag">尺脉不弱</span>
+        <span className="pr-triad-head-tag">参考：尺脉不弱</span>
       )}
     </>
   )

@@ -2736,3 +2736,182 @@ button:disabled {
   border-radius: 2px;
   color: var(--ink);
 }
+
+/* ---------- 置顶：讲义 p47「开方三部曲」原图 ---------- */
+.pr-triad-fig {
+  margin: 0 0 16px;
+  padding: 10px 12px 8px;
+  background: var(--card);
+  border: 1px solid var(--divider);
+}
+
+.pr-triad-fig-btn {
+  display: block;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: 0;
+  cursor: zoom-in;
+}
+
+.pr-triad-fig-btn img {
+  display: block;
+  width: 100%;
+  /* 不超过原图分辨率（701×605），免得放大发虚；点开可看原大 */
+  max-width: 720px;
+  max-height: 56vh;
+  margin: 0 auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.pr-triad-fig-cap {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--sage);
+  text-align: center;
+}
+
+/* 点开放大（手机上字小，用来看清原图） */
+.pr-triad-zoom {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+  background: rgba(30, 27, 24, 0.88);
+  cursor: zoom-out;
+}
+
+.pr-triad-zoom img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.pr-triad-zoom-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  font-size: 20px;
+  line-height: 1;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* ---------- ①判体质 / ②定疗法：手动选择 ---------- */
+.pr-triad-pick {
+  margin-bottom: 10px;
+  padding: 10px 12px 12px;
+  background: #fbf8f2;
+  border: 1px solid var(--divider);
+}
+
+.pr-triad-pick-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.pr-triad-pick-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.pr-triad-pick-note {
+  font-size: 11.5px;
+  color: var(--sage);
+}
+
+.pr-triad-pick-clear {
+  margin-left: auto;
+  padding: 1px 9px;
+  font-size: 11.5px;
+  color: var(--sage);
+  background: none;
+  border: 1px solid var(--divider);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.pr-triad-pick-clear:hover {
+  color: var(--high);
+  border-color: var(--high);
+}
+
+.pr-triad-pick-opts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.pr-triad-pick-opt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  text-align: left;
+  background: var(--card);
+  border: 1px solid var(--divider);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.pr-triad-pick-opt:hover {
+  border-color: var(--sage);
+}
+
+.pr-triad-pick-opt.is-on {
+  background: #fdf1e7;
+  border-color: var(--clay);
+  box-shadow: inset 0 0 0 1px var(--clay);
+}
+
+.pr-triad-pick-opt.is-carried {
+  border-style: dashed;
+  border-color: var(--sage);
+}
+
+.pr-triad-pick-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.pr-triad-pick-opt.is-on .pr-triad-pick-name {
+  color: var(--clay);
+}
+
+.pr-triad-pick-path {
+  font-size: 11px;
+  color: var(--sage);
+}
+
+.pr-triad-pick-hint {
+  font-size: 11px;
+  color: var(--clay);
+}
+
+@media (max-width: 720px) {
+  .pr-triad-fig {
+    padding: 8px 8px 6px;
+  }
+
+  .pr-triad-fig-btn img {
+    max-height: 46vh;
+  }
+
+  .pr-triad-pick-opts {
+    grid-template-columns: 1fr;
+  }
+}

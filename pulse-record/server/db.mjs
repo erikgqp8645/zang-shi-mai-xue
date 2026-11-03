@@ -34,10 +34,19 @@ export function openDb() {
  * （CREATE TABLE IF NOT EXISTS 不会给已存在的表补列。）
  */
 function migrate(db) {
-  const cols = db.prepare('PRAGMA table_info(medication)').all()
-  if (cols.length === 0) return
-  if (!cols.some((c) => c.name === 'symbols')) {
+  const meds = db.prepare('PRAGMA table_info(medication)').all()
+  if (meds.length > 0 && !meds.some((c) => c.name === 'symbols')) {
     db.exec('ALTER TABLE medication ADD COLUMN symbols TEXT')
+  }
+  // visits：使用者自判的体质与自选的疗法（讲义 p47 开方三部曲）
+  const cols = db.prepare('PRAGMA table_info(visits)').all()
+  if (cols.length > 0) {
+    if (!cols.some((c) => c.name === 'constitution')) {
+      db.exec('ALTER TABLE visits ADD COLUMN constitution TEXT')
+    }
+    if (!cols.some((c) => c.name === 'therapy')) {
+      db.exec('ALTER TABLE visits ADD COLUMN therapy TEXT')
+    }
   }
 }
 
@@ -50,6 +59,14 @@ function parseValues(json) {
   }
 }
 
+/** 体质与疗法的合法取值（讲义 p47 图上的用字）；不合规的一律当作未填 */
+const CONSTITUTIONS = ['肾虚', '上盛下虚', '平和']
+const THERAPIES = ['三焦疗法', '五脏疗法', '一体疗法']
+
+function pickEnum(list, value) {
+  return list.includes(value) ? value : null
+}
+
 /** 一次就诊记录 */
 function rowToVisit(row) {
   return {
@@ -57,13 +74,17 @@ function rowToVisit(row) {
     label: row.label,
     at: Number(row.at),
     values: parseValues(row.pulse_values),
+    constitution: pickEnum(CONSTITUTIONS, row.constitution),
+    therapy: pickEnum(THERAPIES, row.therapy),
   }
 }
 
 /** 一位患者 ＋ 其全部就诊记录 */
 function rowToPatient(db, row) {
   const visits = db
-    .prepare('SELECT id, label, at, pulse_values FROM visits WHERE patient_id = ? ORDER BY seq, at')
+    .prepare(
+      'SELECT id, label, at, pulse_values, constitution, therapy FROM visits WHERE patient_id = ? ORDER BY seq, at',
+    )
     .all(row.id)
     .map(rowToVisit)
   return {
@@ -109,7 +130,9 @@ export function searchPatients(db, q) {
   const out = []
   for (const r of rows) {
     const visits = db
-      .prepare('SELECT id, label, at, pulse_values FROM visits WHERE patient_id = ? ORDER BY seq, at')
+      .prepare(
+      'SELECT id, label, at, pulse_values, constitution, therapy FROM visits WHERE patient_id = ? ORDER BY seq, at',
+    )
       .all(r.id)
     const nameHit = r.name.includes(kw)
     const hitVisits = visits.filter((v) => v.label.includes(kw) || String(v.pulse_values).includes(kw))
@@ -134,7 +157,9 @@ export function getPatient(db, id) {
 }
 
 export function getVisit(db, id) {
-  const row = db.prepare('SELECT id, patient_id, label, at, pulse_values FROM visits WHERE id = ?').get(id)
+  const row = db
+    .prepare('SELECT id, patient_id, label, at, pulse_values, constitution, therapy FROM visits WHERE id = ?')
+    .get(id)
   if (!row) return null
   return { ...rowToVisit(row), patientId: row.patient_id }
 }
@@ -172,15 +197,25 @@ export function putPatient(db, patient) {
 
     const keep = new Set()
     const upsert = db.prepare(
-      `INSERT INTO visits (id, patient_id, label, at, pulse_values, seq)
-       VALUES (?, ?, ?, ?, ?, ?)
+      `INSERT INTO visits (id, patient_id, label, at, pulse_values, seq, constitution, therapy)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET label = excluded.label, at = excluded.at,
-         pulse_values = excluded.pulse_values, seq = excluded.seq, patient_id = excluded.patient_id`,
+         pulse_values = excluded.pulse_values, seq = excluded.seq, patient_id = excluded.patient_id,
+         constitution = excluded.constitution, therapy = excluded.therapy`,
     )
     visits.forEach((v, i) => {
       const vid = v.id || `v${now.toString(36)}${Math.random().toString(36).slice(2, 8)}`
       keep.add(vid)
-      upsert.run(vid, id, v.label || '', Number(v.at) || now, JSON.stringify(v.values ?? {}), i)
+      upsert.run(
+        vid,
+        id,
+        v.label || '',
+        Number(v.at) || now,
+        JSON.stringify(v.values ?? {}),
+        i,
+        pickEnum(CONSTITUTIONS, v.constitution),
+        pickEnum(THERAPIES, v.therapy),
+      )
     })
 
     // 本次没有的旧记录：删掉（患者级编辑语义）
@@ -206,14 +241,15 @@ export function putVisit(db, id, patch) {
   const label = typeof patch.label === 'string' ? patch.label : cur.label
   const values = patch.values && typeof patch.values === 'object' ? patch.values : cur.values
   const at = Number(patch.at) || cur.at
+  // 体质与疗法：patch 里带了这两个键就按给的写（可以是 null＝清除），没带就保持原值
+  const has = (k) => Object.prototype.hasOwnProperty.call(patch, k)
+  const constitution = has('constitution') ? pickEnum(CONSTITUTIONS, patch.constitution) : cur.constitution
+  const therapy = has('therapy') ? pickEnum(THERAPIES, patch.therapy) : cur.therapy
   db.exec('BEGIN')
   try {
-    db.prepare('UPDATE visits SET label = ?, pulse_values = ?, at = ? WHERE id = ?').run(
-      label,
-      JSON.stringify(values),
-      at,
-      id,
-    )
+    db.prepare(
+      'UPDATE visits SET label = ?, pulse_values = ?, at = ?, constitution = ?, therapy = ? WHERE id = ?',
+    ).run(label, JSON.stringify(values), at, constitution, therapy, id)
     db.prepare('UPDATE patients SET updated_at = ? WHERE id = ?').run(Date.now(), cur.patientId)
     // 用药：只写回这一次的（该患者其它次的用药不动）
     if (Array.isArray(patch.medications)) {

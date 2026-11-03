@@ -34,7 +34,11 @@ CREATE TABLE IF NOT EXISTS visits (
   label      TEXT NOT NULL,
   at         INTEGER NOT NULL,
   pulse_values TEXT NOT NULL,
-  seq        INTEGER NOT NULL
+  seq        INTEGER NOT NULL,
+  -- 使用者**自判**的体质（讲义 p47「①判体质」：肾虚／上盛下虚／平和）；NULL＝未判
+  constitution TEXT,
+  -- 使用者**自选**的疗法（讲义 p47「②定疗法」：三焦疗法／五脏疗法／一体疗法）；NULL＝未定
+  therapy     TEXT
 );
 
 CREATE INDEX IF NOT EXISTS visits_by_patient ON visits (patient_id, seq);
