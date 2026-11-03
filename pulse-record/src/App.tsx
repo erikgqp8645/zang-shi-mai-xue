@@ -604,17 +604,27 @@ export default function App() {
         onSelectSession={setActiveSessionId}
       />
 
-      {/* 符号录入 ＋ 寸关尺图示（并排相邻） */}
+      {/* 底排：左列「符号录入 → 用药记录」，右列「寸关尺图示」 */}
       <div className="pr-bottom">
-        <SymbolPalette
-          codes={selectedCodes}
-          target={selectedTarget}
-          onChange={(c) => selected && setCellCodes(selected, c)}
-          customSymbols={customSymbols}
-          onAddCustom={doAddCustomSymbol}
-          onDeleteCustom={doRemoveCustomSymbol}
-          error={symbolError}
-        />
+        <div className="pr-bottom-left">
+          <SymbolPalette
+            codes={selectedCodes}
+            target={selectedTarget}
+            onChange={(c) => selected && setCellCodes(selected, c)}
+            customSymbols={customSymbols}
+            onAddCustom={doAddCustomSymbol}
+            onDeleteCustom={doRemoveCustomSymbol}
+            error={symbolError}
+          />
+
+          {/* 用药记录（使用者自己填实际用了什么方、加减、服法） */}
+          <MedicationPanel
+            sessions={set.sessions}
+            activeSessionId={activeSessionId}
+            rows={medications}
+            onChange={setMedications}
+          />
+        </div>
 
         <PulseDiagram
           set={set}
@@ -627,14 +637,6 @@ export default function App() {
           onSelectSession={setActiveSessionId}
         />
       </div>
-
-      {/* 用药记录（使用者自己填实际用了什么方、加减、服法） */}
-      <MedicationPanel
-        sessions={set.sessions}
-        activeSessionId={activeSessionId}
-        rows={medications}
-        onChange={setMedications}
-      />
 
       {/* 判读提示放最后 */}
       <div className="pr-findings-row">

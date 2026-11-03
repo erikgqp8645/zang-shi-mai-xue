@@ -146,7 +146,7 @@ export function MedicationPanel({ sessions, activeSessionId, rows, onChange }: P
                         <input
                           type="text"
                           value={r.pulse}
-                          placeholder="如 右关弱且左关有"
+                          placeholder="如 右关弱"
                           onFocus={() => setFocusId(r.id)}
                           onChange={(e) => update(r.id, { pulse: e.target.value })}
                         />
@@ -164,7 +164,7 @@ export function MedicationPanel({ sessions, activeSessionId, rows, onChange }: P
                         <input
                           type="text"
                           value={r.usage}
-                          placeholder="如 午晚餐后半小时温服"
+                          placeholder="如 餐后温服"
                           onFocus={() => setFocusId(r.id)}
                           onChange={(e) => update(r.id, { usage: e.target.value })}
                         />
