@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { LayoutMode, RecordSet } from './domain/types'
+import type { Constitution, LayoutMode, RecordSet, Session, Therapy } from './domain/types'
 import { cellKey } from './domain/types'
 import { groupRows } from './domain/layout'
 import { todayYmd, ymdToLabel, ymdToTimestamp } from './domain/dates'
@@ -9,6 +9,19 @@ import { PulseTable, type CellRef } from './components/PulseTable'
 import { PulseDiagram } from './components/PulseDiagram'
 import { SymbolPalette } from './components/SymbolPalette'
 import { Findings, type SessionHit, type SessionFormulaHit } from './components/Findings'
+import {
+  BianmaiNote,
+  ConstitutionPicker,
+  HitNote,
+  RxList,
+  StateHints,
+  TherapyPicker,
+  TriadHeader,
+  TriadSection,
+  type TriadStep,
+} from './components/TriadFrame'
+import { TriadImage } from './components/TriadImage'
+import { prescriptionsOf, readTriadReference, therapyOf } from './domain/triad'
 import { HistoryPanel, type EditingRef } from './components/HistoryPanel'
 import { MedicationPanel } from './components/MedicationPanel'
 import type { Medication } from './domain/medication'
@@ -167,6 +180,126 @@ export default function App() {
     })
   }, [set, groups])
 
+  /**
+   * 当前选中那一次记录（①判体质、②定疗法、参考判据都针对它）。
+   */
+  const activeSession = useMemo<Session | null>(() => {
+    if (set.sessions.length === 0) return null
+    return set.sessions.find((x) => x.id === activeSessionId) ?? set.sessions[set.sessions.length - 1]
+  }, [set.sessions, activeSessionId])
+
+  /**
+   * 图上两条问句的**参考判据**（讲义 2026-10·p47）：
+   * 按当前选中那一次记录标出「有变脉？」「尺脉弱？」的命中位置。
+   * 只作参考——体质与疗法由使用者在 ① ② 里自己选，工具不代判。
+   */
+  const triadRef = useMemo(() => {
+    if (!activeSession) return null
+    const ctx: RuleContext = {
+      layout: set.layout,
+      get: (hand, organ, depth) => activeSession.values[cellKey(hand, organ, depth)] ?? [],
+      depths: (organ) => groups.find((g) => g.organ === organ)!.rows.map((r) => r.depth),
+    }
+    return readTriadReference(ctx)
+  }, [set.layout, groups, activeSession])
+
+  /** 使用者自选的体质与疗法（存在这一次记录上，随病例记录一起存） */
+  const manualConstitution: Constitution | null = activeSession?.constitution ?? null
+  const manualTherapy: Therapy | null = activeSession?.therapy ?? null
+  /** 按所选疗法，图上那一支的开方药 */
+  const manualPrescriptions = manualTherapy ? prescriptionsOf(manualTherapy) : []
+
+  /** 改某一次记录上的字段 */
+  const patchSession = (id: string, patch: Partial<Session>) =>
+    setSet((prev) => ({
+      ...prev,
+      sessions: prev.sessions.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+    }))
+
+  /** ①选体质：按图上的配对带出疗法（带出后仍可改） */
+  const pickConstitution = (c: Constitution) => {
+    if (!activeSession) return
+    patchSession(activeSession.id, { constitution: c, therapy: therapyOf(c) })
+  }
+
+  /** ①清除体质：疗法是随体质带出的，一并清掉 */
+  const clearConstitution = () => {
+    if (!activeSession) return
+    patchSession(activeSession.id, { constitution: null, therapy: null })
+  }
+
+  /** ②选疗法 */
+  const pickTherapy = (t: Therapy) => {
+    if (!activeSession) return
+    patchSession(activeSession.id, { therapy: t })
+  }
+
+  /** ②清除疗法（体质保留） */
+  const clearTherapy = () => {
+    if (!activeSession) return
+    patchSession(activeSession.id, { therapy: null })
+  }
+
+  /** 流程面板点击格子 → 定位到主表 */
+  const focusTriadCells = (cells: string[]) => {
+    const s = activeSession
+    if (!s || cells.length === 0) return
+    setHighlight(new Set(cells.map((c) => `${s.id}::${c}`)))
+    const [hand, organ, depth] = cells[0].split('|') as [CellRef['hand'], CellRef['organ'], CellRef['depth']]
+    setSelected({ sessionId: s.id, hand, organ, depth })
+  }
+
+  /**
+   * 三步的状态：按「有没有录脉象 → 有没有自判体质 → 有没有记用药」推进。
+   * 只标示走到哪一步，不替使用者决定该不该开方。
+   */
+  const triadSteps = useMemo<TriadStep[]>(() => {
+    const recorded = !!triadRef?.recorded
+    const judged = manualConstitution !== null
+    const prescribed =
+      !!activeSessionId && medications.some((m) => m.visitId === activeSessionId && m.name.trim() !== '')
+
+    /** 已完成的步数 → 下一个「进行中」 */
+    const doneCount = [recorded, judged, prescribed].filter(Boolean).length
+    const stateOf = (i: number): TriadStep['state'] => {
+      const ok = [recorded, judged, prescribed][i]
+      if (ok && doneCount > i) return 'done'
+      return doneCount === i ? 'current' : 'todo'
+    }
+
+    return [
+      {
+        no: '①',
+        title: '判体质',
+        note: '摸脉 → 判断方式 → 状态',
+        state: stateOf(0),
+        result: manualConstitution ? `${manualConstitution}体质` : undefined,
+      },
+      {
+        no: '②',
+        title: '定疗法',
+        note: '按体质定疗法',
+        state: stateOf(1),
+        result: manualTherapy ?? undefined,
+      },
+      {
+        no: '③',
+        title: '开方药',
+        note: '按疗法列方',
+        state: stateOf(2),
+        result: manualPrescriptions.length
+          ? manualPrescriptions.map((p) => p.name).join('、')
+          : undefined,
+      },
+    ]
+  }, [activeSessionId, triadRef, manualConstitution, manualTherapy, manualPrescriptions, medications])
+
+  /** 点框头的某一步 → 跳到那个框 */
+  const jumpToStep = (no: '①' | '②' | '③') => {
+    const idx = ['①', '②', '③'].indexOf(no)
+    document.querySelectorAll<HTMLElement>('.pr-triad-box')[idx]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   /** 当前选中格的符号 */
   const selectedCodes = useMemo(() => {
     if (!selected) return []
@@ -237,9 +370,16 @@ export default function App() {
     }
   }
 
-  /** 主表的次记录 → 病例记录里的 visits */
+  /** 主表的次记录 → 病例记录里的 visits（体质与疗法一并带走） */
   const toVisits = () =>
-    set.sessions.map((s) => ({ id: s.id, label: s.label, at: s.at ?? Date.now(), values: s.values }))
+    set.sessions.map((s) => ({
+      id: s.id,
+      label: s.label,
+      at: s.at ?? Date.now(),
+      values: s.values,
+      constitution: s.constitution ?? null,
+      therapy: s.therapy ?? null,
+    }))
 
   /** 只留还挂在当前记录列上的用药（删掉的记录列，其用药随之作废） */
   const liveMedications = () =>
@@ -260,6 +400,9 @@ export default function App() {
           label: s.label,
           values: s.values,
           at: s.at,
+          // 自判体质与自选疗法：只写回这一次的
+          constitution: s.constitution ?? null,
+          therapy: s.therapy ?? null,
           // 单次语义：只写回这一次的用药
           medications: liveMedications().filter((m) => m.visitId === s.id),
         })
@@ -295,7 +438,14 @@ export default function App() {
       const visits = set.sessions.map((s) => {
         const nid = uid()
         idMap.set(s.id, nid)
-        return { id: nid, label: s.label, at: s.at ?? Date.now(), values: s.values }
+        return {
+          id: nid,
+          label: s.label,
+          at: s.at ?? Date.now(),
+          values: s.values,
+          constitution: s.constitution ?? null,
+          therapy: s.therapy ?? null,
+        }
       })
       const newMeds: Medication[] = liveMedications().map((m) => ({
         id: muid(),
@@ -335,7 +485,14 @@ export default function App() {
       setSet({
         name: patient.name,
         layout: patient.layout,
-        sessions: patient.visits.map((v) => ({ id: v.id, label: v.label, at: v.at, values: v.values })),
+        sessions: patient.visits.map((v) => ({
+          id: v.id,
+          label: v.label,
+          at: v.at,
+          values: v.values,
+          constitution: v.constitution ?? null,
+          therapy: v.therapy ?? null,
+        })),
       })
       setMedications(await listMedication(patient.id))
       setEditing({ patientId: patient.id, visitId: null })
@@ -355,7 +512,16 @@ export default function App() {
       setSet({
         name: patient.name,
         layout: patient.layout,
-        sessions: [{ id: visit.id, label: visit.label, at: visit.at, values: visit.values }],
+        sessions: [
+          {
+            id: visit.id,
+            label: visit.label,
+            at: visit.at,
+            values: visit.values,
+            constitution: visit.constitution ?? null,
+            therapy: visit.therapy ?? null,
+          },
+        ],
       })
       setMedications(await listVisitMedication(visitId))
       setEditing({ patientId, visitId })
@@ -439,6 +605,9 @@ export default function App() {
 
   return (
     <div className="pr-app">
+      {/* ---- 讲义 p47 原图：整套工具的总纲，放在最顶端 ---- */}
+      <TriadImage />
+
       <header className="pr-header">
         <div>
           <h1>臧氏脉学 · 脉象记录表生成器</h1>
@@ -591,68 +760,124 @@ export default function App() {
         />
       )}
 
-      <PulseTable
-        set={set}
-        selected={selected}
-        onSelect={(ref) => {
-          setSelected(ref)
-          setHighlight(new Set())
-          // 点格子＝同时把这一列设为当前日期（图示随之变化）
-          setActiveSessionId(ref.sessionId)
-        }}
-        highlight={highlight}
-        activeSessionId={activeSessionId}
-        onSelectSession={setActiveSessionId}
-      />
+      {triadRef && (
+        <TriadHeader
+          steps={triadSteps}
+          onJump={jumpToStep}
+          hitNote={<HitNote result={triadRef} onFocusCells={focusTriadCells} />}
+        />
+      )}
 
-      {/* 底排：左列「符号录入 → 用药记录」，右列「寸关尺图示」 */}
-      <div className="pr-bottom">
-        <div className="pr-bottom-left">
-          <SymbolPalette
-            codes={selectedCodes}
-            target={selectedTarget}
-            onChange={(c) => selected && setCellCodes(selected, c)}
-            customSymbols={customSymbols}
-            onAddCustom={doAddCustomSymbol}
-            onDeleteCustom={doRemoveCustomSymbol}
-            error={symbolError}
-          />
+      {/* ---- ①判体质：自选体质 ＋ 摸脉录入 ---- */}
+      <TriadSection
+        stage="①"
+        title="判体质"
+        note="摸脉 → 判断方式 → 状态"
+        state={triadSteps[0].state}
+        result={manualConstitution ? `→ ${manualConstitution}体质` : undefined}
+      >
+        <ConstitutionPicker
+          value={manualConstitution}
+          onChange={pickConstitution}
+          onClear={clearConstitution}
+        />
+        <BianmaiNote />
+        <StateHints constitution={manualConstitution} />
 
-          {/* 用药记录（使用者自己填实际用了什么方、加减、服法） */}
-          <MedicationPanel
-            sessions={set.sessions}
-            activeSessionId={activeSessionId}
-            layout={set.layout}
-            customSymbols={customSymbols}
-            rows={medications}
-            onChange={setMedications}
-          />
-        </div>
-
-        <PulseDiagram
+        <PulseTable
           set={set}
-          activeSessionId={activeSessionId}
           selected={selected}
           onSelect={(ref) => {
             setSelected(ref)
             setHighlight(new Set())
+            // 点格子＝同时把这一列设为当前日期（图示随之变化）
+            setActiveSessionId(ref.sessionId)
           }}
+          highlight={highlight}
+          activeSessionId={activeSessionId}
           onSelectSession={setActiveSessionId}
         />
-      </div>
 
-      {/* 判读提示放最后 */}
-      <div className="pr-findings-row">
-        <Findings
-          hits={hits}
-          formulaHits={formulaHits}
-          onFocus={focusHit}
-          onFocusFormula={focusFormula}
-          wuxingFilter={groupFilter.wuxing}
-          handFilter={groupFilter.hand}
-          onFilterChange={changeFilter}
+        {/* 底排：左列「符号录入」，右列「寸关尺图示」 */}
+        <div className="pr-bottom">
+          <div className="pr-bottom-left">
+            <SymbolPalette
+              codes={selectedCodes}
+              target={selectedTarget}
+              onChange={(c) => selected && setCellCodes(selected, c)}
+              customSymbols={customSymbols}
+              onAddCustom={doAddCustomSymbol}
+              onDeleteCustom={doRemoveCustomSymbol}
+              error={symbolError}
+            />
+          </div>
+
+          <PulseDiagram
+            set={set}
+            activeSessionId={activeSessionId}
+            selected={selected}
+            onSelect={(ref) => {
+              setSelected(ref)
+              setHighlight(new Set())
+            }}
+            onSelectSession={setActiveSessionId}
+          />
+        </div>
+      </TriadSection>
+
+      {/* ---- ②定疗法：自选疗法 ＋ 判读提示（依脉用方 / 风险提示） ---- */}
+      <TriadSection
+        stage="②"
+        title="定疗法"
+        note="按体质定疗法"
+        state={triadSteps[1].state}
+        result={manualTherapy ? `→ ${manualTherapy}` : undefined}
+      >
+        <TherapyPicker
+          value={manualTherapy}
+          onChange={pickTherapy}
+          onClear={clearTherapy}
+          constitution={manualConstitution}
         />
-      </div>
+
+        <div className="pr-findings-row">
+          <Findings
+            hits={hits}
+            formulaHits={formulaHits}
+            onFocus={focusHit}
+            onFocusFormula={focusFormula}
+            wuxingFilter={groupFilter.wuxing}
+            handFilter={groupFilter.hand}
+            onFilterChange={changeFilter}
+          />
+        </div>
+      </TriadSection>
+
+      {/* ---- ③开方药：开方药清单 ＋ 用药记录 ---- */}
+      <TriadSection
+        stage="③"
+        title="开方药"
+        note="按疗法列方"
+        state={triadSteps[2].state}
+        result={manualPrescriptions.length ? `→ ${manualPrescriptions.map((p) => p.name).join('、')}` : undefined}
+      >
+        <RxList prescriptions={manualPrescriptions} />
+
+        {/* 用药记录（使用者自己填实际用了什么方、加减、服法） */}
+        <MedicationPanel
+          sessions={set.sessions}
+          activeSessionId={activeSessionId}
+          layout={set.layout}
+          customSymbols={customSymbols}
+          rows={medications}
+          onChange={setMedications}
+        />
+
+        <p className="pr-triad-loop">
+          <span className="pr-flow-loop-arrow">⟲</span>
+          用完方回到 ① 重新判体质（讲义 p47 图上③→①的虚线回路）
+        </p>
+      </TriadSection>
 
       <footer className="pr-footer">
         <p>

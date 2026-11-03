@@ -5,6 +5,8 @@ import {
   buildPulseText,
   describeCodes,
   findDrug,
+  findFormulaDose,
+  formulaDoseView,
   groupOfText,
   matchGroup,
   pointOrder,
@@ -18,6 +20,7 @@ import {
   type PulsePoint,
 } from '../domain/medication'
 import { MedicationPicker } from './MedicationPicker'
+import { DOSE_SCIENCE_NAME, FORMULA_SCIENCE_BY_NAME } from '../domain/formula-table'
 import type { CustomSymbol } from '../domain/symbols'
 
 /**
@@ -53,6 +56,89 @@ function newId() {
   return `m${Date.now().toString(36)}${seq.toString(36)}`
 }
 
+/**
+ * 剂量来源 —— 三套资料里只有两套给了组成，单位还不同。
+ *
+ * - 同和堂版《方剂汇总统表》＝ 成方，**克**
+ * - 讲稿 2010·第二讲 ＝ 组成，**比例制**（如「熟地5、茯苓4」）
+ *
+ * 两套**不可互相换算**，所以默认只显示一套，需要对照时再切到「两套并列」。
+ */
+type DoseSource = 'th' | 'draft' | 'both'
+
+const DOSE_SOURCES: { key: DoseSource; label: string; hint: string }[] = [
+  { key: 'th', label: '同和堂版（克）', hint: '《臧氏脉学方剂汇总统表（同和堂版）》成方' },
+  { key: 'draft', label: '讲稿 2010（比例制）', hint: '讲稿 2010·第二讲「叁、用方」的组成与服法' },
+  { key: 'both', label: '两套并列', hint: '两套同时列出 —— 注意单位不同，不可互相换算' },
+]
+
+/** 一格「配伍与剂量」 */
+function DoseCell({ r, source }: { r: FormulaReference; source: DoseSource }) {
+  const v = formulaDoseView(r)
+  const showTh = source === 'th' || source === 'both'
+  const showDraft = source === 'draft' || source === 'both'
+  const thMissing = v.missing.filter((m) => m.startsWith('同和堂版'))
+  const draftMissing = v.missing.filter((m) => m.startsWith('讲稿'))
+
+  return (
+    <div className="pr-dose">
+      {showTh && v.dose && (
+        <div className="pr-dose-block">
+          <div className="pr-dose-tag">同和堂版 · 克</div>
+          <div className="pr-dose-text">{v.dose.composition}</div>
+          {v.dose.notes?.map((n, i) => (
+            <div key={i} className="pr-dose-note">
+              注：{n}
+            </div>
+          ))}
+          {v.science && <div className="pr-dose-note">科中（科学中药）：{v.science.ratio}</div>}
+          <div className="pr-dose-src">
+            〔{v.dose.name}｜同和堂版 p{v.dose.page}〕
+          </div>
+        </div>
+      )}
+      {showTh && !v.dose && thMissing.map((m) => (
+        <div key={m} className="pr-dose-none">
+          {m}
+        </div>
+      ))}
+
+      {showDraft && v.drug && (
+        <div className="pr-dose-block">
+          <div className="pr-dose-tag">讲稿 2010 · 比例制</div>
+          {v.drug.composition && <div className="pr-dose-text">组成：{v.drug.composition}</div>}
+          {v.drug.usage && <div className="pr-dose-text">服法：{v.drug.usage}</div>}
+          {v.drug.science && <div className="pr-dose-text">科学中药：{v.drug.science}</div>}
+          {v.drug.adjustments?.map((a, i) => (
+            <div key={i} className="pr-dose-note">
+              加减：{a}
+            </div>
+          ))}
+          {v.drug.contraindication && (
+            <div className="pr-dose-note">禁忌：{v.drug.contraindication}</div>
+          )}
+          <div className="pr-dose-src">〔{v.drug.source}〕</div>
+        </div>
+      )}
+      {showDraft && v.draftExtra && (
+        <div className="pr-dose-block">
+          <div className="pr-dose-tag">讲稿 2010 · 比例制</div>
+          <div className="pr-dose-text">组成：{v.draftExtra.composition}</div>
+          {v.draftExtra.note && <div className="pr-dose-note">{v.draftExtra.note}</div>}
+          <div className="pr-dose-src">〔{v.draftExtra.source}〕</div>
+        </div>
+      )}
+      {showDraft && !v.drug && !v.draftExtra && draftMissing.map((m) => (
+        <div key={m} className="pr-dose-none">
+          {m}
+        </div>
+      ))}
+
+      {r.doseBasis && <div className="pr-dose-basis">对照：{r.doseBasis}</div>}
+    </div>
+  )
+}
+
 export function MedicationPanel({
   sessions,
   activeSessionId,
@@ -69,6 +155,8 @@ export function MedicationPanel({
   const [kw, setKw] = useState('')
   /** 对照表是否展开 */
   const [refOpen, setRefOpen] = useState(false)
+  /** 「配伍与剂量」列显示哪一套资料（默认同和堂版的克数） */
+  const [doseSource, setDoseSource] = useState<DoseSource>('th')
   /** 脉位筛选（选择器右列；关掉弹窗也留着） */
   const [position, setPosition] = useState('')
   /**
@@ -270,6 +358,12 @@ export function MedicationPanel({
   /** 正在编辑的那一行，方名若讲稿第二讲有载，就显示原文的组成／服法 */
   const focusRow = rows.find((r) => r.id === focusId) ?? null
   const focusDrug = focusRow ? findDrug(focusRow.name) : undefined
+  /** 同和堂版《方剂汇总统表》里查得到的那一条（成方 · 克） */
+  const focusDose = focusRow ? findFormulaDose(focusRow.name) : undefined
+  /** 同和堂版第 4 页「科中」对应行 */
+  const focusDoseScience = focusDose
+    ? FORMULA_SCIENCE_BY_NAME[DOSE_SCIENCE_NAME[focusDose.id] ?? '']
+    : undefined
 
   if (sessions.length === 0) {
     return (
@@ -416,14 +510,29 @@ export function MedicationPanel({
         )
       })}
 
-      {/* 讲稿第二讲的组成／服法（原文照录；讲稿未载就明说） */}
+      {/* 同和堂版《方剂汇总统表》＋ 讲稿第二讲的组成／服法（原文照录；未载就明说） */}
       {focusRow && (
         <div className="pr-med-ref">
+          {focusDose && (
+            <>
+              <p className="pr-med-ref-title">
+                同和堂版《臧氏脉学方剂汇总统表》「{focusDose.name}」
+                <span className="pr-muted">（原文照录 · 第 {focusDose.page} 页 · 单位：克）</span>
+              </p>
+              <p>组成：{focusDose.composition}</p>
+              {focusDose.notes?.map((n, i) => (
+                <p key={i} className="pr-muted">
+                  注：{n}
+                </p>
+              ))}
+              {focusDoseScience && <p>科中（科学中药）：{focusDoseScience.ratio}</p>}
+            </>
+          )}
           {focusDrug ? (
             <>
               <p className="pr-med-ref-title">
                 讲稿 2010·第二讲「{focusDrug.name}」
-                <span className="pr-muted">（原文照录）</span>
+                <span className="pr-muted">（原文照录 · 组成用比例制）</span>
               </p>
               {focusDrug.composition && <p>组成：{focusDrug.composition}</p>}
               {focusDrug.usage && <p>服法：{focusDrug.usage}</p>}
@@ -435,8 +544,15 @@ export function MedicationPanel({
               {focusDrug.source && <p className="pr-muted">〔{focusDrug.source}〕</p>}
             </>
           ) : (
+            !focusDose && (
+              <p className="pr-muted">
+                「{focusRow.name || '（方名未填）'}」：讲稿 2010·第二讲未载其组成与服法。
+              </p>
+            )
+          )}
+          {!focusDose && focusDrug && (
             <p className="pr-muted">
-              「{focusRow.name || '（方名未填）'}」：讲稿 2010·第二讲未载其组成与服法。
+              同和堂版《方剂汇总统表》未载「{focusRow.name}」这一条的组成。
             </p>
           )}
         </div>
@@ -460,12 +576,30 @@ export function MedicationPanel({
               placeholder="搜方名或脉象，如 天王 / 右关弱"
               onChange={(e) => setKw(e.target.value)}
             />
+            <div className="pr-med-dosebar">
+              <span className="pr-muted">剂量来源：</span>
+              {DOSE_SOURCES.map((s) => (
+                <button
+                  key={s.key}
+                  type="button"
+                  className={`pr-chip-btn ${doseSource === s.key ? 'on' : ''}`}
+                  title={s.hint}
+                  onClick={() => setDoseSource(s.key)}
+                >
+                  {s.label}
+                </button>
+              ))}
+              <span className="pr-muted pr-med-dosebar-note">
+                两套剂量单位不同（克 ／ 比例制），不可互相换算
+              </span>
+            </div>
             <table className="pr-med-reftable">
               <thead>
                 <tr>
                   <th>#</th>
                   <th>处方</th>
                   <th>对应脉象及加减</th>
+                  <th>配伍与剂量</th>
                   <th>操作</th>
                 </tr>
               </thead>
@@ -475,6 +609,9 @@ export function MedicationPanel({
                     <td>{r.no}</td>
                     <td>{r.name}</td>
                     <td>{r.indication}</td>
+                    <td className="pr-med-dose">
+                      <DoseCell r={r} source={doseSource} />
+                    </td>
                     <td className="pr-med-ops">
                       <button
                         type="button"
@@ -492,7 +629,7 @@ export function MedicationPanel({
                 ))}
                 {refRows.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="pr-muted">
+                    <td colSpan={5} className="pr-muted">
                       没有匹配的方。
                     </td>
                   </tr>
