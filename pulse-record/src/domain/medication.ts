@@ -142,6 +142,12 @@ export interface PulseGroup {
   name: string
   /** 成员脉位（`手|部位`） */
   positions: string[]
+  /**
+   * 联动到左列（讲义 p42 处方表）的**原文检索词** ——
+   * 右列点这一组时，左列的搜索框自动填这个词，两列看同一件事。
+   * 取原文用字，不自造（如「双关同治」→ 双关、「肝肺同治」→ 左关右寸）。
+   */
+  ref: string
   /** 出处（讲次／页码） */
   source: string
 }
@@ -151,6 +157,7 @@ export const PULSE_GROUPS: PulseGroup[] = [
     id: 'g-shuangguan',
     name: '双关同治',
     positions: ['L|关', 'R|关'],
+    ref: '双关',
     source:
       '讲稿 2010·第四讲「双关同治是两个关都有出现浮大」；讲稿 2010·第二讲「（三）肝脾（双关）同治」；讲义 2026-10·p44 图「（五）（双关同治）」',
   },
@@ -158,6 +165,7 @@ export const PULSE_GROUPS: PulseGroup[] = [
     id: 'g-ganshu',
     name: '肝肺同治',
     positions: ['L|关', 'R|寸'],
+    ref: '左关右寸',
     source:
       '讲稿 2010·第四讲「肝肺同治，也就是左关跟右寸」；讲义 2026-10·p44 图「（二）（肝肺同治）」；讲义 2026-10·p42「肝肺同治：左关右寸浮大」',
   },
@@ -165,6 +173,7 @@ export const PULSE_GROUPS: PulseGroup[] = [
     id: 'g-ganxin',
     name: '肝心同治',
     positions: ['L|寸', 'L|关'],
+    ref: '左寸关',
     source:
       '讲稿 2010·第四讲「第六个是肝心同治。左手寸关浮大的时候，用肝心同治」；讲义 2026-10·p44 图「（六）肝心同治」；讲义 2026-10·p42「肝心同治：左寸关浮大」',
   },
@@ -172,24 +181,28 @@ export const PULSE_GROUPS: PulseGroup[] = [
     id: 'g-shuangcun',
     name: '双寸',
     positions: ['L|寸', 'R|寸'],
+    ref: '双寸',
     source: '讲稿 2010·第二讲「（四）双寸比较浮大」、「双寸弱的不宜」（用上焦方）',
   },
   {
     id: 'g-shuangchi',
     name: '双尺',
     positions: ['L|尺', 'R|尺'],
+    ref: '双尺',
     source: '讲稿 2010·第十四讲「双尺脉影响双关，双关再影响上面来」、「双尺不平衡」',
   },
   {
     id: 'g-shuangguan-youcun',
     name: '双关右寸',
     positions: ['L|关', 'R|关', 'R|寸'],
+    ref: '双关右寸',
     source: '讲义 2026-10·p42「黄芪鳖甲：双关右寸浮洪大」；讲义 2026-10·p44 图「⑥双关右寸浮大：黄芪鳖甲」',
   },
   {
     id: 'g-youguanchi',
     name: '右关尺',
     positions: ['R|关', 'R|尺'],
+    ref: '右关尺',
     source: '讲义 2026-10·p42「木香顺气：右关尺浮大顶手」；讲稿 2010·第二讲「右关尺浮大（增液汤加减）」',
   },
 ]
@@ -197,6 +210,17 @@ export const PULSE_GROUPS: PulseGroup[] = [
 /** 脉位文字（如「左关＋右寸」） */
 export function groupPositionsLabel(g: PulseGroup): string {
   return g.positions.map((p) => `${HAND_LABEL[p.split('|')[0] as Hand]}${p.split('|')[1]}`).join('＋')
+}
+
+/**
+ * 脉位 key（`手|部位`）→ 文字（如「右关」）。
+ *
+ * 右列选了哪个脉位，左列（讲义 p42 处方表）就用同一个词去筛 ——
+ * 两列看同一件事。空 key ＝「全部」＝不筛。
+ */
+export function positionLabel(key: string): string {
+  if (!key) return ''
+  return PULSE_POSITIONS.find((p) => p.key === key)?.label ?? ''
 }
 
 /** 找出与所选脉位**完全一致**的组合（多选后自动带出组合名用） */

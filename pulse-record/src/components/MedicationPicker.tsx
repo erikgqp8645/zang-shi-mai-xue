@@ -164,6 +164,7 @@ export function MedicationPicker({
               讲义 2026-10·p42「依脉用方表」{formulas.length} 行
               {formulas.length < 28 && `（筛选「${keyword}」后）`}
               <span className="pr-muted">　·　筛选词与下方「原文对照」表共用</span>
+              <span className="pr-muted">　·　右列选脉位，左列自动用同一个词筛</span>
             </p>
             <ul className="pr-picker-list">
               {formulas.map((f) => (

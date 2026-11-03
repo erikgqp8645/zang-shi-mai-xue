@@ -9,6 +9,7 @@ import {
   matchGroup,
   pointOrder,
   positionsOf,
+  positionLabel,
   pulsePointsOf,
   searchFormulaReference,
   type FormulaReference,
@@ -80,6 +81,20 @@ export function MedicationPanel({
   const [primaryState, setPrimaryState] = useState<Record<string, string>>({})
 
   const refRows = useMemo(() => searchFormulaReference(kw), [kw])
+
+  /**
+   * 右列选脉位 → **左列自动用同一个词筛**（选右关，左列就筛右关）。
+   *
+   * 两列看同一件事：右列看这次记录到的脉象，左列看讲义 p42 里对应的方。
+   * 用的是同一个 `kw`，所以页面下方「原文对照」表也跟着一起筛。
+   *
+   * **单向**：只右→左。左框自己打字**不会**回改右列的脉位筛选
+   * （`position` 只由右列的脉位 chip 改），左框随时可以自己改。
+   */
+  const pickPosition = (p: string) => {
+    setPosition(p)
+    setKw(positionLabel(p))
+  }
 
   const rowsOf = (visitId: string) => rows.filter((r) => r.visitId === visitId)
 
@@ -195,6 +210,8 @@ export function MedicationPanel({
     if (!row) return
     const members = groupMembers(g, pickerSession)
     if (members.length === 0) return
+    // 左列跟着右列走：用这一组的原文检索词筛处方
+    setKw(g.ref)
     const symbols = { ...(row.symbols ?? {}) }
     if (covered(symbols, members) && primaryName(row) === g.name) {
       // 再点一次＝取消这一组
@@ -496,7 +513,7 @@ export function MedicationPanel({
           onKeyword={setKw}
           formulas={searchFormulaReference(kw)}
           position={position}
-          onPosition={setPosition}
+          onPosition={pickPosition}
           selected={pickerRow.symbols ?? {}}
           primary={pickerRow ? primaryName(pickerRow) : undefined}
           onToggle={toggleSymbol}
