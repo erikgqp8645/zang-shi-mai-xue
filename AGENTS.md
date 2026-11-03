@@ -374,11 +374,31 @@ EOF
 
 | 项 | 约定 |
 |---|---|
-| 表 | `medication`（`pulse-record/server/schema.sql`）：`id` / `patient_id` / `visit_id` / `seq` / `name` / `pulse` / `adjust` / `usage` / `note` / `created_at` |
+| 表 | `medication`（`pulse-record/server/schema.sql`）：`id` / `patient_id` / `visit_id` / `seq` / `name` / `pulse` / `symbols` / `adjust` / `usage` / `note` / `created_at` |
 | 外键 | `visit_id → visits.id`、`patient_id → patients.id`，均 `ON DELETE CASCADE`（删就诊 → 删其用药；删患者 → 删其就诊与用药） |
 | 写入语义 | 患者级**整份覆盖**（`POST /api/patients` 带 `medications`）／单次级**只写回该次**（`PATCH /api/visits/:id` 带 `medications`）／新建随患者一次写入 |
-| 前端 | `src/components/MedicationPanel.tsx`（按就诊分组的填写表）、`src/api/patients.ts`（`listMedication` / `listVisitMedication` / `saveMedication`） |
+| 前端 | `src/components/MedicationPanel.tsx`（按就诊分组的填写表）、`src/components/MedicationPicker.tsx`（两列选择器弹窗）、`src/api/patients.ts`（`listMedication` / `listVisitMedication` / `saveMedication`） |
 | 导出 | **暂不进导出**（PNG / Markdown / CSV 都不含用药记录），只在页面上能用 |
+
+### 对应脉象：文字与符号并存
+
+`medication.pulse` 记**文字**表述（如「右关弱且左关有」），`medication.symbols` 记**符号**表述（JSON，key 同 `visits.pulse_values` 的 `手|部位|取法`，值为符号代码数组，如 `{"R|关|沉":["++"]}`）。**两者并存、同时记、同时显示**，不是二选一。
+
+- 符号一栏每个符号都带讲义 p33 的文字（`++` 有力、`|` 弦、顶…），自定义符号用自建名称。
+- 加列要走迁移：`CREATE TABLE IF NOT EXISTS` 不会给老库补列，`server/db.mjs` 的 `migrate()` 用 `PRAGMA table_info` 判断后 `ALTER TABLE medication ADD COLUMN symbols TEXT`。
+
+### 选择器（两列弹窗）
+
+方名与对应脉象两格各有「选择」入口，弹出两列面板：
+
+| 列 | 内容 | 约定 |
+|---|---|---|
+| **左：处方** | 讲义 p42「依脉用方表」28 行 | 点一行回填**方名**与**对应脉象的文字**；方名仍可自行编辑 |
+| **右：脉象** | **该次就诊录到的**符号，按脉位筛选（全部／左寸／右寸／左关／右关／左尺／右尺） | 点一下并入这一行的对应脉象；每项带符号文字 |
+
+- 左列**搜索词与页面下方「原文对照」表共用**（同一个 `kw` 状态）—— 原来的筛选方式照旧能用，两处同步，别再另起一个筛选。
+- 右列**只列录到符号的脉点**；该脉位没录就明说「该脉位这次没有录到符号」，不拿讲义推测值充数。
+- 脉位筛选状态在弹窗关闭后**保留**（`position` 状态在面板里，不随弹窗重置）。
 
 - **版面**：宽屏（≥900 px）底排分两列 —— **左列「符号录入 → 用药记录」上下相接**，右列是寸关尺图示；窄屏（<900 px）收成单列，顺序为 符号录入 → 用药记录 → 寸关尺图示。用药表在左栏宽 520–620 px 内，故占位文案取短（「如 右关弱」「如 餐后温服」）。
 - **表格外观与「病例记录」表同一套**：`.pr-history-list` 与 `.pr-med-table` / `.pr-med-reftable` 共用边框、表头底色与字号规则（写在 `src/index.css` 的病例记录段），改动一处两边一起变。用药表另加：表内输入框默认无框（悬停/聚焦才显框线）、小徽标「讲稿第二讲有载」、分组标题仿「每次就诊记录」。

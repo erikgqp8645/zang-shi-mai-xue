@@ -187,7 +187,7 @@ pulse-record/local-data/history.sqlite
 |---|---|---|
 | `patients` | `id` / `name` / `layout` / `created_at` / `updated_at` | 一位患者；`layout` 为 `nine`（9 行）或 `seven`（7 脉点） |
 | `visits` | `id` / `patient_id` / `label` / `at` / `pulse_values` / `seq` | 一次就诊记录；`pulse_values` 是 JSON，key 形如 `L\|寸\|浮`，值为符号代码数组（如 `["X","↑"]`） |
-| `medication` | `id` / `patient_id` / `visit_id` / `seq` / `name` / `pulse` / `adjust` / `usage` / `note` / `created_at` | 一条**用药记录**（使用者的实际用药），挂在某一次就诊下；一次就诊可多条 |
+| `medication` | `id` / `patient_id` / `visit_id` / `seq` / `name` / `pulse` / `symbols` / `adjust` / `usage` / `note` / `created_at` | 一条**用药记录**（使用者的实际用药），挂在某一次就诊下；一次就诊可多条。`pulse` 是对应脉象的**文字**，`symbols` 是对应脉象的**符号**（JSON，key 同 `visits.pulse_values`：`手\|部位\|取法`），两者并存 |
 | `custom_symbols` | `code` / `name` / `created_at` | 使用者自建的符号（如 `S`＝涩）；讲义固定符号集之外另加 |
 
 删患者会级联删掉其全部就诊记录（`ON DELETE CASCADE`），就诊记录删除则级联删掉其用药记录。
@@ -241,10 +241,25 @@ sqlite3 local-data/history.sqlite \
 | 形态 | **填写表**。不是自动判读，也不是处方建议 —— 工具不替使用者加减方、不下诊断 |
 | 表格样式 | **与「病例记录」表同一套**（共用边框／表头底色／字号规则）：表头一行「方名 / 对应脉象 / 加减 / 服法 / 备注 / 操作」，每次就诊一张表，分组之间用虚线分隔 |
 | 列 | 方名 / 对应脉象 / 加减 / 服法 / 备注 / 操作（× 删除） |
+| **对应脉象** | **文字与符号并存**：文字自己填（如「右关弱且左关有」），符号从该次记录里挑（如 `右关 沉 ++ 有力`），两者同时记、同时显示 |
+| 选择器 | 方名与对应脉象两格各有「选择」入口，弹出**两列**面板（见下） |
 | 一次就诊 | 可记**多条方**（对服、并行、上中下焦分服都记得下） |
 | 存哪 | 本机 SQLite 独立 `medication` 表，挂在 `visits` 下面（`visit_id` 外键，删就诊记录则级联删其用药） |
 | 写入语义 | 与病例记录一致三种：患者级**整份覆盖**（同 id 更新、没有的删除）／单次级**只写回那一次**／新建时随患者一次写入 |
 | 导出 | **暂不纳入**导出（PNG / Markdown / CSV 均不含用药记录），只在页面上能用 |
+
+### 选择器（弹窗，两列）
+
+点「方名」或「对应脉象」格里的**选择**，弹出面板：
+
+| 列 | 内容 | 说明 |
+|---|---|---|
+| **左：处方** | 讲义 p42「依脉用方表」28 行（序号 ＋ 处方 ＋ 对应脉象及加减） | 点一行即回填**方名**与**对应脉象的文字**；方名仍可自己改 |
+| **右：脉象** | **该次就诊录到的**符号，按脉位筛选：全部／左寸／右寸／左关／右关／左尺／右尺 | 点一下即把该脉点的符号并入这一行的「对应脉象」；每项都带讲义 p33 的文字（如 `++` 有力） |
+
+- 左列的**搜索词与页面下方「原文对照」表共用** —— 原来的筛选方式照旧能用，两处同步；在下方搜「右关」，弹窗里也是「右关」。
+- 右列只列**录到符号**的脉点；该脉位这次没录，就明说「该脉位这次没有录到符号」。
+- 选中的符号在格子里以小徽标显示（位置 ＋ 符号 ＋ 文字），弹窗底部也列一遍，可「清空符号」。
 
 ### 与「依脉用方」的区别
 
@@ -378,7 +393,7 @@ src/
 │   └── symbols.ts   自定义符号 API 客户端（使用者自建符号）
 ├── assets/
 │   └── hands-pulse.png  寸关尺图示底图（原图，1070 × 876）
-├── components/      PulseTable / PulseDiagram / SymbolPalette / Findings / HistoryPanel / MedicationPanel
+├── components/      PulseTable / PulseDiagram / SymbolPalette / Findings / HistoryPanel / MedicationPanel / MedicationPicker
 ├── export/
 │   ├── png.ts       canvas 自绘导出（表格 ＋ 寸关尺图示）
 │   ├── diagram.ts   寸关尺图示在 canvas 上的绘制（与页面 SVG 同坐标）
