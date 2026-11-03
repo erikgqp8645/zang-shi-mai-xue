@@ -2091,6 +2091,47 @@ button:disabled {
   color: var(--clay);
 }
 
+/* 窄屏：框头三步改为竖排，避免文字被压成竖条 */
+@media (max-width: 720px) {
+  .pr-triad-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .pr-triad-steps {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .pr-triad-step {
+    border-left: none;
+    border-top: 1px solid var(--divider);
+    padding: 5px 0 5px 2px;
+    flex-wrap: wrap;
+  }
+
+  .pr-triad-step:first-child {
+    border-top: none;
+  }
+
+  .pr-triad-step-btn {
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+  }
+
+  /* 结果摘要较长（如四个方名），窄屏让它另起一行 */
+  .pr-triad-step-state {
+    flex: 1 1 100%;
+    padding-left: 2px;
+  }
+
+  .pr-triad-head-right {
+    border-top: 1px dashed var(--divider);
+    padding-top: 7px;
+  }
+}
+
 /* ---- 三个框 ---- */
 
 .pr-triad-box {
