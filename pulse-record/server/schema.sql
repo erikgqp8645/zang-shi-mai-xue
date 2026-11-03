@@ -14,6 +14,9 @@
 -- medication 是「用药记录」：使用者自己填实际用的是什么方、加减与服法。
 -- 一次就诊（visit）可挂多条方（对服、并行、上中下焦分服等）。
 -- 表内只是使用者的记录，工具不替使用者加减方、不下诊断。
+-- pulse 是对应脉象的**文字**表述；symbols 是对应脉象的**符号**表述
+-- （JSON，key 同 visits.pulse_values：`手|部位|取法`，值为符号代码数组）——
+-- 两者并存，同一处用药可同时记文字与符号。
 
 PRAGMA foreign_keys = ON;
 
@@ -43,6 +46,7 @@ CREATE TABLE IF NOT EXISTS medication (
   seq        INTEGER NOT NULL,
   name       TEXT NOT NULL,
   pulse      TEXT,
+  symbols    TEXT,
   adjust     TEXT,
   usage      TEXT,
   note       TEXT,

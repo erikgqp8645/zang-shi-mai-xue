@@ -302,6 +302,7 @@ export default function App() {
         visitId: idMap.get(m.visitId) ?? m.visitId,
         name: m.name,
         pulse: m.pulse,
+        symbols: { ...(m.symbols ?? {}) },
         adjust: m.adjust,
         usage: m.usage,
         note: m.note,
@@ -621,6 +622,8 @@ export default function App() {
           <MedicationPanel
             sessions={set.sessions}
             activeSessionId={activeSessionId}
+            layout={set.layout}
+            customSymbols={customSymbols}
             rows={medications}
             onChange={setMedications}
           />

@@ -1,10 +1,15 @@
 import { useMemo, useState } from 'react'
-import type { Session } from '../domain/types'
+import type { LayoutMode, Session } from '../domain/types'
 import {
+  describeCodes,
   findDrug,
   searchFormulaReference,
+  type FormulaReference,
   type Medication,
+  type PulsePoint,
 } from '../domain/medication'
+import { MedicationPicker } from './MedicationPicker'
+import type { CustomSymbol } from '../domain/symbols'
 
 /**
  * 用药记录（填写表）—— 使用者自己填实际用了什么方、加减、服法
@@ -13,6 +18,7 @@ import {
  * - 不替使用者加减方、不下诊断，也不判断填得对不对
  * - 讲义 p42「依脉用方表」只作**原文对照**，供查、供抄，不是处方建议
  * - 组成／服法只在讲稿第二讲载有的方上显示（原文照录）；讲稿未载就明说未载
+ * - 「对应脉象」文字与符号**并存**：文字自填，符号从该次记录里挑，两者一起记
  */
 
 interface Props {
@@ -20,6 +26,10 @@ interface Props {
   sessions: Session[]
   /** 当前日期（记录列）的 id：新增行默认加在它下面 */
   activeSessionId: string | null
+  /** 行结构（决定有哪些脉点） */
+  layout: LayoutMode
+  /** 自定义符号（给自建符号配文字） */
+  customSymbols: CustomSymbol[]
   /** 用药记录（全部） */
   rows: Medication[]
   /** 改动后把新的用药记录交回给上层（保存时随病例一起写库） */
@@ -32,13 +42,24 @@ function newId() {
   return `m${Date.now().toString(36)}${seq.toString(36)}`
 }
 
-export function MedicationPanel({ sessions, activeSessionId, rows, onChange }: Props) {
+export function MedicationPanel({
+  sessions,
+  activeSessionId,
+  layout,
+  customSymbols,
+  rows,
+  onChange,
+}: Props) {
   /** 正在编辑的那一行（点方名格会记住它；对照表点一行就填到这里） */
   const [focusId, setFocusId] = useState<string | null>(null)
-  /** 讲义 p42 对照表的检索词 */
+  /** 打开选择器的那一行 */
+  const [pickerFor, setPickerFor] = useState<string | null>(null)
+  /** 讲义 p42 对照表／选择器左列共用的检索词 */
   const [kw, setKw] = useState('')
   /** 对照表是否展开 */
   const [refOpen, setRefOpen] = useState(false)
+  /** 脉位筛选（选择器右列；关掉弹窗也留着） */
+  const [position, setPosition] = useState('')
 
   const refRows = useMemo(() => searchFormulaReference(kw), [kw])
 
@@ -51,6 +72,7 @@ export function MedicationPanel({ sessions, activeSessionId, rows, onChange }: P
   const remove = (id: string) => {
     onChange(rows.filter((r) => r.id !== id))
     if (focusId === id) setFocusId(null)
+    if (pickerFor === id) setPickerFor(null)
   }
 
   const addRow = (visitId: string, seed?: { name?: string; pulse?: string }) => {
@@ -59,6 +81,7 @@ export function MedicationPanel({ sessions, activeSessionId, rows, onChange }: P
       visitId,
       name: seed?.name ?? '',
       pulse: seed?.pulse ?? '',
+      symbols: {},
       adjust: '',
       usage: '',
       note: '',
@@ -78,9 +101,64 @@ export function MedicationPanel({ sessions, activeSessionId, rows, onChange }: P
     addRow(visitId, { name, pulse })
   }
 
+  /** 打开选择器（记下是哪一行） */
+  const openPicker = (id: string) => {
+    setFocusId(id)
+    setPickerFor(id)
+  }
+
+  /** 选／不选一个脉点的符号（并入这一行的「对应脉象」，与文字并存） */
+  const toggleSymbol = (p: PulsePoint) => {
+    if (!pickerFor) return
+    onChange(
+      rows.map((r) => {
+        if (r.id !== pickerFor) return r
+        const symbols = { ...(r.symbols ?? {}) }
+        if ((symbols[p.key] ?? []).length > 0) delete symbols[p.key]
+        else symbols[p.key] = [...p.codes]
+        return { ...r, symbols }
+      }),
+    )
+  }
+
+  /** 清掉这一行已选的符号 */
+  const clearSymbols = () => {
+    if (!pickerFor) return
+    onChange(rows.map((r) => (r.id === pickerFor ? { ...r, symbols: {} } : r)))
+  }
+
+  /** 选一个处方：回填方名与对应脉象的文字表述 */
+  const pickFormula = (f: FormulaReference) => {
+    if (!pickerFor) return
+    update(pickerFor, { name: f.name, pulse: f.indication })
+  }
+
+  /** 这一行已选的符号（按 左寸→右尺 排，不按字符串序） */
+  const pickedChips = (r: Medication) => {
+    const order = ['L|寸', 'R|寸', 'L|关', 'R|关', 'L|尺', 'R|尺']
+    const keys = Object.keys(r.symbols ?? {})
+      .filter((k) => (r.symbols[k] ?? []).length > 0)
+      .sort((a, b) => {
+        const pa = order.indexOf(a.split('|').slice(0, 2).join('|'))
+        const pb = order.indexOf(b.split('|').slice(0, 2).join('|'))
+        return (pa < 0 ? 99 : pa) - (pb < 0 ? 99 : pb) || a.localeCompare(b)
+      })
+    return keys.map((k) => {
+      const [hand, organ, depth] = k.split('|')
+      return {
+        key: k,
+        label: `${hand === 'L' ? '左' : '右'}${organ} ${depth}`,
+        text: describeCodes(r.symbols[k], customSymbols),
+      }
+    })
+  }
+
   /** 正在编辑的那一行，方名若讲稿第二讲有载，就显示原文的组成／服法 */
   const focusRow = rows.find((r) => r.id === focusId) ?? null
   const focusDrug = focusRow ? findDrug(focusRow.name) : undefined
+  /** 打开选择器的那一行所在的就诊（取它录到的脉象） */
+  const pickerRow = rows.find((r) => r.id === pickerFor) ?? null
+  const pickerSession = pickerRow ? sessions.find((s) => s.id === pickerRow.visitId) : undefined
 
   if (sessions.length === 0) {
     return (
@@ -140,7 +218,12 @@ export function MedicationPanel({ sessions, activeSessionId, rows, onChange }: P
                           onFocus={() => setFocusId(r.id)}
                           onChange={(e) => update(r.id, { name: e.target.value })}
                         />
-                        {findDrug(r.name) && <em className="pr-med-flag">讲稿第二讲有载</em>}
+                        <span className="pr-med-subline">
+                          <button type="button" className="pr-link" onClick={() => openPicker(r.id)}>
+                            选择
+                          </button>
+                          {findDrug(r.name) && <em className="pr-med-flag">讲稿第二讲有载</em>}
+                        </span>
                       </td>
                       <td>
                         <input
@@ -150,6 +233,16 @@ export function MedicationPanel({ sessions, activeSessionId, rows, onChange }: P
                           onFocus={() => setFocusId(r.id)}
                           onChange={(e) => update(r.id, { pulse: e.target.value })}
                         />
+                        <span className="pr-med-subline">
+                          <button type="button" className="pr-link" onClick={() => openPicker(r.id)}>
+                            选择
+                          </button>
+                          {pickedChips(r).map((c) => (
+                            <em key={c.key} className="pr-med-chip">
+                              {c.label} {c.text}
+                            </em>
+                          ))}
+                        </span>
                       </td>
                       <td>
                         <input
@@ -282,6 +375,25 @@ export function MedicationPanel({ sessions, activeSessionId, rows, onChange }: P
           </>
         )}
       </div>
+
+      {/* 选择器（弹窗）：左列处方、右列脉象 */}
+      {pickerRow && pickerSession && (
+        <MedicationPicker
+          session={pickerSession}
+          layout={layout}
+          customSymbols={customSymbols}
+          keyword={kw}
+          onKeyword={setKw}
+          formulas={searchFormulaReference(kw)}
+          position={position}
+          onPosition={setPosition}
+          selected={pickerRow.symbols ?? {}}
+          onToggle={toggleSymbol}
+          onClear={clearSymbols}
+          onPickFormula={pickFormula}
+          onClose={() => setPickerFor(null)}
+        />
+      )}
     </section>
   )
 }

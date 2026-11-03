@@ -552,6 +552,199 @@ button:disabled {
 .pr-med-group.is-active .pr-med-sub {
   color: var(--clay);
 }
+
+/* 格内第二行：「选择」入口 ＋ 标注（讲稿有载／已选符号） */
+.pr-med-subline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 2px;
+}
+.pr-med-chip {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--clay);
+  border: 1px solid var(--divider);
+  border-radius: 2px;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+/* ---------- 选择器（弹窗）：左列处方 ＋ 右列脉象 ---------- */
+
+.pr-picker-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(44, 41, 37, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 50;
+}
+.pr-picker {
+  background: var(--card);
+  border: 1px solid var(--divider);
+  border-radius: 4px;
+  width: min(920px, 100%);
+  max-height: min(640px, 100%);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.pr-picker-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--divider);
+  padding: 10px 14px;
+}
+.pr-picker-head h3 {
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
+.pr-picker-head .pr-muted {
+  flex: 1;
+  font-size: 11px;
+}
+.pr-picker-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  overflow: hidden;
+  flex: 1;
+}
+.pr-picker-col {
+  padding: 10px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.pr-picker-col + .pr-picker-col {
+  border-left: 1px solid var(--divider);
+}
+.pr-picker-col h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--sage);
+  font-weight: 600;
+}
+.pr-picker-hint {
+  margin: 0 0 6px;
+  font-size: 11px;
+}
+.pr-picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 120px;
+}
+.pr-picker-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  border: none !important;
+  background: transparent !important;
+  padding: 4px 6px !important;
+  border-radius: 2px;
+  font: inherit;
+  color: var(--ink) !important;
+  cursor: pointer;
+}
+.pr-picker-item:hover {
+  background: var(--divider) !important;
+}
+.pr-picker-item.is-on {
+  background: #f6efe2 !important;
+}
+.pr-picker-no {
+  color: var(--sage);
+  font-size: 11px;
+  min-width: 20px;
+}
+.pr-picker-name {
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.pr-picker-ind {
+  color: var(--sage);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.pr-picker-codes {
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 14px;
+  white-space: nowrap;
+}
+.pr-picker-pulse .pr-picker-name {
+  min-width: 68px;
+}
+.pr-picker-none {
+  padding: 6px;
+  font-size: 12px;
+}
+/* 脉位筛选：选「右关」就只列右关的脉 */
+.pr-picker-pos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.pr-picker-chip {
+  font: inherit;
+  font-size: 12px;
+  border: 1px solid var(--divider) !important;
+  background: var(--card) !important;
+  color: var(--sage) !important;
+  border-radius: 999px;
+  padding: 1px 10px !important;
+  cursor: pointer;
+}
+.pr-picker-chip.is-on {
+  border-color: var(--ink) !important;
+  background: var(--ink) !important;
+  color: var(--paper) !important;
+}
+.pr-picker-foot {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--divider);
+  padding: 8px 14px;
+}
+.pr-picker-picked {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex: 1;
+  font-size: 12px;
+}
+.pr-picker-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+@media (max-width: 720px) {
+  .pr-picker-body {
+    grid-template-columns: 1fr;
+  }
+  .pr-picker-col + .pr-picker-col {
+    border-left: none;
+    border-top: 1px solid var(--divider);
+  }
+}
 .pr-med-empty {
   margin: 0 0 8px;
 }

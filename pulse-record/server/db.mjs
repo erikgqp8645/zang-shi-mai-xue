@@ -25,7 +25,20 @@ export function openDb() {
   const db = new DatabaseSync(DB_PATH)
   db.exec('PRAGMA foreign_keys = ON;')
   db.exec(readFileSync(join(here, 'schema.sql'), 'utf8'))
+  migrate(db)
   return db
+}
+
+/**
+ * 旧库迁移：建表语句里的列是后加的，老库要补上。
+ * （CREATE TABLE IF NOT EXISTS 不会给已存在的表补列。）
+ */
+function migrate(db) {
+  const cols = db.prepare('PRAGMA table_info(medication)').all()
+  if (cols.length === 0) return
+  if (!cols.some((c) => c.name === 'symbols')) {
+    db.exec('ALTER TABLE medication ADD COLUMN symbols TEXT')
+  }
 }
 
 function parseValues(json) {
@@ -246,6 +259,7 @@ function rowToMedication(row) {
     visitId: row.visit_id,
     name: row.name,
     pulse: row.pulse ?? '',
+    symbols: parseValues(row.symbols),
     adjust: row.adjust ?? '',
     usage: row.usage ?? '',
     note: row.note ?? '',
@@ -257,7 +271,7 @@ function rowToMedication(row) {
 export function listMedication(db, patientId) {
   return db
     .prepare(
-      `SELECT id, patient_id, visit_id, name, pulse, adjust, usage, note, created_at
+      `SELECT id, patient_id, visit_id, name, pulse, symbols, adjust, usage, note, created_at
          FROM medication WHERE patient_id = ? ORDER BY visit_id, seq, created_at`,
     )
     .all(patientId)
@@ -268,7 +282,7 @@ export function listMedication(db, patientId) {
 export function listVisitMedication(db, visitId) {
   return db
     .prepare(
-      `SELECT id, patient_id, visit_id, name, pulse, adjust, usage, note, created_at
+      `SELECT id, patient_id, visit_id, name, pulse, symbols, adjust, usage, note, created_at
          FROM medication WHERE visit_id = ? ORDER BY seq, created_at`,
     )
     .all(visitId)
@@ -285,11 +299,11 @@ function writeMedicationRows(db, patientId, rows, visitId = null) {
   const list = Array.isArray(rows) ? rows : []
   const now = Date.now()
   const upsert = db.prepare(
-    `INSERT INTO medication (id, patient_id, visit_id, seq, name, pulse, adjust, usage, note, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO medication (id, patient_id, visit_id, seq, name, pulse, symbols, adjust, usage, note, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET visit_id = excluded.visit_id, seq = excluded.seq,
-       name = excluded.name, pulse = excluded.pulse, adjust = excluded.adjust,
-       usage = excluded.usage, note = excluded.note`,
+       name = excluded.name, pulse = excluded.pulse, symbols = excluded.symbols,
+       adjust = excluded.adjust, usage = excluded.usage, note = excluded.note`,
   )
   const keep = new Set()
   const hasVisitAny = db.prepare('SELECT id FROM visits WHERE id = ?')
@@ -314,6 +328,7 @@ function writeMedicationRows(db, patientId, rows, visitId = null) {
       seq,
       name,
       String(m.pulse ?? ''),
+      JSON.stringify(m.symbols ?? {}),
       String(m.adjust ?? ''),
       String(m.usage ?? ''),
       String(m.note ?? ''),

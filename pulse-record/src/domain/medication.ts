@@ -1,4 +1,8 @@
 import { DRUGS, type Drug } from './drugs'
+import { LAYOUTS } from './layout'
+import { SYMBOL_BY_CODE } from './symbols'
+import { HAND_LABEL, cellKey, type Hand, type LayoutMode, type Organ, type Session } from './types'
+import type { CustomSymbol } from './symbols'
 
 /**
  * 用药记录 —— 使用者自己填「实际用了什么方、加减、服法」
@@ -14,14 +18,97 @@ export interface Medication {
   visitId: string
   /** 方名（照讲义／讲稿原名，如「加味理中」「天王芪」） */
   name: string
-  /** 对应脉象 */
+  /** 对应脉象（**文字**表述，如「右关弱且左关有」） */
   pulse: string
+  /**
+   * 对应脉象（**符号**表述）—— 与上面的文字并存，两种说法同时记。
+   * key 同 Session.values（`手|部位|取法`），值为符号代码数组（如 ['++']）。
+   */
+  symbols: Record<string, string[]>
   /** 加减 */
   adjust: string
   /** 服法 */
   usage: string
   /** 备注 */
   note: string
+}
+
+/**
+ * 一次就诊里录到的某个脉点（带讲义 p33 的符号文字）。
+ * 例：右关 沉 录的是 `++`，文字即「++ 有力」。
+ */
+export interface PulsePoint {
+  /** `${hand}|${organ}|${depth}` */
+  key: string
+  hand: Hand
+  organ: Organ
+  depth: '浮' | '中' | '沉'
+  codes: string[]
+  /** 符号的文字说明（如「++ 有力」「| 弦」） */
+  text: string
+}
+
+/** 脉位筛选用的分组（左列「全部」＋各脉位） */
+export const PULSE_POSITIONS: { key: string; label: string }[] = [
+  { key: '', label: '全部' },
+  { key: 'L|寸', label: '左寸' },
+  { key: 'R|寸', label: '右寸' },
+  { key: 'L|关', label: '左关' },
+  { key: 'R|关', label: '右关' },
+  { key: 'L|尺', label: '左尺' },
+  { key: 'R|尺', label: '右尺' },
+]
+
+/**
+ * 该次就诊录到的脉点（只列录了符号的），按 左寸→右尺 顺序。
+ * 脉位筛选用 `${hand}|${organ}` 前缀。
+ */
+export function pulsePointsOf(session: Session, layout: LayoutMode): PulsePoint[] {
+  const out: PulsePoint[] = []
+  for (const hand of ['L', 'R'] as Hand[]) {
+    for (const row of LAYOUTS[layout]) {
+      const codes = session.values[cellKey(hand, row.organ, row.depth)] ?? []
+      if (codes.length === 0) continue
+      out.push({
+        key: cellKey(hand, row.organ, row.depth),
+        hand,
+        organ: row.organ,
+        depth: row.depth,
+        codes,
+        text: '',
+      })
+    }
+  }
+  return out
+}
+
+/** 符号代码 → 讲义 p33 的文字说明（如 ['++','|'] → 「++ 有力、| 弦」） */
+export function describeCodes(codes: string[], customSymbols: CustomSymbol[] = []): string {
+  return codes
+    .map((code) => {
+      const builtin = SYMBOL_BY_CODE[code]
+      if (builtin) return `${code} ${builtin.label}`
+      const custom = customSymbols.find((c) => c.code === code)
+      return custom ? `${code} ${custom.name}` : code
+    })
+    .join('、')
+}
+
+/** 只取文字说明（不带符号本身）：如 ['++','|'] → 「有力、弦」 */
+export function codeLabels(codes: string[], customSymbols: CustomSymbol[] = []): string {
+  return codes
+    .map((code) => {
+      const builtin = SYMBOL_BY_CODE[code]
+      if (builtin) return builtin.label
+      const custom = customSymbols.find((c) => c.code === code)
+      return custom ? custom.name : code
+    })
+    .join('、')
+}
+
+/** 脉位文字（如「右关」「左寸沉」） */
+export function pulsePointLabel(p: PulsePoint): string {
+  return `${HAND_LABEL[p.hand]}${p.organ} ${p.depth}`
 }
 
 /** 讲义 p42「依脉用方表」的一行 */
