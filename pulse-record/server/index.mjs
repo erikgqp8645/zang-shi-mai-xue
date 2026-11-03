@@ -12,12 +12,17 @@
  *   POST   /api/symbols             → { symbol }                新增／改名自定义符号
  *   DELETE /api/symbols/:code       → { ok: true }              删除自定义符号
  *   GET    /api/patients/:id       → { patient }                一位患者 ＋ 其全部就诊记录
- *   POST   /api/patients           → { patient }                整份保存（患者 ＋ 就诊记录）
+ *   POST   /api/patients           → { patient }                整份保存（患者 ＋ 就诊记录 ＋ 用药记录）
  *   PATCH  /api/patients/:id       → { patient }                重命名
  *   DELETE /api/patients/:id       → { ok: true }               删除患者（连带其就诊记录）
  *   GET    /api/visits/:id         → { visit }                  取一次就诊记录
- *   PATCH  /api/visits/:id         → { visit }                  改一次就诊记录（标签／脉象值）
+ *   PATCH  /api/visits/:id         → { visit }                  改一次就诊记录（标签／脉象值／该次用药）
  *   DELETE /api/visits/:id         → { ok: true }               删除一次就诊记录
+ *   GET    /api/patients/:id/medication → { medication: [...] }  该患者的全部用药记录
+ *   POST   /api/patients/:id/medication → { medication: [...] }  整份覆盖该患者的用药记录
+ *   GET    /api/visits/:id/medication   → { medication: [...] }  某一次就诊的用药记录
+ *   POST   /api/visits/:id/medication   → { medication: [...] }  只覆盖该次就诊的用药
+ *   DELETE /api/medication/:id     → { ok: true }               删一条用药记录
  *
  * 若已构建过 dist/，同时把前端页面也由本进程托管（单端口的本地应用）。
  */
@@ -27,16 +32,21 @@ import { existsSync, readFileSync, statSync } from 'node:fs'
 import { join, extname, normalize } from 'node:path'
 import {
   deleteCustomSymbol,
+  deleteMedication,
   deletePatient,
   deleteVisit,
   getPatient,
   getVisit,
   listCustomSymbols,
+  listMedication,
   listPatients,
+  listVisitMedication,
   openDb,
   putCustomSymbol,
+  putMedication,
   putPatient,
   putVisit,
+  putVisitMedication,
   renamePatient,
   searchPatients,
   DB_PATH,
@@ -171,9 +181,77 @@ const server = createServer(async (req, res) => {
         name: body.name || '未命名',
         layout: body.layout,
         visits: body.visits,
+        medications: Array.isArray(body.medications) ? body.medications : [],
       })
       sendJson(res, 200, { patient })
       return
+    }
+
+    // 用药记录：某位患者的全部用药 / 某一次就诊的用药
+    const pmMed = path.match(/^\/api\/patients\/([^/]+)\/medication$/)
+    if (pmMed) {
+      const id = decodeURIComponent(pmMed[1])
+      if (method === 'GET') {
+        if (!getPatient(db, id)) {
+          sendJson(res, 404, { error: '没有这位患者的记录' })
+          return
+        }
+        sendJson(res, 200, { medication: listMedication(db, id) })
+        return
+      }
+      if (method === 'POST' || method === 'PUT') {
+        const body = await readJson(req)
+        const rows = Array.isArray(body?.medications)
+          ? body.medications
+          : Array.isArray(body)
+            ? body
+            : []
+        if (!getPatient(db, id)) {
+          sendJson(res, 404, { error: '没有这位患者的记录' })
+          return
+        }
+        sendJson(res, 200, { medication: putMedication(db, id, rows) })
+        return
+      }
+    }
+
+    const vmMed = path.match(/^\/api\/visits\/([^/]+)\/medication$/)
+    if (vmMed) {
+      const id = decodeURIComponent(vmMed[1])
+      if (method === 'GET') {
+        if (!getVisit(db, id)) {
+          sendJson(res, 404, { error: '没有这条就诊记录' })
+          return
+        }
+        sendJson(res, 200, { medication: listVisitMedication(db, id) })
+        return
+      }
+      // 单次语义：只写回这一次的用药，不动该患者的其它次
+      if (method === 'POST' || method === 'PUT') {
+        const body = await readJson(req)
+        const rows = Array.isArray(body?.medications)
+          ? body.medications
+          : Array.isArray(body)
+            ? body
+            : []
+        const med = putVisitMedication(db, id, rows)
+        if (!med) {
+          sendJson(res, 404, { error: '没有这条就诊记录' })
+          return
+        }
+        sendJson(res, 200, { medication: med })
+        return
+      }
+    }
+
+    const medm = path.match(/^\/api\/medication\/([^/]+)$/)
+    if (medm) {
+      const id = decodeURIComponent(medm[1])
+      if (method === 'DELETE') {
+        const ok = deleteMedication(db, id)
+        sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: '没有这条用药记录' })
+        return
+      }
     }
 
     const pm = path.match(/^\/api\/patients\/([^/]+)$/)

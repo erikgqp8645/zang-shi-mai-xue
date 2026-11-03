@@ -480,6 +480,188 @@ button:disabled {
   }
 }
 
+/* ---------- 用药记录（使用者自己填实际用了什么方、加减、服法） ---------- */
+
+.pr-med {
+  background: var(--card);
+  border: 1px solid var(--divider);
+  border-radius: 4px;
+  padding: 14px 16px 16px;
+  margin-top: 20px;
+}
+
+.pr-med-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--divider);
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+.pr-med-head h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.pr-med-group {
+  border: 1px solid var(--divider);
+  border-radius: 3px;
+  margin-bottom: 10px;
+}
+.pr-med-group.is-active {
+  border-color: var(--clay);
+}
+.pr-med-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px;
+  background: var(--divider);
+}
+.pr-med-group-head strong {
+  font-size: 14px;
+}
+.pr-med-badge {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--high);
+  border: 1px solid var(--high);
+  border-radius: 2px;
+  padding: 0 5px;
+}
+.pr-med-empty {
+  margin: 8px 10px;
+}
+
+.pr-med-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  table-layout: fixed;
+}
+.pr-med-table th {
+  text-align: left;
+  font-weight: 400;
+  color: var(--sage);
+  font-size: 12px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--divider);
+}
+.pr-med-table td {
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--divider);
+  vertical-align: top;
+}
+.pr-med-table tr.is-focus td {
+  background: #f8f4ea;
+}
+.pr-med-table th:nth-of-type(1) {
+  width: 21%;
+}
+.pr-med-table th:nth-of-type(2) {
+  width: 23%;
+}
+.pr-med-table th:nth-of-type(3) {
+  width: 16%;
+}
+.pr-med-table th:nth-of-type(4) {
+  width: 18%;
+}
+.pr-med-table th:nth-of-type(5) {
+  width: 17%;
+}
+.pr-med-table th:nth-of-type(6) {
+  width: 34px;
+}
+.pr-med-table input[type='text'] {
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  padding: 3px 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 2px;
+}
+.pr-med-table input[type='text']:hover {
+  border-color: var(--divider);
+}
+.pr-med-table input[type='text']:focus {
+  outline: none;
+  border-color: var(--sage);
+  background: var(--card);
+}
+.pr-med-flag {
+  display: inline-block;
+  font-style: normal;
+  font-size: 11px;
+  color: var(--sage);
+  margin-left: 4px;
+}
+
+/* 讲稿第二讲的组成／服法（原文照录，只读） */
+.pr-med-ref {
+  border-left: 3px solid var(--clay);
+  background: #faf6ee;
+  padding: 8px 12px;
+  margin: 4px 0 12px;
+  font-size: 13px;
+}
+.pr-med-ref p {
+  margin: 2px 0;
+}
+.pr-med-ref-title {
+  font-weight: 600;
+}
+
+/* 讲义 p42 原表对照 */
+.pr-med-refbox {
+  border-top: 1px solid var(--divider);
+  padding-top: 8px;
+}
+.pr-med-refbox-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.pr-med-search {
+  font: inherit;
+  font-size: 13px;
+  padding: 4px 8px;
+  margin: 8px 0;
+  width: 320px;
+  max-width: 100%;
+  border: 1px solid var(--divider);
+  border-radius: 3px;
+}
+.pr-med-reftable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.pr-med-reftable th,
+.pr-med-reftable td {
+  border: 1px solid var(--divider);
+  padding: 4px 8px;
+  text-align: left;
+  font-weight: 400;
+  vertical-align: top;
+}
+.pr-med-reftable th {
+  color: var(--sage);
+  font-size: 12px;
+  background: var(--divider);
+}
+.pr-med-reftable td:nth-of-type(1) {
+  width: 34px;
+  color: var(--sage);
+  text-align: center;
+}
+.pr-med-reftable td:nth-of-type(2) {
+  width: 24%;
+}
+
 .pr-panel {
   background: var(--card);
   border: 1px solid var(--divider);

@@ -10,6 +10,8 @@ import { PulseDiagram } from './components/PulseDiagram'
 import { SymbolPalette } from './components/SymbolPalette'
 import { Findings, type SessionHit, type SessionFormulaHit } from './components/Findings'
 import { HistoryPanel, type EditingRef } from './components/HistoryPanel'
+import { MedicationPanel } from './components/MedicationPanel'
+import type { Medication } from './domain/medication'
 import { DIM_ORDER } from './domain/grouping'
 import { validateCustomSymbol, type CustomSymbol } from './domain/symbols'
 import { toCsv, toMarkdown } from './export/text'
@@ -18,7 +20,9 @@ import {
   deletePatient,
   deleteVisit,
   getPatient,
+  listMedication,
   listPatients,
+  listVisitMedication,
   renamePatient,
   savePatient,
   updateVisit,
@@ -29,6 +33,11 @@ import { sampleShaoJuan } from './domain/sample'
 
 function uid(): string {
   return `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+}
+
+/** 用药记录的 id（与就诊 id 同族，但前缀不同） */
+function muid(): string {
+  return `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
 }
 
 function downloadText(filename: string, text: string, mime: string) {
@@ -65,6 +74,13 @@ export default function App() {
   /** 自定义符号（使用者自建，如「涩」＝S）：存本机 SQLite，与病例记录同一套永久存储 */
   const [customSymbols, setCustomSymbols] = useState<CustomSymbol[]>([])
   const [symbolError, setSymbolError] = useState<string | null>(null)
+
+  /**
+   * 用药记录：使用者自己填「实际用了什么方、加减、服法」。
+   * 挂在某一次就诊下（一次就诊可挂多条方），与脉象记录一起存本机 SQLite。
+   * 工具只负责记录，不替使用者加减方、不下诊断。
+   */
+  const [medications, setMedications] = useState<Medication[]>([])
 
   const refreshHistory = useCallback(async () => {
     try {
@@ -194,6 +210,8 @@ export default function App() {
   const removeSession = (id: string) => {
     setSet((prev) => ({ ...prev, sessions: prev.sessions.filter((s) => s.id !== id) }))
     setSelected((sel) => (sel?.sessionId === id ? null : sel))
+    // 删掉这一列，它下面的用药记录也一并作废
+    setMedications((prev) => prev.filter((m) => m.visitId !== id))
   }
 
   const renameSession = (id: string, label: string) => {
@@ -223,6 +241,10 @@ export default function App() {
   const toVisits = () =>
     set.sessions.map((s) => ({ id: s.id, label: s.label, at: s.at ?? Date.now(), values: s.values }))
 
+  /** 只留还挂在当前记录列上的用药（删掉的记录列，其用药随之作废） */
+  const liveMedications = () =>
+    medications.filter((m) => set.sessions.some((s) => s.id === m.visitId))
+
   /**
    * 保存当前：
    * - 正在编辑某一次就诊（单次模式）→ 只写回那一次，不动该患者的其它次
@@ -234,7 +256,13 @@ export default function App() {
       if (editing.visitId) {
         const s = set.sessions[0]
         if (!s) return
-        await updateVisit(editing.visitId, { label: s.label, values: s.values, at: s.at })
+        await updateVisit(editing.visitId, {
+          label: s.label,
+          values: s.values,
+          at: s.at,
+          // 单次语义：只写回这一次的用药
+          medications: liveMedications().filter((m) => m.visitId === s.id),
+        })
         await renamePatient(editing.patientId!, set.name || '未命名')
         await refreshHistory()
         setHistoryError(null)
@@ -245,6 +273,7 @@ export default function App() {
         name: set.name || '未命名',
         layout: set.layout,
         visits: toVisits(),
+        medications: liveMedications(),
       })
       setEditing({ patientId: patient.id, visitId: null })
       await refreshHistory()
@@ -254,14 +283,41 @@ export default function App() {
     }
   }
 
-  /** 另存为新患者（不动正在编辑的那位） */
+  /**
+   * 另存为新患者（不动正在编辑的那位）。
+   *
+   * 另存＝复制一份：就诊记录与用药记录都要换新的 id，
+   * 否则同一批 visit id 会把原患者的那几次就诊「搬」到新患者名下（原患者就少了记录）。
+   */
   const doSaveAsNew = async () => {
     try {
+      const idMap = new Map<string, string>()
+      const visits = set.sessions.map((s) => {
+        const nid = uid()
+        idMap.set(s.id, nid)
+        return { id: nid, label: s.label, at: s.at ?? Date.now(), values: s.values }
+      })
+      const newMeds: Medication[] = liveMedications().map((m) => ({
+        id: muid(),
+        visitId: idMap.get(m.visitId) ?? m.visitId,
+        name: m.name,
+        pulse: m.pulse,
+        adjust: m.adjust,
+        usage: m.usage,
+        note: m.note,
+      }))
       const patient = await savePatient({
         name: set.name || '未命名',
         layout: set.layout,
-        visits: toVisits(),
+        visits,
+        medications: newMeds,
       })
+      // 本地状态换成新 id（与库里一致，后续再保存就是更新而不是新增）
+      setSet((prev) => ({
+        ...prev,
+        sessions: prev.sessions.map((s) => ({ ...s, id: idMap.get(s.id) ?? s.id })),
+      }))
+      setMedications(newMeds)
       setEditing({ patientId: patient.id, visitId: null })
       await refreshHistory()
       setHistoryError(null)
@@ -280,6 +336,7 @@ export default function App() {
         layout: patient.layout,
         sessions: patient.visits.map((v) => ({ id: v.id, label: v.label, at: v.at, values: v.values })),
       })
+      setMedications(await listMedication(patient.id))
       setEditing({ patientId: patient.id, visitId: null })
       setSelected(null)
       setHighlight(new Set())
@@ -299,6 +356,7 @@ export default function App() {
         layout: patient.layout,
         sessions: [{ id: visit.id, label: visit.label, at: visit.at, values: visit.values }],
       })
+      setMedications(await listVisitMedication(visitId))
       setEditing({ patientId, visitId })
       setSelected(null)
       setHighlight(new Set())
@@ -340,6 +398,7 @@ export default function App() {
   /** 载入讲义 p34 实例表原样数据，用于核对体例 */
   const doLoadSample = () => {
     setSet(sampleShaoJuan())
+    setMedications([])
     setSelected(null)
     setHighlight(new Set())
   }
@@ -568,6 +627,14 @@ export default function App() {
           onSelectSession={setActiveSessionId}
         />
       </div>
+
+      {/* 用药记录（使用者自己填实际用了什么方、加减、服法） */}
+      <MedicationPanel
+        sessions={set.sessions}
+        activeSessionId={activeSessionId}
+        rows={medications}
+        onChange={setMedications}
+      />
 
       {/* 判读提示放最后 */}
       <div className="pr-findings-row">
