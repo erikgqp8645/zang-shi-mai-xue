@@ -44,9 +44,11 @@ interface Props {
   onPosition: (p: string) => void
   /** 这一行已选的符号（key 同 Session.values） */
   selected: Record<string, string[]>
+  /** **主组合**（使用者点的那一组）；组合之间成员重叠，亮着的只能有一组 */
+  primary?: string
   /** 点一个脉点：选／不选 */
   onToggle: (p: PulsePoint) => void
-  /** 点一个脉位组合：整组选上／取消 */
+  /** 点一个脉位组合：用这一组（再点同一组＝取消） */
   onToggleGroup: (g: PulseGroup) => void
   /** 清掉这一行已选的符号 */
   onClear: () => void
@@ -65,6 +67,7 @@ export function MedicationPicker({
   position,
   onPosition,
   selected,
+  primary,
   onToggle,
   onToggleGroup,
   onClear,
@@ -84,17 +87,20 @@ export function MedicationPicker({
   )
 
   /**
-   * 脉位组合 —— 只列**本次录得到**的成员；全选＝整组在选上。
-   * 成员一个都没录到的组合置灰（点了也没东西可选）。
+   * 脉位组合 —— 只列**本次录得到**的成员。
+   *
+   * 组合之间成员互相重叠（右关同属双关同治／双关右寸／右关尺），
+   * 所以**只有主组合亮深色**（= 使用者点的那一组），其余一律不亮 ——
+   * 免得点一个却「全选上」。全选＝该组本次录到的成员都在选择里。
    */
   const groups = useMemo(
     () =>
       PULSE_GROUPS.map((g) => {
         const members = points.filter((p) => g.positions.includes(`${p.hand}|${p.organ}`))
-        const on = members.length > 0 && members.every((p) => (selected[p.key] ?? []).length > 0)
-        return { group: g, members, on }
+        const allOn = members.length > 0 && members.every((p) => (selected[p.key] ?? []).length > 0)
+        return { group: g, members, allOn, on: allOn && primary === g.name }
       }),
-    [points, selected],
+    [points, selected, primary],
   )
 
   /** 已选的符号（这一行） */
@@ -115,8 +121,8 @@ export function MedicationPicker({
 
   /** 选完后会自动写进左格「对应脉象」的那段文字 */
   const autoText = useMemo(
-    () => buildPulseText(selected ?? {}, customSymbols),
-    [selected, customSymbols],
+    () => buildPulseText(selected ?? {}, customSymbols, primary),
+    [selected, customSymbols, primary],
   )
 
   /** 选中的组合（把出处一并写出来，免得看不出名字的来路） */
@@ -192,13 +198,13 @@ export function MedicationPicker({
             {/* 脉位组合：一次选多个脉位（名字取原文） */}
             <h5 className="pr-picker-sub">脉位组合（名称取自原文）</h5>
             <div className="pr-picker-groups">
-              {groups.map(({ group, members, on }) => (
+              {groups.map(({ group, members, allOn, on }) => (
                 <button
                   key={group.id}
                   type="button"
                   className={`pr-picker-chip pr-picker-grp${on ? ' is-on' : ''}${
-                    members.length === 0 ? ' is-off' : ''
-                  }`}
+                    allOn && !on ? ' is-cover' : ''
+                  }${members.length === 0 ? ' is-off' : ''}`}
                   disabled={members.length === 0}
                   title={`${groupPositionsLabel(group)}｜${group.source}`}
                   onClick={() => onToggleGroup(group)}
@@ -208,7 +214,8 @@ export function MedicationPicker({
               ))}
             </div>
             <p className="pr-muted pr-picker-hint">
-              点一下＝整组选上，再点＝取消；组内只在本次录到的脉点上生效。
+              点一下＝就用这一组（换成该组本次录到的脉点），再点同一组＝取消；
+              组内只在本次录到的脉点上生效。
             </p>
             {onGroups.length > 0 && (
               <div className="pr-picker-srcs">

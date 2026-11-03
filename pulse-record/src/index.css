@@ -731,6 +731,12 @@ button:disabled {
 .pr-picker-grp {
   font-size: 12px;
 }
+/* 这一组的成员也都在选择里，但不是使用者点的那一组（浅色，弱提示） */
+.pr-picker-grp.is-cover {
+  border-color: var(--clay) !important;
+  color: var(--clay) !important;
+  border-style: dashed !important;
+}
 .pr-picker-grp.is-off {
   opacity: 0.4;
   cursor: default;

@@ -211,16 +211,41 @@ export function matchGroup(positions: string[]): PulseGroup | undefined {
   return hits.sort((a, b) => b.positions.length - a.positions.length)[0]
 }
 
+/** 已选符号覆盖了哪些脉位（`手|部位`） */
+export function positionsOf(symbols: Record<string, string[]>): string[] {
+  return [
+    ...new Set(
+      Object.keys(symbols ?? {})
+        .filter((k) => (symbols[k] ?? []).length > 0)
+        .map((k) => k.split('|').slice(0, 2).join('|')),
+    ),
+  ]
+}
+
+/**
+ * 从「对应脉象」文字里认出**主组合**（文字形如「肝肺同治（左关 …；右寸 …）」）。
+ *
+ * 组合之间成员互相重叠（右关同属双关同治／双关右寸／右关尺），
+ * 所以「哪一组」要由使用者点的那一组说了算 —— 文字前缀就是记下来的那一条。
+ */
+export function groupOfText(text: string): PulseGroup | undefined {
+  const m = (text ?? '').trim().match(/^([^（(]{1,12})[（(]/)
+  if (!m) return undefined
+  return PULSE_GROUPS.find((g) => g.name === m[1])
+}
+
 /**
  * 按所选符号生成「对应脉象」文字 —— 供右列选完**自动填进左格**。
  *
  * 文字形如「肝肺同治（左关 沉 ++ 有力；右寸 浮 + 有）」：
- * 脉位组合名（若所选脉位与某个组合完全一致）＋ 各脉点的符号与讲义 p33 的文字。
+ * 组合名（使用者点选的那一组 `groupName`；没点就按脉位精确匹配推一个）
+ * ＋ 各脉点的符号与讲义 p33 的文字。
  * 这只是把使用者自己选的东西照实写出来，不是判读、不是诊断。
  */
 export function buildPulseText(
   symbols: Record<string, string[]>,
   customSymbols: CustomSymbol[] = [],
+  groupName?: string,
 ): string {
   const keys = Object.keys(symbols ?? {})
     .filter((k) => (symbols[k] ?? []).length > 0)
@@ -234,9 +259,9 @@ export function buildPulseText(
       text: describeCodes(symbols[k], customSymbols),
     }
   })
-  const group = matchGroup([...new Set(items.map((i) => i.pos))])
+  const group = groupName ?? matchGroup([...new Set(items.map((i) => i.pos))])?.name
   const detail = items.map((i) => `${i.label} ${i.text}`).join('；')
-  return group ? `${group.name}（${detail}）` : detail
+  return group ? `${group}（${detail}）` : detail
 }
 
 /** 讲义 p42「依脉用方表」的一行 */

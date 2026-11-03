@@ -1,10 +1,14 @@
 import { useMemo, useState } from 'react'
 import type { LayoutMode, Session } from '../domain/types'
 import {
+  PULSE_GROUPS,
   buildPulseText,
   describeCodes,
   findDrug,
+  groupOfText,
+  matchGroup,
   pointOrder,
+  positionsOf,
   pulsePointsOf,
   searchFormulaReference,
   type FormulaReference,
@@ -66,6 +70,14 @@ export function MedicationPanel({
   const [refOpen, setRefOpen] = useState(false)
   /** 脉位筛选（选择器右列；关掉弹窗也留着） */
   const [position, setPosition] = useState('')
+  /**
+   * **主组合**（哪一组是使用者点的那一组）—— 按行记。
+   *
+   * 组合之间成员互相重叠（右关同属双关同治／双关右寸／右关尺），
+   * 所以「亮着的只能有一组」：以点选的那一组为准，其余不亮。
+   * 文字前缀里也记着这一组（形如「肝肺同治（…）」），刷新后仍认得出。
+   */
+  const [primaryState, setPrimaryState] = useState<Record<string, string>>({})
 
   const refRows = useMemo(() => searchFormulaReference(kw), [kw])
 
@@ -118,66 +130,96 @@ export function MedicationPanel({
   }
 
   /** 按符号生成的那段文字（自动填进「对应脉象」用） */
-  const autoTextOf = (symbols: Record<string, string[]>) => buildPulseText(symbols, customSymbols)
+  const autoTextOf = (symbols: Record<string, string[]>, groupName?: string) =>
+    buildPulseText(symbols, customSymbols, groupName)
+
+  /** 这一行的**主组合**（点过的那一组；没点过就按脉位精确匹配推一个） */
+  const primaryName = (r: Medication): string | undefined =>
+    primaryState[r.id] ?? groupOfText(r.pulse)?.name ?? matchGroup(positionsOf(r.symbols ?? {}))?.name
+
+  /** 这一行按符号生成的那段文字（带主组合名） */
+  const autoTextOfRow = (r: Medication) => autoTextOf(r.symbols ?? {}, primaryName(r))
 
   /** 这一格的文字还是「自动生成」的吗？（空着也算 —— 等着被自动填） */
-  const isAutoText = (r: Medication) =>
-    r.pulse === '' || r.pulse === autoTextOf(r.symbols ?? {})
+  const isAutoText = (r: Medication) => r.pulse === '' || r.pulse === autoTextOfRow(r)
+
+  /** 记／清主组合 */
+  const setPrimary = (rowId: string, name?: string) =>
+    setPrimaryState((s) => {
+      const next = { ...s }
+      if (name) next[rowId] = name
+      else delete next[rowId]
+      return next
+    })
+
+  /** 某组在这次就诊里**录到**的成员（只有录到符号的脉点才算） */
+  const groupMembers = (g: PulseGroup, session: Session | undefined) =>
+    session
+      ? pulsePointsOf(session, layout).filter((p) => g.positions.includes(`${p.hand}|${p.organ}`))
+      : []
+
+  /** 这些成员是否都还在选择里 */
+  const covered = (symbols: Record<string, string[]>, members: PulsePoint[]) =>
+    members.length > 0 && members.every((m) => (symbols[m.key] ?? []).length > 0)
 
   /** 选／不选一个脉点的符号（并入这一行的「对应脉象」，与文字并存） */
   const toggleSymbol = (p: PulsePoint) => {
     if (!pickerFor) return
-    onChange(
-      rows.map((r) => {
-        if (r.id !== pickerFor) return r
-        const symbols = { ...(r.symbols ?? {}) }
-        if ((symbols[p.key] ?? []).length > 0) delete symbols[p.key]
-        else symbols[p.key] = [...p.codes]
-        // 右 → 左：文字没被手改过，就按新选的符号自动重写
-        return {
-          ...r,
-          symbols,
-          pulse: isAutoText(r) ? autoTextOf(symbols) : r.pulse,
-        }
-      }),
-    )
+    const row = rows.find((r) => r.id === pickerFor)
+    if (!row) return
+    const symbols = { ...(row.symbols ?? {}) }
+    if ((symbols[p.key] ?? []).length > 0) delete symbols[p.key]
+    else symbols[p.key] = [...p.codes]
+    // 主组合若还覆盖得住就留着，覆盖不住（成员被取消）就丢掉
+    const primary = primaryName(row)
+    const members = primary
+      ? groupMembers(PULSE_GROUPS.find((g) => g.name === primary) as PulseGroup, pickerSession)
+      : []
+    const keep = primary && covered(symbols, members) ? primary : undefined
+    if (primary && !keep) setPrimary(row.id, undefined)
+    // 右 → 左：文字没被手改过，就按新选的符号自动重写
+    update(row.id, {
+      symbols,
+      pulse: isAutoText(row) ? autoTextOf(symbols, keep) : row.pulse,
+    })
   }
 
-  /** 点一个脉位组合：整组选上／取消（只在本次录到的脉点上生效） */
+  /**
+   * 点一个脉位组合：
+   * - 点一下＝**就用这一组**（把当前选择换成该组本次录到的成员）
+   * - 再点同一组（已是主组合且选全了）＝取消这一组
+   */
   const toggleGroup = (g: PulseGroup) => {
     if (!pickerFor || !pickerSession) return
-    const members = pulsePointsOf(pickerSession, layout).filter((p) =>
-      g.positions.includes(`${p.hand}|${p.organ}`),
-    )
+    const row = rows.find((r) => r.id === pickerFor)
+    if (!row) return
+    const members = groupMembers(g, pickerSession)
     if (members.length === 0) return
-    onChange(
-      rows.map((r) => {
-        if (r.id !== pickerFor) return r
-        const symbols = { ...(r.symbols ?? {}) }
-        const allOn = members.every((p) => (symbols[p.key] ?? []).length > 0)
-        for (const p of members) {
-          if (allOn) delete symbols[p.key]
-          else symbols[p.key] = [...p.codes]
-        }
-        return {
-          ...r,
-          symbols,
-          pulse: isAutoText(r) ? autoTextOf(symbols) : r.pulse,
-        }
-      }),
-    )
+    const symbols = { ...(row.symbols ?? {}) }
+    if (covered(symbols, members) && primaryName(row) === g.name) {
+      // 再点一次＝取消这一组
+      for (const m of members) delete symbols[m.key]
+      setPrimary(row.id, undefined)
+      update(row.id, { symbols, pulse: isAutoText(row) ? '' : row.pulse })
+      return
+    }
+    // 点一下＝就用这一组（替换当前选择）
+    for (const k of Object.keys(symbols)) delete symbols[k]
+    for (const m of members) symbols[m.key] = [...m.codes]
+    setPrimary(row.id, g.name)
+    update(row.id, {
+      symbols,
+      pulse: isAutoText(row) ? autoTextOf(symbols, g.name) : row.pulse,
+    })
   }
 
   /** 清掉这一行已选的符号 */
   const clearSymbols = () => {
     if (!pickerFor) return
-    onChange(
-      rows.map((r) =>
-        r.id === pickerFor
-          ? { ...r, symbols: {}, pulse: isAutoText(r) ? '' : r.pulse }
-          : r,
-      ),
-    )
+    const row = rows.find((r) => r.id === pickerFor)
+    if (!row) return
+    setPrimary(row.id, undefined)
+    update(row.id, { symbols: {}, pulse: isAutoText(row) ? '' : row.pulse })
   }
 
   /** 选一个处方：回填方名与对应脉象的文字表述 */
@@ -190,7 +232,7 @@ export function MedicationPanel({
   const refillFromSymbols = (id: string) => {
     const r = rows.find((x) => x.id === id)
     if (!r) return
-    update(id, { pulse: autoTextOf(r.symbols ?? {}) })
+    update(id, { pulse: autoTextOfRow(r) })
   }
 
   /** 这一行已选的符号（按 左寸→右尺 排，不按字符串序） */
@@ -456,6 +498,7 @@ export function MedicationPanel({
           position={position}
           onPosition={setPosition}
           selected={pickerRow.symbols ?? {}}
+          primary={pickerRow ? primaryName(pickerRow) : undefined}
           onToggle={toggleSymbol}
           onToggleGroup={toggleGroup}
           onClear={clearSymbols}

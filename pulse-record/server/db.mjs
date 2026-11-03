@@ -313,7 +313,14 @@ function writeMedicationRows(db, patientId, rows, visitId = null) {
   list.forEach((m) => {
     const id = m.id || `m${now.toString(36)}${Math.random().toString(36).slice(2, 8)}`
     const name = String(m.name ?? '').trim()
-    if (!name) return
+    const pulse = String(m.pulse ?? '').trim()
+    const adjust = String(m.adjust ?? '').trim()
+    const usage = String(m.usage ?? '').trim()
+    const note = String(m.note ?? '').trim()
+    const symbols = m.symbols && typeof m.symbols === 'object' ? m.symbols : {}
+    const hasSymbols = Object.keys(symbols).some((k) => (symbols[k] ?? []).length > 0)
+    // 整行全空才丢（只填了「对应脉象」或只填了加减，也是使用者的记录，不能静默消失）
+    if (!name && !pulse && !adjust && !usage && !note && !hasSymbols) return
     const vid = visitId ?? String(m.visitId ?? '')
     // 外键保护：跳过指向不存在（或不属于该患者）就诊记录的用药，免得整个保存失败
     const exists = visitId ? hasVisitAny.get(vid) : hasVisitOwn.get(vid, patientId)
@@ -327,11 +334,11 @@ function writeMedicationRows(db, patientId, rows, visitId = null) {
       vid,
       seq,
       name,
-      String(m.pulse ?? ''),
-      JSON.stringify(m.symbols ?? {}),
-      String(m.adjust ?? ''),
-      String(m.usage ?? ''),
-      String(m.note ?? ''),
+      pulse,
+      JSON.stringify(symbols),
+      adjust,
+      usage,
+      note,
       now,
     )
   })
