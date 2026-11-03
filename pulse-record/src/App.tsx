@@ -388,12 +388,26 @@ export default function App() {
           </p>
         </div>
         <div className="pr-header-actions">
-          <button type="button" onClick={() => downloadPng(set, `${baseName}.png`, customSymbols)}>
+          <button
+            type="button"
+            onClick={() =>
+              downloadPng(set, `${baseName}.png`, customSymbols, {
+                diagram: true,
+                activeSessionId,
+              })
+            }
+          >
             导出 PNG
           </button>
           <button
             type="button"
-            onClick={() => downloadText(`${baseName}.md`, toMarkdown(set, groupFilter, customSymbols), 'text/markdown')}
+            onClick={() =>
+              downloadText(
+                `${baseName}.md`,
+                toMarkdown(set, groupFilter, customSymbols, activeSessionId),
+                'text/markdown',
+              )
+            }
           >
             导出 Markdown
           </button>
