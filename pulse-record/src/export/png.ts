@@ -142,12 +142,35 @@ export function renderTableCanvas(set: RecordSet, customSymbols: CustomSymbol[] 
     ctx.fillText(s, cx, cy)
   }
 
-  // 姓名（在表头第二行，横跨部位列 + 取法列）
-  text(set.name || '', labelW / 2, HEAD_H * 1.5, 24, FONT_LABEL)
+  /**
+   * 量文字：放得下就用最大字号；放不下先缩字号，缩到最小仍放不下则截断加省略号。
+   * 姓名格只有「部位 + 取法」两列宽，姓名字号须自适应，才不会溢出到「左」列或表格外。
+   */
+  const fitText = (s: string, maxW: number, maxSize: number, minSize = 11) => {
+    if (!s) return { s, size: maxSize }
+    ctx.font = `${maxSize}px ${FONT_LABEL}`
+    if (ctx.measureText(s).width <= maxW) return { s, size: maxSize }
+    for (let size = maxSize - 1; size > minSize; size--) {
+      ctx.font = `${size}px ${FONT_LABEL}`
+      if (ctx.measureText(s).width <= maxW) return { s, size }
+    }
+    ctx.font = `${minSize}px ${FONT_LABEL}`
+    let out = s
+    while (out.length > 1 && ctx.measureText(`${out}…`).width > maxW) {
+      out = out.slice(0, -1)
+    }
+    return { s: `${out}…`, size: minSize }
+  }
+
+  // 姓名（在表头第二行，横跨部位列 + 取法列）——字号随姓名格宽度自适应
+  const nameFit = fitText(set.name || '', labelW - 8, 24)
+  text(nameFit.s, labelW / 2, HEAD_H * 1.5, nameFit.size, FONT_LABEL)
 
   // 日期组（横跨左右两列）+ 左 / 右
   set.sessions.forEach((s, i) => {
-    text(s.label, labelW + (i * 2 + 1) * DATA_W, HEAD_H / 2, 21, FONT_LABEL)
+    // 日期标签居中于「左 + 右」合并组（两列宽），六位年月日如 261102 亦放得下
+    const labelFit = fitText(s.label, DATA_W * 2 - 8, 21)
+    text(labelFit.s, labelW + (i * 2 + 1) * DATA_W, HEAD_H / 2, labelFit.size, FONT_LABEL)
     text('左', labelW + i * 2 * DATA_W + DATA_W / 2, HEAD_H * 1.5, 20, FONT_LABEL)
     text('右', labelW + (i * 2 + 1) * DATA_W + DATA_W / 2, HEAD_H * 1.5, 20, FONT_LABEL)
   })
