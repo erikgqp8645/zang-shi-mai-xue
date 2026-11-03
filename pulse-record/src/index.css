@@ -1956,6 +1956,326 @@ button:disabled {
   color: var(--sage);
 }
 
+/* ---------- 开方三部曲 · 框架（讲义 2026-10·p47） ---------- */
+
+/* ---- 框头：常驻顶部的流程条 ---- */
+
+.pr-triad-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+  padding: 9px 14px;
+  border: 1px solid var(--divider);
+  border-left: 3px solid var(--high);
+  background: #fffdf9;
+}
+
+.pr-triad-head-left {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.pr-triad-head-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+}
+
+.pr-triad-head-src {
+  font-size: 10.5px;
+  color: var(--sage);
+}
+
+.pr-triad-steps {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex: 1 1 auto;
+}
+
+.pr-triad-step {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 3px 14px 3px 10px;
+  border-left: 1px solid var(--divider);
+}
+
+.pr-triad-step:first-child {
+  border-left: none;
+}
+
+.pr-triad-step-btn {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pr-triad-step-btn:hover .pr-triad-step-title {
+  color: var(--high);
+}
+
+.pr-triad-step-no {
+  font-size: 12px;
+  color: var(--sage);
+}
+
+.pr-triad-step-title {
+  font-size: 12.5px;
+  color: var(--ink);
+}
+
+.pr-triad-step.is-current .pr-triad-step-no,
+.pr-triad-step.is-current .pr-triad-step-title {
+  font-weight: 600;
+  color: var(--high);
+}
+
+.pr-triad-step.is-done .pr-triad-step-no,
+.pr-triad-step.is-done .pr-triad-step-title {
+  color: var(--sage);
+}
+
+.pr-triad-step.is-todo .pr-triad-step-title {
+  color: #a8a396;
+}
+
+.pr-triad-step-flag {
+  font-size: 10px;
+  color: var(--sage);
+}
+
+.pr-triad-step.is-current .pr-triad-step-flag {
+  color: var(--high);
+}
+
+.pr-triad-step-state {
+  font-size: 11px;
+  color: var(--clay);
+}
+
+.pr-triad-step-note {
+  font-size: 10.5px;
+  color: var(--sage);
+}
+
+.pr-triad-head-right {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.pr-triad-head-tag {
+  padding: 1px 6px;
+  border: 1px solid var(--divider);
+  border-radius: 2px;
+  font-size: 10.5px;
+  color: var(--sage);
+}
+
+.pr-triad-loop {
+  font-size: 10.5px;
+  color: var(--clay);
+}
+
+/* ---- 三个框 ---- */
+
+.pr-triad-box {
+  margin-bottom: 14px;
+  border: 1px solid var(--divider);
+  background: var(--card);
+}
+
+.pr-triad-box.is-① {
+  border-left: 3px solid var(--clay);
+}
+
+.pr-triad-box.is-② {
+  border-left: 3px solid #6ba3c4;
+}
+
+.pr-triad-box.is-③ {
+  border-left: 3px solid var(--high);
+}
+
+/* 待进行的框整体压暗，提示还没走到这一步 */
+.pr-triad-box.is-todo {
+  opacity: 0.72;
+}
+
+.pr-triad-box.is-current {
+  border-color: var(--divider);
+  box-shadow: 0 1px 0 var(--divider);
+}
+
+.pr-triad-box.is-current .pr-triad-box-head {
+  background: #fdf6ef;
+}
+
+.pr-triad-box-flag {
+  font-size: 10.5px;
+  color: var(--sage);
+}
+
+.pr-triad-box.is-current .pr-triad-box-flag {
+  color: var(--high);
+}
+
+.pr-triad-box-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 7px 12px;
+  background: #faf7f0;
+  border-bottom: 1px solid var(--divider);
+}
+
+.pr-triad-box-no {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.pr-triad-box-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.pr-triad-box-note {
+  font-size: 11px;
+  color: var(--sage);
+}
+
+.pr-triad-box-result {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--clay);
+}
+
+.pr-triad-box-body {
+  padding: 12px;
+}
+
+/* 框内零件 */
+
+.pr-triad-def {
+  margin: 0 0 8px;
+  padding: 5px 9px;
+  border-left: 2px solid var(--clay);
+  background: #fdf6ef;
+  font-size: 11px;
+  color: var(--ink);
+}
+
+.pr-triad-def-key {
+  font-weight: 600;
+}
+
+.pr-triad-def-src {
+  margin-left: 6px;
+  color: var(--sage);
+}
+
+.pr-triad-states {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.pr-triad-states-label {
+  font-size: 11px;
+  color: var(--sage);
+}
+
+.pr-triad-state {
+  padding: 2px 8px;
+  border: 1px solid var(--divider);
+  border-radius: 999px;
+  background: var(--paper);
+  font-size: 11px;
+  color: var(--sage);
+}
+
+.pr-triad-state.is-on {
+  border-color: var(--high);
+  background: #fbeeeb;
+  color: var(--high);
+}
+
+/* 开方药清单 */
+
+.pr-triad-rx-list {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pr-triad-rx {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 5px 9px;
+  border: 1px solid var(--divider);
+  border-top: 2px solid var(--high);
+  background: var(--paper);
+}
+
+.pr-triad-rx-no {
+  font-size: 11px;
+  color: var(--sage);
+}
+
+.pr-triad-rx-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.pr-triad-rx-src {
+  font-size: 10.5px;
+  color: var(--sage);
+}
+
+.pr-triad-rx-empty {
+  margin: 0 0 12px;
+  font-size: 11.5px;
+  color: var(--sage);
+}
+
+.pr-triad-hit {
+  padding: 1px 6px;
+  border: 1px solid var(--clay);
+  border-radius: 2px;
+  background: var(--card);
+  font-size: 10.5px;
+  color: var(--clay);
+  cursor: pointer;
+}
+
+.pr-triad-hit:hover {
+  background: #fdf6ef;
+}
+
 /* ---------- 判读面板：风险提示 / 依脉用方 ---------- */
 
 .pr-tabs {

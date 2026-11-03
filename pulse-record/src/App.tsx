@@ -9,7 +9,15 @@ import { PulseTable, type CellRef } from './components/PulseTable'
 import { PulseDiagram } from './components/PulseDiagram'
 import { SymbolPalette } from './components/SymbolPalette'
 import { Findings, type SessionHit, type SessionFormulaHit } from './components/Findings'
-import { TriadFlow } from './components/TriadFlow'
+import {
+  BianmaiNote,
+  HitNote,
+  RxList,
+  StateHints,
+  TriadHeader,
+  TriadSection,
+  type TriadStep,
+} from './components/TriadFrame'
 import { judgeTriad } from './domain/triad'
 import { HistoryPanel, type EditingRef } from './components/HistoryPanel'
 import { MedicationPanel } from './components/MedicationPanel'
@@ -192,6 +200,57 @@ export default function App() {
     setHighlight(new Set(cells.map((c) => `${s.id}::${c}`)))
     const [hand, organ, depth] = cells[0].split('|') as [CellRef['hand'], CellRef['organ'], CellRef['depth']]
     setSelected({ sessionId: s.id, hand, organ, depth })
+  }
+
+  /**
+   * 三步的状态：按「有没有录脉象 → 有没有判出体质 → 有没有记用药」推进。
+   * 只标示走到哪一步，不替使用者决定该不该开方。
+   */
+  const triadSteps = useMemo<TriadStep[]>(() => {
+    const recorded = !!triadResult?.recorded
+    const judged = !!triadResult?.constitution
+    const prescribed =
+      !!activeSessionId && medications.some((m) => m.visitId === activeSessionId && m.name.trim() !== '')
+
+    /** 已完成的步数 → 下一个「进行中」 */
+    const doneCount = [recorded, judged, prescribed].filter(Boolean).length
+    const stateOf = (i: number): TriadStep['state'] => {
+      const ok = [recorded, judged, prescribed][i]
+      if (ok && doneCount > i) return 'done'
+      return doneCount === i ? 'current' : 'todo'
+    }
+
+    return [
+      {
+        no: '①',
+        title: '判体质',
+        note: '摸脉 → 判断方式 → 状态',
+        state: stateOf(0),
+        result: triadResult?.constitution ? `${triadResult.constitution}体质` : undefined,
+      },
+      {
+        no: '②',
+        title: '定疗法',
+        note: '按体质定疗法',
+        state: stateOf(1),
+        result: triadResult?.therapy ?? undefined,
+      },
+      {
+        no: '③',
+        title: '开方药',
+        note: '按疗法列方',
+        state: stateOf(2),
+        result: triadResult?.prescriptions.length
+          ? triadResult.prescriptions.map((p) => p.name).join('、')
+          : undefined,
+      },
+    ]
+  }, [set, activeSessionId, triadResult, medications])
+
+  /** 点框头的某一步 → 跳到那个框 */
+  const jumpToStep = (no: '①' | '②' | '③') => {
+    const idx = ['①', '②', '③'].indexOf(no)
+    document.querySelectorAll<HTMLElement>('.pr-triad-box')[idx]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   /** 当前选中格的符号 */
@@ -618,70 +677,112 @@ export default function App() {
         />
       )}
 
-      {triadResult && <TriadFlow result={triadResult} onFocusCells={focusTriadCells} />}
+      {triadResult && (
+        <TriadHeader
+          steps={triadSteps}
+          onJump={jumpToStep}
+          hitNote={<HitNote result={triadResult} onFocusCells={focusTriadCells} />}
+        />
+      )}
 
-      <PulseTable
-        set={set}
-        selected={selected}
-        onSelect={(ref) => {
-          setSelected(ref)
-          setHighlight(new Set())
-          // 点格子＝同时把这一列设为当前日期（图示随之变化）
-          setActiveSessionId(ref.sessionId)
-        }}
-        highlight={highlight}
-        activeSessionId={activeSessionId}
-        onSelectSession={setActiveSessionId}
-      />
+      {/* ---- ①判体质：摸脉录入 ---- */}
+      <TriadSection
+        stage="①"
+        title="判体质"
+        note="摸脉 → 判断方式 → 状态"
+        state={triadSteps[0].state}
+        result={triadResult?.constitution ? `→ ${triadResult.constitution}体质` : undefined}
+      >
+        <BianmaiNote />
+        {triadResult && <StateHints constitution={triadResult.constitution} />}
 
-      {/* 底排：左列「符号录入 → 用药记录」，右列「寸关尺图示」 */}
-      <div className="pr-bottom">
-        <div className="pr-bottom-left">
-          <SymbolPalette
-            codes={selectedCodes}
-            target={selectedTarget}
-            onChange={(c) => selected && setCellCodes(selected, c)}
-            customSymbols={customSymbols}
-            onAddCustom={doAddCustomSymbol}
-            onDeleteCustom={doRemoveCustomSymbol}
-            error={symbolError}
-          />
-
-          {/* 用药记录（使用者自己填实际用了什么方、加减、服法） */}
-          <MedicationPanel
-            sessions={set.sessions}
-            activeSessionId={activeSessionId}
-            layout={set.layout}
-            customSymbols={customSymbols}
-            rows={medications}
-            onChange={setMedications}
-          />
-        </div>
-
-        <PulseDiagram
+        <PulseTable
           set={set}
-          activeSessionId={activeSessionId}
           selected={selected}
           onSelect={(ref) => {
             setSelected(ref)
             setHighlight(new Set())
+            // 点格子＝同时把这一列设为当前日期（图示随之变化）
+            setActiveSessionId(ref.sessionId)
           }}
+          highlight={highlight}
+          activeSessionId={activeSessionId}
           onSelectSession={setActiveSessionId}
         />
-      </div>
 
-      {/* 判读提示放最后 */}
-      <div className="pr-findings-row">
-        <Findings
-          hits={hits}
-          formulaHits={formulaHits}
-          onFocus={focusHit}
-          onFocusFormula={focusFormula}
-          wuxingFilter={groupFilter.wuxing}
-          handFilter={groupFilter.hand}
-          onFilterChange={changeFilter}
+        {/* 底排：左列「符号录入」，右列「寸关尺图示」 */}
+        <div className="pr-bottom">
+          <div className="pr-bottom-left">
+            <SymbolPalette
+              codes={selectedCodes}
+              target={selectedTarget}
+              onChange={(c) => selected && setCellCodes(selected, c)}
+              customSymbols={customSymbols}
+              onAddCustom={doAddCustomSymbol}
+              onDeleteCustom={doRemoveCustomSymbol}
+              error={symbolError}
+            />
+          </div>
+
+          <PulseDiagram
+            set={set}
+            activeSessionId={activeSessionId}
+            selected={selected}
+            onSelect={(ref) => {
+              setSelected(ref)
+              setHighlight(new Set())
+            }}
+            onSelectSession={setActiveSessionId}
+          />
+        </div>
+      </TriadSection>
+
+      {/* ---- ②定疗法：判读提示（依脉用方 / 风险提示） ---- */}
+      <TriadSection
+        stage="②"
+        title="定疗法"
+        note="按体质定疗法"
+        state={triadSteps[1].state}
+        result={triadResult?.therapy ? `→ ${triadResult.therapy}` : undefined}
+      >
+        <div className="pr-findings-row">
+          <Findings
+            hits={hits}
+            formulaHits={formulaHits}
+            onFocus={focusHit}
+            onFocusFormula={focusFormula}
+            wuxingFilter={groupFilter.wuxing}
+            handFilter={groupFilter.hand}
+            onFilterChange={changeFilter}
+          />
+        </div>
+      </TriadSection>
+
+      {/* ---- ③开方药：开方药清单 ＋ 用药记录 ---- */}
+      <TriadSection
+        stage="③"
+        title="开方药"
+        note="按疗法列方"
+        state={triadSteps[2].state}
+        result={triadResult?.prescriptions.length ? `→ ${triadResult.prescriptions.map((p) => p.name).join('、')}` : undefined}
+      >
+        <RxList prescriptions={triadResult?.prescriptions ?? []} />
+
+        {/* 用药记录（使用者自己填实际用了什么方、加减、服法） */}
+        <MedicationPanel
+          sessions={set.sessions}
+          activeSessionId={activeSessionId}
+          layout={set.layout}
+          customSymbols={customSymbols}
+          rows={medications}
+          onChange={setMedications}
         />
-      </div>
+
+        <p className="pr-triad-loop">
+          <span className="pr-flow-loop-arrow">⟲</span>
+          用完方回到 ① 重新判体质（讲义 p47 图上③→①的虚线回路）
+        </p>
+      </TriadSection>
 
       <footer className="pr-footer">
         <p>

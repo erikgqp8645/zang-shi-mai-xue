@@ -235,6 +235,8 @@ export interface TriadHit {
 }
 
 export interface TriadResult {
+  /** 本次有没有录到脉象（没录则判定链无从走起，不给体质） */
+  recorded: boolean
   /** 判体质这一步是否命中（有变脉？／尺脉弱？） */
   bianmai: TriadHit | null
   /** 尺脉弱？这一步是否命中（只在无变脉时才问） */
@@ -293,18 +295,31 @@ export function judgeTriad(ctx: RuleContext): TriadResult {
   const bian = bianMaiCells(ctx)
   const chi = chiWeakCells(ctx)
 
+  /** 本次有没有录到脉象（一个符号都没有＝还没摸脉） */
+  const recorded =
+    ctx.depths('寸').length > 0 &&
+    (['L', 'R'] as Hand[]).some((h) =>
+      ctx.depths('寸').some((d) => ctx.get(h, '寸', d).length > 0) ||
+      ctx.depths('关').some((d) => ctx.get(h, '关', d).length > 0) ||
+      ctx.depths('尺').some((d) => ctx.get(h, '尺', d).length > 0),
+    )
+
   const bianmai: TriadHit | null = bian.length > 0 ? { nodeId: 'bianmai', cells: bian } : null
 
   let constitution: Constituion | null = null
   let cells: string[] = []
   let chimai: TriadHit | null = null
-  /** 有变脉时这一步根本不会被问到 */
-  const chimaiReached = !bianmai
+  /** 有变脉时这一步根本不会被问到；没录脉象时也走不到 */
+  const chimaiReached = recorded && !bianmai
 
   if (bianmai) {
     // 有变脉 → 肾虚体质
     constitution = '肾虚'
     cells = bianmai.cells
+  } else if (!recorded) {
+    // **还没摸脉**：图上的判定链无从走起，不给体质
+    constitution = null
+    cells = []
   } else {
     // 无变脉 → 问尺脉弱
     if (chi.length > 0) {
@@ -318,16 +333,20 @@ export function judgeTriad(ctx: RuleContext): TriadResult {
     }
   }
 
+  /** 没录脉象时（constitution 为 null）不推疗法、不列方 */
   const therapyNode =
     constitution === '肾虚'
       ? TRIAD_NODE_BY_ID.get('therapy-sanjiao')
       : constitution === '平和'
         ? TRIAD_NODE_BY_ID.get('therapy-yiti')
-        : TRIAD_NODE_BY_ID.get('therapy-wuzang')
+        : constitution === '上盛下虚'
+          ? TRIAD_NODE_BY_ID.get('therapy-wuzang')
+          : undefined
 
   const rxNode = therapyNode?.next ? TRIAD_NODE_BY_ID.get(therapyNode.next) : undefined
 
   return {
+    recorded,
     bianmai,
     chimai,
     chimaiReached,
