@@ -7,6 +7,14 @@ import {
   type FormulaHit,
 } from '../domain/formulas'
 import { DRUG_BY_ID, DRUG_GROUPS, DRUGS, type Drug } from '../domain/drugs'
+import {
+  DOSE_SCIENCE_NAME,
+  FORMULA_DOSES,
+  FORMULA_SCIENCES,
+  FORMULA_SCIENCE_BY_NAME,
+  type FormulaDose,
+  type FormulaScience,
+} from '../domain/formula-table'
 import { FlowPath } from './FlowPath'
 import {
   DIM_ORDER,
@@ -144,6 +152,62 @@ function DrugCard({ drug, showAttr }: { drug: Drug; showAttr?: boolean }) {
       )}
       {showAttr && <AttrBasis attr={attr} />}
       <p className="pr-finding-src">〔{drug.source}〕</p>
+    </div>
+  )
+}
+
+/**
+ * 同和堂版《臧氏脉学方剂汇总统表》的一条成方 —— 药味＋**克**，原样转录。
+ *
+ * 与 `DrugCard`（讲稿 2010，组成用比例制）是**两套资料**，不合并：
+ * 单位不同，不可互相换算。
+ */
+function DoseCard({ dose }: { dose: FormulaDose }) {
+  const science = FORMULA_SCIENCE_BY_NAME[DOSE_SCIENCE_NAME[dose.id] ?? '']
+  return (
+    <div className="pr-drug" onClick={(e) => e.stopPropagation()}>
+      <div className="pr-drug-head">
+        <span className="pr-drug-therapy">同和堂版</span>
+        <strong>{dose.name}</strong>
+      </div>
+      <p className="pr-drug-line">
+        <span className="pr-drug-key">组成</span>
+        {dose.composition}
+      </p>
+      {dose.notes?.map((n, i) => (
+        <p key={i} className="pr-drug-line">
+          <span className="pr-drug-key">注</span>
+          {n}
+        </p>
+      ))}
+      {science && (
+        <p className="pr-drug-line">
+          <span className="pr-drug-key">科中</span>
+          {science.ratio}
+        </p>
+      )}
+      <p className="pr-finding-src">
+        〔《臧氏脉学方剂汇总统表（同和堂版）》· 第 {dose.page} 页 · 单位：克〕
+      </p>
+    </div>
+  )
+}
+
+/** 「科中」（科学中药）一行 */
+function ScienceLine({ s }: { s: FormulaScience }) {
+  return (
+    <div className="pr-drug" onClick={(e) => e.stopPropagation()}>
+      <div className="pr-drug-head">
+        <span className="pr-drug-therapy">科中</span>
+        <strong>{s.name}</strong>
+      </div>
+      <p className="pr-drug-line">
+        <span className="pr-drug-key">比例</span>
+        {s.ratio}
+      </p>
+      <p className="pr-finding-src">
+        〔《臧氏脉学方剂汇总统表（同和堂版）》· 第 {s.page} 页 · 单位：g〕
+      </p>
     </div>
   )
 }
@@ -547,6 +611,30 @@ export function Findings({
               <p className="pr-empty">当前筛选下没有方剂，请在「筛选分组」里至少打开一组。</p>
             )}
           </section>
+
+          {dim === 'route' && (
+            <section className="pr-formula-group">
+              <h3 className="pr-formula-route">方剂备查（同和堂版《臧氏脉学方剂汇总统表》）</h3>
+              <p className="pr-target-line">
+                纸质讲义第 1~4 页原样转录：成方（药味＋**克**）与第 4 页「科中」科学中药比例。
+                单位是克，与讲稿 2010 的比例制不同 —— 两套**不可互相换算**，也不合并。
+              </p>
+              {[1, 2, 3].map((page) => (
+                <div key={page} className="pr-drug-group">
+                  <h4 className="pr-drug-group-title">第 {page} 页</h4>
+                  {FORMULA_DOSES.filter((d) => d.page === page).map((d) => (
+                    <DoseCard key={d.id} dose={d} />
+                  ))}
+                </div>
+              ))}
+              <div className="pr-drug-group">
+                <h4 className="pr-drug-group-title">第 4 页 · 科中（科学中药）</h4>
+                {FORMULA_SCIENCES.map((s) => (
+                  <ScienceLine key={s.id} s={s} />
+                ))}
+              </div>
+            </section>
+          )}
         </>
       )}
     </section>

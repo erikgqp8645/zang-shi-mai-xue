@@ -911,6 +911,84 @@ button:disabled {
   width: 24%;
 }
 
+/* 「配伍与剂量」列 —— 剂量来源切换（两套资料单位不同，不并列默认显示） */
+.pr-med-dosebar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 8px;
+  font-size: 12px;
+}
+.pr-med-dosebar-note {
+  font-size: 11px;
+}
+.pr-chip-btn {
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 2px 10px;
+  border: 1px solid var(--divider);
+  border-radius: 3px;
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+}
+.pr-chip-btn:hover {
+  border-color: var(--clay);
+}
+.pr-chip-btn.on {
+  background: var(--clay);
+  border-color: var(--clay);
+  color: #fff;
+}
+
+/* 配伍与剂量单元格 */
+.pr-med-reftable td:nth-of-type(4) {
+  width: 38%;
+}
+.pr-dose {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pr-dose-block {
+  border-left: 2px solid var(--divider);
+  padding-left: 8px;
+}
+.pr-dose-tag {
+  font-size: 11px;
+  color: var(--clay);
+  letter-spacing: 0.04em;
+  margin-bottom: 1px;
+}
+.pr-dose-text {
+  line-height: 1.7;
+  word-break: break-all;
+}
+.pr-dose-note {
+  font-size: 11px;
+  color: var(--sage);
+  line-height: 1.6;
+}
+.pr-dose-none {
+  font-size: 11px;
+  color: var(--high);
+  line-height: 1.6;
+}
+.pr-dose-basis {
+  font-size: 11px;
+  color: var(--sage);
+  line-height: 1.6;
+  border-top: 1px dashed var(--divider);
+  padding-top: 4px;
+}
+.pr-dose-src {
+  font-size: 11px;
+  color: var(--sage);
+  margin-top: 2px;
+}
+
 .pr-panel {
   background: var(--card);
   border: 1px solid var(--divider);

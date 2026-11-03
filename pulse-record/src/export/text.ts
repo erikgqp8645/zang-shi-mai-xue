@@ -5,6 +5,13 @@ import { formatCodes, buildCustomLegend, collectUsedCodes, type CustomSymbol } f
 import { evaluateRules, type RuleContext } from '../domain/rules'
 import { evaluateFormulas, STANDING_FORMULA_RULES, CONSTITUTION_TABLE, type FormulaHit } from '../domain/formulas'
 import { DRUG_BY_ID, DRUG_GROUPS, DRUGS } from '../domain/drugs'
+import {
+  DOSE_SCIENCE_NAME,
+  FORMULA_DOSES,
+  FORMULA_SCIENCES,
+  FORMULA_SCIENCE_BY_NAME,
+} from '../domain/formula-table'
+import { FORMULA_REFERENCE, formulaDoseView } from '../domain/medication'
 import { groupByHand, groupByWuxing, DIM_ORDER, groupShortLabel, RULE_OR_DRUG_ATTRIB, STANDING_DISPLAY } from '../domain/grouping'
 import { MARKS, layoutDepths, markDepths } from '../domain/diagram'
 
@@ -262,6 +269,65 @@ export function toMarkdown(
   lines.push('|---|---|---|')
   for (const row of CONSTITUTION_TABLE) {
     lines.push(`| ${row.mark} | ${row.therapy} | ${row.formulas.join('、')} |`)
+  }
+  lines.push('')
+
+  /* ---- 讲义 p42 依脉用方表：方 ↔ 脉象 ↔ 配伍与剂量 ---- */
+  lines.push('**讲义 2026-10·p42「依脉用方表」原文对照（28 行 · 含配伍与剂量）**')
+  lines.push('')
+  lines.push(
+    '> 讲义 p42 原表只有「处方 ｜ 对应脉象及加减」两列，**没有组成与剂量**（已逐页核过 PDF p42）。下面两列配伍分别取自两套资料：**同和堂版《臧氏脉学方剂汇总统表》＝成方（药味＋克）**、**讲稿 2010·第二讲＝组成（比例制）**。两套单位不同，**不可互相换算**，也不合并。',
+  )
+  lines.push('')
+  lines.push('| # | 处方 | 对应脉象及加减 | 配伍与剂量（同和堂版·克） | 组成（讲稿 2010·第二讲·比例制） |')
+  lines.push('|---|---|---|---|---|')
+  for (const r of FORMULA_REFERENCE) {
+    const v = formulaDoseView(r)
+    const th = v.dose
+      ? `${v.dose.composition}${v.dose.notes?.length ? `（注：${v.dose.notes.join('；')}）` : ''}${
+          v.science ? `（科中：${v.science.ratio}）` : ''
+        }`
+      : '—'
+    const dr = v.drug
+      ? [
+          v.drug.composition,
+          v.drug.usage && `服法：${v.drug.usage}`,
+          v.drug.science && `科学中药：${v.drug.science}`,
+          v.drug.adjustments?.length ? `加减：${v.drug.adjustments.join('；')}` : '',
+          v.drug.contraindication && `禁忌：${v.drug.contraindication}`,
+        ]
+          .filter(Boolean)
+          .join('；')
+      : v.draftExtra
+        ? `${v.draftExtra.composition}（${v.draftExtra.source}）`
+        : '—'
+    lines.push(
+      `| ${r.no} | ${r.name} | ${mdCell(r.indication)} | ${mdCell(th)} | ${mdCell(dr)} |`,
+    )
+  }
+  lines.push('')
+
+  lines.push('**方剂备查（同和堂版《臧氏脉学方剂汇总统表》）**')
+  lines.push('')
+  lines.push(
+    '> 纸质讲义第 1~4 页原样转录：成方（药味＋**克**）与第 4 页「科中」科学中药比例。单位是克，与讲稿的比例制不同 —— 两套**不可互相换算**，也不合并。',
+  )
+  lines.push('')
+  for (const page of [1, 2, 3]) {
+    lines.push(`- **第 ${page} 页**`)
+    for (const d of FORMULA_DOSES.filter((x) => x.page === page)) {
+      lines.push(`  - **${d.name}**`)
+      lines.push(`    - 组成：${d.composition}`)
+      for (const n of d.notes ?? []) lines.push(`    - 注：${n}`)
+      const sci = FORMULA_SCIENCE_BY_NAME[DOSE_SCIENCE_NAME[d.id] ?? '']
+      if (sci) lines.push(`    - 科中：${sci.ratio}`)
+      lines.push(`    - 〔同和堂版 p${d.page}〕`)
+    }
+    lines.push('')
+  }
+  lines.push('- **第 4 页 · 科中（科学中药）**')
+  for (const s of FORMULA_SCIENCES) {
+    lines.push(`  - **${s.name}**：${s.ratio}`)
   }
   lines.push('')
 
