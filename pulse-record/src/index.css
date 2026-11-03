@@ -1297,6 +1297,665 @@ button:disabled {
   color: var(--sage);
 }
 
+/* ---------- 开方三部曲 · 流程面板（讲义 2026-10·p47） ---------- */
+
+.pr-triad {
+  margin: 0 0 16px;
+  padding: 12px 14px 14px;
+  border: 1px solid var(--divider);
+  border-left: 3px solid var(--high);
+  background: #fffdf9;
+}
+
+.pr-triad-title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+}
+
+.pr-triad-stage {
+  margin-top: 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--divider);
+  background: var(--card);
+}
+
+.pr-triad-stage.is-judge {
+  border-left: 3px solid var(--clay);
+}
+
+.pr-triad-stage.is-therapy {
+  border-left: 3px solid #6ba3c4;
+}
+
+.pr-triad-stage.is-prescribe {
+  border-left: 3px solid var(--high);
+}
+
+.pr-triad-stage-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.pr-triad-stage-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.pr-triad-stage-note {
+  font-size: 11px;
+  color: var(--sage);
+}
+
+.pr-triad-branch {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pr-triad-node {
+  flex: 0 1 auto;
+  min-width: 150px;
+  padding: 6px 9px;
+  border: 1px solid var(--divider);
+  background: var(--paper);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pr-triad-node-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.pr-triad-node-note {
+  font-size: 11px;
+  color: var(--sage);
+}
+
+.pr-triad-node-src {
+  font-size: 10.5px;
+  color: var(--sage);
+}
+
+/* 判定菱形：是＝命中，pass＝已排除，unknown＝尚未判定 */
+.pr-triad-node.is-decision {
+  border-color: var(--clay);
+  background: #fdf6ef;
+  justify-content: center;
+  align-self: flex-start;
+}
+
+.pr-triad-node.is-decision.is-yes {
+  border-color: var(--high);
+  background: #fbeeeb;
+}
+
+.pr-triad-node.is-decision.is-yes .pr-triad-node-label {
+  color: var(--high);
+}
+
+.pr-triad-node.is-decision.is-pass {
+  border-color: var(--divider);
+  background: var(--paper);
+  opacity: 0.66;
+}
+
+.pr-triad-node.is-input {
+  border-radius: 999px;
+  padding: 4px 16px;
+  justify-content: center;
+  align-self: flex-start;
+  min-width: 0;
+  flex: 0 0 auto;
+}
+
+.pr-triad-constitutions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1 1 100%;
+}
+
+/* 体质椭圆：讲义 p47 图上是扁椭圆，这里用适中的圆角，不撑成大圆角块 */
+.pr-triad-node.is-constitution {
+  flex: 0 1 auto;
+  max-width: 260px;
+  border-radius: 14px;
+  text-align: center;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  align-self: flex-start;
+}
+
+.pr-triad-node.is-constitution.is-on {
+  border-color: var(--high);
+  background: #fbeeeb;
+}
+
+.pr-triad-node.is-constitution.is-on .pr-triad-node-label {
+  color: var(--high);
+}
+
+.pr-triad-therapies {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pr-triad-node.is-therapy {
+  flex: 1 1 150px;
+  align-items: center;
+  text-align: center;
+  border-color: #6ba3c4;
+}
+
+.pr-triad-node.is-therapy.is-on {
+  border-color: var(--high);
+  background: #fbeeeb;
+}
+
+.pr-triad-node.is-therapy.is-on .pr-triad-node-label {
+  color: var(--high);
+}
+
+.pr-triad-branch {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 240px;
+  min-width: 200px;
+  align-items: flex-start;
+}
+
+.pr-triad-branch.is-off {
+  opacity: 0.4;
+}
+
+.pr-triad-branch.is-inner {
+  flex: 1 1 180px;
+  min-width: 150px;
+}
+
+.pr-triad-branch-line {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.pr-triad-branch-tag {
+  padding: 0 5px;
+  border: 1px solid var(--divider);
+  border-radius: 2px;
+  background: var(--card);
+  font-size: 10.5px;
+  color: var(--sage);
+}
+
+.pr-triad-branch.is-taken .pr-triad-branch-tag {
+  border-color: var(--clay);
+  color: var(--clay);
+}
+
+.pr-triad-branch-conn {
+  font-size: 11px;
+  color: var(--sage);
+}
+
+.pr-triad-chain {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pr-triad-chain-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pr-triad-arrow {
+  text-align: center;
+  font-size: 12px;
+  color: var(--sage);
+  line-height: 1;
+}
+
+.pr-triad-arrow.is-h {
+  align-self: center;
+  font-size: 14px;
+}
+
+.pr-triad-def {
+  margin: 0;
+  padding: 5px 9px;
+  border-left: 2px solid var(--clay);
+  background: #fdf6ef;
+  font-size: 11px;
+  color: var(--ink);
+}
+
+.pr-triad-def-key {
+  font-weight: 600;
+}
+
+.pr-triad-def-src {
+  margin-left: 6px;
+  color: var(--sage);
+}
+
+.pr-triad-branches {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-left: 18px;
+  border-left: 1px dashed var(--divider);
+  align-items: flex-start;
+}
+
+.pr-triad-subbranches {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-left: 12px;
+  border-left: 1px dashed var(--divider);
+  align-items: flex-start;
+}
+
+/* 走到的分支实线、未选中但走到的分支淡色、没走到的置灰 */
+.pr-triad-node.is-constitution.is-on {
+  border-color: var(--high);
+  background: #fbeeeb;
+}
+
+.pr-triad-node.is-constitution.is-on .pr-triad-node-label {
+  color: var(--high);
+}
+
+.pr-triad-node.is-constitution.is-off-path {
+  border-style: dashed;
+}
+
+.pr-triad-node.is-constitution.is-off {
+  opacity: 0.38;
+}
+
+.pr-triad-node.is-therapy.is-off-path {
+  border-style: dashed;
+  opacity: 0.6;
+}
+
+.pr-triad-node.is-decision.is-no {
+  border-color: var(--divider);
+  background: var(--paper);
+}
+
+.pr-triad-node.is-decision.is-off {
+  opacity: 0.45;
+}
+
+.pr-triad-hit {
+  align-self: flex-start;
+  padding: 1px 6px;
+  border: 1px solid var(--clay);
+  border-radius: 2px;
+  background: var(--card);
+  font-size: 10.5px;
+  color: var(--clay);
+  cursor: pointer;
+}
+
+.pr-triad-hit:hover {
+  background: #fdf6ef;
+}
+
+/* ---- 开方药 ---- */
+
+.pr-triad-rx-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pr-triad-rx {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 5px 9px;
+  border: 1px solid var(--divider);
+  border-top: 2px solid var(--high);
+  background: var(--paper);
+}
+
+.pr-triad-rx-no {
+  font-size: 11px;
+  color: var(--sage);
+}
+
+.pr-triad-rx-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.pr-triad-rx-src {
+  font-size: 10.5px;
+  color: var(--sage);
+}
+
+.pr-triad-rx-empty {
+  font-size: 11.5px;
+  color: var(--sage);
+}
+
+.pr-flow-loop {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--sage);
+}
+
+.pr-flow-loop-arrow {
+  display: inline-block;
+  margin-right: 4px;
+  font-size: 13px;
+  color: var(--clay);
+}
+
+.pr-triad-basis {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--sage);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.pr-triad-basis-cell {
+  padding: 1px 6px;
+  border: 1px solid var(--clay);
+  border-radius: 2px;
+  background: var(--card);
+  font-size: 11px;
+  color: var(--clay);
+  cursor: pointer;
+}
+
+.pr-triad-basis-cell:hover {
+  background: #fdf6ef;
+}
+
+.pr-triad-hint {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--sage);
+}
+
+/* ---------- 流程骨架引导条（讲义 p44 依脉用方图 · 讲稿三部曲与挡路次序） ---------- */
+
+.pr-flow {
+  margin: 0 0 16px;
+  padding: 12px 14px 14px;
+  border: 1px solid var(--divider);
+  border-left: 3px solid var(--clay);
+  background: #fffdf9;
+}
+
+.pr-flow-title {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+}
+
+.pr-flow-level {
+  margin-top: 12px;
+}
+
+.pr-flow-level-tag {
+  display: inline-block;
+  margin-bottom: 6px;
+  padding: 1px 7px;
+  border: 1px solid var(--divider);
+  border-radius: 2px;
+  background: var(--paper);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--sage);
+}
+
+/* ---- 路径级：肾虚 ⇄ 上盛下虚 ---- */
+
+.pr-flow-paths {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pr-flow-path {
+  flex: 1 1 300px;
+  min-width: 260px;
+  padding: 9px 11px;
+  border: 1px solid var(--divider);
+  background: var(--card);
+}
+
+.pr-flow-path-title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.pr-flow-path-note {
+  margin: 6px 0 2px;
+  font-size: 11px;
+  color: var(--sage);
+}
+
+.pr-flow-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: var(--clay);
+}
+
+/* ---- 步骤 ---- */
+
+.pr-flow-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pr-flow-steps.is-inline {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+
+.pr-flow-step {
+  padding: 3px 6px;
+  border-left: 2px solid var(--divider);
+}
+
+.pr-flow-steps.is-inline .pr-flow-step {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.pr-flow-step-mark {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.pr-flow-step-no {
+  flex: none;
+  font-size: 11px;
+  color: var(--sage);
+}
+
+.pr-flow-step-title {
+  font-size: 12.5px;
+  color: var(--ink);
+}
+
+.pr-flow-step-detail {
+  display: block;
+  margin-top: 1px;
+  font-size: 11px;
+  color: var(--sage);
+}
+
+/* 命中标示：只标位置，不改文字、不加推荐语 */
+.pr-flow-step.is-lit,
+.pr-flow-gate.is-lit {
+  border-left-color: var(--clay);
+  background: #fdf6ef;
+}
+
+.pr-flow-step.is-lit .pr-flow-step-title,
+.pr-flow-gate.is-lit .pr-flow-gate-title {
+  font-weight: 600;
+  color: var(--high);
+}
+
+.pr-flow-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--clay);
+}
+
+/* ---- 挡路次序 ---- */
+
+.pr-flow-gates {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pr-flow-gate-group {
+  flex: 1 1 300px;
+  min-width: 260px;
+  padding: 9px 11px;
+  border: 1px solid var(--divider);
+  background: var(--card);
+}
+
+.pr-flow-gate-group.is-first {
+  border-left: 3px solid var(--high);
+}
+
+.pr-flow-gate-group.is-later {
+  border-left: 3px solid var(--sage);
+}
+
+.pr-flow-gate-group-title {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.pr-flow-gate-group-note {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--sage);
+}
+
+.pr-flow-gate-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pr-flow-gate {
+  padding: 3px 6px;
+  border-left: 2px solid var(--divider);
+}
+
+.pr-flow-gate-mark {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.pr-flow-gate-no {
+  flex: none;
+  font-size: 11px;
+  color: var(--sage);
+}
+
+.pr-flow-gate-title {
+  font-size: 12.5px;
+  color: var(--ink);
+}
+
+.pr-flow-gate-detail {
+  display: block;
+  margin-top: 1px;
+  font-size: 11px;
+  color: var(--sage);
+}
+
+/* ---- 讲义／讲稿写法并列 ---- */
+
+.pr-flow-variants {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pr-flow-variants-label {
+  font-size: 11px;
+  color: var(--sage);
+}
+
+.pr-flow-variant {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+
+.pr-flow-variant-text {
+  font-size: 11.5px;
+  color: var(--ink);
+}
+
+.pr-flow-variant-src {
+  font-size: 11px;
+  color: var(--sage);
+}
+
 /* ---------- 判读面板：风险提示 / 依脉用方 ---------- */
 
 .pr-tabs {

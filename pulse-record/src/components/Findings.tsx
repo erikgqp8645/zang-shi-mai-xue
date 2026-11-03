@@ -7,6 +7,7 @@ import {
   type FormulaHit,
 } from '../domain/formulas'
 import { DRUG_BY_ID, DRUG_GROUPS, DRUGS, type Drug } from '../domain/drugs'
+import { FlowPath } from './FlowPath'
 import {
   DIM_ORDER,
   groupByHand,
@@ -250,6 +251,9 @@ export function Findings({
   const [tab, setTab] = useState<Tab>('risk')
   const [dim, setDim] = useState<Dim>('route')
 
+  /** 依脉用方命中的路线名（供流程骨架标示位置用） */
+  const hitRoutes = useMemo(() => Array.from(new Set(formulaHits.map((h) => h.hit.route))), [formulaHits])
+
   /** 依脉用方按讲稿原序（路线）分组，路线顺序依讲稿第四讲「一、二、三、四……第五、第六」 */
   const grouped = useMemo(() => {
     const map = new Map<string, SessionFormulaHit[]>()
@@ -430,6 +434,8 @@ export function Findings({
           {dim !== 'route' && shownGroups.length === 0 && (
             <p className="pr-empty">当前筛选下没有分组，请在「筛选分组」里至少打开一组。</p>
           )}
+
+          {dim === 'route' && <FlowPath hitRoutes={hitRoutes} />}
 
           <div className="pr-formula-list">
             {dim === 'route'

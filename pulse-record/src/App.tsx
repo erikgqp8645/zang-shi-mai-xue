@@ -9,6 +9,8 @@ import { PulseTable, type CellRef } from './components/PulseTable'
 import { PulseDiagram } from './components/PulseDiagram'
 import { SymbolPalette } from './components/SymbolPalette'
 import { Findings, type SessionHit, type SessionFormulaHit } from './components/Findings'
+import { TriadFlow } from './components/TriadFlow'
+import { judgeTriad } from './domain/triad'
 import { HistoryPanel, type EditingRef } from './components/HistoryPanel'
 import { MedicationPanel } from './components/MedicationPanel'
 import type { Medication } from './domain/medication'
@@ -166,6 +168,31 @@ export default function App() {
       }))
     })
   }, [set, groups])
+
+  /**
+   * 开方三部曲判定（讲义 2026-10·p47）：
+   * 按当前选中那一次记录走一遍「有变脉？→ 尺脉弱？→ 体质 → 疗法 → 开方药」。
+   * 只按图上写明的判据标示位置，不替使用者决定路径。
+   */
+  const triadResult = useMemo(() => {
+    const s = set.sessions.find((x) => x.id === activeSessionId) ?? set.sessions[set.sessions.length - 1]
+    if (!s) return null
+    const ctx: RuleContext = {
+      layout: set.layout,
+      get: (hand, organ, depth) => s.values[cellKey(hand, organ, depth)] ?? [],
+      depths: (organ) => groups.find((g) => g.organ === organ)!.rows.map((r) => r.depth),
+    }
+    return judgeTriad(ctx)
+  }, [set, groups, activeSessionId])
+
+  /** 流程面板点击格子 → 定位到主表 */
+  const focusTriadCells = (cells: string[]) => {
+    const s = set.sessions.find((x) => x.id === activeSessionId) ?? set.sessions[set.sessions.length - 1]
+    if (!s || cells.length === 0) return
+    setHighlight(new Set(cells.map((c) => `${s.id}::${c}`)))
+    const [hand, organ, depth] = cells[0].split('|') as [CellRef['hand'], CellRef['organ'], CellRef['depth']]
+    setSelected({ sessionId: s.id, hand, organ, depth })
+  }
 
   /** 当前选中格的符号 */
   const selectedCodes = useMemo(() => {
@@ -590,6 +617,8 @@ export default function App() {
           onRefresh={refreshHistory}
         />
       )}
+
+      {triadResult && <TriadFlow result={triadResult} onFocusCells={focusTriadCells} />}
 
       <PulseTable
         set={set}
