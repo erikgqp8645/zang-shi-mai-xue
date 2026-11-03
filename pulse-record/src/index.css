@@ -714,6 +714,48 @@ button:disabled {
   background: var(--ink) !important;
   color: var(--paper) !important;
 }
+/* 脉位组合：一次选多个脉位（双关同治／肝肺同治…） */
+.pr-picker-sub {
+  margin: 4px 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sage);
+  letter-spacing: 0.04em;
+}
+.pr-picker-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 4px;
+}
+.pr-picker-grp {
+  font-size: 12px;
+}
+.pr-picker-grp.is-off {
+  opacity: 0.4;
+  cursor: default;
+}
+/* 选中组合的出处（讲次／页码）：最多几行，太多就自己滚 */
+.pr-picker-srcs {
+  max-height: 5.6em;
+  overflow-y: auto;
+  margin: 0 0 6px;
+}
+.pr-picker-src {
+  margin: 0 0 2px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--clay);
+}
+/* 页脚：自动写入左格的那段文字 */
+.pr-picker-auto {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  max-width: 46%;
+}
 .pr-picker-foot {
   display: flex;
   align-items: center;

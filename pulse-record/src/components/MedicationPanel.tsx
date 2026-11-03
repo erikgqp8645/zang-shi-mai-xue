@@ -1,11 +1,15 @@
 import { useMemo, useState } from 'react'
 import type { LayoutMode, Session } from '../domain/types'
 import {
+  buildPulseText,
   describeCodes,
   findDrug,
+  pointOrder,
+  pulsePointsOf,
   searchFormulaReference,
   type FormulaReference,
   type Medication,
+  type PulseGroup,
   type PulsePoint,
 } from '../domain/medication'
 import { MedicationPicker } from './MedicationPicker'
@@ -19,6 +23,8 @@ import type { CustomSymbol } from '../domain/symbols'
  * - 讲义 p42「依脉用方表」只作**原文对照**，供查、供抄，不是处方建议
  * - 组成／服法只在讲稿第二讲载有的方上显示（原文照录）；讲稿未载就明说未载
  * - 「对应脉象」文字与符号**并存**：文字自填，符号从该次记录里挑，两者一起记
+ * - 右列选完符号，文字**自动填进来**（左格不必再打一遍）；
+ *   但文字仍可自己写 —— 一旦手改过，符号再变就不再覆盖，只提示「按符号重填」
  */
 
 interface Props {
@@ -101,11 +107,22 @@ export function MedicationPanel({
     addRow(visitId, { name, pulse })
   }
 
+  /** 打开选择器的那一行所在的就诊（取它录到的脉象） */
+  const pickerRow = rows.find((r) => r.id === pickerFor) ?? null
+  const pickerSession = pickerRow ? sessions.find((s) => s.id === pickerRow.visitId) : undefined
+
   /** 打开选择器（记下是哪一行） */
   const openPicker = (id: string) => {
     setFocusId(id)
     setPickerFor(id)
   }
+
+  /** 按符号生成的那段文字（自动填进「对应脉象」用） */
+  const autoTextOf = (symbols: Record<string, string[]>) => buildPulseText(symbols, customSymbols)
+
+  /** 这一格的文字还是「自动生成」的吗？（空着也算 —— 等着被自动填） */
+  const isAutoText = (r: Medication) =>
+    r.pulse === '' || r.pulse === autoTextOf(r.symbols ?? {})
 
   /** 选／不选一个脉点的符号（并入这一行的「对应脉象」，与文字并存） */
   const toggleSymbol = (p: PulsePoint) => {
@@ -116,7 +133,37 @@ export function MedicationPanel({
         const symbols = { ...(r.symbols ?? {}) }
         if ((symbols[p.key] ?? []).length > 0) delete symbols[p.key]
         else symbols[p.key] = [...p.codes]
-        return { ...r, symbols }
+        // 右 → 左：文字没被手改过，就按新选的符号自动重写
+        return {
+          ...r,
+          symbols,
+          pulse: isAutoText(r) ? autoTextOf(symbols) : r.pulse,
+        }
+      }),
+    )
+  }
+
+  /** 点一个脉位组合：整组选上／取消（只在本次录到的脉点上生效） */
+  const toggleGroup = (g: PulseGroup) => {
+    if (!pickerFor || !pickerSession) return
+    const members = pulsePointsOf(pickerSession, layout).filter((p) =>
+      g.positions.includes(`${p.hand}|${p.organ}`),
+    )
+    if (members.length === 0) return
+    onChange(
+      rows.map((r) => {
+        if (r.id !== pickerFor) return r
+        const symbols = { ...(r.symbols ?? {}) }
+        const allOn = members.every((p) => (symbols[p.key] ?? []).length > 0)
+        for (const p of members) {
+          if (allOn) delete symbols[p.key]
+          else symbols[p.key] = [...p.codes]
+        }
+        return {
+          ...r,
+          symbols,
+          pulse: isAutoText(r) ? autoTextOf(symbols) : r.pulse,
+        }
       }),
     )
   }
@@ -124,7 +171,13 @@ export function MedicationPanel({
   /** 清掉这一行已选的符号 */
   const clearSymbols = () => {
     if (!pickerFor) return
-    onChange(rows.map((r) => (r.id === pickerFor ? { ...r, symbols: {} } : r)))
+    onChange(
+      rows.map((r) =>
+        r.id === pickerFor
+          ? { ...r, symbols: {}, pulse: isAutoText(r) ? '' : r.pulse }
+          : r,
+      ),
+    )
   }
 
   /** 选一个处方：回填方名与对应脉象的文字表述 */
@@ -133,16 +186,18 @@ export function MedicationPanel({
     update(pickerFor, { name: f.name, pulse: f.indication })
   }
 
+  /** 手动把文字重填成「按符号生成」的那段 */
+  const refillFromSymbols = (id: string) => {
+    const r = rows.find((x) => x.id === id)
+    if (!r) return
+    update(id, { pulse: autoTextOf(r.symbols ?? {}) })
+  }
+
   /** 这一行已选的符号（按 左寸→右尺 排，不按字符串序） */
   const pickedChips = (r: Medication) => {
-    const order = ['L|寸', 'R|寸', 'L|关', 'R|关', 'L|尺', 'R|尺']
     const keys = Object.keys(r.symbols ?? {})
       .filter((k) => (r.symbols[k] ?? []).length > 0)
-      .sort((a, b) => {
-        const pa = order.indexOf(a.split('|').slice(0, 2).join('|'))
-        const pb = order.indexOf(b.split('|').slice(0, 2).join('|'))
-        return (pa < 0 ? 99 : pa) - (pb < 0 ? 99 : pb) || a.localeCompare(b)
-      })
+      .sort((a, b) => pointOrder(a) - pointOrder(b))
     return keys.map((k) => {
       const [hand, organ, depth] = k.split('|')
       return {
@@ -156,9 +211,6 @@ export function MedicationPanel({
   /** 正在编辑的那一行，方名若讲稿第二讲有载，就显示原文的组成／服法 */
   const focusRow = rows.find((r) => r.id === focusId) ?? null
   const focusDrug = focusRow ? findDrug(focusRow.name) : undefined
-  /** 打开选择器的那一行所在的就诊（取它录到的脉象） */
-  const pickerRow = rows.find((r) => r.id === pickerFor) ?? null
-  const pickerSession = pickerRow ? sessions.find((s) => s.id === pickerRow.visitId) : undefined
 
   if (sessions.length === 0) {
     return (
@@ -242,6 +294,22 @@ export function MedicationPanel({
                               {c.label} {c.text}
                             </em>
                           ))}
+                          {/* 文字是自动生成的还是自己写的 —— 手写过的不会被符号变动覆盖 */}
+                          {pickedChips(r).length > 0 && isAutoText(r) && (
+                            <em className="pr-med-flag">按符号生成</em>
+                          )}
+                          {pickedChips(r).length > 0 && !isAutoText(r) && (
+                            <>
+                              <em className="pr-med-flag">已手改</em>
+                              <button
+                                type="button"
+                                className="pr-link"
+                                onClick={() => refillFromSymbols(r.id)}
+                              >
+                                按符号重填
+                              </button>
+                            </>
+                          )}
                         </span>
                       </td>
                       <td>
@@ -389,6 +457,7 @@ export function MedicationPanel({
           onPosition={setPosition}
           selected={pickerRow.symbols ?? {}}
           onToggle={toggleSymbol}
+          onToggleGroup={toggleGroup}
           onClear={clearSymbols}
           onPickFormula={pickFormula}
           onClose={() => setPickerFor(null)}

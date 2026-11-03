@@ -111,6 +111,134 @@ export function pulsePointLabel(p: PulsePoint): string {
   return `${HAND_LABEL[p.hand]}${p.organ} ${p.depth}`
 }
 
+/** 脉位顺序（左寸→右尺） */
+export const POSITION_ORDER = ['L|寸', 'R|寸', 'L|关', 'R|关', 'L|尺', 'R|尺']
+
+/** 脉点顺序：先按脉位，再按浮→中→沉 */
+export function pointOrder(key: string): number {
+  const [hand, organ, depth] = key.split('|')
+  const p = POSITION_ORDER.indexOf(`${hand}|${organ}`)
+  const d = ['浮', '中', '沉'].indexOf(depth)
+  return (p < 0 ? 99 : p) * 10 + (d < 0 ? 9 : d)
+}
+
+/**
+ * 脉位组合 —— 跨脉位的一组脉象（「同治」类治法）。
+ *
+ * **名称与成员一律取原文，不自造**：
+ * - 讲义 2026-10·p44「依脉用方」图把六道「挡路」标成
+ *   （一）右关、（二）肝肺同治、（三）左寸、（四）尺、（五）双关同治、（六）肝心同治；
+ * - 讲稿 2010·第四讲写明「肝肺同治，也就是左关跟右寸」「双关同治是两个关都有出现浮大」
+ *   「左手寸关浮大的时候，用肝心同治」；
+ * - 讲稿 2010·第二讲另有「双寸」「双尺」的写法；
+ * - 讲义 2026-10·p42 另有「双关右寸」（黄芪鳖甲）、「右关尺」（木香顺气）。
+ *
+ * 这里只是把**原文写明的部位**整理成可点的组合，方便一次选多个脉位；
+ * 不是诊断，也不替使用者选方。
+ */
+export interface PulseGroup {
+  id: string
+  /** 组合名（原文用字） */
+  name: string
+  /** 成员脉位（`手|部位`） */
+  positions: string[]
+  /** 出处（讲次／页码） */
+  source: string
+}
+
+export const PULSE_GROUPS: PulseGroup[] = [
+  {
+    id: 'g-shuangguan',
+    name: '双关同治',
+    positions: ['L|关', 'R|关'],
+    source:
+      '讲稿 2010·第四讲「双关同治是两个关都有出现浮大」；讲稿 2010·第二讲「（三）肝脾（双关）同治」；讲义 2026-10·p44 图「（五）（双关同治）」',
+  },
+  {
+    id: 'g-ganshu',
+    name: '肝肺同治',
+    positions: ['L|关', 'R|寸'],
+    source:
+      '讲稿 2010·第四讲「肝肺同治，也就是左关跟右寸」；讲义 2026-10·p44 图「（二）（肝肺同治）」；讲义 2026-10·p42「肝肺同治：左关右寸浮大」',
+  },
+  {
+    id: 'g-ganxin',
+    name: '肝心同治',
+    positions: ['L|寸', 'L|关'],
+    source:
+      '讲稿 2010·第四讲「第六个是肝心同治。左手寸关浮大的时候，用肝心同治」；讲义 2026-10·p44 图「（六）肝心同治」；讲义 2026-10·p42「肝心同治：左寸关浮大」',
+  },
+  {
+    id: 'g-shuangcun',
+    name: '双寸',
+    positions: ['L|寸', 'R|寸'],
+    source: '讲稿 2010·第二讲「（四）双寸比较浮大」、「双寸弱的不宜」（用上焦方）',
+  },
+  {
+    id: 'g-shuangchi',
+    name: '双尺',
+    positions: ['L|尺', 'R|尺'],
+    source: '讲稿 2010·第十四讲「双尺脉影响双关，双关再影响上面来」、「双尺不平衡」',
+  },
+  {
+    id: 'g-shuangguan-youcun',
+    name: '双关右寸',
+    positions: ['L|关', 'R|关', 'R|寸'],
+    source: '讲义 2026-10·p42「黄芪鳖甲：双关右寸浮洪大」；讲义 2026-10·p44 图「⑥双关右寸浮大：黄芪鳖甲」',
+  },
+  {
+    id: 'g-youguanchi',
+    name: '右关尺',
+    positions: ['R|关', 'R|尺'],
+    source: '讲义 2026-10·p42「木香顺气：右关尺浮大顶手」；讲稿 2010·第二讲「右关尺浮大（增液汤加减）」',
+  },
+]
+
+/** 脉位文字（如「左关＋右寸」） */
+export function groupPositionsLabel(g: PulseGroup): string {
+  return g.positions.map((p) => `${HAND_LABEL[p.split('|')[0] as Hand]}${p.split('|')[1]}`).join('＋')
+}
+
+/** 找出与所选脉位**完全一致**的组合（多选后自动带出组合名用） */
+export function matchGroup(positions: string[]): PulseGroup | undefined {
+  const set = new Set(positions)
+  if (set.size === 0) return undefined
+  const hits = PULSE_GROUPS.filter((g) => {
+    if (g.positions.length !== set.size) return false
+    return g.positions.every((p) => set.has(p))
+  })
+  // 同尺寸时取成员多的（更具体）
+  return hits.sort((a, b) => b.positions.length - a.positions.length)[0]
+}
+
+/**
+ * 按所选符号生成「对应脉象」文字 —— 供右列选完**自动填进左格**。
+ *
+ * 文字形如「肝肺同治（左关 沉 ++ 有力；右寸 浮 + 有）」：
+ * 脉位组合名（若所选脉位与某个组合完全一致）＋ 各脉点的符号与讲义 p33 的文字。
+ * 这只是把使用者自己选的东西照实写出来，不是判读、不是诊断。
+ */
+export function buildPulseText(
+  symbols: Record<string, string[]>,
+  customSymbols: CustomSymbol[] = [],
+): string {
+  const keys = Object.keys(symbols ?? {})
+    .filter((k) => (symbols[k] ?? []).length > 0)
+    .sort((a, b) => pointOrder(a) - pointOrder(b))
+  if (keys.length === 0) return ''
+  const items = keys.map((k) => {
+    const [hand, organ, depth] = k.split('|')
+    return {
+      pos: `${hand}|${organ}`,
+      label: `${HAND_LABEL[hand as Hand]}${organ} ${depth}`,
+      text: describeCodes(symbols[k], customSymbols),
+    }
+  })
+  const group = matchGroup([...new Set(items.map((i) => i.pos))])
+  const detail = items.map((i) => `${i.label} ${i.text}`).join('；')
+  return group ? `${group.name}（${detail}）` : detail
+}
+
 /** 讲义 p42「依脉用方表」的一行 */
 export interface FormulaReference {
   /** 原表序号 */

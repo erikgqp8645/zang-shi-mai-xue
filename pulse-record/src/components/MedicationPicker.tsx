@@ -1,12 +1,16 @@
 import { useEffect, useMemo } from 'react'
 import type { LayoutMode, Session } from '../domain/types'
 import {
+  PULSE_GROUPS,
   PULSE_POSITIONS,
+  buildPulseText,
   codeLabels,
   describeCodes,
+  groupPositionsLabel,
   pulsePointLabel,
   pulsePointsOf,
   type FormulaReference,
+  type PulseGroup,
   type PulsePoint,
 } from '../domain/medication'
 import type { CustomSymbol } from '../domain/symbols'
@@ -16,8 +20,11 @@ import type { CustomSymbol } from '../domain/symbols'
  *
  * 左列：处方（讲义 p42「依脉用方表」28 行）。搜索词与页面下方「原文对照」表**共用**，
  *      原来的筛选方式照旧能用；点一行即回填方名与对应脉象的文字表述。
- * 右列：脉象 —— **该次就诊录到的**符号，按脉位筛选（全部／左寸／右寸／左关／右关／左尺／右尺）。
- *      点一下即把该脉点的符号并入这一行的「对应脉象」，与文字表述并存。
+ * 右列：脉象 —— **该次就诊录到的**符号，分两层：
+ *      ① 脉位组合（原文名，如「双关同治」「肝肺同治」「肝心同治」「双寸」「双尺」…），
+ *         点一下整组选上／再点取消，用来记「双关同治」这类跨脉位的组合；
+ *      ② 本次录到的单个脉点，可逐个点选自由组合。
+ *      选中的符号会**自动填进左格「对应脉象」**的文字（若该文字未被手改）。
  *
  * 边界：这里只是**记录**与**原文对照**，不是处方建议；工具不替使用者加减方、不下诊断。
  */
@@ -39,6 +46,8 @@ interface Props {
   selected: Record<string, string[]>
   /** 点一个脉点：选／不选 */
   onToggle: (p: PulsePoint) => void
+  /** 点一个脉位组合：整组选上／取消 */
+  onToggleGroup: (g: PulseGroup) => void
   /** 清掉这一行已选的符号 */
   onClear: () => void
   /** 选一个处方：回填方名与对应脉象文字 */
@@ -57,6 +66,7 @@ export function MedicationPicker({
   onPosition,
   selected,
   onToggle,
+  onToggleGroup,
   onClear,
   onPickFormula,
   onClose,
@@ -71,6 +81,20 @@ export function MedicationPicker({
   const shown = useMemo(
     () => (position ? points.filter((p) => `${p.hand}|${p.organ}` === position) : points),
     [points, position],
+  )
+
+  /**
+   * 脉位组合 —— 只列**本次录得到**的成员；全选＝整组在选上。
+   * 成员一个都没录到的组合置灰（点了也没东西可选）。
+   */
+  const groups = useMemo(
+    () =>
+      PULSE_GROUPS.map((g) => {
+        const members = points.filter((p) => g.positions.includes(`${p.hand}|${p.organ}`))
+        const on = members.length > 0 && members.every((p) => (selected[p.key] ?? []).length > 0)
+        return { group: g, members, on }
+      }),
+    [points, selected],
   )
 
   /** 已选的符号（这一行） */
@@ -88,6 +112,15 @@ export function MedicationPicker({
         }),
     [selected, customSymbols],
   )
+
+  /** 选完后会自动写进左格「对应脉象」的那段文字 */
+  const autoText = useMemo(
+    () => buildPulseText(selected ?? {}, customSymbols),
+    [selected, customSymbols],
+  )
+
+  /** 选中的组合（把出处一并写出来，免得看不出名字的来路） */
+  const onGroups = groups.filter((g) => g.on)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -155,6 +188,38 @@ export function MedicationPicker({
                 </button>
               ))}
             </div>
+
+            {/* 脉位组合：一次选多个脉位（名字取原文） */}
+            <h5 className="pr-picker-sub">脉位组合（名称取自原文）</h5>
+            <div className="pr-picker-groups">
+              {groups.map(({ group, members, on }) => (
+                <button
+                  key={group.id}
+                  type="button"
+                  className={`pr-picker-chip pr-picker-grp${on ? ' is-on' : ''}${
+                    members.length === 0 ? ' is-off' : ''
+                  }`}
+                  disabled={members.length === 0}
+                  title={`${groupPositionsLabel(group)}｜${group.source}`}
+                  onClick={() => onToggleGroup(group)}
+                >
+                  {group.name}
+                </button>
+              ))}
+            </div>
+            <p className="pr-muted pr-picker-hint">
+              点一下＝整组选上，再点＝取消；组内只在本次录到的脉点上生效。
+            </p>
+            {onGroups.length > 0 && (
+              <div className="pr-picker-srcs">
+                {onGroups.map(({ group }) => (
+                  <p key={group.id} className="pr-picker-src">
+                    {group.name}（{groupPositionsLabel(group)}）—— {group.source}
+                  </p>
+                ))}
+              </div>
+            )}
+
             <ul className="pr-picker-list">
               {shown.map((p) => {
                 const on = (selected[p.key] ?? []).length > 0
@@ -190,6 +255,10 @@ export function MedicationPicker({
                 {p.label} {p.text}
               </span>
             ))}
+          </div>
+          <div className="pr-picker-auto">
+            <span className="pr-muted">自动写入左格「对应脉象」：</span>
+            <span>{autoText || '（未选符号，暂不填）'}</span>
           </div>
           <div className="pr-picker-actions">
             <button type="button" className="pr-link" onClick={onClear}>
