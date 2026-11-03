@@ -2,6 +2,8 @@ import type { RecordSet } from '../domain/types'
 import { cellKey } from '../domain/types'
 import { groupRows } from '../domain/layout'
 import { formatCodes, buildCustomLegend, collectUsedCodes, type CustomSymbol } from '../domain/symbols'
+import handsUrl from '../assets/hands-pulse.png'
+import { drawDiagram, loadHandsImage, planDiagram, type DiagramPlan } from './diagram'
 
 /**
  * PNG 导出 —— 用 canvas 自绘，不依赖截图类库，色值与讲义原表一致。
@@ -16,6 +18,8 @@ import { formatCodes, buildCustomLegend, collectUsedCodes, type CustomSymbol } f
  *   · 日期格横跨「左 + 右」两列，中间不画竖线（竖线只出现在表头第二行）
  *   · 部位列（橙）纵向合并一组三行，组内不画横线，组界画粗线并贯穿橙列
  *   · 取法列仅存在于正文，表头左侧无边框（姓名框上方留白）
+ *
+ * 可选在表格下方拼上「寸关尺图示」（见 export/diagram.ts，与页面 SVG 共用同一套坐标）。
  */
 
 const FILL_CELL = '#CCE8CF'
@@ -37,8 +41,22 @@ const HEAD_H = 42
 const ROW_H = 40
 /** 自定义符号图例条高度（画在表格下方白底上，不动表格本体） */
 const LEGEND_H = 34
+/** 表格与图示之间的留白 */
+const DIAGRAM_GAP = 24
 
-export function renderTableCanvas(set: RecordSet, customSymbols: CustomSymbol[] = []): HTMLCanvasElement {
+/** 导出选项 */
+export interface PngExportOptions {
+  /** 是否在表格下方拼上寸关尺图示 */
+  diagram?: boolean
+  /** 图示画哪一次记录的符号；不给则取第一个 */
+  activeSessionId?: string | null
+}
+
+export async function renderTableCanvas(
+  set: RecordSet,
+  customSymbols: CustomSymbol[] = [],
+  options: PngExportOptions = {},
+): Promise<HTMLCanvasElement> {
   const groups = groupRows(set.layout)
   const rowCount = groups.reduce((n, g) => n + g.rows.length, 0)
   const dataCols = set.sessions.length * 2
@@ -53,19 +71,39 @@ export function renderTableCanvas(set: RecordSet, customSymbols: CustomSymbol[] 
   const tableH = HEAD_H * 2 + rowCount * ROW_H
   /** 自定义符号图例另占一条 */
   const legendH = legend.length > 0 ? LEGEND_H : 0
-  const height = tableH + legendH
   const bodyY0 = HEAD_H * 2
+
+  /* ---- 寸关尺图示（可选，表格下方） ---- */
+  const diagramSession =
+    set.sessions.find((s) => s.id === options.activeSessionId) ?? set.sessions[0] ?? null
+  let diagram: DiagramPlan | null = null
+  if (options.diagram && diagramSession) {
+    const image = await loadHandsImage(handsUrl)
+    diagram = planDiagram(image, width)
+    diagram.dy = tableH + legendH + DIAGRAM_GAP
+  }
+
+  /** 画布宽：图示比表格宽时（表格太窄）以图示为准 */
+  const canvasW = diagram ? Math.max(width, diagram.w) : width
+  /** 表格居中偏移（表格比画布窄时才非零） */
+  const tableDx = (canvasW - width) / 2
+  const height = tableH + legendH + (diagram ? DIAGRAM_GAP + diagram.h : 0)
 
   const dpr = 2
   const canvas = document.createElement('canvas')
-  canvas.width = width * dpr
+  canvas.width = canvasW * dpr
   canvas.height = height * dpr
   const ctx = canvas.getContext('2d')!
   ctx.scale(dpr, dpr)
 
   // ---- 底色 ----
   ctx.fillStyle = '#FFFFFF'
-  ctx.fillRect(0, 0, width, height)
+  ctx.fillRect(0, 0, canvasW, height)
+
+  // 表格本体整体平移（画布比表格宽时居中）
+  ctx.save()
+  ctx.translate(tableDx, 0)
+
   ctx.fillStyle = FILL_CELL
   ctx.fillRect(0, 0, width, tableH)
 
@@ -142,12 +180,35 @@ export function renderTableCanvas(set: RecordSet, customSymbols: CustomSymbol[] 
     ctx.fillText(s, cx, cy)
   }
 
-  // 姓名（在表头第二行，横跨部位列 + 取法列）
-  text(set.name || '', labelW / 2, HEAD_H * 1.5, 24, FONT_LABEL)
+  /**
+   * 量文字：放得下就用最大字号；放不下先缩字号，缩到最小仍放不下则截断加省略号。
+   * 姓名格只有「部位 + 取法」两列宽，姓名字号须自适应，才不会溢出到「左」列或表格外。
+   */
+  const fitText = (s: string, maxW: number, maxSize: number, minSize = 11) => {
+    if (!s) return { s, size: maxSize }
+    ctx.font = `${maxSize}px ${FONT_LABEL}`
+    if (ctx.measureText(s).width <= maxW) return { s, size: maxSize }
+    for (let size = maxSize - 1; size > minSize; size--) {
+      ctx.font = `${size}px ${FONT_LABEL}`
+      if (ctx.measureText(s).width <= maxW) return { s, size }
+    }
+    ctx.font = `${minSize}px ${FONT_LABEL}`
+    let out = s
+    while (out.length > 1 && ctx.measureText(`${out}…`).width > maxW) {
+      out = out.slice(0, -1)
+    }
+    return { s: `${out}…`, size: minSize }
+  }
+
+  // 姓名（在表头第二行，横跨部位列 + 取法列）——字号随姓名格宽度自适应
+  const nameFit = fitText(set.name || '', labelW - 8, 24)
+  text(nameFit.s, labelW / 2, HEAD_H * 1.5, nameFit.size, FONT_LABEL)
 
   // 日期组（横跨左右两列）+ 左 / 右
   set.sessions.forEach((s, i) => {
-    text(s.label, labelW + (i * 2 + 1) * DATA_W, HEAD_H / 2, 21, FONT_LABEL)
+    // 日期标签居中于「左 + 右」合并组（两列宽），六位年月日如 261102 亦放得下
+    const labelFit = fitText(s.label, DATA_W * 2 - 8, 21)
+    text(labelFit.s, labelW + (i * 2 + 1) * DATA_W, HEAD_H / 2, labelFit.size, FONT_LABEL)
     text('左', labelW + i * 2 * DATA_W + DATA_W / 2, HEAD_H * 1.5, 20, FONT_LABEL)
     text('右', labelW + (i * 2 + 1) * DATA_W + DATA_W / 2, HEAD_H * 1.5, 20, FONT_LABEL)
   })
@@ -187,12 +248,25 @@ export function renderTableCanvas(set: RecordSet, customSymbols: CustomSymbol[] 
     )
   }
 
+  // 表格画完，撤掉居中平移
+  ctx.restore()
+
+  // 寸关尺图示：接在表格下方，与页面上的 SVG 同一套坐标
+  if (diagram) {
+    drawDiagram(ctx, diagram, set, diagramSession)
+  }
+
   return canvas
 }
 
 /** 触发 PNG 下载 */
-export function downloadPng(set: RecordSet, filename?: string, customSymbols: CustomSymbol[] = []) {
-  const canvas = renderTableCanvas(set, customSymbols)
+export async function downloadPng(
+  set: RecordSet,
+  filename?: string,
+  customSymbols: CustomSymbol[] = [],
+  options: PngExportOptions = {},
+) {
+  const canvas = await renderTableCanvas(set, customSymbols, options)
   canvas.toBlob((blob) => {
     if (!blob) return
     const url = URL.createObjectURL(blob)

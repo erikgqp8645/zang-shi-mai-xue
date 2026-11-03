@@ -27,8 +27,10 @@ export interface RowDef {
 /** 单次记录（一列「日期 × 左右」） */
 export interface Session {
   id: string
-  /** 显示用日期标签，如「21日」「2月5」 */
+  /** 显示用日期标签，如「21日」「2月5」；新增记录用六位年月日，如「261102」 */
   label: string
+  /** 该次记录的实际日期（毫秒时间戳）；新增记录＝所选日期当天 00:00 */
+  at?: number
   /** key = `${hand}|${organ}|${depth}`，值为符号代码数组（可叠加，如 ['X','↑']） */
   values: Record<string, string[]>
 }

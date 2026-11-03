@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { LayoutMode, RecordSet } from './domain/types'
 import { cellKey } from './domain/types'
 import { groupRows } from './domain/layout'
+import { todayYmd, ymdToLabel, ymdToTimestamp } from './domain/dates'
 import { evaluateRules, type RuleContext } from './domain/rules'
 import { evaluateFormulas } from './domain/formulas'
 import { PulseTable, type CellRef } from './components/PulseTable'
@@ -46,7 +47,8 @@ export default function App() {
   const [set, setSet] = useState<RecordSet>(() => ({ name: '', layout: 'nine', sessions: [] }))
   const [selected, setSelected] = useState<CellRef | null>(null)
   const [highlight, setHighlight] = useState<Set<string>>(new Set())
-  const [newLabel, setNewLabel] = useState('')
+  /** 新增记录所选日期（<input type="date"> 的值，YYYY-MM-DD），默认今天 */
+  const [newDate, setNewDate] = useState(() => todayYmd())
   /** 当前选中的日期（记录列）：主表高亮列 ＋ 寸关尺图示取这一列的符号 */
   const [activeSessionIdRaw, setActiveSessionId] = useState<string | null>(null)
 
@@ -180,10 +182,11 @@ export default function App() {
   }
 
   const addSession = () => {
-    const label = newLabel.trim() || `第 ${set.sessions.length + 1} 次`
-    const s = { id: uid(), label, values: {} as Record<string, string[]> }
+    // 日期标签用六位年月日（YYMMDD），如 261102；未选日期则退回「第 N 次」
+    const label = newDate ? ymdToLabel(newDate) : `第 ${set.sessions.length + 1} 次`
+    const at = newDate ? ymdToTimestamp(newDate) : Date.now()
+    const s = { id: uid(), label, at, values: {} as Record<string, string[]> }
     setSet((prev) => ({ ...prev, sessions: [...prev.sessions, s] }))
-    setNewLabel('')
     // 新加的这一次即为当前日期（图示跟着显示它）
     setActiveSessionId(s.id)
   }
@@ -218,7 +221,7 @@ export default function App() {
 
   /** 主表的次记录 → 病例记录里的 visits */
   const toVisits = () =>
-    set.sessions.map((s) => ({ id: s.id, label: s.label, at: Date.now(), values: s.values }))
+    set.sessions.map((s) => ({ id: s.id, label: s.label, at: s.at ?? Date.now(), values: s.values }))
 
   /**
    * 保存当前：
@@ -231,7 +234,7 @@ export default function App() {
       if (editing.visitId) {
         const s = set.sessions[0]
         if (!s) return
-        await updateVisit(editing.visitId, { label: s.label, values: s.values })
+        await updateVisit(editing.visitId, { label: s.label, values: s.values, at: s.at })
         await renamePatient(editing.patientId!, set.name || '未命名')
         await refreshHistory()
         setHistoryError(null)
@@ -275,7 +278,7 @@ export default function App() {
       setSet({
         name: patient.name,
         layout: patient.layout,
-        sessions: patient.visits.map((v) => ({ id: v.id, label: v.label, values: v.values })),
+        sessions: patient.visits.map((v) => ({ id: v.id, label: v.label, at: v.at, values: v.values })),
       })
       setEditing({ patientId: patient.id, visitId: null })
       setSelected(null)
@@ -294,7 +297,7 @@ export default function App() {
       setSet({
         name: patient.name,
         layout: patient.layout,
-        sessions: [{ id: visit.id, label: visit.label, values: visit.values }],
+        sessions: [{ id: visit.id, label: visit.label, at: visit.at, values: visit.values }],
       })
       setEditing({ patientId, visitId })
       setSelected(null)
@@ -385,12 +388,26 @@ export default function App() {
           </p>
         </div>
         <div className="pr-header-actions">
-          <button type="button" onClick={() => downloadPng(set, `${baseName}.png`, customSymbols)}>
+          <button
+            type="button"
+            onClick={() =>
+              downloadPng(set, `${baseName}.png`, customSymbols, {
+                diagram: true,
+                activeSessionId,
+              })
+            }
+          >
             导出 PNG
           </button>
           <button
             type="button"
-            onClick={() => downloadText(`${baseName}.md`, toMarkdown(set, groupFilter, customSymbols), 'text/markdown')}
+            onClick={() =>
+              downloadText(
+                `${baseName}.md`,
+                toMarkdown(set, groupFilter, customSymbols, activeSessionId),
+                'text/markdown',
+              )
+            }
           >
             导出 Markdown
           </button>
@@ -437,16 +454,18 @@ export default function App() {
           新增记录
           <div className="pr-inline">
             <input
-              type="text"
-              value={newLabel}
-              placeholder="日期，如 21日 / 2月5"
-              onChange={(e) => setNewLabel(e.target.value)}
+              type="date"
+              value={newDate}
+              onChange={(e) => setNewDate(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') addSession()
               }}
             />
             <button type="button" onClick={addSession}>添加</button>
           </div>
+          <span className="pr-field-hint">
+            日期按年月日六位记，如 <b>{ymdToLabel(newDate) || '——'}</b>
+          </span>
         </div>
 
         <div className="pr-field pr-field-wide">

@@ -6,6 +6,7 @@ import { evaluateRules, type RuleContext } from '../domain/rules'
 import { evaluateFormulas, STANDING_FORMULA_RULES, CONSTITUTION_TABLE, type FormulaHit } from '../domain/formulas'
 import { DRUG_BY_ID, DRUG_GROUPS, DRUGS } from '../domain/drugs'
 import { groupByHand, groupByWuxing, DIM_ORDER, groupShortLabel, RULE_OR_DRUG_ATTRIB, STANDING_DISPLAY } from '../domain/grouping'
+import { MARKS, layoutDepths, markDepths } from '../domain/diagram'
 
 /** 导出时的分组筛选：按五行／按左右手各打开哪些组（与页面筛选开关同一份状态） */
 export interface DimFilters {
@@ -49,8 +50,21 @@ function filterNote(dim: 'wuxing' | 'hand', keys: string[]): string | null {
   return names.length ? `本次导出筛选：${names.join('、')}` : '本次导出筛选：无（该维度未选任何分组）'
 }
 
+/**
+ * Markdown 表格里的 `|` 是列分隔符，弦等符号必须转义成 `\|`，
+ * 否则一格「弦」会把整行表格劈开（渲染出来仍是讲义原符号 `|`）。
+ */
+function mdCell(v: string): string {
+  return v.replace(/\|/g, '\\|')
+}
+
 /** 导出 Markdown 表格 —— 可直接进仓库笔记层 */
-export function toMarkdown(set: RecordSet, filters?: DimFilters, customSymbols?: CustomSymbol[]): string {
+export function toMarkdown(
+  set: RecordSet,
+  filters?: DimFilters,
+  customSymbols?: CustomSymbol[],
+  activeSessionId?: string | null,
+): string {
   const groups = groupRows(set.layout)
   const heads = set.sessions.flatMap((s) => [`${s.label} 左`, `${s.label} 右`])
   const lines: string[] = []
@@ -61,7 +75,7 @@ export function toMarkdown(set: RecordSet, filters?: DimFilters, customSymbols?:
     `> 布局：${set.layout === 'nine' ? '9 行（寸浮中沉 / 关浮中沉 / 尺浮中沉）' : '7 脉点（尺只沉取）'} ｜ 来源：讲义 2026-10 PDF p34「④ 脉象记录」`,
   )
   lines.push('')
-  lines.push(`| 部位 | 取法 | ${heads.join(' | ')} |`)
+  lines.push(`| 部位 | 取法 | ${heads.map(mdCell).join(' | ')} |`)
   lines.push(`|---|---|${heads.map(() => '---').join('|')}|`)
 
   for (const g of groups) {
@@ -69,7 +83,7 @@ export function toMarkdown(set: RecordSet, filters?: DimFilters, customSymbols?:
       const cells = set.sessions.flatMap((s) =>
         (['L', 'R'] as const).map((h) => {
           const codes = s.values[cellKey(h, row.organ, row.depth)] ?? []
-          return formatCodes(codes) || '—'
+          return mdCell(formatCodes(codes)) || '—'
         }),
       )
       lines.push(`| ${row.organ} | ${row.depth} | ${cells.join(' | ')} |`)
@@ -83,6 +97,39 @@ export function toMarkdown(set: RecordSet, filters?: DimFilters, customSymbols?:
     lines.push(
       `> 自定义符号：${legend.map((s) => `${s.code}＝${s.name}`).join(' ｜ ')}　（使用者自建，不参与讲稿判读与用方比对）`,
     )
+  }
+
+  /* ---- 寸关尺图示（文字版）：与页面上的双手掌面图同一份符号 ---- */
+  if (set.sessions.length > 0) {
+    const depths = layoutDepths(set.layout)
+    lines.push('')
+    lines.push('#### 寸关尺图示（文字版）')
+    lines.push('')
+    lines.push(
+      '> 对应页面「寸关尺图示」的双手掌面图：左手 心·寸 / 肝·关 / 肾（阴）·尺，右手 肺·寸 / 脾·关 / 肾（阳）·尺；按「浮／中／沉」横排该位置的符号。',
+    )
+    if (set.layout === 'seven') {
+      lines.push('')
+      lines.push('> 7 脉点体例：尺只取沉，浮／中不取（依讲义 2026-10·p34「14 个脉点」定义）。')
+    }
+    lines.push('')
+    lines.push(`| 日期 | 手 | 部位（脏） | ${depths.join(' | ')} |`)
+    lines.push(`|---|---|---|${depths.map(() => '---').join('|')}|`)
+    for (const s of set.sessions) {
+      const isActive = s.id === activeSessionId
+      for (const m of MARKS) {
+        const has = markDepths(set.layout, m.organ)
+        const cells = depths.map((d) => {
+          if (!has.includes(d)) return '（不取）'
+          const codes = s.values[cellKey(m.hand, m.organ, d)] ?? []
+          return mdCell(formatCodes(codes)) || '—'
+        })
+        const hand = m.hand === 'L' ? '左' : '右'
+        lines.push(
+          `| ${mdCell(s.label)}${isActive ? '（当前）' : ''} | ${hand} | ${m.organ}（${m.organName}） | ${cells.join(' | ')} |`,
+        )
+      }
+    }
   }
 
   const hits = set.sessions.flatMap((s) => {

@@ -1,7 +1,7 @@
 import handsUrl from '../assets/hands-pulse.png'
-import { cellKey, type Depth, type Hand, type Organ, type RecordSet } from '../domain/types'
-import { depthsOf } from '../domain/layout'
+import { cellKey, type Depth, type RecordSet } from '../domain/types'
 import { formatCodes } from '../domain/symbols'
+import { BADGE_H, GROUP_STEP, IMG_H, IMG_W, MARKS, RIGHT_DOT_X, badgeWidth, markDepths, markX } from '../domain/diagram'
 import type { CellRef } from './PulseTable'
 
 /**
@@ -9,46 +9,12 @@ import type { CellRef } from './PulseTable'
  *
  * 模版图：原图 1070 × 876（已裁掉右侧边框），左「左 阴（血）」、右「右 阳（气）」，
  * 左手腕 心—寸 / 肝—关 / 肾（阴）—尺，右手腕 肺—寸 / 脾—关 / 肾（阳）—尺。
- * 标记坐标按原图像素量得（见 MARKS / BADGE），覆盖层与原图同一坐标系，缩放不跑位。
+ * 标记坐标按原图像素量得（见 domain/diagram.ts，与 PNG 导出共用），覆盖层与原图同一坐标系，缩放不跑位。
  *
  * 交互：
  * - 图上方一排日期 chip，点一下切换「当前日期」，图上符号随之变化（与主表同一份状态）
  * - 点图上某个「取法」行 → 选中主表对应格子（可接着用符号面板录入）
  */
-
-/** 原图尺寸（裁掉右侧边框后的宽 × 高） */
-const IMG_W = 1070
-const IMG_H = 876
-
-/** 标记块高度（原图像素） */
-const BADGE_H = 34
-/** 左手侧标记块左缘：压在原图「寸/关/尺」三字上（原字实测 x 268–294），用自己的位置字替掉 */
-const LEFT_X = 266
-/** 右手侧标记块左缘：原图右手侧没有「寸/关/尺」三字，自带一个位置字 */
-const RIGHT_X = 580
-/** 右手侧引线终点（原图圆点实测 x 823–835） */
-const RIGHT_DOT_X = 823
-/** 每个取法组（浮/中/沉）的横向步距 */
-const GROUP_STEP = 54
-
-interface Mark {
-  hand: Hand
-  organ: Organ
-  /** 该位置的脏名（讲义 p30 脏位；肾分阴/阳） */
-  organName: string
-  /** 标记点在原图里的纵坐标（像素，实测：左字中心 725/768.5/812.5、右圆点 721/766/807） */
-  y: number
-}
-
-/** 六个标记点 */
-const MARKS: Mark[] = [
-  { hand: 'L', organ: '寸', organName: '心', y: 723 },
-  { hand: 'L', organ: '关', organName: '肝', y: 767 },
-  { hand: 'L', organ: '尺', organName: '肾（阴）', y: 810 },
-  { hand: 'R', organ: '寸', organName: '肺', y: 723 },
-  { hand: 'R', organ: '关', organName: '脾', y: 767 },
-  { hand: 'R', organ: '尺', organName: '肾（阳）', y: 810 },
-]
 
 interface Props {
   set: RecordSet
@@ -104,11 +70,11 @@ export function PulseDiagram({ set, activeSessionId, selected, onSelect, onSelec
           preserveAspectRatio="xMidYMid meet"
         >
           {MARKS.map((m) => {
-            const depths = depthsOf(set.layout, m.organ)
-            const x0 = m.hand === 'L' ? LEFT_X : RIGHT_X
+            const depths = markDepths(set.layout, m.organ)
+            const x0 = markX(m.hand)
             const y0 = m.y - BADGE_H / 2
             /** 标记块宽度按取法个数定，三档对齐 */
-            const bw = 50 + (depths.length - 1) * GROUP_STEP + 42
+            const bw = badgeWidth(depths.length)
             const isSel = (d: Depth) =>
               selected?.sessionId === activeSessionId &&
               selected.hand === m.hand &&
