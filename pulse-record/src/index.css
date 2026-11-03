@@ -495,13 +495,14 @@ button:disabled {
   }
 }
 
-/* ---------- 用药记录（使用者自己填实际用了什么方、加减、服法） ---------- */
+/* ---------- 用药记录（使用者自己填实际用了什么方、加减、服法） ----------
+   表格外观照「病例记录」那张表：同一套边框、表头底色与字号（见 .pr-history-list 处的共用规则）。 */
 
 .pr-med {
   background: var(--card);
   border: 1px solid var(--divider);
   border-radius: 4px;
-  padding: 14px 16px 16px;
+  padding: 12px 16px 14px;
   margin-top: 20px;
 }
 
@@ -517,83 +518,50 @@ button:disabled {
 .pr-med-head h2 {
   margin: 0;
   font-size: 15px;
+  letter-spacing: 0.04em;
 }
 
-.pr-med-group {
-  border: 1px solid var(--divider);
-  border-radius: 3px;
-  margin-bottom: 10px;
-}
-.pr-med-group.is-active {
-  border-color: var(--clay);
+/* 每次就诊一小节：标题照病例记录的「每次就诊记录」，用虚线分隔 */
+.pr-med-group + .pr-med-group {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--divider);
 }
 .pr-med-group-head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 10px;
-  padding: 5px 10px;
-  background: var(--divider);
+  margin-bottom: 8px;
 }
-.pr-med-group-head strong {
-  font-size: 14px;
+.pr-med-sub {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--sage);
+  font-weight: 600;
 }
-.pr-med-badge {
+.pr-med-group-head .pr-link {
+  margin-left: auto;
+}
+.pr-med-flag {
   font-style: normal;
-  font-size: 11px;
-  color: var(--high);
-  border: 1px solid var(--high);
-  border-radius: 2px;
-  padding: 0 5px;
+  font-size: 10px;
+  color: var(--clay);
+}
+/* 当前日期的那一次，标题也标成同色 */
+.pr-med-group.is-active .pr-med-sub {
+  color: var(--clay);
 }
 .pr-med-empty {
-  margin: 8px 10px;
+  margin: 0 0 8px;
 }
 
-.pr-med-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  table-layout: fixed;
-}
-.pr-med-table th {
-  text-align: left;
-  font-weight: 400;
-  color: var(--sage);
-  font-size: 12px;
-  padding: 5px 8px;
-  border-bottom: 1px solid var(--divider);
-}
-.pr-med-table td {
-  padding: 3px 6px;
-  border-bottom: 1px solid var(--divider);
-  vertical-align: top;
-}
-.pr-med-table tr.is-focus td {
-  background: #f8f4ea;
-}
-.pr-med-table th:nth-of-type(1) {
-  width: 21%;
-}
-.pr-med-table th:nth-of-type(2) {
-  width: 23%;
-}
-.pr-med-table th:nth-of-type(3) {
-  width: 16%;
-}
-.pr-med-table th:nth-of-type(4) {
-  width: 18%;
-}
-.pr-med-table th:nth-of-type(5) {
-  width: 17%;
-}
-.pr-med-table th:nth-of-type(6) {
-  width: 34px;
-}
+/* 表内的输入框：默认就是普通文字，悬停/聚焦才显出框线 */
 .pr-med-table input[type='text'] {
   width: 100%;
   font: inherit;
-  font-size: 13px;
-  padding: 3px 4px;
+  font-size: 12px;
+  padding: 2px 3px;
   border: 1px solid transparent;
   background: transparent;
   border-radius: 2px;
@@ -603,15 +571,47 @@ button:disabled {
 }
 .pr-med-table input[type='text']:focus {
   outline: none;
-  border-color: var(--sage);
+  border-color: var(--clay);
   background: var(--card);
 }
-.pr-med-flag {
+.pr-med-table td .pr-med-flag {
+  display: block;
+  margin-top: 1px;
+}
+
+/* 列宽：窄栏里按内容分配 */
+.pr-med-table th:nth-of-type(1) {
+  width: 22%;
+}
+.pr-med-table th:nth-of-type(2) {
+  width: 23%;
+}
+.pr-med-table th:nth-of-type(3) {
+  width: 15%;
+}
+.pr-med-table th:nth-of-type(4) {
+  width: 17%;
+}
+.pr-med-table th:nth-of-type(5) {
+  width: 15%;
+}
+.pr-med-table th:nth-of-type(6) {
+  width: 40px;
+}
+
+/* 操作列：与病例记录的「操作」列同款。
+   注意：td 本身不能设 display:flex —— flex 格在 Chrome 里不随行高拉伸，
+   边框会缩成一个小方块；这里让 td 保持 table-cell，按钮内联排。 */
+.pr-med-ops {
+  white-space: nowrap;
+}
+.pr-med-ops > button {
   display: inline-block;
-  font-style: normal;
-  font-size: 11px;
-  color: var(--sage);
-  margin-left: 4px;
+  vertical-align: middle;
+  margin-right: 10px;
+}
+.pr-med-ops > button:last-child {
+  margin-right: 0;
 }
 
 /* 讲稿第二讲的组成／服法（原文照录，只读） */
@@ -632,41 +632,34 @@ button:disabled {
 /* 讲义 p42 原表对照 */
 .pr-med-refbox {
   border-top: 1px solid var(--divider);
-  padding-top: 8px;
+  padding-top: 10px;
 }
 .pr-med-refbox-head {
   display: flex;
   align-items: baseline;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
+  margin-bottom: 8px;
 }
 .pr-med-search {
   font: inherit;
-  font-size: 13px;
-  padding: 4px 8px;
-  margin: 8px 0;
+  font-size: 12px;
+  padding: 3px 7px;
+  margin: 0 0 8px;
   width: 320px;
   max-width: 100%;
   border: 1px solid var(--divider);
   border-radius: 3px;
+  background: #fff;
+  color: var(--ink);
 }
-.pr-med-reftable {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
+.pr-med-search:focus {
+  outline: none;
+  border-color: var(--clay);
 }
-.pr-med-reftable th,
+/* 原表文字多，竖向顶格排 */
 .pr-med-reftable td {
-  border: 1px solid var(--divider);
-  padding: 4px 8px;
-  text-align: left;
-  font-weight: 400;
   vertical-align: top;
-}
-.pr-med-reftable th {
-  color: var(--sage);
-  font-size: 12px;
-  background: var(--divider);
 }
 .pr-med-reftable td:nth-of-type(1) {
   width: 34px;
@@ -744,25 +737,35 @@ button:disabled {
   color: var(--high);
   line-height: 1.6;
 }
-.pr-history-list {
+/* 病例记录表与用药记录表共用同一套外观（边框／表头底色／字号） */
+.pr-history-list,
+.pr-med-table,
+.pr-med-reftable {
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
 }
 .pr-history-list th,
-.pr-history-list td {
+.pr-history-list td,
+.pr-med-table th,
+.pr-med-table td,
+.pr-med-reftable th,
+.pr-med-reftable td {
   border: 1px solid var(--divider);
   padding: 5px 8px;
   text-align: left;
   vertical-align: middle;
 }
-.pr-history-list thead th {
+.pr-history-list thead th,
+.pr-med-table thead th,
+.pr-med-reftable thead th {
   background: var(--paper);
   font-weight: 600;
   color: var(--sage);
   letter-spacing: 0.04em;
 }
-.pr-history-list tr.is-editing td {
+.pr-history-list tr.is-editing td,
+.pr-med-table tr.is-focus td {
   background: #f6efe2;
 }
 .pr-history-name {
@@ -798,11 +801,17 @@ button:disabled {
   line-height: 1.7;
   max-width: 460px;
 }
+/* 操作列：按钮内联排（td 不设 flex，否则边框不随行高拉伸） */
 .pr-history-ops {
-  display: flex;
-  align-items: center;
-  gap: 10px;
   white-space: nowrap;
+}
+.pr-history-ops > button {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 10px;
+}
+.pr-history-ops > button:last-child {
+  margin-right: 0;
 }
 .pr-history-preview {
   margin-top: 10px;

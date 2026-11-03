@@ -108,8 +108,8 @@ export function MedicationPanel({ sessions, activeSessionId, rows, onChange }: P
         return (
           <div key={s.id} className={`pr-med-group${isActive ? ' is-active' : ''}`}>
             <div className="pr-med-group-head">
-              <strong>{s.label}</strong>
-              {isActive && <em className="pr-med-badge">当前日期</em>}
+              <h3 className="pr-med-sub">{s.label}</h3>
+              {isActive && <em className="pr-med-flag">　当前日期</em>}
               <button type="button" className="pr-link" onClick={() => addRow(s.id)}>
                 ＋ 添加一行
               </button>
@@ -126,7 +126,7 @@ export function MedicationPanel({ sessions, activeSessionId, rows, onChange }: P
                     <th>加减</th>
                     <th>服法</th>
                     <th>备注</th>
-                    <th />
+                    <th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -177,7 +177,7 @@ export function MedicationPanel({ sessions, activeSessionId, rows, onChange }: P
                           onChange={(e) => update(r.id, { note: e.target.value })}
                         />
                       </td>
-                      <td>
+                      <td className="pr-med-ops">
                         <button
                           type="button"
                           className="pr-x"
@@ -225,8 +225,9 @@ export function MedicationPanel({ sessions, activeSessionId, rows, onChange }: P
       {/* 讲义 p42 原表对照 */}
       <div className="pr-med-refbox">
         <div className="pr-med-refbox-head">
+          <h3 className="pr-med-sub">讲义 2026-10·p42「依脉用方表」原文对照（28 行）</h3>
           <button type="button" className="pr-link" onClick={() => setRefOpen((v) => !v)}>
-            {refOpen ? '收起' : '展开'}讲义 2026-10·p42「依脉用方表」原文对照（28 行）
+            {refOpen ? '收起' : '展开'}
           </button>
           <span className="pr-muted">原文照录，供查供抄；不是处方建议，不构成诊断。</span>
         </div>
@@ -245,7 +246,7 @@ export function MedicationPanel({ sessions, activeSessionId, rows, onChange }: P
                   <th>#</th>
                   <th>处方</th>
                   <th>对应脉象及加减</th>
-                  <th />
+                  <th>操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -254,7 +255,7 @@ export function MedicationPanel({ sessions, activeSessionId, rows, onChange }: P
                     <td>{r.no}</td>
                     <td>{r.name}</td>
                     <td>{r.indication}</td>
-                    <td>
+                    <td className="pr-med-ops">
                       <button
                         type="button"
                         className="pr-link"
