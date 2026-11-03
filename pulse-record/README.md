@@ -59,6 +59,8 @@ npm run seed:demo  # 写入 14 位「演示·」患者（需服务已在跑，�
 | 分组筛选 | 按五行／按左右手各有一排 chip 开关（组名＋条目数＋方剂数），点一下开／关，条目与方剂备查**两处同步**，并同步到 Markdown 导出 |
 | 方剂备查 | 讲稿 2010 第二讲写明的 **30 条方剂**，随分组维度一起重排，原样转录，不替读者加减方 |
 | **病例记录** | **患者 → 每次就诊记录** 两级，可查看、载入编辑、改名、删除；存本机 **SQLite** 文件（永久存储，不随清缓存消失） |
+| **用药记录** | 每次就诊下面自己填**实际用了什么方、加减、服法**（一次就诊可记多条方）；存本机 SQLite 独立 `medication` 表；**暂不进导出** |
+| **原文回查** | 方名命中讲稿第二讲的，实时显示该方的**组成／服法／科学中药／加减／禁忌**原文；讲稿未载就明说未载 |
 | **自定义符号** | 讲义固定符号之外可**自建符号**（如「涩」记作 `S`），存本机 SQLite；跟着录入、图示、PNG/Markdown 导出一起走 |
 | **病例搜索** | 面板内一个搜索框，**姓名 / 就诊日期 / 脉象符号**（如 `↑` `X` `\|`）三种口径同时搜；命中患者标出「命中：某日某次」 |
 | **寸关尺图示** | 双手掌面图（按原图模版），把**当前日期**的脉象符号标到寸/关/尺位置；与主表双向联动 |
@@ -136,6 +138,7 @@ npm run seed:demo  # 写入 14 位「演示·」患者（需服务已在跑，�
 | 都不在编辑 | 当前录入的内容 | 「保存为新患者」 | 新建一位患者 |
 
 「另存为新患者」总是新建，不覆盖正在编辑的那位。
+它是**复制**一份：复制出来的就诊记录与用药记录会**换新的 id**，原患者那几次记录不会被搬到新患者名下（原患者仍保有自己的记录）。
 
 ### 新增记录的日期
 
@@ -184,9 +187,10 @@ pulse-record/local-data/history.sqlite
 |---|---|---|
 | `patients` | `id` / `name` / `layout` / `created_at` / `updated_at` | 一位患者；`layout` 为 `nine`（9 行）或 `seven`（7 脉点） |
 | `visits` | `id` / `patient_id` / `label` / `at` / `pulse_values` / `seq` | 一次就诊记录；`pulse_values` 是 JSON，key 形如 `L\|寸\|浮`，值为符号代码数组（如 `["X","↑"]`） |
+| `medication` | `id` / `patient_id` / `visit_id` / `seq` / `name` / `pulse` / `adjust` / `usage` / `note` / `created_at` | 一条**用药记录**（使用者的实际用药），挂在某一次就诊下；一次就诊可多条 |
 | `custom_symbols` | `code` / `name` / `created_at` | 使用者自建的符号（如 `S`＝涩）；讲义固定符号集之外另加 |
 
-删患者会级联删掉其全部就诊记录（`ON DELETE CASCADE`）。
+删患者会级联删掉其全部就诊记录（`ON DELETE CASCADE`），就诊记录删除则级联删掉其用药记录。
 
 ### 演示数据
 
@@ -215,13 +219,54 @@ sqlite3 local-data/history.sqlite \
 | POST | `/api/symbols` | 新增／改名自定义符号 `{code, name}` |
 | DELETE | `/api/symbols/:code` | 删除自定义符号（不动历史记录） |
 | GET | `/api/patients/:id` | 一位患者 ＋ 其全部就诊记录 |
-| POST | `/api/patients` | 整份保存（患者 ＋ 就诊记录） |
+| POST | `/api/patients` | 整份保存（患者 ＋ 就诊记录 ＋ 用药记录） |
 | PATCH | `/api/patients/:id` | 重命名患者 |
-| DELETE | `/api/patients/:id` | 删除患者（级联删其就诊记录） |
-| GET/PATCH/DELETE | `/api/visits/:id` | 取／改／删一次就诊记录 |
+| DELETE | `/api/patients/:id` | 删除患者（级联删其就诊记录与用药记录） |
+| GET/PATCH/DELETE | `/api/visits/:id` | 取／改／删一次就诊记录（PATCH 可带该次的 `medications`） |
+| GET | `/api/patients/:id/medication` | 该患者的全部用药记录 |
+| POST | `/api/patients/:id/medication` | 整份覆盖该患者的用药记录 |
+| GET | `/api/visits/:id/medication` | 某一次就诊的用药记录 |
+| POST | `/api/visits/:id/medication` | 只覆盖该次就诊的用药（其它次不动） |
+| DELETE | `/api/medication/:id` | 删一条用药记录 |
 
 开发时 Vite 把 `/api` 代理到 `http://127.0.0.1:5178`；`npm run start` 时由服务端同端口托管页面与 API。
 服务没起时，页面会明确提示「连不上本地病例记录服务……请用 npm run dev 起前后端」，**不会静默丢数据**。
+
+## 用药记录（填写表 · 暂不进导出）
+
+主表下方新增一块**用药记录**：按**每次就诊**分组，使用者自己填这一次**实际用了什么方、加减、服法**。
+
+| 项 | 约定 |
+|---|---|
+| 形态 | **填写表**。不是自动判读，也不是处方建议 —— 工具不替使用者加减方、不下诊断 |
+| 列 | 方名 / 对应脉象 / 加减 / 服法 / 备注 / 删除 |
+| 一次就诊 | 可记**多条方**（对服、并行、上中下焦分服都记得下） |
+| 存哪 | 本机 SQLite 独立 `medication` 表，挂在 `visits` 下面（`visit_id` 外键，删就诊记录则级联删其用药） |
+| 写入语义 | 与病例记录一致三种：患者级**整份覆盖**（同 id 更新、没有的删除）／单次级**只写回那一次**／新建时随患者一次写入 |
+| 导出 | **暂不纳入**导出（PNG / Markdown / CSV 均不含用药记录），只在页面上能用 |
+
+### 与「依脉用方」的区别
+
+两者并存，**不互相替代**：
+
+| | 依脉用方（判读面板） | 用药记录（本表） |
+|---|---|---|
+| 谁写的 | **工具**按录入的脉象自动比对出来的 | **使用者**自己填实际用了什么 |
+| 依据 | 讲义 p44 / p46 ＋ 讲稿第二讲 | 使用者的临床判断 |
+| 内容 | 讲稿写明的方剂的组成／服法／禁忌 | 实际用的方、加减、服法、备注 |
+| 性质 | 原文照录的**参考** | 使用者的**记录** |
+
+### 原文回查（只读）
+
+| 触发 | 显示什么 | 出处 |
+|---|---|---|
+| 方名命中讲稿第二讲某方 | 该方的**组成／服法／科学中药／加减／禁忌**原文照录 ＋ 出处小节名 | 讲稿 2010·第二讲「叁、用方」「肆、依脉辨证论治」 |
+| 方名**没有**命中 | 明说「讲稿 2010·第二讲未载其组成与服法」，**不臆造** | —— |
+| 展开「讲义 p42 依脉用方表」 | 28 行原表（处方 ｜ 对应脉象及加减）逐行照录，带搜索框；点「填入」写进当前行或新行 | 讲义 2026-10·p42 |
+
+- 讲义与讲稿的**方名用字不同**时，按明确同方对照换查（`天王芪` → 天王补心丹加芪、`六神散` → 六神汤、`加味增液汤` → 增液汤加减、`龙胆泻肝` → 加味龙胆泻肝、`补中益气汤` → 补中益气加散药），对照表见 `src/domain/medication.ts` 的 `FORMULA_ALIAS`。
+- 讲稿第二讲未载组成的方（如五味异功散、参苓白术散、大补阴丸），只记「方名 ＋ 对应脉象 ＋ 加减」，组成一栏留空。
+- 数据落库于 `src/domain/medication.ts`：`FORMULA_REFERENCE`（讲义 p42 28 行 ＋ 别名表 ＋ `findDrug` / `searchFormulaReference`）。
 
 ## 寸关尺图示
 
@@ -301,6 +346,7 @@ DOM 表格与 PNG 导出共用同一套几何规格（部位列 54 px、取法�
 病历记录（病例记录面板，可展开）
 脉象记录表
 [ 符号录入 | 寸关尺图示 ]      ← 两块并排相邻
+用药记录                        ← 按就诊分组，自己填方/加减/服法
 判读提示                      ← 放最后
 页脚（符号体例 · 自定义符号）
 ```
@@ -317,6 +363,7 @@ src/
 │   ├── rules.ts     20 条判读规则，逐条注明讲稿出处
 │   ├── formulas.ts  依脉用方条目（讲义 p44 骨架 + 讲稿第二讲分型）
 │   ├── drugs.ts     30 条方剂资料（组成／服法／加减／禁忌，照抄原文）
+│   ├── medication.ts 用药记录模型 ＋ 讲义 p42「依脉用方表」28 行原表 ＋ 方名别名对照
 │   ├── grouping.ts  五行／左右手两套分组维度的归属表与依据
 │   ├── dates.ts     新增记录的日期换算（今天 / YYYYMMDD→YYMMDD / →当天零点时间戳）
 │   ├── diagram.ts   寸关尺图示几何（页面 SVG 与 PNG 导出共用同一套坐标）
@@ -326,7 +373,7 @@ src/
 │   └── symbols.ts   自定义符号 API 客户端（使用者自建符号）
 ├── assets/
 │   └── hands-pulse.png  寸关尺图示底图（原图，1070 × 876）
-├── components/      PulseTable / PulseDiagram / SymbolPalette / Findings / HistoryPanel
+├── components/      PulseTable / PulseDiagram / SymbolPalette / Findings / HistoryPanel / MedicationPanel
 ├── export/
 │   ├── png.ts       canvas 自绘导出（表格 ＋ 寸关尺图示）
 │   ├── diagram.ts   寸关尺图示在 canvas 上的绘制（与页面 SVG 同坐标）
@@ -335,7 +382,7 @@ src/
 └── App.tsx          状态与编排
 
 server/              本地 SQLite 服务（node:sqlite，无第三方依赖）
-├── schema.sql       建表语句（patients / visits）
+├── schema.sql       建表语句（patients / visits / medication / custom_symbols）
 ├── db.mjs           读写封装
 └── index.mjs        HTTP API ＋ 静态页面托管
 
