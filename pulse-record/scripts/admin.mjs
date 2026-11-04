@@ -8,6 +8,8 @@
  *   npm run admin -- reset <登录名> <新密码>        重置密码（会清掉该账号所有会话）
  *   npm run admin -- role <登录名> admin|user       改角色
  *   npm run admin -- wechat <登录名>                看该账号的微信绑定状态
+ *   npm run admin -- claim <登录名>                 把内置单机账号名下的老数据转给该账号
+ *   npm run admin -- bind-wechat <登录名> <openid>  把 openid 手动绑到账号上（运维兜底）
  *
  * 直接操作本机 SQLite（server/db.mjs），不经过 HTTP —— 所以服务器上也能用。
  */
@@ -92,6 +94,39 @@ switch (cmd) {
     if (!row) die('没有这个账号')
     db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, row.id)
     console.log(`✓ ${loginName} 的角色改为 ${role}`)
+    break
+  }
+
+  case 'claim': {
+    // 把内置单机账号（local）名下的老数据转给指定账号。
+    // 场景：单机时代录的病例，升级到多用户后老数据归在 local 名下，
+    // 新注册的账号看不到（隔离是对的，但数据得有人认领）。
+    const [loginName] = args
+    if (!loginName) die('用法：npm run admin -- claim <登录名>')
+    const row = byLoginName(loginName)
+    if (!row) die('没有这个账号')
+    const local = await getLocalUser(db)
+    if (!local) die('库里没有内置单机账号')
+    if (local.id === row.id) die('这就是单机账号本身，没什么可转的')
+
+    // 父子表一起转，保持 owner 一致（visit→patient、medication→visit 的归属不变）
+    let total = 0
+    db.exec('BEGIN')
+    try {
+      for (const table of ['patients', 'visits', 'medication', 'custom_symbols']) {
+        const n = db
+          .prepare(`UPDATE ${table} SET owner_id = ? WHERE owner_id = ?`)
+          .run(row.id, local.id).changes
+        total += n
+        if (n > 0) console.log(`  ${table}：转了 ${n} 行`)
+      }
+      db.exec('COMMIT')
+    } catch (e) {
+      db.exec('ROLLBACK')
+      die(`转移失败：${e?.message ?? e}`)
+    }
+    console.log(`✓ 已把内置单机账号名下的 ${total} 行数据转给 ${loginName}`)
+    console.log('  （登录该账号就能看到这些记录了；数据本身一个字节没改，只换了归属）')
     break
   }
 
