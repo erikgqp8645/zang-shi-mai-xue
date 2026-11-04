@@ -702,7 +702,9 @@ export async function putMedication(db, patientId, ownerId, rows) {
 
 /** 只改某一次就诊的用药（单次编辑语义，不动该患者的其它次） */
 export async function putVisitMedication(db, visitId, ownerId, rows) {
-  const cur = getVisit(db, visitId, ownerId)
+  // getVisit 是 async —— 漏 await 会拿到 Promise，cur.patientId 是 undefined，
+  // 写库时参数绑不上（Provided value cannot be bound to SQLite parameter），整次保存 500。
+  const cur = await getVisit(db, visitId, ownerId)
   if (!cur) return null
   await withTransaction(db, async () => {
     await writeMedicationRows(db, cur.patientId, ownerId, rows, visitId)
