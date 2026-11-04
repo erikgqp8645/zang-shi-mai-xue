@@ -25,6 +25,10 @@ local-data/
 
 # 小程序共享包编译产物（npm run build:core 生成，不进版本库）
 pulse-record/miniprogram/utils/core/
+pulse-record/miniprogram/assets/
 
 # 运行时产物（Mavis canvas 缓存等）
 .mavis/
+
+# 微信开发者工具的本地配置（含个人 AppID 等，不进版本库）
+pulse-record/miniprogram/project.private.config.json

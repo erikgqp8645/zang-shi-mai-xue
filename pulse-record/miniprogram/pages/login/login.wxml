@@ -1,0 +1,71 @@
+<view class="pr-page pr-login">
+  <view class="pr-login-head">
+    <view class="pr-login-title">臧氏脉学</view>
+    <view class="pr-login-sub">脉象记录表生成器</view>
+  </view>
+
+  <view class="pr-disclaimer">
+    本工具只做记录，不构成诊断。体质的判定由使用者自己判断后手工选定，工具不代判、不开方。
+  </view>
+
+  <view class="pr-card" wx:if="{{!singleMode}}">
+    <!-- 微信登录 -->
+    <block wx:if="{{step === 'wechat' || step === 'bind'}}">
+      <view class="pr-card-title">微信登录</view>
+      <view class="pr-note" wx:if="{{notice}}">{{notice}}</view>
+      <view class="pr-note" wx:if="{{error}}">{{error}}</view>
+      <button class="pr-btn pr-btn-primary pr-btn-block" loading="{{busy}}" bindtap="retryWechat">
+        微信一键登录
+      </button>
+    </block>
+
+    <!-- 账号密码登录 -->
+    <block wx:if="{{step === 'account'}}">
+      <view class="pr-card-title">账号密码登录</view>
+      <view class="pr-note" wx:if="{{notice}}">{{notice}}</view>
+      <view class="pr-note" wx:if="{{error}}">{{error}}</view>
+      <view class="pr-label">登录名（11 位手机号，或 4~20 位字母开头的用户名）</view>
+      <input class="pr-input" value="{{loginName}}" placeholder="登录名" bindinput="onInputLoginName" />
+      <view class="pr-label">密码</view>
+      <input class="pr-input" password value="{{password}}" placeholder="密码（至少 6 位）" bindinput="onInputPassword" />
+      <button class="pr-btn pr-btn-primary pr-btn-block" loading="{{busy}}" bindtap="onLogin">登录</button>
+      <view class="pr-login-alt">
+        <text class="pr-link" bindtap="goBind">用网站账号绑定微信</text>
+        <text class="pr-link" bindtap="goRegister">注册新账号</text>
+      </view>
+    </block>
+
+    <!-- 绑定（网站账号＋密码） -->
+    <block wx:if="{{step === 'bind'}}">
+      <view class="pr-card-title">绑定网站账号</view>
+      <view class="pr-note">输入你在网站上用的账号和密码。绑定后，小程序和网站看到的是同一份病例。</view>
+      <view class="pr-note" wx:if="{{error}}" style="color:#b03a2e">{{error}}</view>
+      <view class="pr-label">登录名</view>
+      <input class="pr-input" value="{{loginName}}" placeholder="登录名" bindinput="onInputLoginName" />
+      <view class="pr-label">密码</view>
+      <input class="pr-input" password value="{{password}}" placeholder="密码" bindinput="onInputPassword" />
+      <button class="pr-btn pr-btn-primary pr-btn-block" loading="{{busy}}" bindtap="onBind">绑定并进入</button>
+      <view class="pr-login-alt">
+        <text class="pr-link" bindtap="goAccount">用账号密码直接登录</text>
+        <text class="pr-link" bindtap="goRegister">注册新账号</text>
+      </view>
+    </block>
+
+    <!-- 注册 -->
+    <block wx:if="{{step === 'register'}}">
+      <view class="pr-card-title">注册新账号</view>
+      <view class="pr-note">注册后当前微信会自动绑定到这个账号，以后直接进。</view>
+      <view class="pr-note" wx:if="{{error}}" style="color:#b03a2e">{{error}}</view>
+      <view class="pr-label">登录名（11 位手机号，或 4~20 位字母开头的用户名）</view>
+      <input class="pr-input" value="{{loginName}}" placeholder="登录名" bindinput="onInputLoginName" />
+      <view class="pr-label">显示名称（可不填，默认同登录名）</view>
+      <input class="pr-input" value="{{displayName}}" placeholder="显示名称" bindinput="onInputDisplayName" />
+      <view class="pr-label">密码（至少 6 位）</view>
+      <input class="pr-input" password value="{{password}}" placeholder="密码" bindinput="onInputPassword" />
+      <button class="pr-btn pr-btn-primary pr-btn-block" loading="{{busy}}" bindtap="onRegister">注册并进入</button>
+      <view class="pr-login-alt">
+        <text class="pr-link" bindtap="goAccount">已有账号，直接登录</text>
+      </view>
+    </block>
+  </view>
+</view>

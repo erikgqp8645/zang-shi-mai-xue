@@ -1,0 +1,37 @@
+.pr-login {
+  padding-top: 120rpx;
+}
+
+.pr-login-head {
+  text-align: center;
+  margin-bottom: 48rpx;
+}
+
+.pr-login-title {
+  font-size: 52rpx;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+}
+
+.pr-login-sub {
+  color: #7c8974;
+  font-size: 26rpx;
+  letter-spacing: 0.05em;
+  margin-top: 8rpx;
+}
+
+.pr-login .pr-disclaimer {
+  margin-bottom: 32rpx;
+}
+
+.pr-login-alt {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 24rpx;
+}
+
+.pr-link {
+  color: #7c8974;
+  font-size: 25rpx;
+  text-decoration: underline;
+}

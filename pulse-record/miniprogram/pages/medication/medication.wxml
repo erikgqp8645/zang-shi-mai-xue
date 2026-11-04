@@ -1,0 +1,267 @@
+<!-- 用药记录（小程序端）—— 对应网站的 MedicationPanel ＋ MedicationPicker
+     WXML 不能调用 JS 函数：所有内容都在 medication.js 里预先算好 -->
+
+<view class="pr-page">
+  <view class="pr-note pr-err" wx:if="{{error}}">{{error}}</view>
+
+  <!-- ========== 患者 ========== -->
+  <view class="pr-card" wx:if="{{!patientId}}">
+    <view class="pr-card-title">选择患者</view>
+    <view class="pr-note" wx:if="{{!patients.length}}">
+      还没有病例。先到「病例」页新建一位患者并录入脉象，用药记录要挂在某一次就诊下面。
+    </view>
+    <view class="pr-chips" wx:if="{{patients.length}}">
+      <view
+        class="pr-chip {{patientId === item.id ? 'pr-chip-on' : ''}}"
+        wx:for="{{patients}}"
+        wx:key="id"
+        bindtap="selectPatient"
+        data-id="{{item.id}}"
+      >
+        {{item.name}}（{{item.visitCount}} 次）
+      </view>
+    </view>
+  </view>
+
+  <view class="pr-card" wx:if="{{patientId}}">
+    <view class="pr-case-row">
+      <view class="pr-case-name">{{patientName}}</view>
+      <view class="pr-case-meta">{{visits.length}} 次记录 · {{rows.length}} 条用药</view>
+    </view>
+    <view class="pr-case-ops">
+      <text class="pr-link" bindtap="goRecord">录入编辑脉象</text>
+    </view>
+    <view class="pr-note" wx:if="{{!visits.length}}">
+      这位患者还没有就诊记录 —— 用药记录要挂在某一次就诊下面，请先录入一次脉象。
+    </view>
+  </view>
+
+  <!-- ========== 用药记录（已有） ========== -->
+  <view class="pr-card" wx:if="{{patientId}}">
+    <view class="pr-card-title">用药记录</view>
+    <view class="pr-note">
+      自己填实际用了什么方、加减与服法；工具不替加减方、不下诊断。
+    </view>
+    <view class="pr-empty" wx:if="{{!rows.length}}">（这位患者还没有用药记录）</view>
+
+    <view class="pr-med-row" wx:for="{{rows}}" wx:for-item="row" wx:key="id">
+      <view class="pr-med-head">
+        <text class="pr-med-name">{{row.name || '（方名未填）'}}</text>
+        <text class="pr-med-visit">挂在：{{row.visitLabel}}</text>
+      </view>
+      <view class="pr-med-line" wx:if="{{row.pulse}}"><text class="pr-med-k">对应脉象</text>{{row.pulse}}</view>
+      <view class="pr-med-line" wx:if="{{row.symbolSummary}}"><text class="pr-med-k">符号</text>{{row.symbolSummary}}</view>
+      <view class="pr-med-line" wx:if="{{row.adjust}}"><text class="pr-med-k">加减</text>{{row.adjust}}</view>
+      <view class="pr-med-line" wx:if="{{row.usage}}"><text class="pr-med-k">服法</text>{{row.usage}}</view>
+      <view class="pr-med-line" wx:if="{{row.note}}"><text class="pr-med-k">备注</text>{{row.note}}</view>
+
+      <!-- 组成与剂量：两套资料并列，各带出处与单位，不可互相换算 -->
+      <view class="pr-dose" wx:if="{{row.th}}">
+        <view class="pr-dose-block" wx:if="{{row.th.missing}}">
+          <text class="pr-dose-tag">同和堂版（克）</text>
+          <text class="pr-dose-none">未载</text>
+        </view>
+        <view class="pr-dose-block" wx:else>
+          <text class="pr-dose-tag">同和堂版（克）{{row.th.note}}</text>
+          <view class="pr-dose-entry" wx:for="{{row.th.entries}}" wx:for-item="e" wx:key="name">
+            <text wx:if="{{row.th.showName}}">{{e.name}}：</text>{{e.composition}}
+            <text class="pr-dose-sci" wx:if="{{e.science}}">　科中：{{e.science}}</text>
+            <text class="pr-dose-src">〔{{e.source}}〕</text>
+            <text class="pr-dose-ref" wx:if="{{e.basis}}">　对照：{{e.basis}}</text>
+          </view>
+        </view>
+        <view class="pr-dose-block" wx:if="{{row.draft.missing}}">
+          <text class="pr-dose-tag">讲稿 2010（比例制）</text>
+          <text class="pr-dose-none">未载</text>
+        </view>
+        <view class="pr-dose-block" wx:else>
+          <text class="pr-dose-tag">讲稿 2010（比例制）{{row.draft.note}}</text>
+          <view class="pr-dose-entry" wx:for="{{row.draft.entries}}" wx:for-item="e" wx:key="name">
+            <text wx:if="{{row.draft.showName}}">{{e.name}}：</text>{{e.composition}}
+            <text class="pr-dose-sci" wx:if="{{e.science}}">　科学中药：{{e.science}}</text>
+            <text class="pr-dose-usage" wx:if="{{e.usage}}">　服法：{{e.usage}}</text>
+            <text class="pr-dose-src">〔{{e.source}}〕</text>
+            <text class="pr-dose-ref" wx:if="{{e.basis}}">　对照：{{e.basis}}</text>
+          </view>
+        </view>
+      </view>
+
+      <view class="pr-case-ops">
+        <text class="pr-link" bindtap="editRow" data-id="{{row.id}}">编辑</text>
+        <text class="pr-x" bindtap="removeRow" data-id="{{row.id}}">×</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- ========== 新增／编辑一行 ========== -->
+  <view class="pr-card" wx:if="{{patientId}}">
+    <view class="pr-card-title">{{editing ? '编辑这一行' : '新增一行'}}</view>
+
+    <view class="pr-label">属于哪一次（用药记录挂在某一次就诊下面）</view>
+    <view class="pr-chips">
+      <view
+        class="pr-chip {{form.visitId === item.id ? 'pr-chip-on' : ''}}"
+        wx:for="{{visits}}"
+        wx:key="id"
+        bindtap="selectVisit"
+        data-id="{{item.id}}"
+      >
+        {{item.label}}
+      </view>
+    </view>
+    <view class="pr-note" wx:if="{{!visits.length}}">这位患者还没有就诊记录，先去「录入编辑脉象」建一次。</view>
+
+    <view class="pr-label">方名</view>
+    <input
+      class="pr-input"
+      value="{{form.name}}"
+      placeholder="如 加味理中（也可从下面方剂库选）"
+      data-field="name"
+      bindinput="onInput"
+    />
+    <view class="pr-case-ops">
+      <text class="pr-link" bindtap="openLibrary">从方剂库选</text>
+    </view>
+
+    <view class="pr-label">对应脉象（文字）</view>
+    <input
+      class="pr-input"
+      value="{{form.pulse}}"
+      placeholder="如 右关弱"
+      data-field="pulse"
+      bindinput="onInput"
+    />
+
+    <view class="pr-label">对应脉象（符号，从该次记录里挑格子）</view>
+    <view class="pr-note" wx:if="{{!visitPoints.length}}">这次就诊还没有录到符号 —— 先去「录入编辑脉象」录入。</view>
+    <view class="pr-chips" wx:if="{{visitPoints.length}}">
+      <view
+        class="pr-chip {{item.on ? 'pr-chip-on' : ''}}"
+        wx:for="{{visitPoints}}"
+        wx:key="key"
+        bindtap="togglePoint"
+        data-key="{{item.key}}"
+      >
+        {{item.label}} {{item.codes}}
+      </view>
+    </view>
+    <view class="pr-case-ops" wx:if="{{formChips.length}}">
+      <text class="pr-link" bindtap="clearSymbols">清空符号</text>
+    </view>
+    <view class="pr-note" wx:if="{{formChips.length}}">
+      已选：{{formChips.length}} 个格子　·　按符号生成：{{autoText || '（未选符号，暂不填）'}}
+    </view>
+    <view class="pr-case-ops" wx:if="{{formChips.length}}">
+      <text class="pr-link" bindtap="refillFromSymbols">按符号重填「对应脉象」</text>
+    </view>
+
+    <view class="pr-label">加减</view>
+    <input
+      class="pr-input"
+      value="{{form.adjust}}"
+      placeholder="依脉加减"
+      data-field="adjust"
+      bindinput="onInput"
+    />
+
+    <view class="pr-label">服法</view>
+    <input
+      class="pr-input"
+      value="{{form.usage}}"
+      placeholder="如 餐后温服"
+      data-field="usage"
+      bindinput="onInput"
+    />
+
+    <view class="pr-label">备注</view>
+    <input
+      class="pr-input"
+      value="{{form.note}}"
+      placeholder="如 服用几天后的反应"
+      data-field="note"
+      bindinput="onInput"
+    />
+
+    <view class="pr-case-ops">
+      <button class="pr-btn pr-btn-primary" bindtap="saveRow">保存这一行</button>
+      <button class="pr-btn" bindtap="addRow">＋ 新增一行</button>
+      <button class="pr-btn" bindtap="cancelEdit">取消</button>
+    </view>
+    <view class="pr-note" wx:if="{{saved}}">{{saved}}</view>
+  </view>
+
+  <!-- ========== 方剂库（两套资料分开列） ========== -->
+  <view class="pr-card" wx:if="{{pickerOpen}}">
+    <view class="pr-card-title">方剂库</view>
+    <view class="pr-note">
+      两套资料分开列、各自标注出处与单位，不换算、不合并。点一个方名即填入上面的「方名」格。
+    </view>
+    <input
+      class="pr-input"
+      value="{{pickerKeyword}}"
+      placeholder="搜方名或脉象（如 右关）"
+      confirm-type="search"
+      bindinput="onInputKeyword"
+    />
+
+    <view class="pr-lib" wx:if="{{picker.refItems.length}}">
+      <view class="pr-lib-title">{{picker.refTitle}}</view>
+      <view class="pr-note">{{picker.refUnit}}</view>
+      <view
+        class="pr-lib-item"
+        wx:for="{{picker.refItems}}"
+        wx:for-item="f"
+        wx:key="no"
+        bindtap="pickName"
+        data-name="{{f.name}}"
+        data-indication="{{f.indication}}"
+      >
+        <view class="pr-lib-name">{{f.no}} · {{f.name}}</view>
+        <view class="pr-lib-hint">{{f.indication}}</view>
+      </view>
+    </view>
+
+    <view class="pr-lib" wx:for="{{picker.draftSections}}" wx:for-item="sec" wx:key="title">
+      <view class="pr-lib-title">{{sec.title}}</view>
+      <view class="pr-note">讲稿 2010 · {{sec.unit}}　〔{{sec.source}}〕</view>
+      <view
+        class="pr-lib-item"
+        wx:for="{{sec.items}}"
+        wx:for-item="f"
+        wx:key="name"
+        bindtap="pickName"
+        data-name="{{f.name}}"
+      >
+        <view class="pr-lib-name">{{f.name}}</view>
+        <view class="pr-lib-hint">{{f.hint}}</view>
+      </view>
+    </view>
+
+    <view class="pr-lib" wx:for="{{picker.thSections}}" wx:for-item="sec" wx:key="title">
+      <view class="pr-lib-title">同和堂版《方剂汇总统表》· {{sec.title}}</view>
+      <view class="pr-note">同和堂版 · {{sec.unit}}　〔{{sec.source}}〕</view>
+      <view
+        class="pr-lib-item"
+        wx:for="{{sec.items}}"
+        wx:for-item="f"
+        wx:key="name"
+        bindtap="pickName"
+        data-name="{{f.name}}"
+      >
+        <view class="pr-lib-name">{{f.name}}</view>
+        <view class="pr-lib-hint">{{f.hint}}</view>
+      </view>
+    </view>
+
+    <view class="pr-empty" wx:if="{{picker.empty}}">没有匹配的方。</view>
+
+    <view class="pr-case-ops">
+      <button class="pr-btn" bindtap="closeLibrary">收起</button>
+    </view>
+  </view>
+
+  <!-- ========== 声明 ========== -->
+  <view class="pr-disclaimer">
+    本页只做记录与原文对照，不构成诊断，也不替使用者加减方。讲义 p42「依脉用方表」只作原文对照，供查供抄，不是处方建议。
+  </view>
+</view>

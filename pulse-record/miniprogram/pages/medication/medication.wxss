@@ -1,0 +1,162 @@
+/* 用药记录（小程序端）—— 版式基调与网站端一致：宣纸底 / 墨 / 黛 / 陶 */
+
+.pr-err {
+  color: #b03a2e;
+}
+
+.pr-case-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.pr-case-name {
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.pr-case-meta {
+  color: #7c8974;
+  font-size: 23rpx;
+}
+
+.pr-case-ops {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 24rpx;
+  margin-top: 16rpx;
+}
+
+.pr-link {
+  color: #7c8974;
+  font-size: 24rpx;
+  text-decoration: underline;
+}
+
+.pr-x {
+  color: #b03a2e;
+  font-size: 30rpx;
+  line-height: 1;
+}
+
+/* ---------- 用药记录行 ---------- */
+
+.pr-med-row {
+  border-top: 1rpx dashed #e6e2d6;
+  padding: 16rpx 0;
+}
+
+.pr-med-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.pr-med-name {
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.pr-med-visit {
+  color: #a39a8c;
+  font-size: 21rpx;
+}
+
+.pr-med-line {
+  margin-top: 6rpx;
+  font-size: 24rpx;
+  color: #5c574f;
+  line-height: 1.7;
+}
+
+.pr-med-k {
+  display: inline-block;
+  min-width: 110rpx;
+  color: #a39a8c;
+  font-size: 21rpx;
+}
+
+/* ---------- 组成与剂量（两套并列） ---------- */
+
+.pr-dose {
+  margin-top: 12rpx;
+  padding: 12rpx 14rpx;
+  background: #faf7f0;
+  border-radius: 8rpx;
+}
+
+.pr-dose-block {
+  margin-top: 8rpx;
+}
+
+.pr-dose-tag {
+  display: block;
+  font-size: 21rpx;
+  color: #8a6a4f;
+  margin-bottom: 4rpx;
+}
+
+.pr-dose-entry {
+  font-size: 23rpx;
+  color: #5c574f;
+  line-height: 1.7;
+}
+
+.pr-dose-none {
+  font-size: 23rpx;
+  color: #a39a8c;
+}
+
+.pr-dose-sci {
+  color: #7c8974;
+}
+
+.pr-dose-usage {
+  color: #7c8974;
+}
+
+.pr-dose-src {
+  display: block;
+  color: #a39a8c;
+  font-size: 20rpx;
+}
+
+.pr-dose-ref {
+  color: #a39a8c;
+  font-size: 20rpx;
+}
+
+/* ---------- 方剂库 ---------- */
+
+.pr-lib {
+  margin-top: 20rpx;
+  padding-top: 12rpx;
+  border-top: 1rpx dashed #e6e2d6;
+}
+
+.pr-lib-title {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #2c2925;
+  margin-bottom: 4rpx;
+}
+
+.pr-lib-item {
+  padding: 12rpx 0;
+  border-bottom: 1rpx solid #f1ede2;
+}
+
+.pr-lib-name {
+  font-size: 25rpx;
+  font-weight: 600;
+  color: #2c2925;
+}
+
+.pr-lib-hint {
+  font-size: 22rpx;
+  color: #a39a8c;
+  line-height: 1.6;
+  margin-top: 2rpx;
+}

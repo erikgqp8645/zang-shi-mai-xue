@@ -1,0 +1,176 @@
+/* 臧氏脉学 · 脉象记录表生成器（小程序端）
+   配色沿用网站端：宣纸/墨/黛/陶一族；表格取色自讲义 PDF p34 实例表
+   （部位标签 #ffc000，表格底色 #cce8cf，网格线 #000000） */
+
+page {
+  background: #fdfbf7;
+  color: #2c2925;
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
+  font-size: 28rpx;
+  line-height: 1.6;
+}
+
+view, text, input, textarea, button {
+  box-sizing: border-box;
+}
+
+/* ---------- 容器 ---------- */
+
+.pr-page {
+  min-height: 100vh;
+  padding: 24rpx 24rpx 64rpx;
+}
+
+.pr-card {
+  background: #ffffff;
+  border: 1rpx solid #e6e2d6;
+  border-radius: 12rpx;
+  padding: 24rpx;
+  margin-bottom: 24rpx;
+}
+
+.pr-card-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  margin-bottom: 12rpx;
+}
+
+.pr-note {
+  color: #7c8974;
+  font-size: 24rpx;
+  line-height: 1.7;
+}
+
+.pr-divider {
+  height: 1rpx;
+  background: #e6e2d6;
+  margin: 20rpx 0;
+}
+
+/* ---------- 按钮 ---------- */
+
+.pr-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14rpx 28rpx;
+  border-radius: 10rpx;
+  border: 1rpx solid #2c2925;
+  background: #ffffff;
+  color: #2c2925;
+  font-size: 26rpx;
+  line-height: 1.2;
+}
+
+.pr-btn::after {
+  border: none;
+}
+
+.pr-btn-primary {
+  background: #2c2925;
+  color: #fdfbf7;
+}
+
+.pr-btn-sm {
+  padding: 8rpx 18rpx;
+  font-size: 24rpx;
+}
+
+.pr-btn-block {
+  width: 100%;
+}
+
+.pr-btn[disabled] {
+  opacity: 0.45;
+}
+
+/* ---------- 分组筛选 chip ---------- */
+
+.pr-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.pr-chip {
+  padding: 8rpx 20rpx;
+  border-radius: 999rpx;
+  border: 1rpx solid #e6e2d6;
+  background: #ffffff;
+  color: #7c8974;
+  font-size: 24rpx;
+}
+
+.pr-chip-on {
+  background: #2c2925;
+  border-color: #2c2925;
+  color: #fdfbf7;
+}
+
+/* ---------- 表单 ---------- */
+
+.pr-input {
+  width: 100%;
+  padding: 16rpx 20rpx;
+  border: 1rpx solid #e6e2d6;
+  border-radius: 10rpx;
+  background: #ffffff;
+  font-size: 28rpx;
+}
+
+.pr-label {
+  display: block;
+  font-size: 24rpx;
+  color: #7c8974;
+  margin: 16rpx 0 8rpx;
+}
+
+/* ---------- 条目卡 ---------- */
+
+.pr-item {
+  border-left: 6rpx solid #7c8974;
+  padding: 12rpx 0 12rpx 18rpx;
+  margin-bottom: 16rpx;
+}
+
+.pr-item-high { border-left-color: #b03a2e; }
+.pr-item-warn { border-left-color: #b48464; }
+.pr-item-info { border-left-color: #7c8974; }
+
+.pr-item-title {
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.pr-item-body {
+  font-size: 25rpx;
+  color: #5c574f;
+  margin-top: 6rpx;
+}
+
+.pr-item-src {
+  font-size: 22rpx;
+  color: #a39a8c;
+  margin-top: 6rpx;
+}
+
+/* ---------- 空态 ---------- */
+
+.pr-empty {
+  padding: 80rpx 24rpx;
+  text-align: center;
+  color: #a39a8c;
+  font-size: 26rpx;
+}
+
+/* ---------- 声明条 ---------- */
+
+.pr-disclaimer {
+  padding: 16rpx 20rpx;
+  border-radius: 10rpx;
+  background: #f6f1e6;
+  color: #8a6a4f;
+  font-size: 23rpx;
+  line-height: 1.6;
+}

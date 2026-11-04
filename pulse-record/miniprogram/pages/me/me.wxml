@@ -1,0 +1,57 @@
+<view class="pr-page">
+  <view class="pr-note pr-err" wx:if="{{error}}">{{error}}</view>
+  <view class="pr-note pr-ok" wx:if="{{notice}}">{{notice}}</view>
+
+  <view class="pr-card">
+    <view class="pr-card-title">账号</view>
+    <view class="pr-me-row">
+      <text class="pr-me-key">登录名</text>
+      <text class="pr-me-val">{{loginName || '（未登录）'}}</text>
+    </view>
+    <view class="pr-me-row">
+      <text class="pr-me-key">显示名称</text>
+      <text class="pr-me-val">{{displayName || '—'}}</text>
+    </view>
+    <view class="pr-me-row">
+      <text class="pr-me-key">身份</text>
+      <text class="pr-me-val">{{role === 'admin' ? '管理员' : '普通用户'}}</text>
+    </view>
+    <view class="pr-me-row">
+      <text class="pr-me-key">模式</text>
+      <text class="pr-me-val">{{mode === 'single' ? '单机模式（数据只在本机）' : '多用户模式（按账号隔离）'}}</text>
+    </view>
+    <view class="pr-me-row" wx:if="{{dbPath}}">
+      <text class="pr-me-key">存储位置</text>
+      <text class="pr-me-val pr-me-path">{{dbPath}}</text>
+    </view>
+  </view>
+
+  <view class="pr-card">
+    <view class="pr-card-title">微信绑定</view>
+    <view class="pr-note" wx:if="{{wechatBound}}">
+      已绑定。微信与网站账号指向同一份病例数据。
+    </view>
+    <view class="pr-note" wx:else>
+      未绑定。绑定后用微信就能直接进入，看到的是网站上的同一份病例。
+    </view>
+    <view class="pr-btn pr-btn-sm pr-me-btn" wx:if="{{wechatBound}}" bindtap="unbindWechat">解绑微信</view>
+  </view>
+
+  <view class="pr-card">
+    <view class="pr-card-title">改密码</view>
+    <view class="pr-note">改完后全部会话失效，需要重新登录。</view>
+    <view class="pr-label">原密码</view>
+    <input class="pr-input" password value="{{oldPassword}}" placeholder="原密码" bindinput="onInputOldPassword" />
+    <view class="pr-label">新密码（至少 6 位）</view>
+    <input class="pr-input" password value="{{newPassword}}" placeholder="新密码" bindinput="onInputNewPassword" />
+    <button class="pr-btn pr-btn-primary pr-btn-block pr-me-btn" loading="{{busy}}" bindtap="changePassword">
+      改密码
+    </button>
+  </view>
+
+  <button class="pr-btn pr-btn-block" bindtap="logout">退出登录</button>
+
+  <view class="pr-disclaimer pr-me-disclaimer">
+    本工具只做记录，不构成诊断。体质的判定由使用者自己判断后手工选定，工具不代判、不开方。
+  </view>
+</view>
