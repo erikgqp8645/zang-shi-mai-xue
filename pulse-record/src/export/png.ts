@@ -3,6 +3,7 @@ import type { CustomSymbol } from '../domain/symbols'
 import handsUrl from '../assets/hands-pulse.png'
 import { drawDiagram, planDiagram, type DiagramImage, type DiagramPlan } from './diagram'
 import { paintTable, planTable, withDiagram, type TableLayout } from './table-painter'
+import { downloadBlob } from './download'
 
 /**
  * PNG 导出 —— 浏览器侧（DOM 驱动）
@@ -99,13 +100,7 @@ export async function downloadPng(
   const canvas = await renderTableCanvas(set, customSymbols, options)
   canvas.toBlob((blob) => {
     if (!blob) return
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename ?? `脉象记录表-${set.name || '未命名'}.png`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    setTimeout(() => URL.revokeObjectURL(url), 1000)
+    // 桌面版走系统另存为对话框，Web 端走浏览器下载（见 src/export/download.ts）
+    void downloadBlob(filename ?? `脉象记录表-${set.name || '未命名'}.png`, blob)
   }, 'image/png')
 }
