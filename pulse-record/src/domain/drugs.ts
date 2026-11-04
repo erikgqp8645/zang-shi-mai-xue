@@ -10,6 +10,8 @@
  *   围绝经期综合症「我们的用方」 → 讲稿 2010·第一讲
  */
 
+import { toRecord } from './to-record'
+
 export type Therapy = '一体疗法' | '三焦疗法' | '五脏疗法'
 
 export interface Drug {
@@ -455,8 +457,8 @@ export const DRUGS: Drug[] = [
   },
 ]
 
-export const DRUG_BY_ID: Record<string, Drug> = Object.fromEntries(
-  DRUGS.map((d) => [d.id, d]),
+export const DRUG_BY_ID: Record<string, Drug> = toRecord(
+  DRUGS.map((d) => [d.id, d] as [string, Drug]),
 )
 
 /** 按疗法分组，供「方剂备查」列表使用 */

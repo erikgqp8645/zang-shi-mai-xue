@@ -1,48 +1,18 @@
 import type { RecordSet } from '../domain/types'
-import { cellKey } from '../domain/types'
-import { groupRows } from '../domain/layout'
-import { formatCodes, buildCustomLegend, collectUsedCodes, type CustomSymbol } from '../domain/symbols'
+import type { CustomSymbol } from '../domain/symbols'
 import handsUrl from '../assets/hands-pulse.png'
-import { drawDiagram, loadHandsImage, planDiagram, type DiagramPlan } from './diagram'
+import { drawDiagram, planDiagram, type DiagramImage, type DiagramPlan } from './diagram'
+import { paintTable, planTable, withDiagram, type TableLayout } from './table-painter'
 
 /**
- * PNG 导出 —— 用 canvas 自绘，不依赖截图类库，色值与讲义原表一致。
+ * PNG 导出 —— 浏览器侧（DOM 驱动）
  *
- * 取色自讲义 PDF p34 实例表（1872×3188 扫描页，实例表实测取色）：
- *   部位标签  #FFC000 (255,192,0)
- *   表格底色  #CCE8CF (204,232,207)
- *   网格线    #000000
+ * 这一层只做三件事：**建 canvas** → **调共享绘制器** → **下载**。
+ * 真正的绘制逻辑在 `export/table-painter.ts`（纯函数）与 `export/diagram.ts` 里，
+ * 小程序用**同一份**绘制代码，只是 canvas 的取法不同。
  *
- * 版式照抄原表像素结构（实测坐标）：
- *   · 姓名格在表头第二行，横跨「部位 + 取法」两列，左缘与部位列对齐
- *   · 日期格横跨「左 + 右」两列，中间不画竖线（竖线只出现在表头第二行）
- *   · 部位列（橙）纵向合并一组三行，组内不画横线，组界画粗线并贯穿橙列
- *   · 取法列仅存在于正文，表头左侧无边框（姓名框上方留白）
- *
- * 可选在表格下方拼上「寸关尺图示」（见 export/diagram.ts，与页面 SVG 共用同一套坐标）。
+ * 色值与版式说明见 `export/table-painter.ts`（讲义 PDF p34 实例表实测取色与像素结构）。
  */
-
-const FILL_CELL = '#CCE8CF'
-const FILL_ORGAN = '#FFC000'
-const LINE = '#000000'
-
-const FONT_LABEL = '"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif'
-const FONT_SYMBOL = '"Songti SC","STSong",serif'
-
-/** 部位列宽（橙） */
-const ORGAN_W = 54
-/** 取法列宽 */
-const DEPTH_W = 54
-/** 单个「左 / 右」数据列宽 */
-const DATA_W = 66
-/** 表头单行高 */
-const HEAD_H = 42
-/** 正文行高 */
-const ROW_H = 40
-/** 自定义符号图例条高度（画在表格下方白底上，不动表格本体） */
-const LEGEND_H = 34
-/** 表格与图示之间的留白 */
-const DIAGRAM_GAP = 24
 
 /** 导出选项 */
 export interface PngExportOptions {
@@ -52,204 +22,64 @@ export interface PngExportOptions {
   activeSessionId?: string | null
 }
 
+/**
+ * 载入底图（Vite 打包后是带 hash 的 URL，同一 URL 只载一次）。
+ *
+ * 小程序侧改用 `canvas.createImage()` ＋ 本地路径，其余流程一致。
+ */
+let handsImage: DiagramImage | null = null
+let handsLoading: Promise<DiagramImage> | null = null
+
+export function loadHandsImage(url: string): Promise<DiagramImage> {
+  if (handsImage) return Promise.resolve(handsImage)
+  if (!handsLoading) {
+    handsLoading = new Promise((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => {
+        handsImage = img
+        resolve(img)
+      }
+      img.onerror = () => reject(new Error('寸关尺底图载入失败'))
+      img.src = url
+    })
+  }
+  return handsLoading
+}
+
+/**
+ * 渲染成 canvas。
+ *
+ * 两步走（与原实现一致）：
+ *   1) `planTable` 算表格本体版式
+ *   2) 有图示时，用 `planDiagram` 算图示尺寸，再 `withDiagram` 回填得到最终画布大小
+ */
 export async function renderTableCanvas(
   set: RecordSet,
   customSymbols: CustomSymbol[] = [],
   options: PngExportOptions = {},
 ): Promise<HTMLCanvasElement> {
-  const groups = groupRows(set.layout)
-  const rowCount = groups.reduce((n, g) => n + g.rows.length, 0)
-  const dataCols = set.sessions.length * 2
+  let layout: TableLayout = planTable(set, customSymbols)
 
-  /** 图例：自定义符号表 ＋ 记录里用到但已从符号表删掉的代码 */
-  const legend = buildCustomLegend(customSymbols, collectUsedCodes(set.sessions))
-
-  /** 标签区（部位列 + 取法列）总宽 */
-  const labelW = ORGAN_W + DEPTH_W
-  const width = labelW + dataCols * DATA_W
-  /** 表格本体高度 */
-  const tableH = HEAD_H * 2 + rowCount * ROW_H
-  /** 自定义符号图例另占一条 */
-  const legendH = legend.length > 0 ? LEGEND_H : 0
-  const bodyY0 = HEAD_H * 2
-
-  /* ---- 寸关尺图示（可选，表格下方） ---- */
+  /** 图示画哪一次记录 */
   const diagramSession =
     set.sessions.find((s) => s.id === options.activeSessionId) ?? set.sessions[0] ?? null
+
   let diagram: DiagramPlan | null = null
   if (options.diagram && diagramSession) {
     const image = await loadHandsImage(handsUrl)
-    diagram = planDiagram(image, width)
-    diagram.dy = tableH + legendH + DIAGRAM_GAP
+    const plan = planDiagram(image, layout.tableW)
+    layout = withDiagram(layout, { w: plan.w, h: plan.h })
+    diagram = { ...plan, dy: layout.diagramDy }
   }
-
-  /** 画布宽：图示比表格宽时（表格太窄）以图示为准 */
-  const canvasW = diagram ? Math.max(width, diagram.w) : width
-  /** 表格居中偏移（表格比画布窄时才非零） */
-  const tableDx = (canvasW - width) / 2
-  const height = tableH + legendH + (diagram ? DIAGRAM_GAP + diagram.h : 0)
 
   const dpr = 2
   const canvas = document.createElement('canvas')
-  canvas.width = canvasW * dpr
-  canvas.height = height * dpr
+  canvas.width = layout.canvasW * dpr
+  canvas.height = layout.height * dpr
   const ctx = canvas.getContext('2d')!
   ctx.scale(dpr, dpr)
 
-  // ---- 底色 ----
-  ctx.fillStyle = '#FFFFFF'
-  ctx.fillRect(0, 0, canvasW, height)
-
-  // 表格本体整体平移（画布比表格宽时居中）
-  ctx.save()
-  ctx.translate(tableDx, 0)
-
-  ctx.fillStyle = FILL_CELL
-  ctx.fillRect(0, 0, width, tableH)
-
-  // 部位标签列（橙，纵向合并整组）——压在底色之上
-  let gy = bodyY0
-  for (const g of groups) {
-    ctx.fillStyle = FILL_ORGAN
-    ctx.fillRect(0, gy, ORGAN_W, g.rows.length * ROW_H)
-    gy += g.rows.length * ROW_H
-  }
-
-  // ---- 网格线 ----
-  ctx.strokeStyle = LINE
-  ctx.lineJoin = 'miter'
-
-  const line = (x0: number, y0: number, x1: number, y1: number, w: number) => {
-    ctx.lineWidth = w
-    ctx.beginPath()
-    ctx.moveTo(x0, y0)
-    ctx.lineTo(x1, y1)
-    ctx.stroke()
-  }
-
-  // 外框：顶边贯穿全宽（含姓名区上方），左边自姓名格起
-  line(0, 0, width, 0, 1.6)
-  line(0, tableH, width, tableH, 1.6)
-  line(width, 0, width, tableH, 1.6)
-  line(0, HEAD_H, 0, tableH, 1.6)
-
-  // 数据区左缘（贯穿表头与正文）
-  line(labelW, 0, labelW, tableH, 1)
-
-  // 部位列 | 取法列（仅正文）
-  line(ORGAN_W, bodyY0, ORGAN_W, tableH, 1)
-
-  // 姓名格：上边补齐（表头第一行的标签区留白，故姓名格自带上边）
-  line(0, HEAD_H, labelW, HEAD_H, 1)
-
-  // 表头第一行 | 第二行：仅数据区有线，标签区不画（姓名框自带上边）
-  line(labelW, HEAD_H, width, HEAD_H, 1)
-
-  // 表头第二行 | 正文：贯穿全宽
-  line(0, bodyY0, width, bodyY0, 1.6)
-
-  // 「左 | 右」分隔线：只在表头第二行，日期格不被劈开
-  set.sessions.forEach((_, i) => {
-    const x = labelW + (i * 2 + 1) * DATA_W
-    line(x, HEAD_H, x, bodyY0, 1)
-  })
-
-  // 日期组之间：贯穿整列，粗线
-  set.sessions.forEach((_, i) => {
-    const x = labelW + (i * 2 + 2) * DATA_W
-    line(x, 0, x, tableH, 1.6)
-  })
-
-  // 正文行线：组内从取法列起（不穿橙列），组界贯穿全宽
-  let y = bodyY0
-  for (const g of groups) {
-    for (let i = 0; i < g.rows.length; i++) {
-      y += ROW_H
-      if (i < g.rows.length - 1) line(ORGAN_W, y, width, y, 1)
-      else line(0, y, width, y, 1.6)
-    }
-  }
-
-  // ---- 文字 ----
-  const text = (s: string, cx: number, cy: number, size: number, family: string, color = '#000000') => {
-    if (!s) return
-    ctx.fillStyle = color
-    ctx.font = `${size}px ${family}`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(s, cx, cy)
-  }
-
-  /**
-   * 量文字：放得下就用最大字号；放不下先缩字号，缩到最小仍放不下则截断加省略号。
-   * 姓名格只有「部位 + 取法」两列宽，姓名字号须自适应，才不会溢出到「左」列或表格外。
-   */
-  const fitText = (s: string, maxW: number, maxSize: number, minSize = 11) => {
-    if (!s) return { s, size: maxSize }
-    ctx.font = `${maxSize}px ${FONT_LABEL}`
-    if (ctx.measureText(s).width <= maxW) return { s, size: maxSize }
-    for (let size = maxSize - 1; size > minSize; size--) {
-      ctx.font = `${size}px ${FONT_LABEL}`
-      if (ctx.measureText(s).width <= maxW) return { s, size }
-    }
-    ctx.font = `${minSize}px ${FONT_LABEL}`
-    let out = s
-    while (out.length > 1 && ctx.measureText(`${out}…`).width > maxW) {
-      out = out.slice(0, -1)
-    }
-    return { s: `${out}…`, size: minSize }
-  }
-
-  // 姓名（在表头第二行，横跨部位列 + 取法列）——字号随姓名格宽度自适应
-  const nameFit = fitText(set.name || '', labelW - 8, 24)
-  text(nameFit.s, labelW / 2, HEAD_H * 1.5, nameFit.size, FONT_LABEL)
-
-  // 日期组（横跨左右两列）+ 左 / 右
-  set.sessions.forEach((s, i) => {
-    // 日期标签居中于「左 + 右」合并组（两列宽），六位年月日如 261102 亦放得下
-    const labelFit = fitText(s.label, DATA_W * 2 - 8, 21)
-    text(labelFit.s, labelW + (i * 2 + 1) * DATA_W, HEAD_H / 2, labelFit.size, FONT_LABEL)
-    text('左', labelW + i * 2 * DATA_W + DATA_W / 2, HEAD_H * 1.5, 20, FONT_LABEL)
-    text('右', labelW + (i * 2 + 1) * DATA_W + DATA_W / 2, HEAD_H * 1.5, 20, FONT_LABEL)
-  })
-
-  // 部位 + 取法 + 数据
-  y = bodyY0
-  for (const g of groups) {
-    const organCY = y + (g.rows.length * ROW_H) / 2
-    text(g.organ, ORGAN_W / 2, organCY, 26, FONT_LABEL)
-
-    g.rows.forEach((row, ri) => {
-      const cy = y + ri * ROW_H + ROW_H / 2
-      text(row.depth, ORGAN_W + DEPTH_W / 2, cy, 19, FONT_LABEL)
-
-      set.sessions.forEach((s, si) => {
-        for (const [hi, hand] of (['L', 'R'] as const).entries()) {
-          const codes = s.values[cellKey(hand, row.organ, row.depth)] ?? []
-          const cx = labelW + (si * 2 + hi) * DATA_W + DATA_W / 2
-          if (codes.length === 0) continue
-          text(formatCodes(codes), cx, cy, 21, FONT_SYMBOL)
-        }
-      })
-    })
-    y += g.rows.length * ROW_H
-  }
-
-  // 自定义符号图例：表下方白底一条，不动表格本体（讲义 p34 原表无图例）
-  if (legend.length > 0) {
-    ctx.fillStyle = '#000000'
-    ctx.font = `15px ${FONT_LABEL}`
-    ctx.textAlign = 'left'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(
-      `自定义符号：${legend.map((s) => `${s.code}＝${s.name}`).join('　')}`,
-      2,
-      tableH + legendH / 2,
-    )
-  }
-
-  // 表格画完，撤掉居中平移
-  ctx.restore()
+  paintTable(ctx, set, customSymbols, layout)
 
   // 寸关尺图示：接在表格下方，与页面上的 SVG 同一套坐标
   if (diagram) {

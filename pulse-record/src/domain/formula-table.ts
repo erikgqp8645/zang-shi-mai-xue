@@ -17,6 +17,8 @@
  * 原文写错的字照录（如木香顺气的「茯苓卷12」），并在 `notes` 里说明。
  */
 
+import { toRecord } from './to-record'
+
 /** 一条成方条目（汤剂／散剂的原样转录） */
 export interface FormulaDose {
   /** 稳定 id */
@@ -442,13 +444,13 @@ export const FORMULA_SCIENCES: FormulaScience[] = [
 ]
 
 /** 按 id 取成方条目 */
-export const FORMULA_DOSE_BY_ID: Record<string, FormulaDose> = Object.fromEntries(
-  FORMULA_DOSES.map((d) => [d.id, d]),
+export const FORMULA_DOSE_BY_ID: Record<string, FormulaDose> = toRecord(
+  FORMULA_DOSES.map((d) => [d.id, d] as [string, FormulaDose]),
 )
 
 /** 按「科中」原名取比例行 */
-export const FORMULA_SCIENCE_BY_NAME: Record<string, FormulaScience> = Object.fromEntries(
-  FORMULA_SCIENCES.map((s) => [s.name, s]),
+export const FORMULA_SCIENCE_BY_NAME: Record<string, FormulaScience> = toRecord(
+  FORMULA_SCIENCES.map((s) => [s.name, s] as [string, FormulaScience]),
 )
 
 /** 成方条目 → 对应的「科中」行（原文第 4 页按方名索引） */

@@ -1,0 +1,39 @@
+{
+  // 共享包编译配置 —— 把「零 DOM 依赖」的那部分代码编成小程序能用的 CommonJS
+  //
+  // 收进来的：
+  //   src/domain/**        知识库（规则、方剂、剂量、归类、符号、版式…）—— 纯函数，无 DOM
+  //   src/export/text.ts   Markdown / CSV 导出 —— 纯字符串拼接
+  //   src/export/canvas.ts 画布上下文的结构类型 —— 两端共用
+  //   src/export/diagram.ts 寸关尺图示的坐标与绘制 —— 只依赖 ctx
+  //   src/export/table-painter.ts 记录表的 canvas 绘制 —— 只依赖 ctx
+  //
+  // 编译到 miniprogram/utils/core/，目录结构镜像 src/，
+  // 所以 export/text.js 里的 '../domain/types' 仍能解析到 core/domain/types.js。
+  //
+  // 为什么单独一份 tsconfig：
+  //   - 小程序不支持 ESM import，要编成 CommonJS（module: commonjs）
+  //   - verbatimModuleSyntax 与 commonjs 冲突，必须关掉
+  //   - target 降到 ES2017：老机型 JSCore 缺 ES2019+ 的部分内建
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": false,
+    "sourceMap": false,
+    "module": "commonjs",
+    "target": "ES2017",
+    "lib": ["ES2022", "DOM"],
+    "rootDir": "src",
+    "outDir": "miniprogram/utils/core",
+    "verbatimModuleSyntax": false,
+    "isolatedModules": false,
+    "types": []
+  },
+  "include": [
+    "src/domain/**/*.ts",
+    "src/export/text.ts",
+    "src/export/canvas.ts",
+    "src/export/diagram.ts",
+    "src/export/table-painter.ts"
+  ]
+}

@@ -191,6 +191,8 @@ export async function launchChrome({ url, width = 1500, height = 1200, port = 93
     ev,
     errors,
     setViewport,
+    /** 直接发 CDP 指令（下载行为、模拟器等） */
+    send,
     async close() {
       try {
         ws.close()

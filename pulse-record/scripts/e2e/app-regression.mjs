@@ -7,13 +7,43 @@
  *   ③ p42 对照表的三档来源都逐行有内容
  *   ④ 窄屏 500px 无横向溢出
  *   ⑤ 控制台无异常
+ *   ⑥ PNG 导出：真点按钮、落盘、验尺寸（与**共享包**算出的版式一致 → 两端同源）
  *
  * 跑法：node scripts/e2e/app-regression.mjs
  *
  * 需要本机装了 Google Chrome（用 CHROME_PATH 指定可执行文件）。
  */
 
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { createRequire } from 'node:module'
+import { spawnSync } from 'node:child_process'
 import { buildApp, launchChrome, makeChecker, startApi, sleep } from './lib.mjs'
+
+const require = createRequire(import.meta.url)
+const ROOT = join(import.meta.dirname, '..', '..')
+
+/**
+ * 载入共享包（小程序端用的同一份编译产物）。
+ *
+ * 共享包是构建产物、不进版本库 —— 没有就先 `npm run build:core` 编一遍。
+ */
+function loadCore() {
+  const coreDir = join(ROOT, 'miniprogram/utils/core')
+  if (!readdirSync(coreDir, { recursive: true }).some((f) => String(f).endsWith('sample.js'))) {
+    const r = spawnSync('npm', ['run', 'build:core'], { cwd: ROOT, encoding: 'utf8' })
+    if (r.status !== 0) throw new Error(`共享包编译失败：\n${r.stdout ?? ''}\n${r.stderr ?? ''}`)
+  }
+  return {
+    sampleShaoJuan: require(join(coreDir, 'domain/sample.js')).sampleShaoJuan,
+    planTable: require(join(coreDir, 'export/table-painter.js')).planTable,
+    withDiagram: require(join(coreDir, 'export/table-painter.js')).withDiagram,
+    planDiagram: require(join(coreDir, 'export/diagram.js')).planDiagram,
+    IMG_W: require(join(coreDir, 'domain/diagram.js')).IMG_W,
+    IMG_H: require(join(coreDir, 'domain/diagram.js')).IMG_H,
+  }
+}
 
 const c = makeChecker()
 
@@ -91,6 +121,49 @@ try {
   console.log(`  文档宽 / 视口宽：${widths.scroll}/${widths.inner}`)
   c.check('窄屏无横向溢出', widths.scroll <= widths.inner, `实际 ${widths.scroll}/${widths.inner}`)
   c.check('视口确实是 500px', widths.inner === 500, `实际 ${widths.inner}`)
+
+  /* ---- ⑥ PNG 导出：真点一次按钮，验文件 ---- */
+  console.log('\n【⑥】PNG 导出（点按钮 → 落盘 → 验尺寸）')
+  const dlDir = mkdtempSync(join(tmpdir(), 'pulse-dl-'))
+  await chrome.send('Browser.setDownloadBehavior', {
+    behavior: 'allow',
+    downloadPath: dlDir,
+    eventsEnabled: true,
+  })
+  await chrome.ev(
+    `[...document.querySelectorAll('.pr-header-actions button')].find(b=>b.textContent.includes('导出 PNG'))?.click()`,
+  )
+  let pngFile = null
+  for (let i = 0; i < 40; i++) {
+    await sleep(300)
+    const files = readdirSync(dlDir).filter((f) => f.endsWith('.png'))
+    if (files.length > 0) {
+      pngFile = join(dlDir, files[0])
+      break
+    }
+  }
+  c.check('点「导出 PNG」真的落了一个 .png 文件', !!pngFile, `目录：${dlDir}`)
+  if (pngFile) {
+    const buf = readFileSync(pngFile)
+    c.check('是合法 PNG（签名 + IHDR）', buf.subarray(0, 8).toString('hex') === '89504e470d0a1a0a')
+    const w = buf.readUInt32BE(16)
+    const h = buf.readUInt32BE(20)
+
+    // 期望尺寸由**共享包**（小程序端用的同一份代码）算出 —— 两端版式必须一致
+    const core = loadCore()
+    const sample = core.sampleShaoJuan()
+    const lay = core.planTable(sample, [])
+    const dia = core.planDiagram({ width: core.IMG_W, height: core.IMG_H }, lay.tableW)
+    const full = core.withDiagram(lay, { w: dia.w, h: dia.h })
+    const expW = Math.round(full.canvasW * 2)
+    const expH = Math.round(full.height * 2)
+
+    console.log(`  PNG ${w}×${h}｜共享包算出 ${expW}×${expH}｜${(buf.length / 1024).toFixed(0)} KB`)
+    c.check('PNG 宽度与共享包算出的版式一致', w === expW, `实际 ${w} / 期望 ${expW}`)
+    c.check('PNG 高度与共享包算出的版式一致', Math.abs(h - expH) <= 2, `实际 ${h} / 期望 ${expH}`)
+    c.check('拼了寸关尺图示（高度明显大于表格本体）', h > lay.tableH * 2, `实际 ${h}`)
+  }
+  rmSync(dlDir, { recursive: true, force: true })
 
   /* ---- ⑤ 控制台 ---- */
   console.log('\n【⑤】控制台异常')

@@ -1,0 +1,6 @@
+{
+  "name": "pulse-record-miniprogram",
+  "private": true,
+  "type": "commonjs",
+  "description": "臧氏脉学 · 脉象记录表生成器 —— 微信小程序端。type=commonjs 是为了让 utils/core 下由 tsc 编译出的 CommonJS 产物在 Node 工具链（冒烟脚本、CI）里也能被正确 require；微信开发者工具本身用 module.exports 语义，不读这个字段。"
+}
