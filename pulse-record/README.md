@@ -38,7 +38,7 @@ npm test           # 全量回归（共享包冒烟 + 小程序静态检查 + �
 |---|---|---|
 | 怎么开 | 浏览器打开 `http://127.0.0.1:5178/` | 双击桌面快捷方式 |
 | 要不要装 Node | 要 | **不要**（Electron 自带 Node） |
-| 病例数据在哪 | `local-data/history.sqlite` | `%APPDATA%\臧氏脉学\history.sqlite` |
+| 病例数据在哪 | `local-data/history.sqlite` | 安装版 `%APPDATA%\臧氏脉学\`；**免安装版 exe 旁边的 `data\`**（U 盘带着走） |
 | 要不要登录 | 多用户模式下要 | **不用**（单机免登录） |
 | 导出落在哪 | 浏览器的「下载」目录 | **系统另存为对话框**（自己选位置） |
 
@@ -55,6 +55,10 @@ npm run desktop:dist    # 出安装包 + 免安装版（release/*.exe）
 
 产物：`ZangShiMaiXue-<版本>-x64-setup.exe`（安装包）与 `…-portable.exe`（免安装版）。
 **未做代码签名** → 安装时 Windows 会提示「未知发布者」，点「更多信息 → 仍要运行」即可。
+
+> **免安装版的病例库跟着 exe 走**（exe 旁边的 `data\history.sqlite`）——
+> U 盘把 exe 和 `data\` 一起带走，换台电脑打开，病例还在。
+> 安装版的病例库在 `%APPDATA%\臧氏脉学\`。两者各用各的，互不影响。
 
 ## 账号与多用户
 

@@ -129,8 +129,8 @@
 
 | 项 | 结果 |
 |---|---|
-| 全量回归 | **174/174 ＋ 桌面端 24/24 全绿**（`server/index.mjs` 改动的硬门槛已过） |
-| 桌面端回归 | 新增 `scripts/e2e/desktop-smoke.mjs`（24 项，**不依赖 Electron／Chrome**，CI 也能跑） |
+| 全量回归 | **207/207 全绿**（174 ＋ 桌面端 33；`server/index.mjs` 改动的硬门槛已过） |
+| 桌面端回归 | 新增 `scripts/e2e/desktop-smoke.mjs`（33 项，**不依赖 Electron／Chrome**，CI 也能跑；含 9 项数据落点断言） |
 | Electron 探测 | 新增 `scripts/e2e/electron-probe.mjs`（Node baseline ＋ Electron 对照） |
 | 另存为链路 | 端到端实测：preload → IPC → 主进程写盘 → 文件落盘、内容逐字节一致 |
 | 老数据带入 | 用**真实库**实测：15 患者／57 就诊／1 自定义符号（S＝涩）全部进桌面版且**归属改挂到本机账号**，原库一个字节没动 |
@@ -152,7 +152,37 @@
 | §8.2/8.3：macOS 上用 GH Actions 或 Wine 交叉编译出 Windows 包 | **在 Windows 上本机原生出包**（无需 Wine、无需 CI） | 本机就是 Windows：省掉 6 GB Wine 与 CI 往返。CI 仍然保留（换机器／追版本时用） |
 | §4.7：用 `hands-pulse.png` 中心裁切当图标 | 另做一枚「脉」字图标（`build/icon.png`） | 那两张素材都是**带文字的技术图**（寸关尺示意图、三部曲流程图），方形裁切后既不好看也认不出是什么 |
 
-### 5.6 还差的
+### 5.6 免安装版的「便携」原来不成立（已修）
+
+**问题**：初版免安装版与安装版**把数据存在同一个地方**（`%APPDATA%\臧氏脉学\history.sqlite`）——
+U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%（空库），**病例带不过去**。
+文档里「整个文件可放 U 盘带走」这句话当时是说过头了。
+
+**修法**：落点判定收在 **`desktop/data-dir.mjs`**（纯函数、不依赖 electron，好单测），
+`desktop/main.mjs` 只负责把真值喂进去：
+
+| 形态 | 病例库落点 | 怎么认出来的 |
+|---|---|---|
+| 安装版 | `%APPDATA%\臧氏脉学\history.sqlite` | 默认 |
+| **免安装版** | **exe 旁边的 `data\history.sqlite`** | electron-builder 的 portable 目标会设 `PORTABLE_EXECUTABLE_DIR`（便携版跑起来时 exe 是解压到临时目录执行的，只有这个变量知道「用户把它放哪了」） |
+| 开发／测试 | `PULSE_DATA_DIR` 指定 | 环境变量 |
+
+另外两处配套：
+
+- Electron 自己的缓存（Cache / GPUCache）**始终留在本机 %APPDATA%** —— 缓存又大又频繁写，不往 U 盘上放。
+  U 盘上只有 `exe` ＋ `data\` 两个东西。
+- 便携版与安装版**用不同的 userData 目录**（`臧氏脉学（便携版）` vs `臧氏脉学`）——
+  单实例锁按 userData 路径算，同目录的话装了安装版再开便携版会被当成同一个 App，
+  便携版双击会毫无反应。
+
+**实测**：便携版拷到别的目录运行 → exe 旁边自动建出 `data\` 并落库；
+写入一条中文病例 → 杀进程 → 重启 → 数据还在；U 盘上除 exe 与 `data\` 外没有任何缓存文件。
+
+**回归**：`scripts/e2e/desktop-smoke.mjs` 补了 9 项落点断言（24 → 33 项）——
+两种形态的落点、缓存留本机、两种 userData 不相同、覆盖优先级，
+外加一条端到端：按判定出来的目录建库，库文件真的生成在 exe 旁边。
+
+### 5.7 还差的
 
 | 项 | 说明 |
 |---|---|
@@ -167,16 +197,15 @@
 | 项 | 值 |
 |---|---|
 | 当前分支 | `chore/desktop-electron`（基点 `b9e3b19`） |
-| 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`chore/desktop-electron` = `b9e3b19` |
-| PR | #6 `chore/multi-user → main`，**OPEN**；桌面版 PR 目标＝`chore/multi-user`（避免依赖倒置） |
-| 全量回归 | **174/174 ＋ 桌面端 24/24 通过** |
-| 本机库 | `pulse-record/local-data/history.sqlite`（**老结构，无 owner_id** —— main 分支写的；多用户分支的迁移会自动补列并把数据归到 `local`） |
-| 本机数据 | 15 患者／57 就诊／1 自定义符号（S＝涩）；medication 0 条 |
+| 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`chore/desktop-electron` = 桌面版实施中 |
+| PR | #6 `chore/multi-user → main`，**OPEN**；#7 `chore/desktop-electron → chore/multi-user`，**OPEN**（避免依赖倒置） |
+| 全量回归 | **174/174 ＋ 桌面端 33/33 通过**（合计 207 项） |
+| 本机库 | `pulse-record/local-data/history.sqlite`（已迁移到多用户结构：15 患者／57 就诊／1 自定义符号，归属归到 `local`；迁移前快照 `history.sqlite.bak-20261104102030`） |
 | 桌面版产物 | `pulse-record/release/`（安装包 ＋ 免安装版，已 gitignore） |
-| 桌面版数据 | `%APPDATA%\臧氏脉学\history.sqlite`（Windows） |
+| 桌面版数据 | 安装版 `%APPDATA%\臧氏脉学\`；**免安装版 exe 旁边的 `data\`** |
 
-> ⚠️ 本机库目前是 **main 分支的老结构**（没有 `owner_id`）。
-> 多用户分支的迁移是幂等的 —— 第一次用新代码打开它会自动补列、回填归属到 `local`、并留 `.bak-<ts>` 备份。
+> ✅ 本机库**已完成迁移**（幂等，迁移前自动留 `.bak-<ts>` 备份）：补上 `owner_id`、
+> 回填归属到 `local`、建立 `local` 账号 —— 15 患者／57 就诊／1 自定义符号一个没丢。
 > 桌面版「导入数据文件」也支持老结构（缺的列自动跳过），**两条路都能把老数据带进桌面版**。
 
 ---

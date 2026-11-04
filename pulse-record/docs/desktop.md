@@ -17,7 +17,7 @@
 |---|---|---|
 | 怎么开 | 浏览器打开 `http://127.0.0.1:5178/` | 双击桌面快捷方式 |
 | 要不要装 Node | 要 | **不要**（Electron 自带） |
-| 病例数据在哪 | `pulse-record/local-data/history.sqlite` | `%APPDATA%\臧氏脉学\history.sqlite` |
+| 病例数据在哪 | `pulse-record/local-data/history.sqlite` | 安装版 `%APPDATA%\臧氏脉学\`；**免安装版 exe 旁边的 `data\`** |
 | 要不要登录 | 多用户模式下要 | **不用**（单机免登录） |
 | 导出落在哪 | 浏览器的「下载」目录 | **系统另存为对话框**（自己选位置） |
 
@@ -30,7 +30,7 @@
 | 文件 | 说明 |
 |---|---|
 | `ZangShiMaiXue-<版本>-x64-setup.exe` | **安装包**：可选安装目录、创建桌面快捷方式、可卸载 |
-| `ZangShiMaiXue-<版本>-x64-portable.exe` | **免安装版**：双击即用，整个文件可放 U 盘带走 |
+| `ZangShiMaiXue-<版本>-x64-portable.exe` | **免安装版**：双击即用；**病例库跟着 exe 走**（exe 旁边的 `data\`），U 盘带着走 |
 
 > ⚠️ **安装时 Windows 会提示「未知发布者」** —— 本程序没有买代码签名证书，
 > 是个人开发者的既定代价。点「更多信息」→「仍要运行」即可。
@@ -45,12 +45,30 @@
 
 ### 2.3 数据在哪
 
+**安装版**（`…-setup.exe`）：
+
 | 项 | 路径 |
 |---|---|
 | 病例库 | `%APPDATA%\臧氏脉学\history.sqlite` |
 | 备份／临时副本 | 同目录 `history.sqlite-wal` / `-shm`（SQLite 的 WAL 机制，正常现象） |
 
-菜单 **文件 → 打开数据目录** 直接打开这个文件夹。
+**免安装版**（`…-portable.exe`）：**病例库跟着 exe 走** ——
+
+```
+（exe 所在目录）\
+  ZangShiMaiXue-0.1.0-x64-portable.exe
+  data\
+    history.sqlite
+```
+
+- 首次运行会在 exe 旁边自动建出 `data\` 目录。
+- **U 盘带着 exe 和 `data\` 一起走，换台电脑打开，病例还在。**
+- 只想带走 exe、不想把病例一起带走时：把 `data\` 目录删掉即可（下次运行会重新建空库）。
+- 便携版与安装版**各用各的库，互不影响**（便携版的在 exe 旁边，安装版的在 %APPDATA%）。
+- Electron 自己的缓存（Cache / GPUCache 之类）**仍然留在本机 %APPDATA%** ——
+  缓存又大又频繁写，不往 U 盘上放。
+
+菜单 **文件 → 打开数据目录** 直接打开病例库所在的那个文件夹。
 
 ### 2.4 导出
 
