@@ -23,11 +23,38 @@ npm run seed:demo  # 写入 14 位演示患者（-- --reset 可先清空全部�
 npm run admin      # 账号维护命令行（list / create / reset / role / wechat …）
 npm run preview    # 预览构建产物（静态，不含病例记录）
 npm run typecheck  # 仅类型检查
-npm test           # 全量回归（共享包冒烟 + 小程序静态检查 + 老库迁移回归 + 越权隔离 + 浏览器回归）
+npm test           # 全量回归（共享包冒烟 + 小程序静态检查 + 老库迁移回归 + 越权隔离 + 浏览器回归 + 桌面端）
 ```
 
 `vite.config.ts` 里 `base: './'`，因此 `dist/` 可以直接用 `file://` 打开，便于离线使用与分享；
 但**病例记录需要后端服务**（见下节），纯静态打开时该功能不可用。
+
+## 桌面版（Windows）
+
+除了网页版，还有**打包好的 Windows 桌面程序**：双击图标就开一个独立窗口，
+不用开终端、不用装 Node、不用记网址。**页面与后端一行没改**，只是外面套了一层 Electron 壳。
+
+| | 网页版 | 桌面版 |
+|---|---|---|
+| 怎么开 | 浏览器打开 `http://127.0.0.1:5178/` | 双击桌面快捷方式 |
+| 要不要装 Node | 要 | **不要**（Electron 自带 Node） |
+| 病例数据在哪 | `local-data/history.sqlite` | `%APPDATA%\臧氏脉学\history.sqlite` |
+| 要不要登录 | 多用户模式下要 | **不用**（单机免登录） |
+| 导出落在哪 | 浏览器的「下载」目录 | **系统另存为对话框**（自己选位置） |
+
+- 使用与构建说明：**[`docs/desktop.md`](./docs/desktop.md)**
+- 实施方案（含架构图、逐文件改动清单、风险表）：**[`docs/desktop-plan.md`](./docs/desktop-plan.md)**
+
+本机构建（**Windows 上直接出包，不需要 Wine**）：
+
+```bash
+npm run desktop:dev     # 构建前端 + 开 Electron 窗口自测
+npm run desktop:pack    # 只出解包目录，验证打包产物能启动
+npm run desktop:dist    # 出安装包 + 免安装版（release/*.exe）
+```
+
+产物：`ZangShiMaiXue-<版本>-x64-setup.exe`（安装包）与 `…-portable.exe`（免安装版）。
+**未做代码签名** → 安装时 Windows 会提示「未知发布者」，点「更多信息 → 仍要运行」即可。
 
 ## 账号与多用户
 
@@ -52,6 +79,8 @@ npm test           # 全量回归（共享包冒烟 + 小程序静态检查 + �
   看不到（隔离是对的，但数据得转过来）：
   `npm run admin -- claim <登录名>` —— 数据一个字节没改，只把归属换给该账号。
 - 维护账号：`npm run admin -- list | create <登录名> | reset <登录名> | role <登录名> admin | wechat <登录名> | claim <登录名>`。
+- 反向操作（把某账号的数据转给内置单机账号，桌面版导入老数据时用）：
+  `npm run admin -- claim-local <登录名>`。
 
 ## 部署
 
