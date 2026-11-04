@@ -35,3 +35,8 @@ pulse-record/release/
 
 # 微信开发者工具的本地配置（含个人 AppID 等，不进版本库）
 pulse-record/miniprogram/project.private.config.json
+
+# 微信小程序凭据（AppSecret、代码上传私钥）—— 绝不进版本库
+pulse-record/.secrets/
+*.key
+!pulse-record/miniprogram/**/*.key

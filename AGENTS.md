@@ -805,7 +805,7 @@ pulse-record/miniprogram/
     api.js        # 传输层：request({method,path,body})，底下可换 wx.request / wx.cloud.callFunction
     auth.js       # wx.login / 绑定 / 注册 / 登出
     data.js       # 病例 API（与网站端 src/api/patients.ts 一一对应）
-    config.js     # API_BASE / TRANSPORT
+    config.js     # API_BASE（默认值）/ TRANSPORT；实际地址走 resolveApiBase()，可在「我的」页改
     core/         # ← 由 src/domain + src/export 编译产物（CommonJS，gitignore）
   pages/          # login cases record findings medication triad case-detail me
   assets/         # hands-pulse.png / triad-p47.png（由 build:core 复制，gitignore）
@@ -823,6 +823,24 @@ npm run build:core     # tsc -p tsconfig.core.json + 补 require 后缀 + 复制
   与网站导出的图版式完全一致**。
 - `toRecord()`（`src/domain/to-record.ts`）替掉 `Object.fromEntries` —— 那是 ES2019 内建，
   老机型 JSCore 没有会白屏。
+
+### 本机联调与验证
+
+```bash
+npm run mp:dev            # 共享包没编就编 + 起后端（单机模式）+ 打印导入目录与局域网 IP
+npm run mp:dev:multi      # 同上，多用户模式（要注册/登录）
+npm run test:e2e:mp       # 静态检查 29 项：WXML 不在 {{ }} 调函数、事件都有方法、require 路径存在
+npm run test:e2e:mp:api   # 数据层端到端 38 项：wx 垫片加载真实 utils/*.js，连真后端跑全链路
+```
+
+- **服务器地址运行时可改**：「我的 → 服务器」卡片写本地 `pulse.apiBase`；`api.js` 每次请求走
+  `config.resolveApiBase()`，`config.js` 的 `API_BASE` 只是默认值 —— 真机换 IP 不用改代码重编译。
+- 两个测试分工不同：`mp` 只管**页面骨架**（改 WXML／事件绑定跑它），`mp:api` 才验证**真实调用链路**
+  （改 `utils/*.js`、`data.js` 的返回形状、或服务端接口时必须跑）。
+- **凭据**：AppID（`wx3a21eb903a16cbc4`）写在 `project.config.json`，可以入库；**AppSecret 与代码上传私钥**
+  放 `pulse-record/.secrets/`（已 gitignore，权限 600），`mp:dev` 自动把 `WX_APPID`/`WX_APPSECRET` 交给后端。
+  **AppSecret 绝不进小程序包，也绝不进仓库** —— 小程序包可被反编译，AppSecret 只属于服务端环境变量。
+- 手册：[`pulse-record/docs/miniprogram-dev.md`](./pulse-record/docs/miniprogram-dev.md)（三条路线／手工清单／凭据放哪／卡点表）。
 
 ### 小程序侧硬约束（个人主体）
 
@@ -905,6 +923,7 @@ npm run build:core     # tsc -p tsconfig.core.json + 补 require 后缀 + 复制
 - [ ] 改过**存储层**（建表／迁移／备份）后，是否跑过 `npm run test:e2e:migration`？其它 e2e 都走新建空库的路径、**完全不经过迁移** —— 迁移写错了它们照样全绿（真出过：UPSERT 缺 `WHERE`，新建库不触发，只有第一次打开自己的老库时后端才起不来）。
 - [ ] 迁移／备份在**还有第二个连接开着这个库**时是否安全？WAL 的共享状态一旦被重置（如 `wal_checkpoint(TRUNCATE)`），另一个连接退出时会把 `-wal/-shm` 删掉，服务端还开着旧 fd，之后的写入全进孤儿 WAL、进程退出就丢（症状：刚注册好的账号在库里查不到）。备份要用 SQLite 的 `VACUUM INTO`（一致性快照），不要 `copyFileSync`。
 - [ ] 小程序与网站**查方结果是否逐字一致**（同一份 `dose-lookup` 编译产物）？两套剂量（克／比例制）在两端是否都分栏标注出处、没有被换算？
+- [ ] 改过小程序 `utils/*.js`（`api` / `data` / `auth` / `config`）或**服务端接口**后，是否跑过 `npm run test:e2e:mp:api`？`test:e2e:mp` 只看页面骨架，数据层写错了它照样全绿（真出过：`putVisitMedication` 漏 `await getVisit()`，单次就诊保存用药必 500，两端的这条链路都坏了而回归没发现）。
 - [ ] 桌面版：改过 `server/index.mjs` 后，`node server/index.mjs` 的行为是否**完全不变**（`isMain` 判定）？`npm test` 是否仍 **207 项全绿**？
 - [ ] 桌面版：数据是否落在 `%APPDATA%\臧氏脉学\`（安装版）／ exe 旁边的 `data\`（免安装版）？有没有把库放进 asar 或 Program Files（SQLite 写不了）？**Electron 缓存有没有被误放到 exe 旁边**（缓存留本机 %APPDATA%）？
 - [ ] 桌面版：改过落点判定后，`desktop/data-dir.mjs` 的规则与 `desktop/main.mjs` 的实际用法是否一致（主进程必须调用那套纯函数，不要内联另写一份）？便携版与安装版的 userData 是否仍分开（否则单实例锁互相吞）？

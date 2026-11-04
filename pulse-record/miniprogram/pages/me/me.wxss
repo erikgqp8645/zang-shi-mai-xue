@@ -27,6 +27,22 @@
   margin-top: 16rpx;
 }
 
+.pr-me-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  margin-top: 16rpx;
+}
+
+.pr-me-actions .pr-btn {
+  margin: 0;
+}
+
+.pr-me-hint {
+  margin-top: 16rpx;
+  word-break: break-all;
+}
+
 .pr-me-disclaimer {
   margin-top: 32rpx;
 }

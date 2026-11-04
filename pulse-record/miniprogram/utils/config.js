@@ -1,21 +1,29 @@
 /**
  * 小程序端配置
  *
- * 改这里就行，不用改别的文件。
+ * 两件事：连哪台服务器、走哪种传输方式。
+ *
+ * **服务器地址可以在「我的」页里改**（改完存在本地，重开小程序仍然生效），
+ * 所以换电脑、换局域网、真机调试时都不用改代码、不用重新编译 —— 这里这一份只是默认值。
  */
 
 /**
- * API 根地址（**不带路径**，只到端口或域名）
+ * 默认 API 根地址（**不带路径**，只到端口或域名）
  *
- * - 本机联调：微信开发者工具里勾上「不校验合法域名」，填 `http://127.0.0.1:5178`
+ * - 本机联调：微信开发者工具里勾上「不校验合法域名」，用 `http://127.0.0.1:5178`
  * - 真机联调：填电脑的局域网 IP，例如 `http://192.168.1.20:5178`（手机与电脑同一网段）
  * - 上线：填已备案域名的 https 地址，例如 `https://mai.example.com`
  *   —— 微信的 request 合法域名**不接受端口、不接受 IP、必须是 HTTPS 且已 ICP 备案**
+ *
+ * `npm run mp:dev` 启动时会把「该填成什么」直接打出来（含本机局域网 IP）。
  *
  * 迁到 CloudBase 后（见 `docs/cloudbase-migration.md`）：
  * 把 TRANSPORT 改成 'cloud'，API_BASE 就不用了 —— `wx.cloud.callFunction` 不走合法域名校验。
  */
 const API_BASE = 'http://127.0.0.1:5178'
+
+/** 本地存储的键：使用者改过的服务器地址 */
+const API_BASE_KEY = 'pulse.apiBase'
 
 /**
  * 传输方式
@@ -31,8 +39,72 @@ const TRANSPORT = 'request'
 /** TRANSPORT='cloud' 时的云函数名（CloudBase 上要部署一个同名云函数） */
 const CLOUD_FUNCTION_NAME = 'pulse-api'
 
+/**
+ * 规范化一个地址：只认 http/https，去掉末尾斜杠
+ * @returns {string} 合法则返回规范化后的地址，否则返回空串
+ */
+function normalizeBase(raw) {
+  const v = String(raw == null ? '' : raw).trim()
+  if (!v) return ''
+  if (!/^https?:\/\//i.test(v)) return ''
+  // 末尾斜杠去掉：api.js 里是 base + path，path 自带前导斜杠
+  return v.replace(/\/+$/, '')
+}
+
+/** 使用者改过的地址（没改过 / 改坏了都返回空串） */
+function savedApiBase() {
+  try {
+    return normalizeBase(wx.getStorageSync(API_BASE_KEY))
+  } catch (e) {
+    return ''
+  }
+}
+
+/** 当前实际用的地址：本地改过的优先，否则用默认值 */
+function resolveApiBase() {
+  return savedApiBase() || API_BASE
+}
+
+/**
+ * 改服务器地址
+ * @param {string} raw 新地址；传空串＝恢复默认
+ * @returns {{ok: boolean, base: string, error?: string}}
+ */
+function setApiBase(raw) {
+  const v = String(raw == null ? '' : raw).trim()
+  try {
+    if (!v) {
+      wx.removeStorageSync(API_BASE_KEY)
+      return { ok: true, base: API_BASE }
+    }
+    const normalized = normalizeBase(v)
+    if (!normalized) {
+      return { ok: false, base: resolveApiBase(), error: '地址要以 http:// 或 https:// 开头' }
+    }
+    wx.setStorageSync(API_BASE_KEY, normalized)
+    return { ok: true, base: normalized }
+  } catch (e) {
+    return {
+      ok: false,
+      base: resolveApiBase(),
+      error: '保存失败：' + ((e && e.message) || '本地存储不可用'),
+    }
+  }
+}
+
+/** 恢复默认地址 */
+function resetApiBase() {
+  return setApiBase('')
+}
+
 module.exports = {
   API_BASE,
+  API_BASE_KEY,
   TRANSPORT,
   CLOUD_FUNCTION_NAME,
+  normalizeBase,
+  savedApiBase,
+  resolveApiBase,
+  setApiBase,
+  resetApiBase,
 }

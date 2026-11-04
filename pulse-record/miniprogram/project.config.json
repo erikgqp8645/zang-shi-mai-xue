@@ -1,6 +1,6 @@
 {
   "description": "臧氏脉学 · 脉象记录表生成器 —— 微信小程序端",
-  "appid": "touristappid",
+  "appid": "wx3a21eb903a16cbc4",
   "projectname": "pulse-record-mp",
   "compileType": "miniprogram",
   "miniprogramRoot": "./",

@@ -10,6 +10,9 @@
  *
  * 鉴权：令牌放在 `Authorization: Bearer <token>` 头（与服务端一致）。
  * 401 → 清令牌 ＋ 跳回登录页（不静默失败）。
+ *
+ * 服务器地址**每次请求都从 config 现取**（`resolveApiBase()`），
+ * 所以在「我的」页改完地址立刻生效，不用重启小程序。
  */
 
 const config = require('./config.js')
@@ -42,7 +45,7 @@ function viaRequest(options) {
     if (token) header.Authorization = 'Bearer ' + token
 
     wx.request({
-      url: config.API_BASE + options.path,
+      url: config.resolveApiBase() + options.path,
       method: options.method || 'GET',
       data: options.body,
       header,

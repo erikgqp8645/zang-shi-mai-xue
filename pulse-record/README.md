@@ -106,16 +106,32 @@ npm run desktop:dist    # 出安装包 + 免安装版（release/*.exe）
 `miniprogram/` 是原生小程序工程，**功能对齐网站**，两端共用同一个后端、同一套账号、同一份数据。
 
 ```bash
-npm run build:core   # ① 编共享包（知识库 + 绘制代码），再打开微信开发者工具
+npm run mp:dev         # ① 编共享包 + 起后端（单机模式，小程序不用登录）+ 打印该怎么填
+npm run mp:dev:multi   # 同上，但多用户模式（要注册/登录，验证账号隔离时用）
 ```
 
-- 用**微信开发者工具**打开 `pulse-record/miniprogram` 目录。
-- `miniprogram/utils/config.js` 里改 `API_BASE`（本机联调填 `http://127.0.0.1:5178`，
-  局域网联调填电脑 IP 并在开发者工具勾「不校验合法域名」；上线填已备案的 https 域名）。
-- `miniprogram/project.config.json` 的 `appid` 换成真实小程序 AppID。
+`mp:dev` 会把「开发者工具该导入哪个目录、服务器地址该填什么（含本机局域网 IP）、真机怎么预览」
+一次打出来。**手写的启动清单见 [docs/miniprogram-dev.md](./docs/miniprogram-dev.md)。**
+
+- 用**微信开发者工具**打开 `pulse-record/miniprogram` 目录，`AppID` 选「测试号」即可本机跑。
+- **服务器地址不用改代码**：开发者工具里「详情 → 本地设置」勾「不校验合法域名」，
+  然后在小程序「我的」页 → 服务器 → 填地址 → 保存 → 「测试连接」应显示「连接正常」。
+  改完存在本地，真机换 IP 也不用重新编译（默认值仍在 `miniprogram/utils/config.js`）。
+- `miniprogram/project.config.json` 的 `appid` 换成真实小程序 AppID 才能预览到手机／提交审核。
   **AppSecret 绝不入小程序包** —— 它只放在服务器的 `/etc/pulse-record.env`。
 - 账号打通：小程序 `wx.login` → 服务端 `code2Session` → 没绑过就引导输入「网站账号＋密码」绑定
   → 绑定后两端看到**同一份病例**。
+
+**不用开发者工具也能验证**（数据层是真的跑）：
+
+```bash
+npm run test:e2e:mp       # 静态检查：WXML 不调函数、事件都有方法、require 路径都存在（29 项）
+npm run test:e2e:mp:api   # 数据层端到端：wx 垫片加载真实 utils/*.js，连真后端跑全链路（38 项）
+```
+
+`test:e2e:mp:api` 覆盖「改服务器地址立刻生效 → 未登录 401 回登录页 → 注册 → 建患者（脉象/体质/疗法）
+→ 读回 → 三种搜索 → 改单次就诊 → 用药记录增删 → 自定义符号增删 → 令牌失效 → 单机模式不用登录」，
+所以页面之外的链路不靠人眼点。
 
 **共享包**（两端同源的关键）：`src/domain/**` 与 `src/export/text.ts` 零 DOM 依赖，整棵子树用
 `tsc` 编成 CommonJS 搬进小程序；`src/export/png.ts` 拆成**纯绘制器**

@@ -1,6 +1,6 @@
 # 项目进度 —— 臧氏脉学 · 脉象记录表生成器
 
-> **更新于** 2026-11-04 ｜ **仓库** `erikgqp8645/zang-shi-mai-xue` ｜ **当前分支** `chore/desktop-electron`（基点 `b9e3b19`）
+> **更新于** 2026-11-04 ｜ **仓库** `erikgqp8645/zang-shi-mai-xue` ｜ **当前分支** `feat/wechat-miniprogram`（基点 `8bc151f`，即 `chore/desktop-electron`）
 >
 > 本文是**进度台账**：记每条工作线做到哪了、卡在哪、下一手做什么。
 > 桌面应用的**实施方案**另见 [`desktop-plan.md`](./desktop-plan.md)；上线手册见 [`deploy.md`](./deploy.md)；迁 CloudBase 见 [`cloudbase-migration.md`](./cloudbase-migration.md)。
@@ -13,7 +13,7 @@
 |---|---|---|---|
 | **P0 多用户与数据隔离** | ✅ 已完成 | `users`＋`identities`＋`sessions` 三表；四张业务表下沉 `owner_id`；跨用户一律 404 | 等 PR #6 合并 |
 | **P1 网站上线** | ⏸ **卡在用户侧手续** | 脚本与文档已就绪，**域名／ICP 备案／服务器三样都没有** | 备案 7~20 工作日是整条时间线最长的一段 → **今天就去提交备案** |
-| **P2 微信小程序** | 🟡 代码完成，未真机验证 | 个人主体（不能用 `web-view`、不能用 `getPhoneNumber`）→ 必须原生开发；8 个页面已写完 | 填真实 AppID 后真机跑一遍 |
+| **P2 微信小程序** | 🟡 代码完成；**本机联调链路已自动化跑通**，未真机验证 | 个人主体（不能用 `web-view`、不能用 `getPhoneNumber`）→ 必须原生开发；8 个页面已写完；`mp:dev` 一条命令起来；数据层端到端 38 项通过 | 填真实 AppID 后真机跑一遍 |
 | **P3 后期迁 CloudBase** | ⏸ 规划完成，待触发 | 存储已收敛成 `server/store.mjs` 一层；db/auth 全 async | 真正迁的时候只改一处 |
 | **P4 Windows 桌面应用** | ✅ **已实现**，本机出包并实测 | Electron 44.10.2；复用现有 `server/`＋`dist/`，业务逻辑不重写 | 交给使用者安装使用；macOS 包另找 Mac 机器补 |
 
@@ -73,11 +73,29 @@
 
 | 事项 | 状态 | 说明 |
 |---|---|---|
-| 真实 AppID | ❌ `project.config.json` 里仍是 `touristappid` | 注册个人主体小程序后填入 |
+| 真实 AppID | ✅ 已填 `wx3a21eb903a16cbc4` | 开发者工具需登录对应管理员微信号 |
+| AppSecret / 上传私钥 | ✅ 在 `pulse-record/.secrets/`（gitignore，600） | AppSecret 只给服务端；私钥给命令行上传，用前加 IP 白名单 |
 | 合法域名 | ❌ 未配置 | 依赖 P1 的域名与备案 |
 | 真机验证 | ⬜ 未做 | 代码完成但**从未在真机上跑过** |
 
 **账号打通方案（已拍板）**：小程序用**网站账号＋密码**绑定微信（`/api/auth/wechat/bind`），网站与小程序共用同一 `users` 行。
+
+### 3.1 本机联调（2026-11-04，分支 `feat/wechat-miniprogram`）
+
+**起点**：`chore/desktop-electron`（含 P0 多用户 ＋ 小程序 8 页 ＋ 共享包）。
+
+| 做了什么 | 结果 |
+|---|---|
+| `npm run mp:dev` / `mp:dev:multi` | 一条命令：自动 `build:core` ＋ 起后端 ＋ 打印导入目录／本机局域网 IP／真机注意事项 |
+| 服务器地址改成**运行时可改** | 「我的 → 服务器」卡片（保存／测试连接／恢复默认），存本地 `pulse.apiBase`；`api.js` 每次请求现取地址 → 真机换 IP 不用改代码重编译 |
+| `npm run test:e2e:mp:api` | **wx 垫片**在 Node 里加载真实 `utils/{config,api,data,auth}.js` 连真后端跑全链路，**38 项全通过** |
+| 修一个真 bug | `server/db.mjs` `putVisitMedication` 漏 `await getVisit()` → `cur.patientId` 是 `undefined` → **单次就诊保存用药必 500**。这条链路小程序与网页共用，等于网页版也一直是坏的（回归没覆盖到） |
+| 文档 | `docs/miniprogram-dev.md`（三条路线／手工清单／卡点表）＋ README「微信小程序」一节重写 |
+
+**回归**：core 26 ＋ mp 29 ＋ mp:api 38 全通过。
+
+**仍未做**：真机验证（代码与数据层都已自动验证，但没在手机上跑过）、真实 AppID、合法域名。
+
 
 ---
 

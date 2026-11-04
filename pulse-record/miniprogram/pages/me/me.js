@@ -6,8 +6,31 @@
  */
 
 const auth = require('../../utils/auth.js')
+const config = require('../../utils/config.js')
 const data = require('../../utils/data.js')
 const storage = require('../../utils/storage.js')
+
+/**
+ * 探一次某个地址的 /api/health（不走 api.js —— 那是认令牌的，
+ * 这里要测的是「这个地址通不通」，得能对还没保存的地址试）。
+ */
+function probe(base) {
+  return new Promise((resolve) => {
+    wx.request({
+      url: base + '/api/health',
+      method: 'GET',
+      timeout: 8000,
+      success(res) {
+        const body = res.data || {}
+        if (res.statusCode === 200 && body.ok) resolve({ ok: true, body })
+        else resolve({ ok: false, error: '服务有响应但不像本项目的后端（HTTP ' + res.statusCode + '）' })
+      },
+      fail(err) {
+        resolve({ ok: false, error: (err && err.errMsg) || '连不上' })
+      },
+    })
+  })
+}
 
 Page({
   data: {
@@ -18,6 +41,12 @@ Page({
     wechatBound: false,
     mode: 'multi',
     dbPath: '',
+    /** 当前实际连的服务器地址 */
+    apiBase: '',
+    /** 输入框里的地址（可能还没保存） */
+    apiBaseInput: '',
+    apiHint: '',
+    apiTesting: false,
     oldPassword: '',
     newPassword: '',
     busy: false,
@@ -33,6 +62,7 @@ Page({
         dbPath: (app.globalData.health && app.globalData.health.db) || '',
       })
     }
+    this.refreshApiBase()
     const cached = storage.getUser()
     if (cached) {
       this.setData({
@@ -63,6 +93,89 @@ Page({
       // 未登录／令牌失效时 api 层会跳登录页，这里只记录原因
       this.setData({ error: (e && e.message) || '读取账号信息失败' })
     }
+  },
+
+  /* ------------------------------ 服务器地址 ------------------------------ */
+
+  /** 同步当前地址到界面（改完、恢复默认后都走这里） */
+  refreshApiBase() {
+    const base = config.resolveApiBase()
+    this.setData({ apiBase: base, apiBaseInput: base })
+  },
+
+  onInputApiBase(e) {
+    this.setData({ apiBaseInput: e.detail.value, apiHint: '' })
+  },
+
+  async saveApiBase() {
+    const res = config.setApiBase(this.data.apiBaseInput)
+    if (!res.ok) {
+      this.setData({ apiHint: res.error || '保存失败', apiBase: res.base })
+      return
+    }
+    this.setData({ apiBase: res.base, apiBaseInput: res.base, apiHint: '已保存，正在测试连接…' })
+    const probeResult = await this.testBase(res.base)
+    if (probeResult.ok) {
+      const body = probeResult.body
+      this.setData({
+        apiHint:
+          '连接正常（' +
+          (body.mode === 'single' ? '单机模式，不用登录' : '多用户模式，需要登录') +
+          '）。重新进一次页面即可按新地址取数据。',
+        mode: body.mode || this.data.mode,
+      })
+      const app = getApp()
+      if (app) {
+        app.globalData.health = body
+        app.globalData.mode = body.mode || app.globalData.mode
+      }
+    } else {
+      this.setData({ apiHint: '已保存，但连不上：' + probeResult.error })
+    }
+  },
+
+  async testApiBase() {
+    if (this.data.apiTesting) return
+    const base = config.normalizeBase(this.data.apiBaseInput)
+    if (!base) {
+      this.setData({ apiHint: '地址要以 http:// 或 https:// 开头' })
+      return
+    }
+    this.setData({ apiTesting: true, apiHint: '' })
+    const res = await this.testBase(base)
+    if (res.ok) {
+      const body = res.body
+      this.setData({
+        apiHint:
+          '连接正常：' +
+          (body.mode === 'single' ? '单机模式（不用登录）' : '多用户模式（需要登录）') +
+          (body.db ? '｜库：' + body.db : ''),
+      })
+    } else {
+      this.setData({ apiHint: '连不上：' + res.error })
+    }
+    this.setData({ apiTesting: false })
+  },
+
+  /** 探一个地址，顺带把「连不上时先查什么」写在提示里 */
+  async testBase(base) {
+    const res = await probe(base)
+    if (res.ok) return res
+    const hint = /url not in domain list/i.test(res.error)
+      ? '（域名校验没关：开发工具 → 详情 → 本地设置 → 勾「不校验合法域名…」）'
+      : /timeout|fail/i.test(res.error)
+        ? '（手机与电脑要连同一个 Wi-Fi；电脑防火墙要放行 5178 端口）'
+        : ''
+    return { ok: false, error: res.error + hint }
+  },
+
+  resetApiBase() {
+    const res = config.resetApiBase()
+    this.setData({
+      apiBase: res.base,
+      apiBaseInput: res.base,
+      apiHint: '已恢复默认地址。',
+    })
   },
 
   onInputOldPassword(e) {

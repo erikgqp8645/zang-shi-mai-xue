@@ -38,6 +38,26 @@
   </view>
 
   <view class="pr-card">
+    <view class="pr-card-title">服务器</view>
+    <view class="pr-note">
+      小程序连的是哪台机器。本机联调填电脑的局域网 IP（如 http://192.168.1.20:5178），
+      开发工具里填 http://127.0.0.1:5178。改这里不用改代码、不用重新编译。
+    </view>
+    <view class="pr-me-row">
+      <text class="pr-me-key">当前连接</text>
+      <text class="pr-me-val pr-me-path">{{apiBase}}</text>
+    </view>
+    <view class="pr-label">服务器地址</view>
+    <input class="pr-input" value="{{apiBaseInput}}" placeholder="http://127.0.0.1:5178" bindinput="onInputApiBase" />
+    <view class="pr-me-actions">
+      <view class="pr-btn pr-btn-sm" bindtap="saveApiBase">保存</view>
+      <view class="pr-btn pr-btn-sm" bindtap="testApiBase">{{apiTesting ? '测试中…' : '测试连接'}}</view>
+      <view class="pr-btn pr-btn-sm" bindtap="resetApiBase">恢复默认</view>
+    </view>
+    <view class="pr-note pr-me-hint" wx:if="{{apiHint}}">{{apiHint}}</view>
+  </view>
+
+  <view class="pr-card">
     <view class="pr-card-title">改密码</view>
     <view class="pr-note">改完后全部会话失效，需要重新登录。</view>
     <view class="pr-label">原密码</view>
