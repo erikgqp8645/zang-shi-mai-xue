@@ -21,7 +21,7 @@
  */
 
 import { DatabaseSync } from 'node:sqlite'
-import { mkdirSync, readFileSync, copyFileSync, existsSync } from 'node:fs'
+import { mkdirSync, readFileSync, existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -82,6 +82,35 @@ function hasColumn(db, table, column) {
   return cols.some((c) => c.name === column)
 }
 
+/** 表是否存在 */
+function tableExists(db, table) {
+  return !!db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(table)
+}
+
+/**
+ * 迁移前备份：用 SQLite 自己的 `VACUUM INTO` 拿一份**一致性快照**。
+ *
+ * 为什么不用 `copyFileSync`：
+ *   ① WAL 模式下，最近的写入还在 -wal 里没落回主文件 —— 直接拷主文件是**缺尾巴**的；
+ *   ② 更要命的是，为了让拷贝完整而去 `PRAGMA wal_checkpoint(TRUNCATE)` ——
+ *      checkpoint 会重置 WAL 的共享状态（wal-index header）。只要**还有别的连接**
+ *      开着这个库（比如 dev server 已经在跑、admin 脚本又来连一下），
+ *      那个连接就会跟 WAL「分家」：它退出时以为自己是最后一个连接，把 -wal/-shm 删了
+ *      —— 而服务端还开着旧 fd，之后所有写入都进了**孤儿 WAL**，进程退出就彻底丢
+ *      （真踩过：刚注册好的账号在库里看不见了，重启也没了）。
+ *
+ * `VACUUM INTO` 没有这些问题：它读的是一致性快照（含 WAL 里的数据），
+ * 而且**不碰**现有连接的状态。
+ */
+function backupDb(db) {
+  const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)
+  let target = `${DB_PATH}.bak-${stamp}`
+  let n = 1
+  while (existsSync(target)) target = `${DB_PATH}.bak-${stamp}-${n++}`
+  db.prepare('VACUUM INTO ?').run(target)
+  return target
+}
+
 /**
  * 老库迁移：建表语句里的列是后加的，老库要补上。
  * （CREATE TABLE IF NOT EXISTS 不会给已存在的表补列。）
@@ -95,13 +124,12 @@ function migrate(db) {
   if (!hasColumn(db, 'visits', 'owner_id')) needs.push('visits.owner_id')
   if (!hasColumn(db, 'medication', 'owner_id')) needs.push('medication.owner_id')
   // custom_symbols 的主键从「code」改成「(owner_id, code)」，得整表重建
-  if (customSymbolsNeedsRebuild(db)) needs.push('custom_symbols.主键')
+  if (customSymbolsState(db) !== 'ok') needs.push('custom_symbols.主键')
 
   // 先备份，再动老库
   if (needs.length > 0 && existsSync(DB_PATH)) {
-    const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)
     try {
-      copyFileSync(DB_PATH, `${DB_PATH}.bak-${stamp}`)
+      backupDb(db)
     } catch (e) {
       console.error(`[臧氏脉学] 迁移前备份失败（继续迁移，但请自行检查 ${DB_PATH}）：${e?.message ?? e}`)
     }
@@ -119,24 +147,7 @@ function migrate(db) {
   }
 
   // 2) custom_symbols 重建：主键由 code 改为 (owner_id, code)
-  if (customSymbolsNeedsRebuild(db)) {
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS custom_symbols_new (
-        code       TEXT NOT NULL,
-        owner_id   TEXT NOT NULL,
-        name       TEXT NOT NULL,
-        created_at INTEGER NOT NULL,
-        PRIMARY KEY (owner_id, code)
-      );
-    `)
-    db.exec(`
-      INSERT INTO custom_symbols_new (code, owner_id, name, created_at)
-      SELECT code, '${LEGACY_OWNER}', name, created_at FROM custom_symbols
-      ON CONFLICT (owner_id, code) DO NOTHING;
-    `)
-    db.exec('DROP TABLE custom_symbols')
-    db.exec('ALTER TABLE custom_symbols_new RENAME TO custom_symbols')
-  }
+  rebuildCustomSymbols(db)
 
   // 3) 内置单机账号（承接老数据；不可用密码登录）
   const localUser = ensureLocalUser(db)
@@ -190,6 +201,119 @@ function customSymbolsNeedsRebuild(db) {
   // 主键列：pk > 0 的那些
   const pk = cols.filter((c) => Number(c.pk) > 0).map((c) => c.name).sort().join(',')
   return pk !== 'code,owner_id'
+}
+
+/**
+ * custom_symbols 当前处于哪种状态：
+ *   'ok'     —— 已经是新结构（主键 owner_id+code），不用动
+ *   'old'    —— 老结构（主键只有 code），数据在 custom_symbols 里，要搬到新表
+ *   'orphan' —— custom_symbols 不见了，只剩重建用的中间表 custom_symbols_new
+ *   'empty'  —— custom_symbols 是**空**的新结构表 ＋ 残留着中间表
+ *
+ * 'orphan' / 'empty' 都是上一次迁移中断留下的残局：
+ *   · 'orphan'：中断在「老表已 DROP、改名还没做」→ 中间表里是全部数据
+ *   · 'empty' ：中断在「老表已 DROP、schema.sql 又建了一张空的同名表」→
+ *               openDb 每次都先跑 schema.sql，所以老表会被重新建成空表，
+ *               只看「表在不在」是分辨不出来的，得看表里有没有行。
+ */
+function customSymbolsState(db) {
+  const hasNew = tableExists(db, 'custom_symbols_new')
+  const hasOld = tableExists(db, 'custom_symbols')
+  if (!hasOld) return hasNew ? 'orphan' : 'ok'
+  if (customSymbolsNeedsRebuild(db)) return 'old'
+  const rows = Number(db.prepare('SELECT count(*) c FROM custom_symbols').get().c)
+  if (rows === 0 && hasNew) return 'empty'
+  return 'ok'
+}
+
+/** 中间表 custom_symbols_new 的结构对不对（列齐全 ＋ 主键是 owner_id+code） */
+function customSymbolsNewIsValid(db) {
+  const cols = db.prepare('PRAGMA table_info(custom_symbols_new)').all()
+  const names = cols.map((c) => c.name)
+  if (!['code', 'owner_id', 'name', 'created_at'].every((n) => names.includes(n))) return false
+  const pk = cols.filter((c) => Number(c.pk) > 0).map((c) => c.name).sort().join(',')
+  return pk === 'code,owner_id'
+}
+
+/**
+ * 重建 custom_symbols（主键 code → (owner_id, code)）。
+ *
+ * 整个过程放在**一个事务**里：SQLite 的 DDL 是事务性的，中途被打断（进程被杀、
+ * 磁盘满、SQL 报错）会整体回滚，不会留下「老表已 DROP、新表还没改名」的残局。
+ *
+ * 半途而废的残局也能自愈：
+ *   · 残留一个空的/半满的 custom_symbols_new → 直接丢掉重来（数据源是老表，没丢）
+ *   · 只剩 custom_symbols_new、老表没了（上次在 DROP 之后中断）→ 结构对就直接改名回来
+ */
+function rebuildCustomSymbols(db) {
+  const state = customSymbolsState(db)
+  if (state === 'ok') {
+    // 已经好了，但可能还留着上次中断的中间表 —— 清掉（数据已在 custom_symbols 里）
+    if (tableExists(db, 'custom_symbols_new')) {
+      db.exec('BEGIN')
+      try {
+        db.exec('DROP TABLE IF EXISTS custom_symbols_new')
+        db.exec('COMMIT')
+      } catch (e) {
+        db.exec('ROLLBACK')
+        throw e
+      }
+    }
+    return
+  }
+
+  const NEW_TABLE_SQL = `
+    CREATE TABLE custom_symbols_new (
+      code       TEXT NOT NULL,
+      owner_id   TEXT NOT NULL,
+      name       TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (owner_id, code)
+    );
+  `
+
+  db.exec('BEGIN')
+  try {
+    if (state === 'old') {
+      // 老表还在、数据在老表里：残留的中间表一律丢掉，重建时从老表重新搬。
+      db.exec('DROP TABLE IF EXISTS custom_symbols_new')
+      db.exec(NEW_TABLE_SQL)
+      // 注意：`INSERT ... SELECT ... ON CONFLICT` 在 SQLite 里必须带一个 `WHERE`，
+      // 否则解析器分不清 `ON` 是 UPSERT 的开头还是 JOIN 的 ON（SQLite 官方文档明写这条歧义）。
+      // `WHERE true` 是恒真条件，不改变语义；写成这样 SQL 与 PostgreSQL 都能跑
+      // （PostgreSQL 同样接受 `ON CONFLICT DO NOTHING`）。
+      db.exec(`
+        INSERT INTO custom_symbols_new (code, owner_id, name, created_at)
+        SELECT code, '${LEGACY_OWNER}', name, created_at FROM custom_symbols WHERE true
+        ON CONFLICT (owner_id, code) DO NOTHING;
+      `)
+      db.exec('DROP TABLE IF EXISTS custom_symbols')
+      db.exec('ALTER TABLE custom_symbols_new RENAME TO custom_symbols')
+    } else {
+      // 'orphan' / 'empty'：老表已经不可信（没了、或被 schema.sql 重建成了空表），
+      // 数据在中间表里 —— 结构对就直接改名回来。
+      db.exec('DROP TABLE IF EXISTS custom_symbols')
+      if (customSymbolsNewIsValid(db)) {
+        db.exec('ALTER TABLE custom_symbols_new RENAME TO custom_symbols')
+      } else {
+        // 中间表结构也不对 → 只能重建空表（源数据已经不在任何地方了）
+        db.exec('DROP TABLE IF EXISTS custom_symbols_new')
+        db.exec(`
+          CREATE TABLE custom_symbols (
+            code       TEXT NOT NULL,
+            owner_id   TEXT NOT NULL,
+            name       TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            PRIMARY KEY (owner_id, code)
+          );
+        `)
+      }
+    }
+    db.exec('COMMIT')
+  } catch (e) {
+    db.exec('ROLLBACK')
+    throw e
+  }
 }
 
 /** 内置单机账号：承接老数据、单机模式下当登录身份；没有可用密码 */
