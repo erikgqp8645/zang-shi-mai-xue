@@ -860,6 +860,8 @@ npm run build:core     # tsc -p tsconfig.core.json + 补 require 后缀 + 复制
 - [ ] **越权访问**是否一律返回 **404**（而不是 403 —— 403 会泄露「这东西存在」）？无令牌／过期令牌是否一律 401？
 - [ ] `owner_id` **三条不变量**是否都为 0（visit 与 patient 同 owner；medication 与 visit 同 owner；没有空 owner）？`owner_id` 是否只来自会话、没被请求体覆盖？
 - [ ] **老库迁移**是否不丢数据（四张业务表行数不变、`owner_id` 全部归到 `local`）？迁移前是否留了备份？
+- [ ] 改过**存储层**（建表／迁移／备份）后，是否跑过 `npm run test:e2e:migration`？其它 e2e 都走新建空库的路径、**完全不经过迁移** —— 迁移写错了它们照样全绿（真出过：UPSERT 缺 `WHERE`，新建库不触发，只有第一次打开自己的老库时后端才起不来）。
+- [ ] 迁移／备份在**还有第二个连接开着这个库**时是否安全？WAL 的共享状态一旦被重置（如 `wal_checkpoint(TRUNCATE)`），另一个连接退出时会把 `-wal/-shm` 删掉，服务端还开着旧 fd，之后的写入全进孤儿 WAL、进程退出就丢（症状：刚注册好的账号在库里查不到）。备份要用 SQLite 的 `VACUUM INTO`（一致性快照），不要 `copyFileSync`。
 - [ ] 小程序与网站**查方结果是否逐字一致**（同一份 `dose-lookup` 编译产物）？两套剂量（克／比例制）在两端是否都分栏标注出处、没有被换算？
 
 ## Git 约定
