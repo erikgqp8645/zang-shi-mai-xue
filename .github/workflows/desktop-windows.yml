@@ -1,0 +1,56 @@
+name: desktop-windows
+
+# 出 Windows 桌面安装包。
+#
+# 触发方式：打 tag（v0.1.0 等）或在 Actions 页面手动跑。
+# 产物：NSIS 安装包 ＋ 免安装版 ＋ 解包目录，作为 artifact 上传。
+#
+# 为什么还要 CI（明明本机 Windows 上就能出包）：
+#   - 别人／以后换机器时，一条命令就有同样产物，不必本地装 VS Build Tools
+#   - 版本可追溯：tag ↔ 安装包一一对应
+#   - 本机构建仍可用 `npm run desktop:dist`（不需要 Wine —— Windows 上原生就能出）
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: 装依赖
+        working-directory: pulse-record
+        run: npm ci
+
+      - name: 构建前端
+        working-directory: pulse-record
+        run: npm run build
+
+      - name: 桌面端回归（不依赖 Electron／Chrome）
+        working-directory: pulse-record
+        run: npm run test:e2e:desktop
+
+      - name: 探测 Electron 内的 node:sqlite
+        working-directory: pulse-record
+        run: node scripts/e2e/electron-probe.mjs
+
+      - name: 打包
+        working-directory: pulse-record
+        run: npx electron-builder --win --x64
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          # artifact 名用 ASCII —— 中文名在 runner 上容易出编码问题
+          name: zangshimai-windows-x64
+          path: |
+            pulse-record/release/*.exe
+            pulse-record/release/win-unpacked/
