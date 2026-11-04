@@ -20,6 +20,7 @@ import {
   type PulsePoint,
 } from '../domain/medication'
 import { MedicationPicker } from './MedicationPicker'
+import { DoseLines } from './DoseLines'
 import { DOSE_SCIENCE_NAME, FORMULA_SCIENCE_BY_NAME } from '../domain/formula-table'
 import type { CustomSymbol } from '../domain/symbols'
 
@@ -154,7 +155,8 @@ export function MedicationPanel({
   /** 讲义 p42 对照表／选择器左列共用的检索词 */
   const [kw, setKw] = useState('')
   /** 对照表是否展开 */
-  const [refOpen, setRefOpen] = useState(false)
+  /** 讲义 p42 对照表默认展开 —— 里面有「配伍与剂量」列，收起来就看不见了 */
+  const [refOpen, setRefOpen] = useState(true)
   /** 「配伍与剂量」列显示哪一套资料（默认同和堂版的克数） */
   const [doseSource, setDoseSource] = useState<DoseSource>('th')
   /** 脉位筛选（选择器右列；关掉弹窗也留着） */
@@ -401,7 +403,8 @@ export function MedicationPanel({
             {list.length === 0 ? (
               <p className="pr-muted pr-med-empty">（这次还没有记方）</p>
             ) : (
-              <table className="pr-med-table">
+              <>
+                <table className="pr-med-table">
                 <thead>
                   <tr>
                     <th>方名</th>
@@ -429,6 +432,8 @@ export function MedicationPanel({
                           </button>
                           {findDrug(r.name) && <em className="pr-med-flag">讲稿第二讲有载</em>}
                         </span>
+                        {/* 填了方名就把两套资料的组成列出来（克 ／ 比例制，各带出处） */}
+                        <DoseLines name={r.name} className="pr-med-dose-lines" />
                       </td>
                       <td>
                         <input
@@ -505,6 +510,22 @@ export function MedicationPanel({
                   ))}
                 </tbody>
               </table>
+
+              {/* 窄屏：方名列只有几十像素，组成在格子里会挤成竖排 —— 挪到表下方整宽列出 */}
+              {list.some((r) => r.name.trim()) && (
+                <div className="pr-med-dose-summary">
+                  <p className="pr-muted pr-med-dose-summary-title">本次用药的组成（原文照录 · 两套并列）</p>
+                  {list
+                    .filter((r) => r.name.trim())
+                    .map((r) => (
+                      <div key={r.id} className="pr-med-dose-sum-row">
+                        <span className="pr-med-dose-sum-name">{r.name}</span>
+                        <DoseLines name={r.name} />
+                      </div>
+                    ))}
+                </div>
+              )}
+              </>
             )}
           </div>
         )

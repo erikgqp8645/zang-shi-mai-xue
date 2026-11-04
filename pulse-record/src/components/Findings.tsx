@@ -612,29 +612,29 @@ export function Findings({
             )}
           </section>
 
-          {dim === 'route' && (
-            <section className="pr-formula-group">
-              <h3 className="pr-formula-route">方剂备查（同和堂版《臧氏脉学方剂汇总统表》）</h3>
-              <p className="pr-target-line">
-                纸质讲义第 1~4 页原样转录：成方（药味＋**克**）与第 4 页「科中」科学中药比例。
-                单位是克，与讲稿 2010 的比例制不同 —— 两套**不可互相换算**，也不合并。
-              </p>
-              {[1, 2, 3].map((page) => (
-                <div key={page} className="pr-drug-group">
-                  <h4 className="pr-drug-group-title">第 {page} 页</h4>
-                  {FORMULA_DOSES.filter((d) => d.page === page).map((d) => (
-                    <DoseCard key={d.id} dose={d} />
-                  ))}
-                </div>
-              ))}
-              <div className="pr-drug-group">
-                <h4 className="pr-drug-group-title">第 4 页 · 科中（科学中药）</h4>
-                {FORMULA_SCIENCES.map((s) => (
-                  <ScienceLine key={s.id} s={s} />
+          {/* 同和堂版成方：三个维度都显示（它没有五行／左右手归属，不参与分组筛选） */}
+          <section className="pr-formula-group">
+            <h3 className="pr-formula-route">方剂备查（同和堂版《臧氏脉学方剂汇总统表》）</h3>
+            <p className="pr-target-line">
+              纸质讲义第 1~4 页原样转录：成方（药味＋**克**）与第 4 页「科中」科学中药比例。
+              单位是克，与讲稿 2010 的比例制不同 —— 两套**不可互相换算**，也不合并。
+              {dim !== 'route' && '　本组条目无五行／左右手归属，不参与上面的分组筛选。'}
+            </p>
+            {[1, 2, 3].map((page) => (
+              <div key={page} className="pr-drug-group">
+                <h4 className="pr-drug-group-title">第 {page} 页</h4>
+                {FORMULA_DOSES.filter((d) => d.page === page).map((d) => (
+                  <DoseCard key={d.id} dose={d} />
                 ))}
               </div>
-            </section>
-          )}
+            ))}
+            <div className="pr-drug-group">
+              <h4 className="pr-drug-group-title">第 4 页 · 科中（科学中药）</h4>
+              {FORMULA_SCIENCES.map((s) => (
+                <ScienceLine key={s.id} s={s} />
+              ))}
+            </div>
+          </section>
         </>
       )}
     </section>
