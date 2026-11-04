@@ -45,6 +45,17 @@ function walk(dir, out = [], filter = () => true) {
   return out
 }
 
+/**
+ * 路径转成 POSIX 写法（统一用 `/`）。
+ *
+ * join() 在 Windows 上拼的是 `\`，直接拿路径去判断「在不在 /core/ 目录里」
+ * 会失效 —— 本脚本早先按 macOS 写的，换到 Windows 上跑时
+ * 「排除共享包」那条规则会失效，把 core/ 里的编译产物当成小程序页面代码来查。
+ */
+function toPosix(p) {
+  return p.replace(/\\/g, '/')
+}
+
 const pages = walk(join(MP, 'pages'), [], (p) => p.endsWith('.js'))
 
 console.log('\n小程序端静态检查\n')
@@ -57,7 +68,7 @@ ok(`app.json 登记的 ${appJson.pages.length} 个页面都在`, missing.length 
 /* ---- 2. 每个页面：WXML 不调函数、事件有方法、require 路径存在 ---- */
 for (const jsPath of pages) {
   const dir = dirname(jsPath)
-  const name = jsPath.replace(MP + '/', '')
+  const name = toPosix(jsPath).replace(toPosix(MP) + '/', '')
   const wxmlPath = jsPath.replace(/\.js$/, '.wxml')
   const js = readFileSync(jsPath, 'utf8')
 
@@ -122,17 +133,17 @@ for (const f of coreFiles) {
   const re = /require\(['"](\.\.?\/[^'"]+)['"]\)/g
   let m2
   while ((m2 = re.exec(src)) !== null) {
-    if (!/\.[a-z0-9]+$/i.test(m2[1])) noExt.push(f.replace(MP + '/', '') + ' → ' + m2[1])
+    if (!/\.[a-z0-9]+$/i.test(m2[1])) noExt.push(toPosix(f).replace(toPosix(MP) + '/', '') + ' → ' + m2[1])
   }
 }
 ok('共享包的相对 require 都带 .js 后缀', noExt.length === 0, noExt.slice(0, 3).join(' | '))
 
 /* ---- 5. 页面不得出现 ES2019+ 的运行时内建（老机型 JSCore 会白屏） ---- */
 const modern = []
-for (const f of walk(MP, [], (p) => p.endsWith('.js') && !p.includes('/core/'))) {
+for (const f of walk(MP, [], (p) => p.endsWith('.js') && !toPosix(p).includes('/core/'))) {
   const src = readFileSync(f, 'utf8')
   if (/Object\.fromEntries\(|\.flatMap\(|\.flat\(|\.replaceAll\(|Object\.hasOwn\(/.test(src)) {
-    modern.push(f.replace(MP + '/', ''))
+    modern.push(toPosix(f).replace(toPosix(MP) + '/', ''))
   }
 }
 ok('页面代码没有用 ES2019+ 的运行时内建', modern.length === 0, modern.join(', '))

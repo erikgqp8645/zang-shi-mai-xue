@@ -16,12 +16,48 @@ import { join } from 'node:path'
 export const ROOT = join(import.meta.dirname, '..', '..')
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-/** Chrome 可执行文件（macOS 默认路径，可用 CHROME_PATH 覆盖） */
+/**
+ * npm 可执行文件的名字。
+ *
+ * Windows 上 npm 是 `npm.cmd`（批处理包装），直接 spawn('npm') 会 ENOENT。
+ */
+export const NPM = process.platform === 'win32' ? 'npm.cmd' : 'npm'
+
+/**
+ * 跑一条 npm 脚本。
+ *
+ * Windows 上还要再绕一层：Node ≥ 18.20 / 20.12 起，
+ * 不带 shell 直接 spawn `.cmd` 会报 EINVAL（安全修复）→ 统一走 cmd.exe /c。
+ */
+export function runNpm(script, args = []) {
+  const argv = ['run', script, ...args]
+  if (process.platform === 'win32') {
+    return spawnSync(process.env.ComSpec ?? 'cmd.exe', ['/d', '/c', 'npm', ...argv], {
+      cwd: ROOT,
+      encoding: 'utf8',
+    })
+  }
+  return spawnSync('npm', argv, { cwd: ROOT, encoding: 'utf8' })
+}
+
+/** Chrome 可执行文件（各平台默认路径，可用 CHROME_PATH 覆盖） */
 export function chromePath() {
   const candidates = [
     process.env.CHROME_PATH,
+    // Windows
+    process.env.PROGRAMFILES
+      ? join(process.env.PROGRAMFILES, 'Google', 'Chrome', 'Application', 'chrome.exe')
+      : null,
+    process.env['PROGRAMFILES(X86)']
+      ? join(process.env['PROGRAMFILES(X86)'], 'Google', 'Chrome', 'Application', 'chrome.exe')
+      : null,
+    process.env.LOCALAPPDATA
+      ? join(process.env.LOCALAPPDATA, 'Google', 'Chrome', 'Application', 'chrome.exe')
+      : null,
+    // macOS
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    // Linux
     '/usr/bin/google-chrome',
     '/usr/bin/chromium',
     '/usr/bin/chromium-browser',
@@ -87,9 +123,11 @@ export async function startApi({ single = true, db, port } = {}) {
 export function buildApp({ force = false } = {}) {
   const dist = join(ROOT, 'dist', 'index.html')
   if (!force && existsSync(dist)) return { skipped: true }
-  const r = spawnSync('npm', ['run', 'build'], { cwd: ROOT, encoding: 'utf8' })
+  const r = runNpm('build')
   if (r.status !== 0) {
-    throw new Error(`前端构建失败：\n${r.stdout ?? ''}\n${r.stderr ?? ''}`)
+    throw new Error(
+      `前端构建失败：\n${r.stdout ?? ''}\n${r.stderr ?? ''}\n${r.error?.message ?? ''}`,
+    )
   }
   return { skipped: false }
 }

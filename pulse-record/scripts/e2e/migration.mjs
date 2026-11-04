@@ -19,7 +19,7 @@ import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { join, resolve, dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 
@@ -180,7 +180,9 @@ function makeDroppedOldDb(path) {
 async function openMigrated(path) {
   process.env.PULSE_DB = path
   // 动态导入，确保读到的是此刻的 db.mjs
-  const mod = await import(join(ROOT, 'server/db.mjs') + `?t=${Date.now()}`)
+  // ⚠️ 必须用 file:// URL：绝对路径在 Windows 上是 `D:\...`，
+  // 直接 import() 会报 ERR_UNSUPPORTED_ESM_URL_SCHEME（协议 'd:'）。
+  const mod = await import(pathToFileURL(join(ROOT, 'server/db.mjs')).href + `?t=${Date.now()}`)
   const db = mod.openDb()
   return { db, mod }
 }
@@ -368,7 +370,7 @@ console.log('\n【9】迁移时有第二个连接开着 → 之后的写入仍�
     makeOldDb(p)
     // A：打开库（触发迁移），连接保持不关 —— 扮演服务端
     process.env.PULSE_DB = p
-    const mod = await import(join(ROOT, 'server/db.mjs') + `?t=${Date.now()}`)
+    const mod = await import(pathToFileURL(join(ROOT, 'server/db.mjs')).href + `?t=${Date.now()}`)
     const dbA = mod.openDb()
 
     // B：**另一个进程**连一下就退 —— 扮演 admin 脚本。
