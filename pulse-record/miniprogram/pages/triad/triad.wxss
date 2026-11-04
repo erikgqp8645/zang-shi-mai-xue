@@ -1,0 +1,108 @@
+.pr-triad-head {
+  display: flex;
+  gap: 16rpx;
+  margin-bottom: 16rpx;
+}
+
+.pr-triad-step {
+  flex: 1;
+  background: #ffffff;
+  border: 1rpx solid #e6e2d6;
+  border-radius: 12rpx;
+  padding: 16rpx 12rpx;
+}
+
+.pr-triad-no {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #b48464;
+}
+
+.pr-triad-step-title {
+  font-size: 26rpx;
+  font-weight: 600;
+}
+
+.pr-triad-step-note {
+  font-size: 21rpx;
+  color: #7c8974;
+  line-height: 1.5;
+}
+
+.pr-triad-patients,
+.pr-triad-visits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin: 12rpx 0;
+}
+
+.pr-triad-opt {
+  border: 1rpx solid #e6e2d6;
+  border-radius: 12rpx;
+  padding: 16rpx;
+  margin-top: 12rpx;
+  background: #ffffff;
+}
+
+.pr-triad-opt.is-on {
+  border-color: #2c2925;
+  background: #f6f1e6;
+}
+
+.pr-triad-opt-name {
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.pr-triad-clear {
+  margin-top: 16rpx;
+  color: #b03a2e;
+  font-size: 24rpx;
+  text-decoration: underline;
+}
+
+.pr-triad-rx {
+  border-top: 1rpx solid #e6e2d6;
+  padding-top: 14rpx;
+  margin-top: 14rpx;
+}
+
+.pr-triad-rx-name {
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.pr-dose-label {
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  color: #7c8974;
+}
+
+.pr-dose-line {
+  font-size: 25rpx;
+  color: #2c2925;
+  line-height: 1.7;
+}
+
+.pr-dose-src {
+  color: #a39a8c;
+  font-size: 22rpx;
+}
+
+.pr-case-ops {
+  display: flex;
+  align-items: center;
+  gap: 28rpx;
+  margin-top: 16rpx;
+}
+
+.pr-link {
+  color: #7c8974;
+  font-size: 24rpx;
+  text-decoration: underline;
+}
+
+.pr-err {
+  color: #b03a2e;
+}

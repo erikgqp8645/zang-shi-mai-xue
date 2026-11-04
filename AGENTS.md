@@ -391,11 +391,15 @@ EOF
 | 存盘 | `pulse-record/local-data/history.sqlite`（**运行产物**，已在 `.gitignore` 中，不进版本库） |
 | 依赖 | Node 22+ 内置 `node:sqlite`，无原生模块、无第三方依赖 |
 | 建表 | `pulse-record/server/schema.sql`：`patients`（患者）＋ `visits`（就诊记录，删患者级联删记录）＋ `medication`（用药记录，见下节）＋ `custom_symbols`（自定义符号） |
+| 账号表 | 同文件另有 `users`（账号）＋ `identities`（登录身份）＋ `sessions`（会话），见「多用户与账号」一节 |
+| 归属 | 四张业务表都有 `owner_id`，**由会话决定，绝不接受请求体传入** |
 | 服务 | `pulse-record/server/index.mjs`（HTTP API ＋ 静态页面托管）；开发时 Vite 把 `/api` 代理到 `127.0.0.1:5178` |
-| 启动 | `npm run dev`（前端＋后端一起起）、`npm run start`（构建后单端口本地应用） |
+| 启动 | `npm run dev`（前端＋后端一起起，单机模式）、`npm run dev:multi`（多用户模式）、`npm run start`（构建后单端口本地应用） |
 | 前端 | `src/api/patients.ts`（API 客户端）、`src/components/HistoryPanel.tsx`（两级面板 ＋ 搜索框） |
+| 存储抽象 | `pulse-record/server/store.mjs` —— 路由层只认这一层的函数契约；换存储后端（迁 CloudBase PG）**只改这一处** |
 
 **不再使用浏览器 localStorage** —— 清缓存、换浏览器即丢数据，不满足「永久存储」。
+（登录令牌例外：它存在 `localStorage['pulse.token']`，只用于鉴权，不是病例数据。）
 
 写入语义（改前先确认，别混淆）：
 
@@ -675,6 +679,130 @@ EOF
 
 符号集与讲义 p33–34 一致；「7 脉点」体例下尺只剩「沉」，尺的标记块自动收窄。
 
+## 多用户与账号（pulse-record · 多用户模式）
+
+多用户模式（`PULSE_SINGLE_USER=0`）下，**任意两个账号的病例互不可见、互不可改**。
+单机模式（`PULSE_SINGLE_USER=1`，即 `npm run dev` 的默认）保留原来的「打开就能用」。
+
+### 账号模型
+
+**一个 `users` 行 ＝ 一个「人」**；登录方式挂在 `identities` 上。
+
+| 表 | 作用 |
+|---|---|
+| `users` | 账号本体：`id` / `login_name`（UNIQUE）/ `display_name` / `phone`（可空）/ `password_hash` / `password_salt` / `role`（`user`\|`admin`） |
+| `identities` | 登录身份：`provider`（`password`\|`wechat`\|`local`）＋ `external_id`（登录名／openid／`local`），`UNIQUE(provider, external_id)` |
+| `sessions` | 会话：`token`（主键，不透明随机串）＋ `user_id` ＋ `expires_at`（30 天，滑动续期）＋ `last_seen_at` |
+
+- 网站与小程序**共用同一个 `users` 行** —— 小程序用「网站账号＋密码」把微信 openid 绑上去，
+  绑定后两端立刻看到同一份数据。**不是两套库做同步。**
+- `local` 是单机模式的兜底账号（`provider='local'`），**密码不可登录**，只承接老数据。
+
+### 鉴权与隔离的硬规矩
+
+1. 除公开接口外，所有 `/api/*` 必须带 `Authorization: Bearer <token>`，未登录一律 **401**，
+   **绝不降级成「公共只读」**。
+2. **跨用户访问一律 404，不用 403** —— 403 会泄露「这东西存在」。
+3. `owner_id` **只来自会话**，绝不接受请求体传入；db 层每个函数的 `ownerId` 是**必填参数**，
+   漏加过滤在调用点就暴露。
+4. 密码用 `crypto.scrypt`（N=16384/r=8/p=1）＋ `timingSafeEqual`；**不引第三方依赖**。
+5. 令牌用 **header 不用 cookie** —— 天然免疫 CSRF。
+6. 改密码 → 清空本人全部会话；登出 → 删该会话。
+
+### 老库迁移（幂等）
+
+`server/db.mjs` 的 `migrate()` 每次 `openDb()` 都跑，顺序：补 `owner_id` 列 → 重建
+`custom_symbols`（主键改成 `(owner_id, code)`）→ 建 `local` 账号 → 回填 → 建 owner 索引 →
+**三条不变量自检**（任一不为 0 就在启动时报错，不静默放行）。迁移前在同目录留
+`history.sqlite.bak-<ts>` 备份。
+
+### 维护命令
+
+```bash
+npm run admin -- list                 # 列账号
+npm run admin -- create <登录名>      # 建号
+npm run admin -- reset <登录名>       # 重置密码
+npm run admin -- role <登录名> admin  # 改角色
+npm run admin -- wechat <登录名>      # 查微信绑定
+```
+
+---
+
+## 部署与运维（pulse-record）
+
+网站端上线的完整手册在 **`pulse-record/docs/deploy.md`**；这里只记几条最容易违反的。
+
+| 项 | 约定 |
+|---|---|
+| 关键路径 | **ICP 备案**（7~20 工作日）是最长的一段，**Day 0 就启动**。域名实名主体必须与小程序主体一致 |
+| 服务器 | 境内轻量应用服务器（个人主体备案要求境内服务器） |
+| 反向代理 | Caddy（自动 HTTPS）。**对外只暴露 443** —— 微信 request 合法域名不接受端口 |
+| 同源 | 网站与 API 同一进程托管 → **不需要 CORS**（`PULSE_CORS_ORIGINS` 留空） |
+| 进程 | systemd，`Restart=always`，环境变量在 `/etc/pulse-record.env`（`chmod 600`，**密钥绝不入库**） |
+| 数据目录 | `/var/lib/pulse-record/history.sqlite`，属主限定服务账号 |
+| 并发 | SQLite 已开 WAL ＋ `busy_timeout=5000`；持续 `SQLITE_BUSY` 或用户过百才评估换 PG |
+| 备份 | 每日 03:00 `sqlite3 .backup`（**不是 cp** —— WAL 下直接复制可能拿到半截事务），保留 30 天 |
+| 恢复演练 | **每月一次**：`scripts/deploy/restore.sh` 把备份恢复到临时位置、验完整性、比行数，**不动生产库** |
+| 日志 | `journalctl -u pulse-record`；访问日志**只记方法/路径/状态/耗时/user id，不含请求体**（病例数据敏感） |
+| 部署脚本 | `scripts/deploy/`：`install.sh`（初始化）、`deploy.sh`（发布，失败自动回滚）、`backup.sh`、`restore.sh` |
+
+---
+
+## 微信小程序（pulse-record · miniprogram）
+
+小程序端与网站端**共用同一个后端、同一套账号、同一份数据**；知识库与绘制代码也共用同一份编译产物。
+
+### 工程结构
+
+```
+pulse-record/miniprogram/
+  project.config.json      # appid 写真实 AppID；AppSecret 绝不入库
+  project.private.config.json  # 本地配置（gitignore）
+  app.js  app.json  app.wxss
+  utils/
+    api.js        # 传输层：request({method,path,body})，底下可换 wx.request / wx.cloud.callFunction
+    auth.js       # wx.login / 绑定 / 注册 / 登出
+    data.js       # 病例 API（与网站端 src/api/patients.ts 一一对应）
+    config.js     # API_BASE / TRANSPORT
+    core/         # ← 由 src/domain + src/export 编译产物（CommonJS，gitignore）
+  pages/          # login cases record findings medication triad case-detail me
+  assets/         # hands-pulse.png / triad-p47.png（由 build:core 复制，gitignore）
+```
+
+### 共享包（两端同源的关键）
+
+```bash
+npm run build:core     # tsc -p tsconfig.core.json + 补 require 后缀 + 复制图片
+```
+
+- `src/domain/**`（约 4700 行）与 `src/export/text.ts` **零 DOM 依赖** → 整棵子树搬进小程序。
+- `src/export/png.ts` 拆成**纯绘制器**（`table-painter.ts` ＋ `diagram.ts` ＋ `canvas.ts` 的结构类型）
+  ＋ DOM 驱动（`png.ts`）。小程序用**同一份绘制代码**（canvas 2d），所以**小程序存到相册的图
+  与网站导出的图版式完全一致**。
+- `toRecord()`（`src/domain/to-record.ts`）替掉 `Object.fromEntries` —— 那是 ES2019 内建，
+  老机型 JSCore 没有会白屏。
+
+### 小程序侧硬约束（个人主体）
+
+| 能力 | 结论 |
+|---|---|
+| `wx.login` → `code2Session` | ✅ 可用（官方文档「适用范围：小程序」**不按主体类型限制**）；**必须服务端调用**，`session_key` 不落库不下发 |
+| `web-view` 嵌网页 | ❌ 个人主体不支持业务域名 → **必须原生开发** |
+| `getPhoneNumber` | ❌ 需非个人主体＋微信认证＋已认证商户号 → 账号绑定只走「网站账号＋密码」 |
+| request 合法域名 | 必须 **HTTPS ＋ 已 ICP 备案** ＋ 主体一致 ＋ **不带端口** ＋ 不能用 IP |
+| 迁 CloudBase 后 | 改用 `wx.cloud.callFunction` → **不走合法域名校验**，备案没下来也能先跑通 |
+
+### 录入口径
+
+- **录入用 WXML 网格**：部位列纵向合并一组三行、日期组横跨「左＋右」两列 —— 结构取自共享包
+  `domain/layout.ts` 的 `groupRows`，**不是目测**。
+- **导出用 canvas**：复用共享包的 `planTable` / `withDiagram` / `paintTable` / `drawDiagram`。
+- 小程序不能下载文件 → PNG 走 `wx.canvasToTempFilePath` ＋ `wx.saveImageToPhotosAlbum`；
+  Markdown/CSV 走 `wx.setClipboardData`。
+- 页面必须声明「**本工具只做记录，不构成诊断**」。
+
+---
+
 ## 产出与命名约定
 
 除 `pulse-record/`（见其 README）外，仓库尚无其他加工产物。任何新增产出遵循：
@@ -729,6 +857,12 @@ EOF
 - [ ] 是否改动了 `data/` 下的原始文件？（禁止）
 - [ ] **讲义版的方名**（六味地黄丸、补中益气汤、明目六味地黄……）在各处都能查到同和堂版的克数吗？查到的条目是否写明了**对照依据**（讲义第几行）？
 - [ ] 查组成时有没有把**单味药／组合方／添加药**当成方名去撞（「黄芪」撞「黄芪鳖甲」、「参苏」撞「双关+参苏」、「知柏」撞「知柏六味桂」）？
+- [ ] **越权访问**是否一律返回 **404**（而不是 403 —— 403 会泄露「这东西存在」）？无令牌／过期令牌是否一律 401？
+- [ ] `owner_id` **三条不变量**是否都为 0（visit 与 patient 同 owner；medication 与 visit 同 owner；没有空 owner）？`owner_id` 是否只来自会话、没被请求体覆盖？
+- [ ] **老库迁移**是否不丢数据（四张业务表行数不变、`owner_id` 全部归到 `local`）？迁移前是否留了备份？
+- [ ] 改过**存储层**（建表／迁移／备份）后，是否跑过 `npm run test:e2e:migration`？其它 e2e 都走新建空库的路径、**完全不经过迁移** —— 迁移写错了它们照样全绿（真出过：UPSERT 缺 `WHERE`，新建库不触发，只有第一次打开自己的老库时后端才起不来）。
+- [ ] 迁移／备份在**还有第二个连接开着这个库**时是否安全？WAL 的共享状态一旦被重置（如 `wal_checkpoint(TRUNCATE)`），另一个连接退出时会把 `-wal/-shm` 删掉，服务端还开着旧 fd，之后的写入全进孤儿 WAL、进程退出就丢（症状：刚注册好的账号在库里查不到）。备份要用 SQLite 的 `VACUUM INTO`（一致性快照），不要 `copyFileSync`。
+- [ ] 小程序与网站**查方结果是否逐字一致**（同一份 `dose-lookup` 编译产物）？两套剂量（克／比例制）在两端是否都分栏标注出处、没有被换算？
 
 ## Git 约定
 

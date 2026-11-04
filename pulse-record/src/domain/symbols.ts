@@ -11,6 +11,8 @@
  *   ① 无、弱、有、大、顶、弦   ② 忽大小、跳调停、忽快慢   ③ 细、数、迟、左右脉不平衡
  */
 
+import { toRecord } from './to-record'
+
 export type SymbolGroup = '主要脉象' | '变脉' | '其他'
 
 export interface SymbolDef {
@@ -38,8 +40,8 @@ export const SYMBOLS: SymbolDef[] = [
   { code: 'X', label: '细', group: '其他' },
 ]
 
-export const SYMBOL_BY_CODE: Record<string, SymbolDef> = Object.fromEntries(
-  SYMBOLS.map((s) => [s.code, s]),
+export const SYMBOL_BY_CODE: Record<string, SymbolDef> = toRecord(
+  SYMBOLS.map((s) => [s.code, s] as [string, SymbolDef]),
 )
 
 /** 常用脉象三组 —— 与 p48–50 记录表表头一致 */

@@ -1,0 +1,34 @@
+{
+  "pages": [
+    "pages/cases/cases",
+    "pages/findings/findings",
+    "pages/triad/triad",
+    "pages/me/me",
+    "pages/record/record",
+    "pages/medication/medication",
+    "pages/case-detail/case-detail",
+    "pages/login/login"
+  ],
+  "window": {
+    "backgroundTextStyle": "dark",
+    "navigationBarBackgroundColor": "#fdfbf7",
+    "navigationBarTitleText": "臧氏脉学 · 脉象记录表",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#fdfbf7"
+  },
+  "tabBar": {
+    "color": "#7c8974",
+    "selectedColor": "#2c2925",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      { "pagePath": "pages/cases/cases", "text": "病例" },
+      { "pagePath": "pages/findings/findings", "text": "依脉用方" },
+      { "pagePath": "pages/triad/triad", "text": "三部曲" },
+      { "pagePath": "pages/me/me", "text": "我的" }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

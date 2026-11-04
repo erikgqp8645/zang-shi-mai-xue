@@ -1,0 +1,59 @@
+# 臧氏脉学 · 脉象记录服务 —— systemd unit
+#
+# 安装：install -m 644 pulse-record.service /etc/systemd/system/
+# 生效：systemctl daemon-reload && systemctl enable --now pulse-record
+
+[Unit]
+Description=臧氏脉学 · 脉象记录表生成器
+Documentation=https://github.com/erikgqp8645/zang-shi-mai-xue
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pulse
+Group=pulse
+WorkingDirectory=/opt/pulse-record
+
+# 环境变量（含 WX_APPID / WX_APPSECRET / PULSE_DB）—— 只在这台机器上，绝不进仓库
+EnvironmentFile=/etc/pulse-record.env
+
+ExecStart=/usr/bin/node server/index.mjs
+Restart=always
+RestartSec=3
+
+# 崩溃回环：5 分钟内重启超过 5 次就停下来等人来看
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# ---- 安全加固 ----
+# 病例数据敏感：只读代码目录，数据目录另放
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+# 只有数据目录与备份目录可写
+ReadWritePaths=/var/lib/pulse-record
+
+# 资源限制：这是个小服务，别让它吃满机器
+MemoryMax=512M
+TasksMax=64
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pulse-record
+
+[Install]
+WantedBy=multi-user.target

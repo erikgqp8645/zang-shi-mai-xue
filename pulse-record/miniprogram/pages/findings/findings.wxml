@@ -1,0 +1,486 @@
+<!-- 依脉用方（小程序端）—— 对应网站的 Findings 面板
+     WXML 不能调用 JS 函数：所有内容都在 findings.js 里预先算好 -->
+
+<view class="pr-page">
+  <view class="pr-note pr-err" wx:if="{{error}}">{{error}}</view>
+
+  <!-- ========== 上下文：患者 ＋ 记录（日期） ========== -->
+  <view class="pr-card">
+    <view class="pr-card-title">选择记录</view>
+    <view class="pr-note" wx:if="{{!patients.length}}">
+      还没有病例。先到「病例」页新建一位患者并录入脉象，这里才能判读。
+    </view>
+    <view class="pr-chips" wx:if="{{patients.length}}">
+      <view
+        class="pr-chip {{patientId === item.id ? 'pr-chip-on' : ''}}"
+        wx:for="{{patients}}"
+        wx:key="id"
+        bindtap="selectPatient"
+        data-id="{{item.id}}"
+      >
+        {{item.name}}（{{item.visitCount}} 次）
+      </view>
+    </view>
+
+    <view class="pr-divider" wx:if="{{visits.length}}"></view>
+    <view class="pr-label" wx:if="{{visits.length}}">记录（日期）</view>
+    <view class="pr-chips" wx:if="{{visits.length}}">
+      <view
+        class="pr-chip {{visitId === item.id ? 'pr-chip-on' : ''}}"
+        wx:for="{{visits}}"
+        wx:key="id"
+        bindtap="selectVisit"
+        data-id="{{item.id}}"
+      >
+        {{item.label}}
+      </view>
+    </view>
+
+    <view class="pr-note" wx:if="{{!ready}}">{{hint}}</view>
+    <view class="pr-note" wx:if="{{ready}}">当前判读：{{patientName}} · {{visitLabel}}</view>
+  </view>
+
+  <!-- ========== 判读提示 ========== -->
+  <view class="pr-card" wx:if="{{ready}}">
+    <view class="pr-card-title">判读提示</view>
+    <view class="pr-note">
+      规则全部来自讲稿原文，录入后自动比对；这里只标出讲稿明确点名的脉象组合，不下诊断。
+    </view>
+    <view class="pr-empty" wx:if="{{!ruleTotal}}">暂无命中的脉象组合。</view>
+    <view class="pr-rule-group" wx:for="{{ruleGroups}}" wx:for-item="group" wx:key="key">
+      <view class="pr-rule-group-title">{{group.label}}（{{group.items.length}}）</view>
+      <view class="pr-item pr-item-{{item.severity}}" wx:for="{{group.items}}" wx:for-item="item" wx:key="id">
+        <view class="pr-item-title">
+          <text class="pr-badge is-{{item.severity}}">{{item.severityLabel}}</text>
+          {{item.title}}
+        </view>
+        <view class="pr-item-body">{{item.detail}}</view>
+        <view class="pr-cells" wx:if="{{item.cells.length}}">
+          <text class="pr-cell" wx:for="{{item.cells}}" wx:for-item="c" wx:key="*this">{{c}}</text>
+        </view>
+        <view class="pr-item-src">{{item.srcLine}}</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- ========== 依脉用方（讲稿原序） ========== -->
+  <view class="pr-card" wx:if="{{ready}}">
+    <view class="pr-card-title">依脉用方 · 讲稿原序</view>
+    <view class="pr-note">
+      讲义 p44「依脉用方」＋ p46 附表一「治疗」列，讲稿第二讲「叁、用方」「肆、依脉辨证论治」与第三~六讲方剂为补充 · 只照抄原文写明的方，不加减方。
+    </view>
+    <view class="pr-empty" wx:if="{{!formulaTotal}}">
+      暂无命中的用方条目。录入脉象后，按讲义 p44 的六个方框与讲稿第四讲「清挡路一~四」自动比对。
+    </view>
+    <view class="pr-formula-group" wx:for="{{formulaGroups}}" wx:for-item="group" wx:key="route">
+      <view class="pr-formula-route">{{group.route}}</view>
+      <view class="pr-formula" wx:for="{{group.items}}" wx:for-item="item" wx:key="id">
+        <view class="pr-formula-head">
+          <text class="pr-formula-kind">{{item.kind}}</text>
+          <text class="pr-formula-cond">{{item.condition}}</text>
+        </view>
+        <view class="pr-formula-therapy">{{item.therapy}}</view>
+        <view class="pr-formula-names" wx:if="{{item.formulas.length}}">
+          <text class="pr-formula-chip" wx:for="{{item.formulas}}" wx:for-item="f" wx:key="*this">{{f}}</text>
+        </view>
+        <view class="pr-formula-adds" wx:if="{{item.adds.length}}">
+          加减药（非方名，不查成方）：{{item.addsText}}
+        </view>
+        <view class="pr-formula-quote">{{item.quote}}</view>
+
+        <!-- 归类：also（兼涉）与 basis（归类依据） -->
+        <view class="pr-attr" wx:if="{{item.attr}}">
+          <text class="pr-attr-main">{{item.attr.main}}</text>
+          <text class="pr-attr-also" wx:if="{{item.attr.also}}">{{item.attr.also}}</text>
+          <text class="pr-attr-site">{{item.attr.site}}</text>
+        </view>
+        <view class="pr-attr-basis" wx:if="{{item.attr}}">归类依据：{{item.attr.basis}}</view>
+
+        <!-- 组成与剂量：两套资料并列，各带出处与单位，不可互相换算 -->
+        <view class="pr-dose" wx:for="{{item.doseLines}}" wx:for-item="dl" wx:key="name">
+          <view class="pr-dose-name">{{dl.name}}</view>
+          <view class="pr-dose-block" wx:if="{{dl.th.missing}}">
+            <text class="pr-dose-tag">同和堂版（克）</text>
+            <text class="pr-dose-none">未载</text>
+          </view>
+          <view class="pr-dose-block" wx:else>
+            <text class="pr-dose-tag">同和堂版（克）{{dl.th.note}}</text>
+            <view class="pr-dose-entry" wx:for="{{dl.th.entries}}" wx:for-item="e" wx:key="name">
+              <text wx:if="{{dl.th.showName}}">{{e.name}}：</text>{{e.composition}}
+              <text class="pr-dose-sci" wx:if="{{e.science}}">　科中：{{e.science}}</text>
+              <text class="pr-dose-src">〔{{e.source}}〕</text>
+              <text class="pr-dose-ref" wx:if="{{e.basis}}">　对照：{{e.basis}}</text>
+            </view>
+          </view>
+          <view class="pr-dose-block" wx:if="{{dl.draft.missing}}">
+            <text class="pr-dose-tag">讲稿 2010（比例制）</text>
+            <text class="pr-dose-none">未载</text>
+          </view>
+          <view class="pr-dose-block" wx:else>
+            <text class="pr-dose-tag">讲稿 2010（比例制）{{dl.draft.note}}</text>
+            <view class="pr-dose-entry" wx:for="{{dl.draft.entries}}" wx:for-item="e" wx:key="name">
+              <text wx:if="{{dl.draft.showName}}">{{e.name}}：</text>{{e.composition}}
+              <text class="pr-dose-sci" wx:if="{{e.science}}">　科学中药：{{e.science}}</text>
+              <text class="pr-dose-usage" wx:if="{{e.usage}}">　服法：{{e.usage}}</text>
+              <text class="pr-dose-src">〔{{e.source}}〕</text>
+              <text class="pr-dose-ref" wx:if="{{e.basis}}">　对照：{{e.basis}}</text>
+            </view>
+          </view>
+        </view>
+
+        <!-- 讲稿 2010 的方剂卡片（原文照录） -->
+        <view class="pr-drug" wx:for="{{item.drugCards}}" wx:for-item="d" wx:key="id">
+          <view class="pr-drug-head">
+            <text class="pr-drug-therapy">{{d.therapy}}</text>
+            <text class="pr-drug-name">{{d.name}}</text>
+          </view>
+          <view class="pr-drug-line" wx:if="{{d.composition}}"><text class="pr-drug-key">组成</text>{{d.composition}}</view>
+          <view class="pr-drug-line" wx:if="{{d.usage}}"><text class="pr-drug-key">服法</text>{{d.usage}}</view>
+          <view class="pr-drug-line" wx:if="{{d.science}}"><text class="pr-drug-key">科学中药</text>{{d.science}}</view>
+          <view class="pr-drug-line" wx:if="{{d.indication}}"><text class="pr-drug-key">适用脉象</text>{{d.indication}}</view>
+          <view class="pr-drug-line" wx:if="{{d.adjustments.length}}">
+            <text class="pr-drug-key">加减</text>
+            <text class="pr-drug-add" wx:for="{{d.adjustments}}" wx:for-item="a" wx:key="*this">· {{a}}</text>
+          </view>
+          <view class="pr-drug-line is-warn" wx:if="{{d.contraindication}}"><text class="pr-drug-key">禁忌</text>{{d.contraindication}}</view>
+          <view class="pr-item-src">〔{{d.source}}〕</view>
+        </view>
+
+        <view class="pr-item-src">{{item.srcLine}}</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- ========== 分组筛选：两排开关（按五行 ／ 按左右手） ========== -->
+  <view class="pr-card">
+    <view class="pr-card-title">分组维度与筛选</view>
+    <view class="pr-chips">
+      <view
+        class="pr-chip {{dim === item.key ? 'pr-chip-on' : ''}}"
+        wx:for="{{dimOptions}}"
+        wx:key="key"
+        bindtap="setDim"
+        data-key="{{item.key}}"
+      >
+        {{item.label}}
+      </view>
+    </view>
+    <view class="pr-note">{{dimHint}}</view>
+
+    <view class="pr-filter-row">
+      <view class="pr-filter-head">
+        <text class="pr-filter-label">按五行</text>
+        <text class="pr-filter-act" bindtap="selectAll" data-dim="wuxing">全选</text>
+        <text class="pr-filter-act" bindtap="clearAll" data-dim="wuxing">清空</text>
+      </view>
+      <view class="pr-chips">
+        <view
+          class="pr-chip pr-chip-filter {{item.on ? 'pr-chip-on' : ''}}"
+          wx:for="{{wuxingChips}}"
+          wx:key="key"
+          bindtap="toggleGroup"
+          data-dim="wuxing"
+          data-key="{{item.key}}"
+        >
+          <text class="pr-chip-name">{{item.label}}</text>
+          <text class="pr-chip-num">{{item.rules}}条 · {{item.drugs}}方</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="pr-filter-row">
+      <view class="pr-filter-head">
+        <text class="pr-filter-label">按左右手</text>
+        <text class="pr-filter-act" bindtap="selectAll" data-dim="hand">全选</text>
+        <text class="pr-filter-act" bindtap="clearAll" data-dim="hand">清空</text>
+      </view>
+      <view class="pr-chips">
+        <view
+          class="pr-chip pr-chip-filter {{item.on ? 'pr-chip-on' : ''}}"
+          wx:for="{{handChips}}"
+          wx:key="key"
+          bindtap="toggleGroup"
+          data-dim="hand"
+          data-key="{{item.key}}"
+        >
+          <text class="pr-chip-name">{{item.label}}</text>
+          <text class="pr-chip-num">{{item.rules}}条 · {{item.drugs}}方</text>
+        </view>
+      </view>
+    </view>
+    <view class="pr-note">两排开关各自记住状态；切换上面的「分组维度」即按该维度筛选「依脉开方」与「方剂备查」。</view>
+  </view>
+
+  <!-- ========== 依脉用方（按五行 ／ 按左右手） ========== -->
+  <view class="pr-card" wx:if="{{dim !== 'route'}}">
+    <view class="pr-card-title">依脉开方 · {{dim === 'wuxing' ? '按五行' : '按左右手'}}</view>
+    <view class="pr-empty" wx:if="{{!dimFormulaGroups.length}}">
+      当前筛选下没有分组，请在上面的「分组筛选」里至少打开一组。
+    </view>
+    <view class="pr-formula-group" wx:for="{{dimFormulaGroups}}" wx:for-item="group" wx:key="key">
+      <view class="pr-formula-route">{{group.label}}</view>
+      <view class="pr-note">{{group.note}}</view>
+      <view class="pr-formula" wx:for="{{group.items}}" wx:for-item="item" wx:key="id">
+        <view class="pr-formula-head">
+          <text class="pr-formula-kind">{{item.kind}}</text>
+          <text class="pr-formula-cond">{{item.condition}}</text>
+        </view>
+        <view class="pr-formula-therapy">{{item.therapy}}</view>
+        <view class="pr-formula-names" wx:if="{{item.formulas.length}}">
+          <text class="pr-formula-chip" wx:for="{{item.formulas}}" wx:for-item="f" wx:key="*this">{{f}}</text>
+        </view>
+        <view class="pr-formula-adds" wx:if="{{item.adds.length}}">
+          加减药（非方名，不查成方）：{{item.addsText}}
+        </view>
+        <view class="pr-formula-quote">{{item.quote}}</view>
+
+        <view class="pr-attr" wx:if="{{item.attr}}">
+          <text class="pr-attr-main">{{item.attr.main}}</text>
+          <text class="pr-attr-also" wx:if="{{item.attr.also}}">{{item.attr.also}}</text>
+          <text class="pr-attr-site">{{item.attr.site}}</text>
+        </view>
+        <view class="pr-attr-basis" wx:if="{{item.attr}}">归类依据：{{item.attr.basis}}</view>
+
+        <view class="pr-dose" wx:for="{{item.doseLines}}" wx:for-item="dl" wx:key="name">
+          <view class="pr-dose-name">{{dl.name}}</view>
+          <view class="pr-dose-block" wx:if="{{dl.th.missing}}">
+            <text class="pr-dose-tag">同和堂版（克）</text>
+            <text class="pr-dose-none">未载</text>
+          </view>
+          <view class="pr-dose-block" wx:else>
+            <text class="pr-dose-tag">同和堂版（克）{{dl.th.note}}</text>
+            <view class="pr-dose-entry" wx:for="{{dl.th.entries}}" wx:for-item="e" wx:key="name">
+              <text wx:if="{{dl.th.showName}}">{{e.name}}：</text>{{e.composition}}
+              <text class="pr-dose-sci" wx:if="{{e.science}}">　科中：{{e.science}}</text>
+              <text class="pr-dose-src">〔{{e.source}}〕</text>
+              <text class="pr-dose-ref" wx:if="{{e.basis}}">　对照：{{e.basis}}</text>
+            </view>
+          </view>
+          <view class="pr-dose-block" wx:if="{{dl.draft.missing}}">
+            <text class="pr-dose-tag">讲稿 2010（比例制）</text>
+            <text class="pr-dose-none">未载</text>
+          </view>
+          <view class="pr-dose-block" wx:else>
+            <text class="pr-dose-tag">讲稿 2010（比例制）{{dl.draft.note}}</text>
+            <view class="pr-dose-entry" wx:for="{{dl.draft.entries}}" wx:for-item="e" wx:key="name">
+              <text wx:if="{{dl.draft.showName}}">{{e.name}}：</text>{{e.composition}}
+              <text class="pr-dose-sci" wx:if="{{e.science}}">　科学中药：{{e.science}}</text>
+              <text class="pr-dose-usage" wx:if="{{e.usage}}">　服法：{{e.usage}}</text>
+              <text class="pr-dose-src">〔{{e.source}}〕</text>
+              <text class="pr-dose-ref" wx:if="{{e.basis}}">　对照：{{e.basis}}</text>
+            </view>
+          </view>
+        </view>
+
+        <view class="pr-drug" wx:for="{{item.drugCards}}" wx:for-item="d" wx:key="id">
+          <view class="pr-drug-head">
+            <text class="pr-drug-therapy">{{d.therapy}}</text>
+            <text class="pr-drug-name">{{d.name}}</text>
+          </view>
+          <view class="pr-drug-line" wx:if="{{d.composition}}"><text class="pr-drug-key">组成</text>{{d.composition}}</view>
+          <view class="pr-drug-line" wx:if="{{d.usage}}"><text class="pr-drug-key">服法</text>{{d.usage}}</view>
+          <view class="pr-drug-line" wx:if="{{d.science}}"><text class="pr-drug-key">科学中药</text>{{d.science}}</view>
+          <view class="pr-drug-line" wx:if="{{d.indication}}"><text class="pr-drug-key">适用脉象</text>{{d.indication}}</view>
+          <view class="pr-drug-line" wx:if="{{d.adjustments.length}}">
+            <text class="pr-drug-key">加减</text>
+            <text class="pr-drug-add" wx:for="{{d.adjustments}}" wx:for-item="a" wx:key="*this">· {{a}}</text>
+          </view>
+          <view class="pr-drug-line is-warn" wx:if="{{d.contraindication}}"><text class="pr-drug-key">禁忌</text>{{d.contraindication}}</view>
+          <view class="pr-item-src">〔{{d.source}}〕</view>
+        </view>
+
+        <view class="pr-item-src">{{item.srcLine}}</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- ========== 方剂备查（讲稿 2010·叁、用方） ========== -->
+  <view class="pr-card">
+    <view class="pr-card-title">
+      方剂备查（讲稿 2010·叁、用方）{{dimSuffix}}
+    </view>
+    <view class="pr-note" wx:if="{{dim === 'route'}}">
+      三种疗法与讲稿写明的方剂组成、服法、加减与禁忌，原样转录，不替读者加减方。
+    </view>
+    <view class="pr-note" wx:else>
+      同一方剂按脏腑／左右手归位；组成、服法、加减与禁忌仍照讲稿原样转录。
+    </view>
+
+    <!-- 讲稿原序：按三种疗法 -->
+    <view class="pr-drug-group" wx:if="{{dim === 'route'}}" wx:for="{{draftDrugGroups}}" wx:for-item="group" wx:key="title">
+      <view class="pr-drug-group-title">{{group.title}}</view>
+      <view class="pr-drug" wx:for="{{group.items}}" wx:for-item="d" wx:key="id">
+        <view class="pr-drug-head">
+          <text class="pr-drug-therapy">{{d.therapy}}</text>
+          <text class="pr-drug-name">{{d.name}}</text>
+        </view>
+        <view class="pr-drug-line" wx:if="{{d.composition}}"><text class="pr-drug-key">组成</text>{{d.composition}}</view>
+        <view class="pr-drug-line" wx:if="{{d.usage}}"><text class="pr-drug-key">服法</text>{{d.usage}}</view>
+        <view class="pr-drug-line" wx:if="{{d.science}}"><text class="pr-drug-key">科学中药</text>{{d.science}}</view>
+        <view class="pr-drug-line" wx:if="{{d.indication}}"><text class="pr-drug-key">适用脉象</text>{{d.indication}}</view>
+        <view class="pr-drug-line" wx:if="{{d.adjustments.length}}">
+          <text class="pr-drug-key">加减</text>
+          <text class="pr-drug-add" wx:for="{{d.adjustments}}" wx:for-item="a" wx:key="*this">· {{a}}</text>
+        </view>
+        <view class="pr-drug-line is-warn" wx:if="{{d.contraindication}}"><text class="pr-drug-key">禁忌</text>{{d.contraindication}}</view>
+        <view class="pr-item-src">〔{{d.source}}〕</view>
+      </view>
+    </view>
+
+    <!-- 按五行／按左右手：按归属重排（受上面的筛选控制） -->
+    <view class="pr-drug-group" wx:if="{{dim !== 'route'}}" wx:for="{{dimDrugGroups}}" wx:for-item="group" wx:key="key">
+      <view class="pr-drug-group-title">{{group.label}}</view>
+      <view class="pr-note">{{group.note}}</view>
+      <view class="pr-drug" wx:for="{{group.items}}" wx:for-item="d" wx:key="id">
+        <view class="pr-drug-head">
+          <text class="pr-drug-therapy">{{d.therapy}}</text>
+          <text class="pr-drug-name">{{d.name}}</text>
+        </view>
+        <view class="pr-attr" wx:if="{{d.attr}}">
+          <text class="pr-attr-main">{{d.attr.main}}</text>
+          <text class="pr-attr-also" wx:if="{{d.attr.also}}">{{d.attr.also}}</text>
+          <text class="pr-attr-site">{{d.attr.site}}</text>
+        </view>
+        <view class="pr-attr-basis" wx:if="{{d.attr}}">归类依据：{{d.attr.basis}}</view>
+        <view class="pr-drug-line" wx:if="{{d.composition}}"><text class="pr-drug-key">组成</text>{{d.composition}}</view>
+        <view class="pr-drug-line" wx:if="{{d.usage}}"><text class="pr-drug-key">服法</text>{{d.usage}}</view>
+        <view class="pr-drug-line" wx:if="{{d.science}}"><text class="pr-drug-key">科学中药</text>{{d.science}}</view>
+        <view class="pr-drug-line" wx:if="{{d.indication}}"><text class="pr-drug-key">适用脉象</text>{{d.indication}}</view>
+        <view class="pr-drug-line" wx:if="{{d.adjustments.length}}">
+          <text class="pr-drug-key">加减</text>
+          <text class="pr-drug-add" wx:for="{{d.adjustments}}" wx:for-item="a" wx:key="*this">· {{a}}</text>
+        </view>
+        <view class="pr-drug-line is-warn" wx:if="{{d.contraindication}}"><text class="pr-drug-key">禁忌</text>{{d.contraindication}}</view>
+        <view class="pr-item-src">〔{{d.source}}〕</view>
+      </view>
+    </view>
+    <view class="pr-empty" wx:if="{{dim !== 'route' && !dimDrugGroups.length}}">
+      当前筛选下没有方剂，请在上面的「分组筛选」里至少打开一组。
+    </view>
+  </view>
+
+  <!-- ========== 用药禁忌（常驻） ========== -->
+  <view class="pr-card">
+    <view class="pr-card-title">用药禁忌（常驻）</view>
+    <view class="pr-note">不依赖脉象，始终列出。</view>
+    <view class="pr-formula" wx:for="{{standingItems}}" wx:for-item="item" wx:key="id">
+      <view class="pr-formula-head">
+        <text class="pr-formula-kind">{{item.kind}}</text>
+        <text class="pr-formula-cond">{{item.condition}}</text>
+      </view>
+      <view class="pr-formula-therapy">{{item.therapy}}</view>
+      <view class="pr-formula-names" wx:if="{{item.formulas.length}}">
+        <text class="pr-formula-chip" wx:for="{{item.formulas}}" wx:for-item="f" wx:key="*this">{{f}}</text>
+      </view>
+      <view class="pr-formula-quote">{{item.quote}}</view>
+      <view class="pr-item-src">{{item.srcLine}}</view>
+    </view>
+  </view>
+
+  <!-- ========== 附表一体质用药对照（讲义 p46） ========== -->
+  <view class="pr-card">
+    <view class="pr-card-title">附表一体质用药对照（讲义 p46）</view>
+    <view class="pr-note">
+      这一列要靠望、问、切多项合参才能定，本工具不据脉象自动判定，仅作对照参考。
+    </view>
+    <view class="pr-ref" wx:for="{{constitutionRows}}" wx:for-item="r" wx:key="mark">
+      <view class="pr-ref-row">
+        <text class="pr-ref-k">切</text>
+        <text class="pr-ref-v">{{r.mark}}</text>
+      </view>
+      <view class="pr-ref-row">
+        <text class="pr-ref-k">治疗</text>
+        <text class="pr-ref-v">{{r.therapy}}</text>
+      </view>
+      <view class="pr-ref-row">
+        <text class="pr-ref-k">方</text>
+        <text class="pr-ref-v">{{r.formulas}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- ========== 讲义 p42「依脉用方表」原文对照（28 行） ========== -->
+  <view class="pr-card">
+    <view class="pr-card-title">讲义 p42「依脉用方表」原文对照（28 行）</view>
+    <view class="pr-note">
+      原文照录，供查供抄；不是处方建议，不构成诊断。两套剂量单位不同（克 ／ 比例制），不可互相换算。
+    </view>
+    <view class="pr-ref" wx:for="{{refRows}}" wx:for-item="r" wx:key="no">
+      <view class="pr-ref-head">
+        <text class="pr-ref-no">{{r.no}}</text>
+        <text class="pr-ref-name">{{r.name}}</text>
+      </view>
+      <view class="pr-ref-row">
+        <text class="pr-ref-k">对应脉象及加减</text>
+        <text class="pr-ref-v">{{r.indication}}</text>
+      </view>
+      <view class="pr-ref-row">
+        <text class="pr-ref-k">配伍与剂量（同和堂版·克）</text>
+        <view class="pr-ref-v">
+          <view wx:if="{{r.th.missing}}">未载</view>
+          <view wx:else>
+            <view>{{r.th.composition}}</view>
+            <view class="pr-note" wx:for="{{r.th.notes}}" wx:for-item="n" wx:key="*this">注：{{n}}</view>
+            <view class="pr-note" wx:if="{{r.th.science}}">科中（科学中药）：{{r.th.science}}</view>
+            <view class="pr-item-src">{{r.th.src}}</view>
+          </view>
+        </view>
+      </view>
+      <view class="pr-ref-row">
+        <text class="pr-ref-k">组成（讲稿 2010·第二讲·比例制）</text>
+        <view class="pr-ref-v">
+          <view wx:if="{{r.draft.missing}}">未载</view>
+          <view wx:else>
+            <view wx:if="{{r.draft.composition}}">组成：{{r.draft.composition}}</view>
+            <view wx:if="{{r.draft.usage}}">服法：{{r.draft.usage}}</view>
+            <view wx:if="{{r.draft.science}}">科学中药：{{r.draft.science}}</view>
+            <view class="pr-note" wx:for="{{r.draft.adjustments}}" wx:for-item="a" wx:key="*this">加减：{{a}}</view>
+            <view class="pr-note" wx:if="{{r.draft.contraindication}}">禁忌：{{r.draft.contraindication}}</view>
+            <view class="pr-item-src">{{r.draft.src}}</view>
+          </view>
+        </view>
+      </view>
+      <view class="pr-ref-row" wx:if="{{r.basis}}">
+        <text class="pr-ref-k">对照依据</text>
+        <text class="pr-ref-v">{{r.basis}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- ========== 方剂备查（同和堂版） ========== -->
+  <view class="pr-card">
+    <view class="pr-card-title">方剂备查（同和堂版《臧氏脉学方剂汇总统表》）</view>
+    <view class="pr-note">
+      纸质讲义第 1~4 页原样转录：成方（药味＋克）与第 4 页「科中」科学中药比例。单位是克，与讲稿 2010 的比例制不同 —— 两套不可互相换算，也不合并。本组条目无五行／左右手归属，不参与分组筛选。
+    </view>
+    <view class="pr-drug-group" wx:for="{{thDoseGroups}}" wx:for-item="group" wx:key="page">
+      <view class="pr-drug-group-title">第 {{group.page}} 页</view>
+      <view class="pr-drug" wx:for="{{group.items}}" wx:for-item="d" wx:key="id">
+        <view class="pr-drug-head">
+          <text class="pr-drug-therapy">同和堂版</text>
+          <text class="pr-drug-name">{{d.name}}</text>
+        </view>
+        <view class="pr-drug-line"><text class="pr-drug-key">组成</text>{{d.composition}}</view>
+        <view class="pr-drug-line" wx:for="{{d.notes}}" wx:for-item="n" wx:key="*this"><text class="pr-drug-key">注</text>{{n}}</view>
+        <view class="pr-drug-line" wx:if="{{d.science}}"><text class="pr-drug-key">科中</text>{{d.science}}</view>
+        <view class="pr-item-src">{{d.src}}</view>
+      </view>
+    </view>
+    <view class="pr-drug-group">
+      <view class="pr-drug-group-title">第 4 页 · 科中（科学中药）</view>
+      <view class="pr-drug" wx:for="{{thScienceRows}}" wx:for-item="s" wx:key="id">
+        <view class="pr-drug-head">
+          <text class="pr-drug-therapy">科中</text>
+          <text class="pr-drug-name">{{s.name}}</text>
+        </view>
+        <view class="pr-drug-line"><text class="pr-drug-key">比例</text>{{s.ratio}}</view>
+        <view class="pr-item-src">{{s.src}}</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- ========== 声明 ========== -->
+  <view class="pr-disclaimer">
+    本页只做记录与原文对照，不构成诊断，也不替使用者加减方。体质与疗法由使用者自己判断后手工选。
+  </view>
+</view>

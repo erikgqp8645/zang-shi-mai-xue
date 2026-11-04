@@ -12,18 +12,85 @@
 
 ```bash
 npm install
-npm run dev        # 开发：同时起前端(Vite 5180)与病例记录服务(5178)
+npm run dev        # 开发（默认单机模式）：同时起前端(Vite 5180)与病例记录服务(5178)
+npm run dev:multi  # 开发（多用户模式）：要注册/登录，病例按账号隔离
 npm run dev:web    # 只起前端（此时病例记录不可用，页面会明确提示）
 npm run dev:api    # 只起病例记录服务
-npm run build      # 类型检查 + 生产构建，产物在 dist/
+npm run build      # 共享包编译 + 类型检查 + 生产构建，产物在 dist/
+npm run build:core # 只编共享包（小程序端用，产物在 miniprogram/utils/core/）
 npm run start      # 本地应用：一条命令同时提供页面与 API（读 dist/）
 npm run seed:demo  # 写入 14 位演示患者（-- --reset 可先清空全部再写）
+npm run admin      # 账号维护命令行（list / create / reset / role / wechat …）
 npm run preview    # 预览构建产物（静态，不含病例记录）
 npm run typecheck  # 仅类型检查
+npm test           # 全量回归（共享包冒烟 + 小程序静态检查 + 老库迁移回归 + 越权隔离 + 浏览器回归）
 ```
 
 `vite.config.ts` 里 `base: './'`，因此 `dist/` 可以直接用 `file://` 打开，便于离线使用与分享；
 但**病例记录需要后端服务**（见下节），纯静态打开时该功能不可用。
+
+## 账号与多用户
+
+有两种模式，`/api/health` 的 `mode` 字段会明说是哪一种，页头也有「单机模式／多用户」标识：
+
+| 模式 | 启动 | 登录 | 数据 |
+|---|---|---|---|
+| **单机** | `npm run dev`（默认） | 不用登录 | 只有一个内置账号，病例互不隔离（就是原来的用法） |
+| **多用户** | `npm run dev:multi` | 要注册/登录 | **按账号隔离**，两个账号互不可见、互不可改 |
+
+- 账号模型：**一个 `users` 行 ＝ 一个「人」**，登录方式挂在 `identities` 上
+  （`password` 登录名／`wechat` openid／`local` 单机）。
+- 令牌是**不透明随机串**，用 `Authorization: Bearer` 头传（**不用 cookie**，天然免疫 CSRF），
+  有效期 30 天、滑动续期、可吊销；改密码会清空本人全部会话。
+- **跨用户访问一律 404，不用 403** —— 403 会泄露「这东西存在」。
+- 密码用 Node 内置 `crypto.scrypt`（N=16384/r=8/p=1）＋ `timingSafeEqual`，**不引第三方依赖**。
+- 登录名规则：**11 位手机号**，或 **4~20 位字母开头的字母数字下划线**（手机号本期只作登录名，不发验证码）。
+- 老库迁移是幂等的：四张业务表补 `owner_id` → 重建 `custom_symbols` → 建 `local` 账号 → 回填 →
+  **三条 owner 不变量自检**（任一不为 0 就在启动时报错）。迁移前自动留 `history.sqlite.bak-<ts>`
+  （用 SQLite 的 `VACUUM INTO` 取一致性快照，含 WAL 里的数据）。
+- **老数据要有人认领**：单机时代录的病例在升级到多用户后归在内置 `local` 账号名下，新注册的账号
+  看不到（隔离是对的，但数据得转过来）：
+  `npm run admin -- claim <登录名>` —— 数据一个字节没改，只把归属换给该账号。
+- 维护账号：`npm run admin -- list | create <登录名> | reset <登录名> | role <登录名> admin | wechat <登录名> | claim <登录名>`。
+
+## 部署
+
+上线手册在 **[`docs/deploy.md`](./docs/deploy.md)**（服务器初始化、systemd、Caddy、备份与恢复演练、
+小程序发布清单、备案办理）。要点：
+
+- **ICP 备案是整条时间线上最长的一段**（7~20 工作日），**第一天就启动**；
+  域名实名主体必须与小程序主体一致（个人主体 → 个人实名）。
+- 反向代理用 Caddy（自动 HTTPS）；**对外只暴露 443** —— 微信 request 合法域名不接受端口。
+- 网站与 API 同一进程托管 → **同源，不需要 CORS**。
+- 备份用 `sqlite3 .backup`（**不是 cp** —— WAL 下直接复制可能拿到半截事务），每日 03:00、保留 30 天；
+  **每月做一次恢复演练**（备份文件「存在」不等于「能用」）。
+- 访问日志**只记方法/路径/状态/耗时/user id，不含请求体**（病例数据敏感）。
+
+迁移到 CloudBase 的规划见 **[`docs/cloudbase-migration.md`](./docs/cloudbase-migration.md)**。
+
+## 微信小程序
+
+`miniprogram/` 是原生小程序工程，**功能对齐网站**，两端共用同一个后端、同一套账号、同一份数据。
+
+```bash
+npm run build:core   # ① 编共享包（知识库 + 绘制代码），再打开微信开发者工具
+```
+
+- 用**微信开发者工具**打开 `pulse-record/miniprogram` 目录。
+- `miniprogram/utils/config.js` 里改 `API_BASE`（本机联调填 `http://127.0.0.1:5178`，
+  局域网联调填电脑 IP 并在开发者工具勾「不校验合法域名」；上线填已备案的 https 域名）。
+- `miniprogram/project.config.json` 的 `appid` 换成真实小程序 AppID。
+  **AppSecret 绝不入小程序包** —— 它只放在服务器的 `/etc/pulse-record.env`。
+- 账号打通：小程序 `wx.login` → 服务端 `code2Session` → 没绑过就引导输入「网站账号＋密码」绑定
+  → 绑定后两端看到**同一份病例**。
+
+**共享包**（两端同源的关键）：`src/domain/**` 与 `src/export/text.ts` 零 DOM 依赖，整棵子树用
+`tsc` 编成 CommonJS 搬进小程序；`src/export/png.ts` 拆成**纯绘制器**
+（`table-painter.ts` ＋ `diagram.ts` ＋ `canvas.ts`）与 DOM 驱动两部分，
+小程序用**同一份绘制代码**（canvas 2d），所以**小程序存到相册的图与网站导出的图版式完全一致**。
+
+个人主体的硬约束：`code2Session` 可用；**`web-view` 不可用**（不支持业务域名）→ 必须原生开发；
+**`getPhoneNumber` 不可用** → 账号绑定只走「网站账号＋密码」。
 
 ## 部署与自检
 
@@ -402,7 +469,15 @@ sqlite3 local-data/history.sqlite \
 
 | 方法 | 路径 | 用途 |
 |---|---|---|
-| GET | `/api/health` | 连通性 ＋ 数据库路径 |
+| GET | `/api/health` | 连通性 ＋ 数据库路径 ＋ 当前模式（`single`／`multi`） |
+| POST | `/api/auth/register` | 注册 `{loginName, displayName, password}` → `{user, token}`；登录名已存在 → 409 |
+| POST | `/api/auth/login` | 登录 `{loginName, password}` → `{user, token}`；密码错 → 401（不区分「用户不存在」与「密码错」） |
+| POST | `/api/auth/logout` | 删当前会话 |
+| GET | `/api/auth/me` | 当前登录者 ＋ 微信绑定状态 |
+| POST | `/api/auth/change-password` | 改密码 `{oldPassword, newPassword}`；改完清空本人全部会话 |
+| POST | `/api/auth/wechat/login` | 小程序 `wx.login` 的 code 换会话：`{status:'bound', user, token}` 或 `{status:'need_bind'}` |
+| POST | `/api/auth/wechat/bind` | 用网站账号＋密码把微信身份绑到该账号 `{code, loginName, password}` |
+| DELETE | `/api/auth/wechat` | 解绑微信身份 |
 | GET | `/api/patients` | 患者列表（含就诊次数） |
 | GET | `/api/search?q=…` | 搜索：姓名／日期标签／脉象符号，附带 `matchType` 与命中次记录 |
 | GET | `/api/symbols` | 自定义符号清单（使用者自建） |
@@ -418,6 +493,9 @@ sqlite3 local-data/history.sqlite \
 | GET | `/api/visits/:id/medication` | 某一次就诊的用药记录 |
 | POST | `/api/visits/:id/medication` | 只覆盖该次就诊的用药（其它次不动） |
 | DELETE | `/api/medication/:id` | 删一条用药记录 |
+
+**除 `/api/health` 与三个登录/绑定接口外，所有 `/api/*` 都要带 `Authorization: Bearer <token>`**，
+未登录一律 401，**绝不降级成「公共只读」**。
 
 开发时 Vite 把 `/api` 代理到 `http://127.0.0.1:5178`；`npm run start` 时由服务端同端口托管页面与 API。
 服务没起时，页面会明确提示「连不上本地病例记录服务……请用 npm run dev 起前后端」，**不会静默丢数据**。
@@ -626,25 +704,53 @@ src/
 │   ├── diagram.ts   寸关尺图示几何（页面 SVG 与 PNG 导出共用同一套坐标）
 │   └── sample.ts    讲义 p34 实例表原样转录（少娟 6 次记录）
 ├── api/
-│   ├── patients.ts  病例记录 API 客户端（患者 / 就诊记录）
-│   └── symbols.ts   自定义符号 API 客户端（使用者自建符号）
+│   ├── http.ts       统一请求封装（带令牌、401 语义化、API_BASE）
+│   ├── auth.ts       账号 API 客户端（注册/登录/登出/me/改密/微信绑定）
+│   ├── patients.ts   病例记录 API 客户端（患者 / 就诊记录 / 用药记录）
+│   └── symbols.ts    自定义符号 API 客户端（使用者自建符号）
 ├── assets/
 │   ├── hands-pulse.png  寸关尺图示底图（原图，1070 × 876）
 │   └── triad-p47.png    讲义 p47「开方三部曲」原图（701 × 605，转白底）
-├── components/      PulseTable / PulseDiagram / SymbolPalette / Findings / HistoryPanel / MedicationPanel / MedicationPicker / TriadFrame / TriadImage / DoseLines / FlowPath
+├── components/      PulseTable / PulseDiagram / SymbolPalette / Findings / HistoryPanel / MedicationPanel / MedicationPicker / TriadFrame / TriadImage / DoseLines / FlowPath / LoginPanel
 ├── export/
-│   ├── png.ts       canvas 自绘导出（表格 ＋ 寸关尺图示）
+│   ├── png.ts       canvas 导出的 DOM 驱动部分（建 canvas → 调绘制器 → 下载）
+│   ├── table-painter.ts 记录表的 canvas 绘制器（纯函数，网站与小程序共用）
+│   ├── canvas.ts    画布上下文的结构类型（浏览器与小程序共用）
 │   ├── diagram.ts   寸关尺图示在 canvas 上的绘制（与页面 SVG 同坐标）
 │   └── text.ts      Markdown / CSV 导出
 ├── storage/         （已移除：历史记录改用 SQLite）
 └── App.tsx          状态与编排
 
-server/              本地 SQLite 服务（node:sqlite，无第三方依赖）
-├── schema.sql       建表语句（patients / visits / medication / custom_symbols）
-├── db.mjs           读写封装
-└── index.mjs        HTTP API ＋ 静态页面托管
+server/              本地服务（node:sqlite + node:http，无第三方依赖）
+├── schema.sql       建表语句（users / identities / sessions / patients / visits / medication / custom_symbols）
+├── store.mjs        存储契约层（路由层只认这里；换存储后端只改这一处）
+├── db.mjs           SQLite 实现（迁移 + WAL + owner 作用域，全部 async）
+├── auth.mjs         账号与会话（scrypt 哈希 / 令牌 / 微信身份绑定）
+├── wechat.mjs       code2Session 代理（session_key 不落库不下发）
+├── symbol-codes.mjs 讲义固定符号常量（知识常量，与存储无关）
+└── index.mjs        HTTP API ＋ 静态页面托管 ＋ 鉴权门 ＋ CORS
 
-scripts/dev.mjs      一条命令起前端 + 后端
+miniprogram/         微信小程序端（原生，与网站共用后端与知识库）
+├── utils/
+│   ├── api.js        传输层：request({method,path,body})，可换 wx.request / wx.cloud.callFunction
+│   ├── auth.js       wx.login / 绑定 / 注册 / 登出
+│   ├── data.js       病例 API（与 src/api/patients.ts 一一对应）
+│   ├── config.js     API_BASE / TRANSPORT
+│   └── core/         ← src/domain + src/export 的编译产物（CommonJS，gitignore）
+├── pages/           login cases record findings medication triad case-detail me
+└── assets/          hands-pulse.png / triad-p47.png（由 build:core 复制，gitignore）
+
+scripts/
+├── dev.mjs          一条命令起前端 + 后端
+├── admin.mjs        账号维护命令行
+├── seed-demo.mjs    写入演示患者
+├── build-core.mjs   共享包构建第二步（补 require 后缀 + 复制图片）
+├── deploy/          服务器部署脚本（install / deploy / backup / restore / systemd / Caddyfile）
+└── e2e/             回归脚本（core-smoke / mp-lint / auth-isolation / app-regression）
+
+docs/
+├── deploy.md              上线手册（备案、服务器、systemd、Caddy、备份、发布）
+└── cloudbase-migration.md 迁 CloudBase 的规划与坑位清单
 ```
 
 ## 两条资料线的关系

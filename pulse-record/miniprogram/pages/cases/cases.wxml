@@ -1,0 +1,78 @@
+<view class="pr-page">
+  <view class="pr-cases-head">
+    <view class="pr-cases-search">
+      <input
+        class="pr-input"
+        value="{{keyword}}"
+        placeholder="搜姓名 / 日期 / 符号（如 ↑）"
+        confirm-type="search"
+        bindinput="onInputKeyword"
+      />
+      <view class="pr-cases-clear" wx:if="{{keyword}}" bindtap="clearKeyword">×</view>
+    </view>
+    <view class="pr-cases-ops">
+      <view class="pr-note" wx:if="{{mode === 'single'}}">单机模式 · 数据只在本机</view>
+      <view class="pr-note" wx:else>数据存在服务器，按账号隔离</view>
+      <button class="pr-btn pr-btn-sm" bindtap="refresh">刷新</button>
+    </view>
+  </view>
+
+  <view class="pr-note pr-err" wx:if="{{error}}">{{error}}</view>
+
+  <view class="pr-empty" wx:if="{{!list.length && !error}}">
+    还没有保存过病例。点下面的「新建记录」开始。
+  </view>
+
+  <view class="pr-card" wx:for="{{list}}" wx:key="id">
+    <view class="pr-case-row">
+      <view class="pr-case-name">
+        <text wx:if="{{renaming !== item.id}}" bindtap="goDetail" data-id="{{item.id}}">{{item.name}}</text>
+        <input
+          wx:else
+          class="pr-input pr-case-rename"
+          value="{{renameText}}"
+          focus
+          bindinput="onInputRename"
+          bindblur="commitRename"
+          bindconfirm="commitRename"
+        />
+      </view>
+      <view class="pr-case-meta">{{item.visitCount}} 次 · {{item.atText}}</view>
+    </view>
+
+    <view class="pr-case-badge" wx:if="{{item.matchType === 'visit' && item.matchedLabels}}">
+      命中：{{item.matchedLabels}}
+    </view>
+
+    <view class="pr-case-ops">
+      <text class="pr-link" bindtap="goRecord" data-id="{{item.id}}">录入编辑</text>
+      <text class="pr-link" bindtap="startRename" data-id="{{item.id}}" data-name="{{item.name}}">重命名</text>
+      <text class="pr-link" bindtap="toggleExpand" data-id="{{item.id}}">
+        {{expanded === item.id ? '收起' : '每次记录'}}
+      </text>
+      <text class="pr-x" bindtap="removePatient" data-id="{{item.id}}">×</text>
+    </view>
+
+    <!-- 展开：这位患者的每次就诊记录 -->
+    <view class="pr-case-visits" wx:if="{{expanded === item.id}}">
+      <view class="pr-note" wx:if="{{loading}}">读取中……</view>
+      <view class="pr-note" wx:if="{{!loading && detail && !detail.visits.length}}">（该患者还没有记录）</view>
+      <view class="pr-visit" wx:for="{{detail.visits}}" wx:for-item="v" wx:key="id">
+        <view class="pr-visit-head">
+          <text class="pr-visit-label">{{v.label || '（未命名日期）'}}</text>
+          <text class="pr-visit-at">{{v.atText}}</text>
+        </view>
+        <view class="pr-visit-summary">{{v.summary}}</view>
+        <view class="pr-visit-tags" wx:if="{{v.constitution}}">
+          {{v.constitution}}体质 · {{v.therapy}}
+        </view>
+        <view class="pr-case-ops">
+          <text class="pr-link" bindtap="goDetail" data-id="{{item.id}}">看表 / 出图</text>
+          <text class="pr-x" bindtap="removeVisit" data-id="{{v.id}}">×</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <button class="pr-btn pr-btn-primary pr-btn-block" bindtap="goNew">新建记录</button>
+</view>

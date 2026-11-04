@@ -1,0 +1,40 @@
+.pr-me-row {
+  display: flex;
+  align-items: baseline;
+  padding: 10rpx 0;
+  border-bottom: 1rpx dashed #e6e2d6;
+}
+
+.pr-me-key {
+  width: 160rpx;
+  flex: none;
+  color: #7c8974;
+  font-size: 25rpx;
+}
+
+.pr-me-val {
+  flex: 1;
+  font-size: 26rpx;
+  word-break: break-all;
+}
+
+.pr-me-path {
+  font-size: 22rpx;
+  color: #a39a8c;
+}
+
+.pr-me-btn {
+  margin-top: 16rpx;
+}
+
+.pr-me-disclaimer {
+  margin-top: 32rpx;
+}
+
+.pr-err {
+  color: #b03a2e;
+}
+
+.pr-ok {
+  color: #7c8974;
+}

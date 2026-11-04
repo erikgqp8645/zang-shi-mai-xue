@@ -1,0 +1,64 @@
+<view class="pr-page">
+  <view class="pr-note pr-err" wx:if="{{error}}">{{error}}</view>
+
+  <view class="pr-card">
+    <view class="pr-case-row">
+      <view class="pr-case-name">{{name}}</view>
+      <view class="pr-case-meta">{{visits.length}} 次记录</view>
+    </view>
+    <view class="pr-case-ops">
+      <text class="pr-link" bindtap="goRecord">录入编辑</text>
+      <text class="pr-link" bindtap="goMedication">用药记录</text>
+    </view>
+  </view>
+
+  <!-- 出图画布（版式与网站导出同一份绘制代码） -->
+  <view class="pr-card">
+    <view class="pr-card-title">记录表</view>
+    <view class="pr-note" wx:if="{{!canvasW}}">正在出图……</view>
+    <scroll-view scroll-x class="pr-canvas-scroll">
+      <canvas
+        type="2d"
+        id="pulse-canvas"
+        class="pr-canvas"
+        style="width:{{canvasW}}px;height:{{canvasH}}px"
+      ></canvas>
+    </scroll-view>
+    <view class="pr-case-ops">
+      <text class="pr-link" bindtap="saveImage">存到相册</text>
+      <text class="pr-link" bindtap="share">转发</text>
+      <text class="pr-link" bindtap="copyMarkdown">复制 Markdown</text>
+      <text class="pr-link" bindtap="copyCsv">复制 CSV</text>
+    </view>
+  </view>
+
+  <!-- 每次就诊记录 -->
+  <view class="pr-card">
+    <view class="pr-card-title">每次就诊记录</view>
+    <view class="pr-note" wx:if="{{!visits.length}}">（该患者还没有记录）</view>
+    <view class="pr-visit" wx:for="{{visits}}" wx:key="id">
+      <view class="pr-visit-head">
+        <text class="pr-visit-label">{{item.label || '（未命名日期）'}}</text>
+        <text class="pr-visit-at">{{item.atText}}</text>
+      </view>
+      <view class="pr-visit-tags" wx:if="{{item.constitution}}">
+        {{item.constitution}}体质 · {{item.therapy}}
+      </view>
+    </view>
+  </view>
+
+  <!-- 用药记录 -->
+  <view class="pr-card">
+    <view class="pr-card-title">用药记录</view>
+    <view class="pr-note" wx:if="{{!medications.length}}">（还没有用药记录）</view>
+    <view class="pr-visit" wx:for="{{medications}}" wx:key="id">
+      <view class="pr-visit-head">
+        <text class="pr-visit-label">{{item.name}}</text>
+      </view>
+      <view class="pr-visit-summary" wx:if="{{item.pulse}}">对应脉象：{{item.pulse}}</view>
+      <view class="pr-visit-summary" wx:if="{{item.adjust}}">加减：{{item.adjust}}</view>
+      <view class="pr-visit-summary" wx:if="{{item.usage}}">服法：{{item.usage}}</view>
+      <view class="pr-visit-summary" wx:if="{{item.note}}">备注：{{item.note}}</view>
+    </view>
+  </view>
+</view>

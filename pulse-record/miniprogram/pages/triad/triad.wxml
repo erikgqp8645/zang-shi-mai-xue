@@ -1,0 +1,131 @@
+<view class="pr-page">
+  <view class="pr-note pr-err" wx:if="{{error}}">{{error}}</view>
+
+  <!-- ---------- 三步导航 ---------- -->
+  <view class="pr-triad-head">
+    <view class="pr-triad-step">
+      <view class="pr-triad-no">①</view>
+      <view class="pr-triad-step-title">判体质</view>
+      <view class="pr-triad-step-note">自己判断后点选（工具不代判）</view>
+    </view>
+    <view class="pr-triad-step">
+      <view class="pr-triad-no">②</view>
+      <view class="pr-triad-step-title">定疗法</view>
+      <view class="pr-triad-step-note">自己点选（工具不代判）</view>
+    </view>
+    <view class="pr-triad-step">
+      <view class="pr-triad-no">③</view>
+      <view class="pr-triad-step-title">开方药</view>
+      <view class="pr-triad-step-note">照讲义 p47 图列出那一支的方</view>
+    </view>
+  </view>
+  <view class="pr-note">③ 之后回到 ① 重判（讲义 p47 图上的虚线回路）。</view>
+
+  <!-- ---------- 上下文：患者 / 记录 ---------- -->
+  <view class="pr-card">
+    <view class="pr-card-title">看哪一位</view>
+    <view class="pr-note" wx:if="{{!patients.length}}">（还没有病例，先去「病例」新建）</view>
+    <view class="pr-triad-patients">
+      <view
+        class="pr-chip {{patientId === item.id ? 'pr-chip-on' : ''}}"
+        wx:for="{{patients}}"
+        wx:key="id"
+        bindtap="onPickPatient"
+        data-id="{{item.id}}"
+      >{{item.name}}</view>
+    </view>
+    <view class="pr-triad-visits" wx:if="{{visits.length}}">
+      <view
+        class="pr-chip {{visitId === item.id ? 'pr-chip-on' : ''}}"
+        wx:for="{{visits}}"
+        wx:key="id"
+        bindtap="onPickVisit"
+        data-id="{{item.id}}"
+      >{{item.label}}</view>
+    </view>
+    <view class="pr-case-ops">
+      <text class="pr-link" bindtap="goRecord">去录入脉象</text>
+    </view>
+  </view>
+
+  <!-- ---------- 参考判据（图上两条问句） ---------- -->
+  <view class="pr-card" wx:if="{{reference}}">
+    <view class="pr-card-title">参考判据（只作参考，不决定体质）</view>
+    <view class="pr-note" wx:if="{{!reference.recorded}}">还没录到脉象，图上的判定链走不起来。</view>
+    <view class="pr-note" wx:if="{{reference.bianmai}}">参考：有变脉？已命中 {{reference.bianmai}} 处</view>
+    <view class="pr-note" wx:if="{{reference.recorded && reference.chimaiReached && reference.chimai}}">
+      参考：尺脉弱？已命中 {{reference.chimai}} 处
+    </view>
+    <view class="pr-note" wx:if="{{reference.recorded && reference.chimaiReached && !reference.chimai}}">参考：尺脉不弱</view>
+    <view class="pr-note" wx:if="{{reference.suggested}}">
+      按图会落到：{{reference.suggested}}体质（仅供参考，是否采用由你决定）
+    </view>
+    <view class="pr-divider"></view>
+    <view class="pr-note">{{bianmaiDefinition.title}}：{{bianmaiDefinition.text}}</view>
+    <view class="pr-note">〔{{bianmaiDefinition.source}}〕</view>
+    <view class="pr-note">状态（佐证，不是脉象判据）</view>
+    <view class="pr-note" wx:for="{{stateHints}}" wx:key="constitution">
+      {{item.text}} → {{item.constitution}}　〔{{item.source}}〕
+    </view>
+  </view>
+
+  <!-- ---------- ① 判体质 ---------- -->
+  <view class="pr-card">
+    <view class="pr-card-title">① 判体质</view>
+    <view
+      class="pr-triad-opt {{constitution === item.id ? 'is-on' : ''}}"
+      wx:for="{{constitutionOptions}}"
+      wx:key="id"
+      bindtap="pickConstitution"
+      data-id="{{item.id}}"
+    >
+      <view class="pr-triad-opt-name">{{item.label}}</view>
+      <view class="pr-note">{{item.path}}</view>
+      <view class="pr-note" wx:if="{{item.stateHint}}">状态佐证：{{item.stateHint}}</view>
+      <view class="pr-note">〔{{item.source}}〕</view>
+    </view>
+    <view class="pr-triad-clear" wx:if="{{constitution}}" bindtap="clearConstitution">清除体质</view>
+  </view>
+
+  <!-- ---------- ② 定疗法 ---------- -->
+  <view class="pr-card">
+    <view class="pr-card-title">② 定疗法</view>
+    <view class="pr-note" wx:if="{{carriedTherapy}}">随体质带出「{{carriedTherapy}}」，仍可改</view>
+    <view
+      class="pr-triad-opt {{therapy === item.id ? 'is-on' : ''}}"
+      wx:for="{{therapyOptions}}"
+      wx:key="id"
+      bindtap="pickTherapy"
+      data-id="{{item.id}}"
+    >
+      <view class="pr-triad-opt-name">{{item.label}}</view>
+      <view class="pr-note">{{item.rxNames}}</view>
+      <view class="pr-note">〔{{item.source}}〕</view>
+    </view>
+    <view class="pr-triad-clear" wx:if="{{therapy}}" bindtap="clearTherapy">清除疗法</view>
+  </view>
+
+  <!-- ---------- ③ 开方药 ---------- -->
+  <view class="pr-card">
+    <view class="pr-card-title">③ 开方药</view>
+    <view class="pr-note" wx:if="{{!rx.length}}">在 ② 选定疗法后，按讲义 p47 图列出那一支的方。</view>
+    <view class="pr-triad-rx" wx:for="{{rx}}" wx:key="no">
+      <view class="pr-triad-rx-name">{{item.no}}. {{item.name}}</view>
+      <view class="pr-note">〔{{item.source}}〕</view>
+      <block wx:for="{{item.doses}}" wx:for-item="d" wx:key="label">
+        <view class="pr-dose-label">{{d.label}}</view>
+        <view class="pr-note" wx:if="{{d.missing}}">未载</view>
+        <view class="pr-note" wx:if="{{!d.missing && d.note}}">{{d.note}}</view>
+        <view class="pr-dose-line" wx:for="{{d.entries}}" wx:for-item="e" wx:key="name">
+          <text wx:if="{{d.showName}}">{{e.name}}：</text>{{e.composition}}
+          <text wx:if="{{e.science}}">　科中：{{e.science}}</text>
+          <text wx:if="{{e.usage}}">　服法：{{e.usage}}</text>
+          <text class="pr-dose-src">〔{{e.source}}〕</text>
+          <text wx:if="{{e.basis}}">　对照：{{e.basis}}</text>
+        </view>
+      </block>
+    </view>
+  </view>
+
+  <view class="pr-disclaimer">本工具只做记录，不构成诊断。③ 的方名与组成照讲义 p47 与讲稿 2010 原样列出，不替读者加减方。</view>
+</view>
