@@ -942,6 +942,8 @@ npm run test:e2e:mp:api   # 数据层端到端 38 项：wx 垫片加载真实 ut
   - 该分支已包含 `chore/multi-user`（账号与数据隔离、共享包、小程序端、部署脚本、迁 CloudBase 规划）与 `chore/desktop-electron`（Windows 桌面应用全部实现）的内容 —— 两者都已是它的祖先。
   - 只有当小程序**上线**之后，才恢复「按工作线切分支 ＋ 独立 PR」的常规做法。
   - 桌面版与小程序共用同一份 `dist/` 与 `src/domain/` 知识库，**在同一条分支上改不会互相打架**；分开切反而容易让两边的 `package.json`／`.gitignore`／共享包编译产物分叉。
+- **这期间不开新 PR**：PR #6（`chore/multi-user → main`）与 PR #7（`chore/desktop-electron → chore/multi-user`）**保持原样、既不合也不关**；`feat/wechat-miniprogram` 也**暂时不开 PR**。等小程序上线时再统一处理。
+  - 届时要做的决定只有一件：#6／#7 是**先合掉**再把当前分支并进 `main`，还是**关掉**改开一个 `feat/wechat-miniprogram → main` 的单 PR —— 因为当前分支已经包含它们的全部内容，两条路都不会丢代码。
 
 ## 维护提示
 
