@@ -1,0 +1,39 @@
+# 臧氏脉学 · 脉象记录表生成器 —— Caddy 反向代理
+#
+# Caddy 自动签发并续期 Let's Encrypt 证书（省掉 certbot 运维）。
+# 微信的 request 合法域名**不接受端口**，所以必须监听 443 让域名直接指向这里。
+#
+# 安装：
+#   sed 's/__DOMAIN__/mai.example.com/g' Caddyfile.example > /etc/caddy/Caddyfile
+#   systemctl reload caddy
+
+mai.example.com {
+	encode gzip zstd
+
+	# 反代到本机的 Node 服务（同源：网站与 API 一个端口，不需要 CORS）
+	reverse_proxy 127.0.0.1:5178 {
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Real-IP {remote_host}
+	}
+
+	# 病例数据敏感 —— 访问日志只记路径与状态，不记请求体
+	log {
+		output file /var/log/caddy/pulse-record.log {
+			roll_size 10MiB
+			roll_keep 10
+		}
+		format json
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options SAMEORIGIN
+		Referrer-Policy strict-origin-when-cross-origin
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		# 页面不加载任何第三方脚本，锁死来源最省事
+		Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'"
+	}
+
+	# 备案期间域名还没生效时，DNS 解析不通，证书也签不下来 ——
+	# 那段时间先用局域网 IP + 微信开发者工具的「不校验合法域名」联调。
+}
