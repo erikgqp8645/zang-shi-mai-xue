@@ -11,10 +11,12 @@
  */
 
 import { fork } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+
+import { resolveDataDir, resolveUserDataDir } from '../../desktop/data-dir.mjs'
 
 const ROOT = join(import.meta.dirname, '..', '..')
 const DIST = join(ROOT, 'dist')
@@ -37,10 +39,69 @@ function check(name, cond, detail = '') {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 /* ------------------------------------------------------------------ */
-/* 起子进程                                                            */
+/* 落点规则：安装版 vs 免安装版（纯函数，不需要 Electron）                */
 /* ------------------------------------------------------------------ */
 
 const dir = mkdtempSync(join(tmpdir(), 'pulse-desktop-'))
+
+console.log('\n[落点规则] 病例库与缓存分别落在哪')
+
+{
+  const appDataRoot = join(dir, 'AppData', 'Roaming')
+  const portableDir = join(dir, 'USB', '臧氏脉学')
+
+  const installedData = resolveDataDir({ portableDir: null, appDataRoot })
+  const portableData = resolveDataDir({ portableDir, appDataRoot })
+  const overridden = resolveDataDir({ portableDir, appDataRoot, override: join(dir, 'override') })
+
+  check('安装版：病例库在 %APPDATA%\\臧氏脉学', installedData === join(appDataRoot, '臧氏脉学'), installedData)
+  check('免安装版：病例库在 exe 旁边的 data\\', portableData === join(portableDir, 'data'), portableData)
+  check('免安装版：病例库跟着 exe 走（不在 %APPDATA% 里）', !portableData.startsWith(appDataRoot), portableData)
+  check('PULSE_DATA_DIR 覆盖优先级最高', overridden === join(dir, 'override'), overridden)
+
+  const installedUserData = resolveUserDataDir({ portableDir: null, appDataRoot })
+  const portableUserData = resolveUserDataDir({ portableDir, appDataRoot })
+
+  check('缓存始终留在本机 %APPDATA%', portableUserData.startsWith(appDataRoot), portableUserData)
+  check(
+    '便携版与安装版的缓存目录不同（单实例锁不互相吞）',
+    installedUserData !== portableUserData,
+    `${installedUserData} / ${portableUserData}`,
+  )
+
+  // 端到端闭环：用判定出来的目录当库路径起服务，库文件应当真的落在那儿
+  const portableRun = mkdtempSync(join(tmpdir(), 'pulse-portable-'))
+  const portableDb = join(resolveDataDir({ portableDir: portableRun, appDataRoot }), 'history.sqlite')
+  const probe = fork(join(ROOT, 'desktop', 'server-entry.mjs'), [], {
+    cwd: ROOT,
+    env: {
+      ...process.env,
+      PULSE_SINGLE_USER: '1',
+      PULSE_DB: portableDb,
+      PULSE_DIST: DIST,
+    },
+    stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+  })
+  const probeLogs = []
+  probe.stderr?.on('data', (d) => probeLogs.push(String(d)))
+  probe.on('exit', () => {})
+  await sleep(1200)
+  probe.kill()
+  await sleep(200)
+  check('按落点规则建的库真的生成在 exe 旁', existsSync(portableDb), portableDb)
+  check('exe 旁只多出一个 data 目录', readdirSync(portableRun).join(',') === 'data', readdirSync(portableRun).join(','))
+  check(
+    'data 目录里就是那个库文件',
+    readdirSync(join(portableRun, 'data')).some((f) => f === 'history.sqlite'),
+    readdirSync(join(portableRun, 'data')).join(','),
+  )
+  rmSync(portableRun, { recursive: true, force: true })
+}
+
+/* ------------------------------------------------------------------ */
+/* 起子进程                                                            */
+/* ------------------------------------------------------------------ */
+
 const DB = join(dir, 'history.sqlite')
 
 const child = fork(join(ROOT, 'desktop', 'server-entry.mjs'), [], {

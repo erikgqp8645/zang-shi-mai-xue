@@ -9,7 +9,8 @@
  *   SQLite 的句柄、WAL 状态都在那边，退出时正常 kill 即可。
  *   ⚠️ 桌面端代码里**禁止出现 wal_checkpoint**（历史上出过孤儿 WAL → 退出全丢的事故）。
  * - 窗口加载 `http://127.0.0.1:<端口>/`，**同源** → 页面里的 `/api/…` 相对路径直接可用。
- * - 数据只落在本机一个 SQLite 文件：%APPDATA%\臧氏脉学\history.sqlite
+ * - 数据只落在**一个** SQLite 文件：安装版 %APPDATA%\臧氏脉学\history.sqlite；
+ *   免安装版 <exe 旁>\data\history.sqlite（跟着 U 盘走，见 `data-dir.mjs`）。
  * - 单机免登录：子进程固定带 PULSE_SINGLE_USER=1
  */
 
@@ -18,13 +19,41 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { resolveDataDir, resolveUserDataDir } from './data-dir.mjs'
+
 const here = dirname(fileURLToPath(import.meta.url))
 /** 开发态的仓库根（打包后 this 指向 asar 内） */
 const REPO = join(here, '..')
 /** 前端构建产物：打包后放在 asar **外**（resources/ui）—— 静态托管路径要物理路径明确 */
 const UI_DIR = app.isPackaged ? join(process.resourcesPath, 'ui') : join(REPO, 'dist')
-/** 数据目录：%APPDATA%\臧氏脉学（可用 PULSE_DATA_DIR 覆盖，方便开发与测试） */
-const DATA_DIR = process.env.PULSE_DATA_DIR ?? join(app.getPath('appData'), '臧氏脉学')
+
+/**
+ * 便携版所在目录（exe 自己旁边的那个文件夹）。
+ *
+ * electron-builder 的 portable 目标会把原始 exe 的目录写进这个环境变量 ——
+ * 便携版跑起来时 exe 是被解压到临时目录执行的，只有它才知道「用户当初把它放哪了」。
+ */
+const PORTABLE_DIR = process.env.PORTABLE_EXECUTABLE_DIR || null
+
+/**
+ * Electron 自己的缓存目录（Cache / GPUCache / Local Storage…）：始终留在本机 %APPDATA%，
+ * 不跟 exe 走；便携版与安装版分开（单实例锁按 userData 路径算）。
+ *
+ * **病例库所在目录**：便携版 → exe 旁边的 `data/`；安装版 → %APPDATA%\臧氏脉学。
+ *
+ * 判定规则收在 `data-dir.mjs`（纯函数，可单测）—— 这里只负责把真值喂进去。
+ */
+const APPDATA_DIR = resolveUserDataDir({
+  portableDir: PORTABLE_DIR,
+  appDataRoot: app.getPath('appData'),
+})
+const DATA_DIR = resolveDataDir({
+  portableDir: PORTABLE_DIR,
+  appDataRoot: app.getPath('appData'),
+  override: process.env.PULSE_DATA_DIR || null,
+})
+
+/** 病例库文件 */
 const DB_PATH = join(DATA_DIR, 'history.sqlite')
 
 /** 窗口标题 */
@@ -52,8 +81,8 @@ if (!app.requestSingleInstanceLock()) {
     mainWindow.focus()
   })
 
-  // 数据目录固定到 %APPDATA%\臧氏脉学（要在 app ready 之前设）
-  app.setPath('userData', DATA_DIR)
+  // Electron 的 userData（缓存／单实例锁）固定下来（要在 app ready 之前设）
+  app.setPath('userData', APPDATA_DIR)
 
   app.whenReady().then(bootstrap)
 }
@@ -113,6 +142,9 @@ function startServer() {
       serverPort = msg.port
       console.log(`[臧氏脉学] 桌面版服务已启动：http://127.0.0.1:${serverPort}/`)
       console.log(`[臧氏脉学] 数据文件：${DB_PATH}`)
+      console.log(
+        `[臧氏脉学] 数据模式：${PORTABLE_DIR ? '便携版（数据跟着 exe 走）' : '安装版（数据在 %APPDATA%）'}`,
+      )
       createWindow()
       return
     }
