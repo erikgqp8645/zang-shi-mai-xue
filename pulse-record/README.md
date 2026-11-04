@@ -23,7 +23,7 @@ npm run seed:demo  # 写入 14 位演示患者（-- --reset 可先清空全部�
 npm run admin      # 账号维护命令行（list / create / reset / role / wechat …）
 npm run preview    # 预览构建产物（静态，不含病例记录）
 npm run typecheck  # 仅类型检查
-npm test           # 全量回归（共享包冒烟 + 小程序静态检查 + 越权隔离 + 浏览器回归）
+npm test           # 全量回归（共享包冒烟 + 小程序静态检查 + 老库迁移回归 + 越权隔离 + 浏览器回归）
 ```
 
 `vite.config.ts` 里 `base: './'`，因此 `dist/` 可以直接用 `file://` 打开，便于离线使用与分享；
@@ -46,8 +46,12 @@ npm test           # 全量回归（共享包冒烟 + 小程序静态检查 + �
 - 密码用 Node 内置 `crypto.scrypt`（N=16384/r=8/p=1）＋ `timingSafeEqual`，**不引第三方依赖**。
 - 登录名规则：**11 位手机号**，或 **4~20 位字母开头的字母数字下划线**（手机号本期只作登录名，不发验证码）。
 - 老库迁移是幂等的：四张业务表补 `owner_id` → 重建 `custom_symbols` → 建 `local` 账号 → 回填 →
-  **三条 owner 不变量自检**（任一不为 0 就在启动时报错）。迁移前自动留 `history.sqlite.bak-<ts>`。
-- 维护账号：`npm run admin -- list | create <登录名> | reset <登录名> | role <登录名> admin | wechat <登录名>`。
+  **三条 owner 不变量自检**（任一不为 0 就在启动时报错）。迁移前自动留 `history.sqlite.bak-<ts>`
+  （用 SQLite 的 `VACUUM INTO` 取一致性快照，含 WAL 里的数据）。
+- **老数据要有人认领**：单机时代录的病例在升级到多用户后归在内置 `local` 账号名下，新注册的账号
+  看不到（隔离是对的，但数据得转过来）：
+  `npm run admin -- claim <登录名>` —— 数据一个字节没改，只把归属换给该账号。
+- 维护账号：`npm run admin -- list | create <登录名> | reset <登录名> | role <登录名> admin | wechat <登录名> | claim <登录名>`。
 
 ## 部署
 
