@@ -30,5 +30,8 @@ pulse-record/miniprogram/assets/
 # 运行时产物（Mavis canvas 缓存等）
 .mavis/
 
+# 桌面版打包产物（electron-builder 输出，不进版本库）
+pulse-record/release/
+
 # 微信开发者工具的本地配置（含个人 AppID 等，不进版本库）
 pulse-record/miniprogram/project.private.config.json
