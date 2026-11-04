@@ -29,6 +29,7 @@ import { DIM_ORDER } from './domain/grouping'
 import { validateCustomSymbol, type CustomSymbol } from './domain/symbols'
 import { toCsv, toMarkdown } from './export/text'
 import { downloadPng } from './export/png'
+import { downloadBlob } from './export/download'
 import {
   deletePatient,
   deleteVisit,
@@ -58,14 +59,8 @@ function muid(): string {
 
 function downloadText(filename: string, text: string, mime: string) {
   const blob = new Blob([text], { type: `${mime};charset=utf-8` })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
+  // 桌面版走系统另存为对话框，Web 端走浏览器下载（见 src/export/download.ts）
+  void downloadBlob(filename, blob)
 }
 
 export default function App() {
@@ -155,6 +150,26 @@ export default function App() {
   useEffect(() => {
     void serverState().then((s) => setDbPath(s.db ?? null))
   }, [])
+
+  /**
+   * 桌面版：主进程那边「导入数据文件」完成后会通知一声，
+   * 这边把病例列表重新拉一遍（导入的病例要立刻看得见）。
+   * Web 端没有这个桥，什么都不做。
+   */
+  useEffect(() => {
+    const bridge = window.__pulseDesktop
+    if (!bridge) return
+    return bridge.onDataChanged(() => {
+      void refreshHistory()
+      void (async () => {
+        try {
+          setCustomSymbols(await listCustomSymbols())
+        } catch {
+          setCustomSymbols([])
+        }
+      })()
+    })
+  }, [refreshHistory])
 
   /**
    * 病例记录与自定义符号：登录后才拉。

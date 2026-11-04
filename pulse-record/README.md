@@ -23,11 +23,42 @@ npm run seed:demo  # 写入 14 位演示患者（-- --reset 可先清空全部�
 npm run admin      # 账号维护命令行（list / create / reset / role / wechat …）
 npm run preview    # 预览构建产物（静态，不含病例记录）
 npm run typecheck  # 仅类型检查
-npm test           # 全量回归（共享包冒烟 + 小程序静态检查 + 老库迁移回归 + 越权隔离 + 浏览器回归）
+npm test           # 全量回归（共享包冒烟 + 小程序静态检查 + 老库迁移回归 + 越权隔离 + 浏览器回归 + 桌面端）
 ```
 
 `vite.config.ts` 里 `base: './'`，因此 `dist/` 可以直接用 `file://` 打开，便于离线使用与分享；
 但**病例记录需要后端服务**（见下节），纯静态打开时该功能不可用。
+
+## 桌面版（Windows）
+
+除了网页版，还有**打包好的 Windows 桌面程序**：双击图标就开一个独立窗口，
+不用开终端、不用装 Node、不用记网址。**页面与后端一行没改**，只是外面套了一层 Electron 壳。
+
+| | 网页版 | 桌面版 |
+|---|---|---|
+| 怎么开 | 浏览器打开 `http://127.0.0.1:5178/` | 双击桌面快捷方式 |
+| 要不要装 Node | 要 | **不要**（Electron 自带 Node） |
+| 病例数据在哪 | `local-data/history.sqlite` | 安装版 `%APPDATA%\臧氏脉学\`；**免安装版 exe 旁边的 `data\`**（U 盘带着走） |
+| 要不要登录 | 多用户模式下要 | **不用**（单机免登录） |
+| 导出落在哪 | 浏览器的「下载」目录 | **系统另存为对话框**（自己选位置） |
+
+- 使用与构建说明：**[`docs/desktop.md`](./docs/desktop.md)**
+- 实施方案（含架构图、逐文件改动清单、风险表）：**[`docs/desktop-plan.md`](./docs/desktop-plan.md)**
+
+本机构建（**Windows 上直接出包，不需要 Wine**）：
+
+```bash
+npm run desktop:dev     # 构建前端 + 开 Electron 窗口自测
+npm run desktop:pack    # 只出解包目录，验证打包产物能启动
+npm run desktop:dist    # 出安装包 + 免安装版（release/*.exe）
+```
+
+产物：`ZangShiMaiXue-<版本>-x64-setup.exe`（安装包）与 `…-portable.exe`（免安装版）。
+**未做代码签名** → 安装时 Windows 会提示「未知发布者」，点「更多信息 → 仍要运行」即可。
+
+> **免安装版的病例库跟着 exe 走**（exe 旁边的 `data\history.sqlite`）——
+> U 盘把 exe 和 `data\` 一起带走，换台电脑打开，病例还在。
+> 安装版的病例库在 `%APPDATA%\臧氏脉学\`。两者各用各的，互不影响。
 
 ## 账号与多用户
 
@@ -52,6 +83,8 @@ npm test           # 全量回归（共享包冒烟 + 小程序静态检查 + �
   看不到（隔离是对的，但数据得转过来）：
   `npm run admin -- claim <登录名>` —— 数据一个字节没改，只把归属换给该账号。
 - 维护账号：`npm run admin -- list | create <登录名> | reset <登录名> | role <登录名> admin | wechat <登录名> | claim <登录名>`。
+- 反向操作（把某账号的数据转给内置单机账号，桌面版导入老数据时用）：
+  `npm run admin -- claim-local <登录名>`。
 
 ## 部署
 
@@ -91,6 +124,30 @@ npm run build:core   # ① 编共享包（知识库 + 绘制代码），再打�
 
 个人主体的硬约束：`code2Session` 可用；**`web-view` 不可用**（不支持业务域名）→ 必须原生开发；
 **`getPhoneNumber` 不可用** → 账号绑定只走「网站账号＋密码」。
+
+## 桌面应用（规划中 · 尚未实现）
+
+计划把本工具打成 **Windows 桌面应用**（`.exe` 安装包 ＋ 免安装版），数据模型是
+**单机、免登录、只在这台电脑上**（无账号、无云端、无同步；数据落在本机用户目录的 SQLite 文件里）。
+
+**技术路线是 Electron，但业务逻辑一行不重写**：桌面壳只做三件事——起服务进程、开窗口、管导出另存为；
+渲染进程跑的就是**原封不动的 `dist/`**，`server/` 也是现有那份（零第三方依赖，只用 node: 内置）。
+
+- **实施方案全文**：**[`docs/desktop-plan.md`](./docs/desktop-plan.md)**
+  （含已核实的 Electron 版本→内置 Node 映射、架构图、**逐文件改动清单**、风险表、验证计划、里程碑）
+- **各工作线进度**：**[`docs/progress.md`](./docs/progress.md)**
+
+现状：**方案已成，实现一行未写**，开发分支 `chore/desktop-electron`（基点 `b9e3b19`）。
+
+三个容易踩的坑，实现前先看一眼 `desktop-plan.md`：
+
+1. **Electron 版本下限 35** —— `node:sqlite` 要 Node ≥ 22.13（22.13 解除 `--experimental-sqlite` flag），
+   Electron ≤ 34 内置的是 Node 20，**用不了**。
+2. **SQLite 库不能放 asar 内** —— asar 只读，而 SQLite 要写 WAL/SHM；必须落在
+   `app.getPath('userData')` 下。
+3. **老数据拷过去会「看不到」** —— 业务表按 `owner_id` 归属，本机 70 行数据在 `guoguo` 名下，
+   而桌面端单机模式一律挂 `local`，直接拷 `.sqlite` 过去只会显示 0 行。
+   方案 §5.3 给了「导入数据文件」的解法。
 
 ## 部署与自检
 
@@ -750,7 +807,9 @@ scripts/
 
 docs/
 ├── deploy.md              上线手册（备案、服务器、systemd、Caddy、备份、发布）
-└── cloudbase-migration.md 迁 CloudBase 的规划与坑位清单
+├── cloudbase-migration.md 迁 CloudBase 的规划与坑位清单
+├── desktop-plan.md        Windows 桌面应用（Electron）的实施方案（尚未实现）
+└── progress.md            各条工作线的进度台账、阻塞项与待办
 ```
 
 ## 两条资料线的关系

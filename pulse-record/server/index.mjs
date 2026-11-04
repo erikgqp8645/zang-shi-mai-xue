@@ -43,7 +43,8 @@
 
 import { createServer } from 'node:http'
 import { existsSync, readFileSync, statSync } from 'node:fs'
-import { join, extname, normalize } from 'node:path'
+import { join, extname, normalize, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   deleteCustomSymbol,
   deleteMedication,
@@ -86,10 +87,21 @@ import {
 import { code2Session } from './wechat.mjs'
 
 const PORT = Number(process.env.PORT ?? 5178)
-const DIST = join(import.meta.dirname, '..', 'dist')
+/**
+ * 前端构建产物目录。
+ * 桌面版（Electron）把打包后的 dist/ 放在 asar 外的 resources/ui，
+ * 用 PULSE_DIST 指过来；网页版走默认的 ../dist。
+ */
+const DIST = process.env.PULSE_DIST ?? join(import.meta.dirname, '..', 'dist')
 
-const db = openDb()
-await purgeExpiredSessions(db)
+/**
+ * 数据库句柄 —— 由 startServer() 赋值。
+ *
+ * 以前是模块加载期就 openDb()，那样「被 import 就会开库并监听」，
+ * Electron 桌面壳没法复用这个模块。现在开库/清会话/监听都收进 startServer()，
+ * 被 import 时**什么都不做**。
+ */
+let db = null
 
 /** 不需要登录的接口 */
 const PUBLIC_PATHS = new Set([
@@ -288,6 +300,29 @@ async function handleWechatBind(res, body) {
 }
 
 /* -------------------------------- 主路由 -------------------------------- */
+
+/**
+ * 起服务：开库 → 清过期会话 → 监听。
+ *
+ * 两种用法：
+ * 1. 命令行直接跑（`node server/index.mjs`）→ 文件末尾的 isMain 分支会调它。
+ * 2. 被 import（桌面壳 desktop/server-entry.mjs、e2e 回归）→ 由调用方决定何时起、起在哪个端口。
+ *
+ * @param {number} port  0 = 由操作系统分配空闲端口（桌面版用它避开端口冲突）
+ * @param {string} host  只监听本机
+ */
+export async function startServer({ port = 0, host = '127.0.0.1' } = {}) {
+  db = openDb()
+  await purgeExpiredSessions(db)
+  await new Promise((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(port, host, () => {
+      server.removeListener('error', reject)
+      resolve()
+    })
+  })
+  return { server, db, port: server.address().port }
+}
 
 const server = createServer(async (req, res) => {
   const started = Date.now()
@@ -619,9 +654,17 @@ const server = createServer(async (req, res) => {
   }
 })
 
-server.listen(PORT, () => {
-  console.log(`[臧氏脉学] 病例记录服务已启动：http://localhost:${PORT}/api/health`)
+/**
+ * 命令行直跑才起服务；被 import 时（桌面壳／e2e）由调用方调 startServer()。
+ * 用**路径**比较而不是 URL 比较 —— 仓库路径里可能有中文，
+ * pathToFileURL 会做百分号编码，两边编码规则不一致容易对不上。
+ */
+const isMain = process.argv[1] ? resolve(process.argv[1]) === fileURLToPath(import.meta.url) : false
+
+if (isMain) {
+  const { port } = await startServer({ port: PORT, host: '127.0.0.1' })
+  console.log(`[臧氏脉学] 病例记录服务已启动：http://localhost:${port}/api/health`)
   console.log(`[臧氏脉学] SQLite 文件：${DB_PATH}`)
   console.log(`[臧氏脉学] 模式：${SINGLE_USER ? '单机（不用登录）' : '多用户（需登录）'}`)
   if (existsSync(DIST)) console.log(`[臧氏脉学] 同时托管已构建页面：${DIST}`)
-})
+}

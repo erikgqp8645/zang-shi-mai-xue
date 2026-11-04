@@ -19,7 +19,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createRequire } from 'node:module'
 import { spawnSync } from 'node:child_process'
-import { buildApp, launchChrome, makeChecker, startApi, sleep } from './lib.mjs'
+import { buildApp, launchChrome, makeChecker, runNpm, startApi, sleep } from './lib.mjs'
 
 const require = createRequire(import.meta.url)
 const ROOT = join(import.meta.dirname, '..', '..')
@@ -32,7 +32,7 @@ const ROOT = join(import.meta.dirname, '..', '..')
 function loadCore() {
   const coreDir = join(ROOT, 'miniprogram/utils/core')
   if (!readdirSync(coreDir, { recursive: true }).some((f) => String(f).endsWith('sample.js'))) {
-    const r = spawnSync('npm', ['run', 'build:core'], { cwd: ROOT, encoding: 'utf8' })
+    const r = runNpm('build:core')
     if (r.status !== 0) throw new Error(`共享包编译失败：\n${r.stdout ?? ''}\n${r.stderr ?? ''}`)
   }
   return {

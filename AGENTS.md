@@ -748,6 +748,48 @@ npm run admin -- wechat <登录名>      # 查微信绑定
 
 ---
 
+## 桌面版（pulse-record · desktop · Windows）
+
+Windows 桌面程序：Electron 壳 + **原封不动**的 `dist/` 与 `server/`。
+实施方案见 `pulse-record/docs/desktop-plan.md`，使用说明见 `pulse-record/docs/desktop.md`。
+
+### 一句话边界
+
+**桌面壳只做三件事**：起服务进程、开窗口、管导出另存为。
+**业务逻辑一行不重写** —— 脉象知识库、方剂剂量、判读规则、病例存储全部复用现有代码。
+
+### 硬规矩
+
+| 项 | 规矩 | 原因 |
+|---|---|---|
+| **禁 `wal_checkpoint`** | 桌面端代码里**禁止出现** `wal_checkpoint` | 历史上 `wal_checkpoint(TRUNCATE)` 重置 wal-index header → 写入进**孤儿 WAL** → 进程退出全丢。备份一律 `VACUUM INTO` |
+| **禁 `copyFileSync` 拷库** | 备份／导出只能用 `VACUUM INTO` | 库里开着 WAL，活跃数据不在主文件里，直接拷会拿到半截事务 |
+| **数据落点** | 病例库：安装版 `%APPDATA%\臧氏脉学\history.sqlite`；**免安装版 exe 旁边的 `data\history.sqlite`**（靠 electron-builder 设的 `PORTABLE_EXECUTABLE_DIR` 认出来）。Electron 自己的缓存（Cache/GPUCache）**始终留在本机 %APPDATA%**，不往 U 盘上写。SQLite **不能放进 asar**（只读、且要写 WAL/SHM），也不能放进 Program Files |
+| **owner 归属** | 桌面版是单机免登录 → 所有请求归内置 `local` 账号。**别的账号名下的数据原样拷过去是一条也看不到** | `owner_id` 是归属列，读写一律按它过滤。导入时必须改挂（`desktop/db-transfer.mjs`） |
+| **后端只许拆不许改** | `server/index.mjs` 只拆出一个 `startServer()`，业务路由一行不改 | 桌面版与网页版共用同一份后端；回归 207 项必须全绿 |
+| **同源** | 窗口加载 `http://127.0.0.1:<端口>/`（端口 0 → OS 分配） | 同源 → 页面里 `/api/…` 相对路径直接可用，**绕开 Electron 沙箱的 CORS 限制** |
+| **渲染进程权限** | `nodeIntegration:false` ＋ `contextIsolation:true`；preload 只暴露「另存为」一个写文件能力 | 渲染进程拿不到 db 路径／SQL／连接，也拿不到任意写盘的口子 |
+
+### 关键事实（已实测，2026-11-04）
+
+- **Electron ≥ 35 才有 `node:sqlite`**（Node 22.5+ 引入，22.13 起解除 flag）。
+  本项目用 **Electron 44.10.2**（内置 Node 24.22.2 / SQLite 3.53.4）。
+  `scripts/e2e/electron-probe.mjs` 会自己跑一遍探测 —— **升 Electron 版本必须重跑它**。
+- 因为 `node:sqlite` 是 Node 内置 → **没有 `.node` 原生文件** → 不用 `electron-rebuild`、不用 VS Build Tools。
+- **在 Windows 上直接出 Windows 包，不需要 Wine**（原方案按 macOS 写的交叉编译路线用不上）。
+- 打包产物：安装包 ＋ 免安装版，文件名用 **ASCII**（`ZangShiMaiXue-…`）；界面中文名走 `productName`／`shortcutName`／窗口标题。
+
+### 导出入口
+
+`src/export/download.ts` 是**唯一下载入口**：
+
+- 桌面版（有 `window.__pulseDesktop`）→ 主进程 `dialog.showSaveDialog` → 写到用户选的位置；
+- 网页端 → **保留原来的 `<a download>` 行为**（逐字节不变）。
+
+新增导出方式时**一律调 `downloadBlob`**，不要在别处再写一遍 blob 下载。
+
+---
+
 ## 微信小程序（pulse-record · miniprogram）
 
 小程序端与网站端**共用同一个后端、同一套账号、同一份数据**；知识库与绘制代码也共用同一份编译产物。
@@ -863,6 +905,13 @@ npm run build:core     # tsc -p tsconfig.core.json + 补 require 后缀 + 复制
 - [ ] 改过**存储层**（建表／迁移／备份）后，是否跑过 `npm run test:e2e:migration`？其它 e2e 都走新建空库的路径、**完全不经过迁移** —— 迁移写错了它们照样全绿（真出过：UPSERT 缺 `WHERE`，新建库不触发，只有第一次打开自己的老库时后端才起不来）。
 - [ ] 迁移／备份在**还有第二个连接开着这个库**时是否安全？WAL 的共享状态一旦被重置（如 `wal_checkpoint(TRUNCATE)`），另一个连接退出时会把 `-wal/-shm` 删掉，服务端还开着旧 fd，之后的写入全进孤儿 WAL、进程退出就丢（症状：刚注册好的账号在库里查不到）。备份要用 SQLite 的 `VACUUM INTO`（一致性快照），不要 `copyFileSync`。
 - [ ] 小程序与网站**查方结果是否逐字一致**（同一份 `dose-lookup` 编译产物）？两套剂量（克／比例制）在两端是否都分栏标注出处、没有被换算？
+- [ ] 桌面版：改过 `server/index.mjs` 后，`node server/index.mjs` 的行为是否**完全不变**（`isMain` 判定）？`npm test` 是否仍 **207 项全绿**？
+- [ ] 桌面版：数据是否落在 `%APPDATA%\臧氏脉学\`（安装版）／ exe 旁边的 `data\`（免安装版）？有没有把库放进 asar 或 Program Files（SQLite 写不了）？**Electron 缓存有没有被误放到 exe 旁边**（缓存留本机 %APPDATA%）？
+- [ ] 桌面版：改过落点判定后，`desktop/data-dir.mjs` 的规则与 `desktop/main.mjs` 的实际用法是否一致（主进程必须调用那套纯函数，不要内联另写一份）？便携版与安装版的 userData 是否仍分开（否则单实例锁互相吞）？
+- [ ] 桌面版：导入老数据后，**别的账号名下那些病例在桌面端看得见吗**（owner 归属有没有改挂）？重复导入会不会翻倍？
+- [ ] 桌面端代码里有没有混进 `wal_checkpoint` 或 `copyFileSync` 拷库？（备份只能是 `VACUUM INTO`）
+- [ ] 升了 Electron 版本后，是否跑过 `node scripts/e2e/electron-probe.mjs`（确认 `node:sqlite` 还在）？
+- [ ] 网页端导出行为有没有被桌面端改动波及？（`downloadBlob` 的兜底分支必须与原来逐字节一致）
 
 ## Git 约定
 

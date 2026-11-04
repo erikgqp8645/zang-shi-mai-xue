@@ -9,6 +9,7 @@
  *   npm run admin -- role <登录名> admin|user       改角色
  *   npm run admin -- wechat <登录名>                看该账号的微信绑定状态
  *   npm run admin -- claim <登录名>                 把内置单机账号名下的老数据转给该账号
+ *   npm run admin -- claim-local <登录名>           把该账号名下的数据转给内置单机账号（桌面版用）
  *   npm run admin -- bind-wechat <登录名> <openid>  把 openid 手动绑到账号上（运维兜底）
  *
  * 直接操作本机 SQLite（server/db.mjs），不经过 HTTP —— 所以服务器上也能用。
@@ -130,6 +131,39 @@ switch (cmd) {
     break
   }
 
+  case 'claim-local': {
+    // 把某个账号名下的数据转给内置单机账号（local）—— 与 claim 方向相反。
+    // 场景：多用户时代录的病例要带进桌面版（桌面版是单机免登录，
+    // 所有请求都归到 local 名下，不转过去就一条也看不到）。
+    const [loginName] = args
+    if (!loginName) die('用法：npm run admin -- claim-local <登录名>')
+    const row = byLoginName(loginName)
+    if (!row) die('没有这个账号')
+    const local = await getLocalUser(db)
+    if (!local) die('库里没有内置单机账号')
+    if (local.id === row.id) die('这就是单机账号本身，没什么可转的')
+
+    // 父子表一起转，保持 owner 一致（visit→patient、medication→visit 的归属不变）
+    let total = 0
+    db.exec('BEGIN')
+    try {
+      for (const table of ['patients', 'visits', 'medication', 'custom_symbols']) {
+        const n = db
+          .prepare(`UPDATE ${table} SET owner_id = ? WHERE owner_id = ?`)
+          .run(local.id, row.id).changes
+        total += n
+        if (n > 0) console.log(`  ${table}：转了 ${n} 行`)
+      }
+      db.exec('COMMIT')
+    } catch (e) {
+      db.exec('ROLLBACK')
+      die(`转移失败：${e?.message ?? e}`)
+    }
+    console.log(`✓ 已把 ${loginName} 名下的 ${total} 行数据转给内置单机账号（local）`)
+    console.log('  （桌面版是单机免登录，转过去才看得见；数据本身一个字节没改，只换了归属）')
+    break
+  }
+
   case 'wechat': {
     const [loginName] = args
     if (!loginName) die('用法：npm run admin -- wechat <登录名>')
@@ -174,6 +208,8 @@ switch (cmd) {
   npm run admin -- create-admin <登录名> <密码>   建一个管理员账号
   npm run admin -- reset <登录名> <新密码>        重置密码
   npm run admin -- role <登录名> admin|user       改角色
+  npm run admin -- claim <登录名>                  把内置单机账号名下的老数据转给该账号
+  npm run admin -- claim-local <登录名>            把该账号名下的数据转给内置单机账号（桌面版用）
   npm run admin -- wechat <登录名>                看微信绑定状态
   npm run admin -- bind-wechat <登录名> <openid>  手动绑微信（运维兜底）
   npm run admin -- verify <登录名> <密码>         自检密码

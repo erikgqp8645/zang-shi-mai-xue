@@ -1,0 +1,61 @@
+# electron-builder 配置 —— 臧氏脉学 · 脉象记录表（Windows 桌面版）
+#
+# 桌面壳只做三件事：起服务进程、开窗口、管导出另存为。
+# 业务代码一行不重写 —— 跑的就是那份 dist/ 与那份 server/。
+#
+# 产物（见 docs/desktop.md）：
+#   release/ZangShiMaiXue-0.1.0-x64-setup.exe        安装包（可选安装目录、桌面快捷方式、可卸载）
+#   release/ZangShiMaiXue-0.1.0-x64-portable.exe    免安装版（双击即用）
+#
+# 注意：**产物名用 ASCII**。安装包文件名会进 CI artifact 名、压缩包内部路径，
+# 中文名在部分旧版 Windows 的解压路径上容易出问题；
+# 界面上的中文名由 productName / shortcutName / 窗口标题承担。
+
+appId: com.zangshimai.pulserecord
+productName: 臧氏脉学
+
+directories:
+  output: release
+  buildResources: build
+
+# 只打运行需要的文件：主进程、服务代码、包描述。
+# 不打 src/（源码）、miniprogram/（小程序端）、scripts/、docs/。
+files:
+  - package.json
+  - desktop/**/*
+  - server/**/*
+  - '!**/*.map'
+
+# 前端构建产物放 asar **外** → resources/ui。
+# 静态托管的物理路径明确，没有 asar 前缀问题；也没有把 SQLite 塞进只读 asar 的风险。
+extraResources:
+  - from: dist
+    to: ui
+
+asar: true
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+
+nsis:
+  # 允许改安装目录（装到 D 盘等）
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: 臧氏脉学
+  # 卸载**不删** %APPDATA% 下的数据 —— 重装不丢病例
+  deleteAppDataOnUninstall: false
+  artifactName: ZangShiMaiXue-${version}-${arch}-setup.${ext}
+
+portable:
+  artifactName: ZangShiMaiXue-${version}-${arch}-portable.${ext}
+
+# 不做自动更新（单机、无服务器、无发布渠道）
+publish: null

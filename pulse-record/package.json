@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "main": "desktop/main.mjs",
   "description": "臧氏脉学 · 脉象记录表生成器",
   "scripts": {
     "dev": "node scripts/dev.mjs",
@@ -17,12 +18,17 @@
     "admin": "node scripts/admin.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build:core && npm run test:e2e:core && npm run test:e2e:mp && npm run test:e2e:migration && npm run test:e2e:auth && npm run test:e2e:app",
+    "test": "npm run build:core && npm run test:e2e:core && npm run test:e2e:mp && npm run test:e2e:migration && npm run test:e2e:auth && npm run test:e2e:app && npm run test:e2e:desktop",
     "test:e2e:core": "node scripts/e2e/core-smoke.mjs",
     "test:e2e:mp": "node scripts/e2e/mp-lint.mjs",
     "test:e2e:migration": "node scripts/e2e/migration.mjs",
     "test:e2e:auth": "node scripts/e2e/auth-isolation.mjs",
-    "test:e2e:app": "node scripts/e2e/app-regression.mjs"
+    "test:e2e:app": "node scripts/e2e/app-regression.mjs",
+    "test:e2e:desktop": "node scripts/e2e/desktop-smoke.mjs",
+    "desktop:dev": "npm run build && electron .",
+    "desktop:pack": "npm run build && electron-builder --dir",
+    "desktop:dist": "npm run build && electron-builder",
+    "desktop:dist:win": "npm run build && electron-builder --win --x64"
   },
   "dependencies": {
     "react": "^19.3.1",
@@ -33,6 +39,8 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "electron": "^44.10.2",
+    "electron-builder": "^26.18.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.5"
   }
