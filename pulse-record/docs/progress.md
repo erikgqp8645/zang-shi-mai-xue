@@ -15,7 +15,7 @@
 | **P1 网站上线** | ⏸ **卡在用户侧手续** | 脚本与文档已就绪，**域名／ICP 备案／服务器三样都没有** | 备案 7~20 工作日是整条时间线最长的一段 → **今天就去提交备案** |
 | **P2 微信小程序** | 🟡 代码完成，未真机验证 | 个人主体（不能用 `web-view`、不能用 `getPhoneNumber`）→ 必须原生开发；8 个页面已写完 | 填真实 AppID 后真机跑一遍 |
 | **P3 后期迁 CloudBase** | ⏸ 规划完成，待触发 | 存储已收敛成 `server/store.mjs` 一层；db/auth 全 async | 真正迁的时候只改一处 |
-| **P4 Windows 桌面应用** | 📄 方案已成，**未实施** | Electron 路线；复用现有 `server/`＋`dist/`，业务逻辑不重写 | 在 `chore/desktop-electron` 上按方案 §11 的 P0→P4 推进 |
+| **P4 Windows 桌面应用** | ✅ **已实现**，本机出包并实测 | Electron 44.10.2；复用现有 `server/`＋`dist/`，业务逻辑不重写 | 交给使用者安装使用；macOS 包另找 Mac 机器补 |
 
 ---
 
@@ -95,15 +95,70 @@
 
 ---
 
-## 5. P4 · Windows 桌面应用（方案已成，未实施）
+## 5. P4 · Windows 桌面应用（✅ 已实现）
 
 **用户已拍板**：① 打包形态＝Windows 桌面 App；② 数据模型＝**单机、免登录、只在这台电脑上**。
 
 **方案全文**：[`docs/desktop-plan.md`](./desktop-plan.md)（含已核实的 Electron 版本→Node 映射、架构图、逐文件改动清单、风险表、验证计划）。
+**使用与构建说明**：[`docs/desktop.md`](./desktop.md)。
 
-**当前状态**：**仅方案落库，实现一行未写**。分支 `chore/desktop-electron` 已开（基点 `b9e3b19`）并推到远端。
+**当前状态**：**已实现并实测通过**（2026-11-04，本机 Windows）。
 
-**待办（按方案 §11 的里程碑）**：P0 探测 `node:sqlite` → P1 桌面壳 → P2 打包配置 → P3 老数据带入 → P4 CI 与文档。
+### 5.1 里程碑执行结果
+
+| 阶段 | 结果 |
+|---|---|
+| **P0 探测** | ✅ 通过。Electron 44.10.2 内置 Node **24.22.2**，`node:sqlite` **3.53.4** 可用，读回／回滚／外键行为与普通 Node 一致。**风险 R1 解除** |
+| **P1 桌面壳** | ✅ `server/index.mjs` 拆出 `startServer()`；`desktop/{main,server-entry,preload.cjs,db-transfer}` 就位；导出改走系统另存为，Web 端行为不变 |
+| **P2 打包** | ✅ `electron-builder.yml`＋`build/icon.png`；**本机 Windows 直接出包，不需要 Wine** |
+| **P3 老数据带入** | ✅ 「导入数据文件」＋ `admin claim-local`；owner 归属已改挂 |
+| **P4 CI 与文档** | ✅ `.github/workflows/desktop-windows.yml`＋`docs/desktop.md`＋README 一章＋AGENTS.md 一节 |
+
+### 5.2 产物（实测）
+
+| 文件 | 大小 |
+|---|---|
+| `release/ZangShiMaiXue-0.1.0-x64-setup.exe`（安装包） | 115.9 MB |
+| `release/ZangShiMaiXue-0.1.0-x64-portable.exe`（免安装） | 105.1 MB |
+| `release/win-unpacked/`（解包目录） | ≈ 300 MB |
+
+**打包产物已实测可跑**：进程存活、服务起在随机端口、页面完整渲染、同源 `/api/health` 200、
+写入往返正常（POST → GET 读回）、零 console 报错、数据落在 `%APPDATA%\臧氏脉学\history.sqlite`。
+
+### 5.3 验收实测
+
+| 项 | 结果 |
+|---|---|
+| 全量回归 | **174/174 ＋ 桌面端 24/24 全绿**（`server/index.mjs` 改动的硬门槛已过） |
+| 桌面端回归 | 新增 `scripts/e2e/desktop-smoke.mjs`（24 项，**不依赖 Electron／Chrome**，CI 也能跑） |
+| Electron 探测 | 新增 `scripts/e2e/electron-probe.mjs`（Node baseline ＋ Electron 对照） |
+| 另存为链路 | 端到端实测：preload → IPC → 主进程写盘 → 文件落盘、内容逐字节一致 |
+| 老数据带入 | 用**真实库**实测：15 患者／57 就诊／1 自定义符号（S＝涩）全部进桌面版且**归属改挂到本机账号**，原库一个字节没动 |
+
+### 5.4 顺手修掉的 3 个 Windows 平台 bug
+
+方案原按 macOS 开发写的，下列三处在 Windows 上会让回归跑不完 —— 已修：
+
+| # | 位置 | 症状 | 修法 |
+|---|---|---|---|
+| 1 | `scripts/e2e/mp-lint.mjs` | 「排除共享包」规则写死 `'/core/'`，Windows 下路径是 `\core\` → 排除失效，把编译产物当小程序页面来查 | 路径统一转 POSIX 再判断 |
+| 2 | `scripts/e2e/migration.mjs` | `await import('D:\\…\\db.mjs')` → `ERR_UNSUPPORTED_ESM_URL_SCHEME`（协议 `d:`） | 用 `pathToFileURL(...).href` |
+| 3 | `scripts/e2e/lib.mjs` | `spawnSync('npm')` 在 Windows 上找不到（且 Node ≥18.20 起 spawn `.cmd` 报 EINVAL）；`chromePath()` 只有 macOS/Linux 路径 | 统一走 `cmd.exe /c`；补 Windows 的 Chrome 路径 |
+
+### 5.5 与方案的两处偏差（都是往好的方向）
+
+| 方案原文 | 实际 | 为什么更好 |
+|---|---|---|
+| §8.2/8.3：macOS 上用 GH Actions 或 Wine 交叉编译出 Windows 包 | **在 Windows 上本机原生出包**（无需 Wine、无需 CI） | 本机就是 Windows：省掉 6 GB Wine 与 CI 往返。CI 仍然保留（换机器／追版本时用） |
+| §4.7：用 `hands-pulse.png` 中心裁切当图标 | 另做一枚「脉」字图标（`build/icon.png`） | 那两张素材都是**带文字的技术图**（寸关尺示意图、三部曲流程图），方形裁切后既不好看也认不出是什么 |
+
+### 5.6 还差的
+
+| 项 | 说明 |
+|---|---|
+| macOS 安装包 | 本轮只出 Windows；macOS 需在 Mac 上补构建（代码是跨平台的，`desktop:dev` 在 macOS 上能开窗自测） |
+| 代码签名 | 未买证书 → 安装时「未知发布者」提示（已知代价，方案 §12 第 3 条已确认接受） |
+| 自动更新 | 不做（无更新源） |
 
 ---
 
@@ -113,14 +168,16 @@
 |---|---|
 | 当前分支 | `chore/desktop-electron`（基点 `b9e3b19`） |
 | 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`chore/desktop-electron` = `b9e3b19` |
-| PR | #6 `chore/multi-user → main`，**OPEN**，10 个提交，可合并（GitHub 已生成 test-merge ref） |
-| 未推送提交 | 无（`origin/…..HEAD` 为空） |
-| 全量回归 | **174/174 通过** |
-| 本机库 | `pulse-record/local-data/history.sqlite`（73 KB） |
-| 本机数据 | 账号 `local`（admin，**0 患者 0 就诊**）＋ `guoguo`（user，**14 患者 56 就诊**）；medication 0 条、custom_symbols 0 条 |
-| dev server | 多用户模式在跑：后端 5178／前端 5180，日志 `/tmp/pulse-dev.log` |
+| PR | #6 `chore/multi-user → main`，**OPEN**；桌面版 PR 目标＝`chore/multi-user`（避免依赖倒置） |
+| 全量回归 | **174/174 ＋ 桌面端 24/24 通过** |
+| 本机库 | `pulse-record/local-data/history.sqlite`（**老结构，无 owner_id** —— main 分支写的；多用户分支的迁移会自动补列并把数据归到 `local`） |
+| 本机数据 | 15 患者／57 就诊／1 自定义符号（S＝涩）；medication 0 条 |
+| 桌面版产物 | `pulse-record/release/`（安装包 ＋ 免安装版，已 gitignore） |
+| 桌面版数据 | `%APPDATA%\臧氏脉学\history.sqlite`（Windows） |
 
-> ⚠️ `local` 名下是 **0 行**、数据都在 `guoguo` 名下 —— 这正是桌面版「老数据带入」必须处理的 owner 归属陷阱，详见 `desktop-plan.md` §5.3。
+> ⚠️ 本机库目前是 **main 分支的老结构**（没有 `owner_id`）。
+> 多用户分支的迁移是幂等的 —— 第一次用新代码打开它会自动补列、回填归属到 `local`、并留 `.bak-<ts>` 备份。
+> 桌面版「导入数据文件」也支持老结构（缺的列自动跳过），**两条路都能把老数据带进桌面版**。
 
 ---
 
@@ -131,7 +188,7 @@
 | 🔴 1 | **域名注册 → 个人实名 → 提交 ICP 备案** | 7~20 工作日，是整条时间线最长的一段；不今天提交，后面小程序、CloudBase 全在等 |
 | 🔴 2 | **注册微信小程序（个人主体）→ 填真实 AppID** | 小程序代码已完成，卡在 AppID 与真机验证；与备案可并行 |
 | 🟡 3 | **买境内轻量服务器（2 核 4G）** | 备案通过后要立刻部署 |
-| 🟡 4 | **在 `chore/desktop-electron` 上实施桌面版** | 方案已就绪，5 个里程碑可自行推进；不依赖前 3 项 |
+| 🟡 4 | **桌面版装到自己的电脑上试一遍** | 已出包（`release/*.exe`），试过再决定要不要换签名证书 |
 | ⚪ 5 | AGENTS.md「下游用途」空位 | 由维护者自行填写一行 |
 | ⚪ 6 | 代码签名证书（可选） | 只影响安装时的 SmartScreen 提示，不影响功能 |
 
