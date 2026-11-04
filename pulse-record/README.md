@@ -92,6 +92,30 @@ npm run build:core   # ① 编共享包（知识库 + 绘制代码），再打�
 个人主体的硬约束：`code2Session` 可用；**`web-view` 不可用**（不支持业务域名）→ 必须原生开发；
 **`getPhoneNumber` 不可用** → 账号绑定只走「网站账号＋密码」。
 
+## 桌面应用（规划中 · 尚未实现）
+
+计划把本工具打成 **Windows 桌面应用**（`.exe` 安装包 ＋ 免安装版），数据模型是
+**单机、免登录、只在这台电脑上**（无账号、无云端、无同步；数据落在本机用户目录的 SQLite 文件里）。
+
+**技术路线是 Electron，但业务逻辑一行不重写**：桌面壳只做三件事——起服务进程、开窗口、管导出另存为；
+渲染进程跑的就是**原封不动的 `dist/`**，`server/` 也是现有那份（零第三方依赖，只用 node: 内置）。
+
+- **实施方案全文**：**[`docs/desktop-plan.md`](./docs/desktop-plan.md)**
+  （含已核实的 Electron 版本→内置 Node 映射、架构图、**逐文件改动清单**、风险表、验证计划、里程碑）
+- **各工作线进度**：**[`docs/progress.md`](./docs/progress.md)**
+
+现状：**方案已成，实现一行未写**，开发分支 `chore/desktop-electron`（基点 `b9e3b19`）。
+
+三个容易踩的坑，实现前先看一眼 `desktop-plan.md`：
+
+1. **Electron 版本下限 35** —— `node:sqlite` 要 Node ≥ 22.13（22.13 解除 `--experimental-sqlite` flag），
+   Electron ≤ 34 内置的是 Node 20，**用不了**。
+2. **SQLite 库不能放 asar 内** —— asar 只读，而 SQLite 要写 WAL/SHM；必须落在
+   `app.getPath('userData')` 下。
+3. **老数据拷过去会「看不到」** —— 业务表按 `owner_id` 归属，本机 70 行数据在 `guoguo` 名下，
+   而桌面端单机模式一律挂 `local`，直接拷 `.sqlite` 过去只会显示 0 行。
+   方案 §5.3 给了「导入数据文件」的解法。
+
 ## 部署与自检
 
 本机全功能版（页面 + 病例记录 API 同端口，一个进程）：
@@ -750,7 +774,9 @@ scripts/
 
 docs/
 ├── deploy.md              上线手册（备案、服务器、systemd、Caddy、备份、发布）
-└── cloudbase-migration.md 迁 CloudBase 的规划与坑位清单
+├── cloudbase-migration.md 迁 CloudBase 的规划与坑位清单
+├── desktop-plan.md        Windows 桌面应用（Electron）的实施方案（尚未实现）
+└── progress.md            各条工作线的进度台账、阻塞项与待办
 ```
 
 ## 两条资料线的关系
