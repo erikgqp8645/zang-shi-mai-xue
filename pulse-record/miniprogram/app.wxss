@@ -112,7 +112,12 @@ view, text, input, textarea, button {
 
 .pr-input {
   width: 100%;
-  padding: 16rpx 20rpx;
+  /* 小程序的 <input> 是原生组件：高度不随 padding 撑开，而 UA 默认高度约 1.4em，
+     配上 box-sizing:border-box 与上下 16rpx padding，内容盒只剩几 rpx —— 文字被裁掉一半。
+     所以这里显式给高度与行高，padding 只留左右。 */
+  height: 72rpx;
+  line-height: 72rpx;
+  padding: 0 20rpx;
   border: 1rpx solid #e6e2d6;
   border-radius: 10rpx;
   background: #ffffff;
