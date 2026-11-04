@@ -17,9 +17,10 @@
     "admin": "node scripts/admin.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build:core && npm run test:e2e:core && npm run test:e2e:mp && npm run test:e2e:auth && npm run test:e2e:app",
+    "test": "npm run build:core && npm run test:e2e:core && npm run test:e2e:mp && npm run test:e2e:migration && npm run test:e2e:auth && npm run test:e2e:app",
     "test:e2e:core": "node scripts/e2e/core-smoke.mjs",
     "test:e2e:mp": "node scripts/e2e/mp-lint.mjs",
+    "test:e2e:migration": "node scripts/e2e/migration.mjs",
     "test:e2e:auth": "node scripts/e2e/auth-isolation.mjs",
     "test:e2e:app": "node scripts/e2e/app-regression.mjs"
   },
