@@ -3,12 +3,16 @@
  * 小程序端静态检查
  *
  * 小程序没有编译期检查（WXML 里写错函数名、JS 里 require 路径写错，都要到运行时才炸），
- * 这里把最容易犯的三类错提前抓住：
+ * 这里把最容易犯的几类错提前抓住：
  *
  *   1. WXML 的 `{{ }}` 里出现函数调用 —— WXML **不支持**调用 JS 函数，
  *      必须在 JS 里预先算好放进 data。
  *   2. WXML 里绑定了事件，但对应页面 JS 里没有这个方法 —— 点了没反应。
  *   3. 页面 JS 里 require 的路径不存在 —— 页面一进就白屏。
+ *   4. 共享包没编译、相对 require 少了 .js 后缀 —— 运行时才炸。
+ *   5. 用了老机型 JSCore 没有的 ES2019+ 运行时内建 —— 白屏。
+ *   6. 出图链路传错底图对象、用了已弃用的 wx.getSystemInfoSync ——
+ *      这类是**静默失败**：页面看着像「图还没生成」，不翻 console 发现不了。
  *
  * 用法：node scripts/e2e/mp-lint.mjs
  */
@@ -147,6 +151,24 @@ for (const f of walk(MP, [], (p) => p.endsWith('.js') && !toPosix(p).includes('/
   }
 }
 ok('页面代码没有用 ES2019+ 的运行时内建', modern.length === 0, modern.join(', '))
+
+/* ---- 6. 出图链路：底图必须传真图片对象；不得用已弃用的 wx.getSystemInfoSync ---- */
+const mpJsFiles = walk(MP, [], (p) => p.endsWith('.js') && !toPosix(p).includes('/core/'))
+const placeholderDiagram = []
+const deprecatedSysInfo = []
+for (const f of mpJsFiles) {
+  const src = readFileSync(f, 'utf8')
+  const rel = toPosix(f).replace(toPosix(MP) + '/', '')
+  // planDiagram 的第一个参数必须是**真图片**（小程序侧 canvas.createImage() 出来的对象）。
+  // 传 { width, height } 这种尺寸占位对象，drawImage 会抛 TypeError：
+  // 表格和寸关尺图示一个都画不出来，tempFilePath 永远是空的，
+  // 而页面只在 console 里留一条异常，业务上看不出来 —— 只当「图还没生成」。
+  if (/planDiagram\(\s*\{/.test(src)) placeholderDiagram.push(rel)
+  // wx.getSystemInfoSync 已被官方弃用（真机 console 会一直告警），取像素比用 wx.getDeviceInfo。
+  if (/wx\.getSystemInfoSync\s*\(/.test(src)) deprecatedSysInfo.push(rel)
+}
+ok('planDiagram 的底图参数是真图片对象（不是尺寸占位）', placeholderDiagram.length === 0, placeholderDiagram.join(', '))
+ok('页面没有用已弃用的 wx.getSystemInfoSync', deprecatedSysInfo.length === 0, deprecatedSysInfo.join(', '))
 
 console.log(`\n共 ${pass + fail} 项，通过 ${pass}，失败 ${fail}`)
 if (failures.length) {

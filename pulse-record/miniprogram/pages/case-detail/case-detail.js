@@ -12,7 +12,6 @@
 const data = require('../../utils/data.js')
 const { planTable, withDiagram, paintTable } = require('../../utils/core/export/table-painter.js')
 const { planDiagram, drawDiagram } = require('../../utils/core/export/diagram.js')
-const { IMG_W, IMG_H } = require('../../utils/core/domain/diagram.js')
 const { toMarkdown, toCsv } = require('../../utils/core/export/text.js')
 const { formatCodes } = require('../../utils/core/domain/symbols.js')
 
@@ -123,7 +122,7 @@ Page({
         this.canvasNode = canvas
 
         // 先按表格本体的尺寸建一次画布，再按最终尺寸（含图示）重建 —— 与网站同一顺序
-        const dpr = wx.getSystemInfoSync().pixelRatio || 2
+        const dpr = (wx.getDeviceInfo && wx.getDeviceInfo().pixelRatio) || 2
 
         const paint = (plan, diagramPlan) => {
           canvas.width = plan.canvasW * dpr
@@ -143,7 +142,11 @@ Page({
           return
         }
         img.onload = () => {
-          const dp = planDiagram({ width: IMG_W, height: IMG_H }, layout.tableW)
+          // 底图对象必须**传进 plan** —— drawDiagram 会 ctx.drawImage(plan.image, …)。
+          // 传尺寸占位对象（{width,height}）会直接抛 TypeError，表格和图示一个都画不出来，
+          // tempFilePath 也永远是空的（「存相册」按钮随之失效）。
+          // 网站端 src/export/png.ts 用的是 loadHandsImage() 返回的真图片，两边同理。
+          const dp = planDiagram(img, layout.tableW)
           layout = withDiagram(layout, { w: dp.w, h: dp.h })
           paint(layout, Object.assign({}, dp, { dy: layout.diagramDy }))
           this.exportReady()
@@ -176,18 +179,53 @@ Page({
       wx.showToast({ title: '图还没生成，稍等一下', icon: 'none' })
       return
     }
+    // 先看授权态：用户明确拒绝过就别白跑一趟，直接引导去设置页重新打开。
+    // 没拒绝过（undefined）就直接调，第一次会由系统弹授权框。
+    wx.getSetting({
+      withAuthorization: true,
+      success: (res) => {
+        const granted = res.authSetting && res.authSetting['scope.writePhotosAlbum']
+        if (granted === false) {
+          this.showAlbumDenied()
+          return
+        }
+        this.saveToAlbum(p)
+      },
+      fail: () => this.saveToAlbum(p),
+    })
+  },
+
+  /** 真正写相册 */
+  saveToAlbum(p) {
     wx.saveImageToPhotosAlbum({
       filePath: p,
       success: () => wx.showToast({ title: '已存到相册', icon: 'success' }),
-      fail: () => {
-        wx.showModal({
-          title: '需要相册权限',
-          content: '去设置里允许「保存到相册」后再试。',
-          confirmText: '去设置',
-          success: (r) => {
-            if (r.confirm) wx.openSetting({})
-          },
-        })
+      fail: (err) => {
+        const msg = (err && err.errMsg) || ''
+        if (/privacy permission is not authorized/i.test(msg)) {
+          // 小程序后台《用户隐私保护指引》里没声明「相册（仅写入）」——
+          // 这是开发者侧的配置缺失，用户在设置里也打不开，只能如实告知。
+          wx.showModal({
+            title: '暂时存不了',
+            content: '这个小程序还没在后台声明「保存到相册」的使用说明，需要开发者补充后才能保存。',
+            showCancel: false,
+            confirmText: '知道了',
+          })
+          return
+        }
+        this.showAlbumDenied()
+      },
+    })
+  },
+
+  /** 用户拒绝过授权时的引导 */
+  showAlbumDenied() {
+    wx.showModal({
+      title: '需要相册权限',
+      content: '去设置里允许「保存到相册」后再试。',
+      confirmText: '去设置',
+      success: (r) => {
+        if (r.confirm) wx.openSetting({})
       },
     })
   },
