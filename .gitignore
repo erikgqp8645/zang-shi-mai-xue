@@ -29,6 +29,7 @@ pulse-record/miniprogram/assets/
 
 # 运行时产物（Mavis canvas 缓存等）
 .mavis/
+.workbuddy/
 
 # 桌面版打包产物（electron-builder 输出，不进版本库）
 pulse-record/release/
