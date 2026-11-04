@@ -3046,3 +3046,114 @@ button:disabled {
     margin-bottom: 2px;
   }
 }
+
+/* ---------- 表下「体质」行：每个记录日期各记各的（讲义 p34 原表没有这一行） ---------- */
+.pr-tfoot-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  background: #faf7f0;
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+
+.pr-tfoot-cell {
+  padding: 4px 6px;
+  border-top: 1px solid var(--line);
+  background: #fdfbf7;
+  text-align: center;
+  vertical-align: top;
+}
+
+.pr-tfoot-cell.is-active {
+  background: #fdf1e7;
+}
+
+.pr-tfoot-val {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  width: 100%;
+  padding: 2px 4px;
+  background: none;
+  border: 1px dashed transparent;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.pr-tfoot-val:hover {
+  border-color: var(--sage);
+  background: var(--card);
+}
+
+.pr-tfoot-val b {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.pr-tfoot-val em {
+  font-size: 10.5px;
+  font-style: normal;
+  color: var(--sage);
+}
+
+.pr-tfoot-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pr-tfoot-opt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2px 6px;
+  font-size: 11.5px;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--divider);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.pr-tfoot-opt b {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.pr-tfoot-opt em {
+  font-size: 9.5px;
+  font-style: normal;
+  color: var(--sage);
+}
+
+.pr-tfoot-opt:hover {
+  border-color: var(--sage);
+}
+
+.pr-tfoot-opt.is-on {
+  border-color: var(--clay);
+  background: #fdf1e7;
+}
+
+.pr-tfoot-opt.is-on em {
+  color: var(--clay);
+}
+
+.pr-tfoot-clear {
+  font-size: 11px;
+  color: var(--sage);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.pr-tfoot-pick-note {
+  font-size: 10px;
+  color: var(--sage);
+  line-height: 1.4;
+}
