@@ -3,30 +3,47 @@ import { draftDoseView, thDoseView, type DoseSourceView } from '../domain/dose-l
 /**
  * 两套资料的组成 —— 并列显示，各自带出处与单位。
  *
- * - 同和堂版《臧氏脉学方剂汇总统表》＝成方，**克**
+ * - 同和堂版《方剂汇总统表》＝成方，**克**
  * - 讲稿 2010·第二讲 ＝组成用**比例制**
  *
  * 两套**不可互相换算、也不合并**。查得就列出来，查不到就明说「未载」，
  * 不拿名字相近的方顶替，也不替读者在同名不同号的几条里选。
  */
+
+/** 要显示哪一套 */
+export type DoseSource = 'th' | 'draft'
+
 export function DoseLines({
   name,
   className,
+  sources = ['th', 'draft'],
+  skipWhenMissing = false,
 }: {
   /** 方名（原文用字） */
   name: string
   className?: string
+  /** 显示哪几套（默认两套都显示） */
+  sources?: DoseSource[]
+  /** 两套都没查到时整块不渲染（用于「方名只是方名」的场合，避免满屏「未载」） */
+  skipWhenMissing?: boolean
 }) {
   const q = name.trim()
   if (!q) return null
 
   const th = thDoseView(q)
   const draft = draftDoseView(q)
+  const wantTh = sources.includes('th')
+  const wantDraft = sources.includes('draft')
+
+  if (skipWhenMissing) {
+    const anyHit = (wantTh && th.matched !== 'none') || (wantDraft && draft.matched !== 'none')
+    if (!anyHit) return null
+  }
 
   return (
     <div className={`pr-dose-lines${className ? ` ${className}` : ''}`}>
-      <DoseBlock label="同和堂版（克）" view={th} />
-      <DoseBlock label="讲稿 2010（比例制）" view={draft} />
+      {wantTh && <DoseBlock label="同和堂版（克）" view={th} />}
+      {wantDraft && <DoseBlock label="讲稿 2010（比例制）" view={draft} />}
     </div>
   )
 }
@@ -41,11 +58,11 @@ function DoseBlock({ label, view }: { label: string; view: DoseSourceView }) {
       </p>
     )
   }
-  /** 同名不同号：原方名里含这个名字，工具不替读者选 */
+  /** 名称里含查询词的候选：多条时不替读者选，只有一条时说清是「含」不是「同」 */
   const note =
     view.entries.length > 1
       ? `　同名不同号 ${view.entries.length} 条（原方名各不相同，工具不替你选）`
-      : '　同名的一条（原方名见后）'
+      : '　名称含此名的一条（原方名见后）'
   /** 别名对照：用名不同，但有明确对照依据 */
   const showName = view.matched === 'contains' || view.matched === 'alias'
   return (
@@ -62,6 +79,7 @@ function DoseBlock({ label, view }: { label: string; view: DoseSourceView }) {
           {e.science && <span className="pr-dose-science">　科中：{e.science}</span>}
           {e.usage && <span className="pr-dose-usage">　服法：{e.usage}</span>}
           <span className="pr-dose-src">〔{e.source}〕</span>
+          {e.basis && <span className="pr-dose-ref">　对照：{e.basis}</span>}
         </p>
       ))}
     </div>

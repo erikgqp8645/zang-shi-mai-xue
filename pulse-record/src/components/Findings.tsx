@@ -16,6 +16,7 @@ import {
   type FormulaScience,
 } from '../domain/formula-table'
 import { FlowPath } from './FlowPath'
+import { DoseLines } from './DoseLines'
 import {
   DIM_ORDER,
   groupByHand,
@@ -252,6 +253,26 @@ function FormulaItem({
             const d = DRUG_BY_ID[id]
             return d ? <DrugCard key={id} drug={d} /> : null
           })}
+        </div>
+      )}
+      {/*
+        组成与剂量：讲义 p44／p46 出头的条目多半只给了方名，
+        这里按方名补上两套资料（克／比例制）；两套都没载的方名不渲染，免得满屏「未载」。
+        已有讲稿方剂卡片的条目只补同和堂版（克）那一套，免得与卡片重复。
+      */}
+      {hit.formulas.length > 0 && (
+        <div className="pr-formula-doses">
+          {hit.formulas
+            .filter((f) => !(hit.adds && hit.adds.includes(f)))
+            .map((f) => (
+              <DoseLines
+                key={f}
+                name={f}
+                className="pr-formula-dose"
+                sources={hit.drugs && hit.drugs.length > 0 ? ['th'] : ['th', 'draft']}
+                skipWhenMissing
+              />
+            ))}
         </div>
       )}
       <p className="pr-finding-src">

@@ -2994,6 +2994,28 @@ button:disabled {
   margin-left: 4px;
 }
 
+/* 行内的对照依据（讲义 p42 方名 ↔ 同和堂版方名） */
+.pr-dose-ref {
+  color: var(--sage);
+  font-size: 10.5px;
+}
+
+/* 依脉用方条目里补的组成与剂量（讲义 p44／p46 出头的条目原本只有方名） */
+.pr-formula-doses {
+  margin-top: 4px;
+}
+
+.pr-formula-dose {
+  margin-top: 4px;
+  padding-left: 6px;
+  border-left: 2px solid var(--divider);
+}
+
+.pr-formula-dose .pr-dose-block {
+  border-left: 0;
+  padding-left: 0;
+}
+
 /* 用药记录行里的组成（格子窄，字再小一号） */
 .pr-med-dose-lines {
   font-size: 11px;
