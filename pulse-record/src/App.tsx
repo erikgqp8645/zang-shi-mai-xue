@@ -796,6 +796,13 @@ export default function App() {
           highlight={highlight}
           activeSessionId={activeSessionId}
           onSelectSession={setActiveSessionId}
+          onPickConstitution={(sessionId, c) => {
+            // 体质随治疗推进会变，所以每次就诊各记各的；选体质按图上的配对带出疗法
+            patchSession(sessionId, { constitution: c, therapy: therapyOf(c) })
+          }}
+          onClearConstitution={(sessionId) =>
+            patchSession(sessionId, { constitution: null, therapy: null })
+          }
         />
 
         {/* 底排：左列「符号录入」，右列「寸关尺图示」 */}

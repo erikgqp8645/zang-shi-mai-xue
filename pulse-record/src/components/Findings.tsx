@@ -16,6 +16,7 @@ import {
   type FormulaScience,
 } from '../domain/formula-table'
 import { FlowPath } from './FlowPath'
+import { DoseLines } from './DoseLines'
 import {
   DIM_ORDER,
   groupByHand,
@@ -252,6 +253,26 @@ function FormulaItem({
             const d = DRUG_BY_ID[id]
             return d ? <DrugCard key={id} drug={d} /> : null
           })}
+        </div>
+      )}
+      {/*
+        组成与剂量：讲义 p44／p46 出头的条目多半只给了方名，
+        这里按方名补上两套资料（克／比例制）；两套都没载的方名不渲染，免得满屏「未载」。
+        已有讲稿方剂卡片的条目只补同和堂版（克）那一套，免得与卡片重复。
+      */}
+      {hit.formulas.length > 0 && (
+        <div className="pr-formula-doses">
+          {hit.formulas
+            .filter((f) => !(hit.adds && hit.adds.includes(f)))
+            .map((f) => (
+              <DoseLines
+                key={f}
+                name={f}
+                className="pr-formula-dose"
+                sources={hit.drugs && hit.drugs.length > 0 ? ['th'] : ['th', 'draft']}
+                skipWhenMissing
+              />
+            ))}
         </div>
       )}
       <p className="pr-finding-src">
@@ -612,29 +633,29 @@ export function Findings({
             )}
           </section>
 
-          {dim === 'route' && (
-            <section className="pr-formula-group">
-              <h3 className="pr-formula-route">方剂备查（同和堂版《臧氏脉学方剂汇总统表》）</h3>
-              <p className="pr-target-line">
-                纸质讲义第 1~4 页原样转录：成方（药味＋**克**）与第 4 页「科中」科学中药比例。
-                单位是克，与讲稿 2010 的比例制不同 —— 两套**不可互相换算**，也不合并。
-              </p>
-              {[1, 2, 3].map((page) => (
-                <div key={page} className="pr-drug-group">
-                  <h4 className="pr-drug-group-title">第 {page} 页</h4>
-                  {FORMULA_DOSES.filter((d) => d.page === page).map((d) => (
-                    <DoseCard key={d.id} dose={d} />
-                  ))}
-                </div>
-              ))}
-              <div className="pr-drug-group">
-                <h4 className="pr-drug-group-title">第 4 页 · 科中（科学中药）</h4>
-                {FORMULA_SCIENCES.map((s) => (
-                  <ScienceLine key={s.id} s={s} />
+          {/* 同和堂版成方：三个维度都显示（它没有五行／左右手归属，不参与分组筛选） */}
+          <section className="pr-formula-group">
+            <h3 className="pr-formula-route">方剂备查（同和堂版《臧氏脉学方剂汇总统表》）</h3>
+            <p className="pr-target-line">
+              纸质讲义第 1~4 页原样转录：成方（药味＋**克**）与第 4 页「科中」科学中药比例。
+              单位是克，与讲稿 2010 的比例制不同 —— 两套**不可互相换算**，也不合并。
+              {dim !== 'route' && '　本组条目无五行／左右手归属，不参与上面的分组筛选。'}
+            </p>
+            {[1, 2, 3].map((page) => (
+              <div key={page} className="pr-drug-group">
+                <h4 className="pr-drug-group-title">第 {page} 页</h4>
+                {FORMULA_DOSES.filter((d) => d.page === page).map((d) => (
+                  <DoseCard key={d.id} dose={d} />
                 ))}
               </div>
-            </section>
-          )}
+            ))}
+            <div className="pr-drug-group">
+              <h4 className="pr-drug-group-title">第 4 页 · 科中（科学中药）</h4>
+              {FORMULA_SCIENCES.map((s) => (
+                <ScienceLine key={s.id} s={s} />
+              ))}
+            </div>
+          </section>
         </>
       )}
     </section>

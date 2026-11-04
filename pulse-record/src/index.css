@@ -1697,48 +1697,6 @@ button:disabled {
   background: #fdf6ef;
 }
 
-/* ---- 开方药 ---- */
-
-.pr-triad-rx-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.pr-triad-rx {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
-  padding: 5px 9px;
-  border: 1px solid var(--divider);
-  border-top: 2px solid var(--high);
-  background: var(--paper);
-}
-
-.pr-triad-rx-no {
-  font-size: 11px;
-  color: var(--sage);
-}
-
-.pr-triad-rx-name {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.pr-triad-rx-src {
-  font-size: 10.5px;
-  color: var(--sage);
-}
-
-.pr-triad-rx-empty {
-  font-size: 11.5px;
-  color: var(--sage);
-}
-
 .pr-flow-loop {
   margin: 8px 0 0;
   font-size: 11px;
@@ -2350,10 +2308,13 @@ button:disabled {
 }
 
 .pr-triad-rx {
-  display: flex;
+  /* 方名一行、组成一块 —— 组成很长，所以整条占满一行 */
+  display: grid;
+  grid-template-columns: auto auto 1fr;
   align-items: baseline;
-  gap: 5px;
-  padding: 5px 9px;
+  gap: 2px 5px;
+  width: 100%;
+  padding: 6px 10px;
   border: 1px solid var(--divider);
   border-top: 2px solid var(--high);
   background: var(--paper);
@@ -2992,4 +2953,229 @@ button:disabled {
   .pr-triad-pick-opts {
     grid-template-columns: 1fr;
   }
+}
+
+/* ---------- 两套资料的组成（克 ／ 比例制，并列各带出处） ---------- */
+.pr-dose-lines {
+  margin-top: 4px;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.pr-dose-block {
+  margin-top: 3px;
+}
+
+.pr-dose-block-label {
+  color: var(--sage);
+}
+
+.pr-dose-line {
+  margin: 1px 0 0;
+  color: var(--ink);
+}
+
+.pr-dose-line.is-missing {
+  color: var(--sage);
+}
+
+.pr-dose-name {
+  color: var(--clay);
+  font-weight: 600;
+}
+
+.pr-dose-science,
+.pr-dose-usage {
+  color: var(--clay);
+}
+
+.pr-dose-src {
+  color: var(--sage);
+  margin-left: 4px;
+}
+
+/* 行内的对照依据（讲义 p42 方名 ↔ 同和堂版方名） */
+.pr-dose-ref {
+  color: var(--sage);
+  font-size: 10.5px;
+}
+
+/* 依脉用方条目里补的组成与剂量（讲义 p44／p46 出头的条目原本只有方名） */
+.pr-formula-doses {
+  margin-top: 4px;
+}
+
+.pr-formula-dose {
+  margin-top: 4px;
+  padding-left: 6px;
+  border-left: 2px solid var(--divider);
+}
+
+.pr-formula-dose .pr-dose-block {
+  border-left: 0;
+  padding-left: 0;
+}
+
+/* 用药记录行里的组成（格子窄，字再小一号） */
+.pr-med-dose-lines {
+  font-size: 11px;
+  max-width: 260px;
+}
+
+.pr-med-dose-lines .pr-dose-line {
+  word-break: break-all;
+}
+
+/* ③开方药清单里的组成：整条占满一行，组成另起一块 */
+.pr-triad-rx-dose {
+  grid-column: 1 / -1;
+  margin-top: 3px;
+  padding-left: 6px;
+  border-left: 2px solid var(--divider);
+}
+
+/* ---------- 窄屏：用药记录的组成改到表下方整宽列出 ---------- */
+.pr-med-dose-summary {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  /* 表内那格太窄，组成挤成竖排 —— 窄屏改看表下方 */
+  .pr-med-dose-lines {
+    display: none;
+  }
+
+  .pr-med-dose-summary {
+    display: block;
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px dashed var(--divider);
+  }
+
+  .pr-med-dose-summary-title {
+    margin: 0 0 4px;
+    font-size: 11px;
+  }
+
+  .pr-med-dose-sum-row {
+    padding: 5px 0;
+  }
+
+  .pr-med-dose-sum-name {
+    display: block;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 2px;
+  }
+}
+
+/* ---------- 表下「体质」行：每个记录日期各记各的（讲义 p34 原表没有这一行） ---------- */
+.pr-tfoot-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  background: #faf7f0;
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+
+.pr-tfoot-cell {
+  padding: 4px 6px;
+  border-top: 1px solid var(--line);
+  background: #fdfbf7;
+  text-align: center;
+  vertical-align: top;
+}
+
+.pr-tfoot-cell.is-active {
+  background: #fdf1e7;
+}
+
+.pr-tfoot-val {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  width: 100%;
+  padding: 2px 4px;
+  background: none;
+  border: 1px dashed transparent;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.pr-tfoot-val:hover {
+  border-color: var(--sage);
+  background: var(--card);
+}
+
+.pr-tfoot-val b {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.pr-tfoot-val em {
+  font-size: 10.5px;
+  font-style: normal;
+  color: var(--sage);
+}
+
+.pr-tfoot-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pr-tfoot-opt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2px 6px;
+  font-size: 11.5px;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--divider);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.pr-tfoot-opt b {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.pr-tfoot-opt em {
+  font-size: 9.5px;
+  font-style: normal;
+  color: var(--sage);
+}
+
+.pr-tfoot-opt:hover {
+  border-color: var(--sage);
+}
+
+.pr-tfoot-opt.is-on {
+  border-color: var(--clay);
+  background: #fdf1e7;
+}
+
+.pr-tfoot-opt.is-on em {
+  color: var(--clay);
+}
+
+.pr-tfoot-clear {
+  font-size: 11px;
+  color: var(--sage);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.pr-tfoot-pick-note {
+  font-size: 10px;
+  color: var(--sage);
+  line-height: 1.4;
 }

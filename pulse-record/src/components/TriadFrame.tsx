@@ -8,6 +8,7 @@ import {
   type TriadReference,
 } from '../domain/triad'
 import type { Constitution, Therapy } from '../domain/types'
+import { DoseLines } from './DoseLines'
 
 /**
  * 开方三部曲 · 框架
@@ -275,6 +276,8 @@ export function RxList({ prescriptions }: { prescriptions: Prescription[] }) {
           <span className="pr-triad-rx-no">{rx.no}.</span>
           <span className="pr-triad-rx-name">{rx.name}</span>
           <span className="pr-triad-rx-src">〔{rx.source}〕</span>
+          {/* 两套资料的组成并列（克 ／ 比例制），各带出处；查不到就明说未载 */}
+          <DoseLines name={rx.name} className="pr-triad-rx-dose" />
         </li>
       ))}
     </ul>
