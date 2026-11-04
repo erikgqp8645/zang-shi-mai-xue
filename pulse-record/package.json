@@ -24,6 +24,7 @@
     "test:e2e:core": "node scripts/e2e/core-smoke.mjs",
     "test:e2e:mp": "node scripts/e2e/mp-lint.mjs",
     "test:e2e:mp:api": "node scripts/e2e/mp-api.mjs",
+    "test:e2e:mp:sim": "node scripts/e2e/mp-sim.mjs",
     "test:e2e:migration": "node scripts/e2e/migration.mjs",
     "test:e2e:auth": "node scripts/e2e/auth-isolation.mjs",
     "test:e2e:app": "node scripts/e2e/app-regression.mjs",
@@ -44,6 +45,7 @@
     "@vitejs/plugin-react": "^6.1.2",
     "electron": "^44.10.2",
     "electron-builder": "^26.18.0",
+    "miniprogram-automator": "^0.13.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.5"
   }
