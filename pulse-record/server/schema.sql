@@ -1,4 +1,4 @@
--- 臧氏脉学 · 脉象记录表生成器 —— 病例记录库
+-- 臧氏脉学 · 脉象记录表生成器 —— 病例记录库（多用户版）
 --
 -- 两级结构：
 --   patients  一位受检者/患者（姓名、体例）
@@ -17,20 +17,80 @@
 -- pulse 是对应脉象的**文字**表述；symbols 是对应脉象的**符号**表述
 -- （JSON，key 同 visits.pulse_values：`手|部位|取法`，值为符号代码数组）——
 -- 两者并存，同一处用药可同时记文字与符号。
+--
+-- ── 账号与归属（多用户） ────────────────────────────────────────────
+-- users / identities / sessions 三张表管账号：
+--   users        一个「人」＝一个账号（网站与小程序共用同一行）
+--   identities   账号上挂的登录身份：password（登录名）／wechat（openid）／local（单机）
+--   sessions     登录态（不透明随机令牌，可吊销）
+--
+-- owner_id 是**数据归属**：patients / visits / medication / custom_symbols
+-- 四张业务表都带 owner_id，指向拥有这些数据的人。
+-- 四张表互为父子（patient → visit → medication），owner_id 在父子间保持一致，
+-- 启动时会自检这条不变量（见 server/db.mjs 的 migrate()）。
+-- 读写的每一处都按 owner_id 过滤；跨用户访问一律当作「不存在」（404，不泄露存在性）。
 
 PRAGMA foreign_keys = ON;
 
+CREATE TABLE IF NOT EXISTS users (
+  id            TEXT PRIMARY KEY,
+  -- 登录名：11 位手机号，或 4~20 位字母/数字/下划线。唯一。
+  login_name    TEXT NOT NULL UNIQUE,
+  display_name  TEXT NOT NULL,
+  -- 手机号（可空）：预留给将来的短信验证码等能力，本期不作登录凭证
+  phone         TEXT UNIQUE,
+  password_hash TEXT NOT NULL,
+  password_salt TEXT NOT NULL,
+  role          TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
+  created_at    INTEGER NOT NULL,
+  updated_at    INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS identities (
+  id          TEXT PRIMARY KEY,
+  user_id     TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  -- password（登录名）／wechat（openid）／local（单机内置账号）
+  provider    TEXT NOT NULL,
+  -- provider 下的唯一标识：password→login_name；wechat→openid；local→'local'
+  external_id TEXT NOT NULL,
+  -- 微信 unionid（小程序绑了开放平台才有），可空
+  union_id    TEXT,
+  created_at  INTEGER NOT NULL,
+  UNIQUE (provider, external_id)
+);
+
+CREATE INDEX IF NOT EXISTS identities_by_user ON identities (user_id, provider);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  token        TEXT PRIMARY KEY,
+  user_id      TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  created_at   INTEGER NOT NULL,
+  expires_at   INTEGER NOT NULL,
+  last_seen_at INTEGER NOT NULL,
+  user_agent   TEXT
+);
+
+CREATE INDEX IF NOT EXISTS sessions_by_user ON sessions (user_id);
+
 CREATE TABLE IF NOT EXISTS patients (
   id         TEXT PRIMARY KEY,
+  -- 归属：这条患者记录属于哪个账号
+  owner_id   TEXT NOT NULL,
   name       TEXT NOT NULL,
   layout     TEXT NOT NULL CHECK (layout IN ('nine', 'seven')),
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
+  updated_at INTEGER NOT NULL,
+  FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE CASCADE
 );
+
+-- 依赖 owner_id 的索引在 server/db.mjs 的 migrate() 里建：
+-- 老库要先 ALTER TABLE 补上 owner_id 列，才能建这些索引。
 
 CREATE TABLE IF NOT EXISTS visits (
   id         TEXT PRIMARY KEY,
   patient_id TEXT NOT NULL REFERENCES patients (id) ON DELETE CASCADE,
+  -- 归属：与所属患者一致（启动时自检）
+  owner_id   TEXT NOT NULL,
   label      TEXT NOT NULL,
   at         INTEGER NOT NULL,
   pulse_values TEXT NOT NULL,
@@ -38,7 +98,8 @@ CREATE TABLE IF NOT EXISTS visits (
   -- 使用者**自判**的体质（讲义 p47「①判体质」：肾虚／上盛下虚／平和）；NULL＝未判
   constitution TEXT,
   -- 使用者**自选**的疗法（讲义 p47「②定疗法」：三焦疗法／五脏疗法／一体疗法）；NULL＝未定
-  therapy     TEXT
+  therapy     TEXT,
+  FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS visits_by_patient ON visits (patient_id, seq);
@@ -47,6 +108,8 @@ CREATE TABLE IF NOT EXISTS medication (
   id         TEXT PRIMARY KEY,
   patient_id TEXT NOT NULL REFERENCES patients (id) ON DELETE CASCADE,
   visit_id   TEXT NOT NULL REFERENCES visits (id) ON DELETE CASCADE,
+  -- 归属：与所属就诊一致（启动时自检）
+  owner_id   TEXT NOT NULL,
   seq        INTEGER NOT NULL,
   name       TEXT NOT NULL,
   pulse      TEXT,
@@ -54,13 +117,22 @@ CREATE TABLE IF NOT EXISTS medication (
   adjust     TEXT,
   usage      TEXT,
   note       TEXT,
-  created_at INTEGER NOT NULL
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS medication_by_patient ON medication (patient_id, visit_id, seq);
 
 CREATE TABLE IF NOT EXISTS custom_symbols (
-  code       TEXT PRIMARY KEY,
+  code       TEXT NOT NULL,
+  -- 归属：自定义符号是使用者自建的，按人隔离
+  owner_id   TEXT NOT NULL,
   name       TEXT NOT NULL,
-  created_at INTEGER NOT NULL
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (owner_id, code),
+  FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE CASCADE
 );
+
+-- 依赖 owner_id 的索引（patients_by_owner / visits_by_owner / medication_by_owner /
+-- symbols_by_owner）在 server/db.mjs 的 migrate() 里建：
+-- 老库要先 ALTER TABLE 补上 owner_id 列，才能建这些索引。

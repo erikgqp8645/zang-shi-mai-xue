@@ -1,0 +1,80 @@
+/**
+ * 存储实现选择层 —— **数据访问的唯一入口**
+ *
+ * 路由层（server/index.mjs）、脚本、小程序都不碰 SQL，只调这里导出的函数。
+ *
+ * ## 契约（两套实现必须同名同签名）
+ *
+ * | 函数 | 语义 |
+ * |---|---|
+ * | `openDb()` | 打开／初始化存储，返回一个「db 句柄」 |
+ * | `listPatients(db, ownerId)` | 该账号的患者列表（含就诊次数） |
+ * | `searchPatients(db, q, ownerId)` | 搜索：姓名／日期标签／脉象符号三口径 |
+ * | `getPatient(db, id, ownerId)` | 一位患者 ＋ 其全部就诊记录；不属于该 owner → null |
+ * | `getVisit(db, id, ownerId)` | 一次就诊记录；不属于该 owner → null |
+ * | `putPatient(db, ownerId, patient)` | **整份覆盖**患者 ＋ 就诊 ＋ 用药；id 属别人 → null |
+ * | `putVisit(db, id, ownerId, patch)` | **只写回这一次**；不属于该 owner → null |
+ * | `renamePatient(db, id, ownerId, name)` | 改姓名 |
+ * | `deleteVisit(db, id, ownerId)` / `deletePatient(db, id, ownerId)` | 删（级联） |
+ * | `listMedication(db, patientId, ownerId)` | 该患者的全部用药 |
+ * | `listVisitMedication(db, visitId, ownerId)` | 某次就诊的用药 |
+ * | `putMedication(db, patientId, ownerId, rows)` | **整份覆盖**该患者的用药 |
+ * | `putVisitMedication(db, visitId, ownerId, rows)` | **只覆盖该次**的用药 |
+ * | `deleteMedication(db, id, ownerId)` | 删一条用药 |
+ * | `listCustomSymbols(db, ownerId)` | 该账号的自定义符号 |
+ * | `putCustomSymbol(db, ownerId, symbol)` | 新增／改名 |
+ * | `deleteCustomSymbol(db, code, ownerId)` | 删 |
+ * | `getLocalUser(db)` | 内置单机账号 |
+ *
+ * **两条硬规则**：
+ * 1. `ownerId` 必填，SQL／查询里必须带归属过滤 —— 跨用户访问当作「不存在」。
+ * 2. 全部函数都是 **async**。SQLite 实现内部是同步的（await 一个非 Promise 也没问题），
+ *    但 CloudBase PostgreSQL 是异步的（postgREST）—— 签名先定成 async，
+ *    将来换后端时调用方一行都不用改。
+ *
+ * ## 换后端时怎么做
+ *
+ * 迁 CloudBase 时新增 `server/db-pg.mjs`，按上面的契约实现同名函数，
+ * 然后把下面 `PULSE_STORE` 的分支打开即可。**路由层、前端、小程序都不用改。**
+ *
+ * 表结构映射见 docs/cloudbase-migration.md。
+ */
+
+const STORE = process.env.PULSE_STORE ?? 'sqlite'
+
+let impl
+if (STORE === 'pg') {
+  impl = await import('./db-pg.mjs')
+} else {
+  impl = await import('./db.mjs')
+}
+
+export const {
+  openDb,
+  getLocalUser,
+  listPatients,
+  searchPatients,
+  getPatient,
+  getVisit,
+  putPatient,
+  putVisit,
+  renamePatient,
+  deleteVisit,
+  deletePatient,
+  listMedication,
+  listVisitMedication,
+  putMedication,
+  putVisitMedication,
+  deleteMedication,
+  listCustomSymbols,
+  putCustomSymbol,
+  deleteCustomSymbol,
+} = impl
+
+/**
+ * 存储位置的描述（只用于 /api/health 与页面上的提示，不参与业务逻辑）。
+ * SQLite 是文件路径；PG 实现里改成「CloudBase PostgreSQL」之类的说明文字。
+ */
+export const { DB_PATH } = impl
+
+export { RESERVED_SYMBOL_CODES } from './symbol-codes.mjs'

@@ -43,6 +43,9 @@ import {
 } from './api/patients'
 import { deleteCustomSymbol, listCustomSymbols, saveCustomSymbol } from './api/symbols'
 import { sampleShaoJuan } from './domain/sample'
+import { LoginPanel } from './components/LoginPanel'
+import { logout as apiLogout, me, serverState, type AuthUser } from './api/auth'
+import { UNAUTHORIZED_EVENT } from './api/http'
 
 function uid(): string {
   return `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
@@ -89,6 +92,49 @@ export default function App() {
   const [symbolError, setSymbolError] = useState<string | null>(null)
 
   /**
+   * 登录状态（多用户）。
+   * - 单机模式（服务端 PULSE_SINGLE_USER=1）：不用登录，直接进
+   * - 多用户模式：必须登录；令牌失效（401）→ 广播事件 → 回到登录页
+   */
+  const [user, setUser] = useState<AuthUser | null>(null)
+  const [mode, setMode] = useState<'single' | 'multi'>('multi')
+  const [authReady, setAuthReady] = useState(false)
+
+  /** 启动时问一次服务端：什么模式、我是谁 */
+  useEffect(() => {
+    void (async () => {
+      const state = await serverState()
+      setMode(state.mode)
+      if (state.mode === 'single') {
+        setUser({ id: 'local', loginName: 'local', displayName: '本机用户', role: 'admin' })
+        setAuthReady(true)
+        return
+      }
+      const cur = await me()
+      setUser(cur?.user ?? null)
+      setAuthReady(true)
+    })()
+  }, [])
+
+  /** 令牌失效（401）→ 回到登录页 */
+  useEffect(() => {
+    const onUnauthorized = () => {
+      setUser(null)
+    }
+    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
+  }, [])
+
+  /** 退出登录 */
+  const doLogout = useCallback(async () => {
+    try {
+      await apiLogout()
+    } finally {
+      setUser(null)
+    }
+  }, [])
+
+  /**
    * 用药记录：使用者自己填「实际用了什么方、加减、服法」。
    * 挂在某一次就诊下（一次就诊可挂多条方），与脉象记录一起存本机 SQLite。
    * 工具只负责记录，不替使用者加减方、不下诊断。
@@ -107,15 +153,16 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    void refreshHistory()
-    fetch('/api/health')
-      .then((r) => r.json())
-      .then((d) => setDbPath(d?.db ?? null))
-      .catch(() => setDbPath(null))
-  }, [refreshHistory])
+    void serverState().then((s) => setDbPath(s.db ?? null))
+  }, [])
 
-  /** 自定义符号清单 */
+  /**
+   * 病例记录与自定义符号：登录后才拉。
+   * （未登录时拉会拿到 401，白白报错 —— 等登录完再拉。）
+   */
   useEffect(() => {
+    if (!user) return
+    void refreshHistory()
     void (async () => {
       try {
         setCustomSymbols(await listCustomSymbols())
@@ -123,7 +170,8 @@ export default function App() {
         setCustomSymbols([])
       }
     })()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
   /** 分组筛选：按五行／按左右手时打开哪些组（页面与 Markdown 导出共用一份状态） */
   const [groupFilter, setGroupFilter] = useState<{ wuxing: string[]; hand: string[] }>(() => ({
@@ -603,6 +651,28 @@ export default function App() {
 
   const baseName = `脉象记录表-${set.name || '未命名'}`
 
+  // 还没问完服务端状态时，先别渲染主界面（免得先闪一下没数据的空表）
+  if (!authReady) {
+    return (
+      <div className="pr-login">
+        <div className="pr-login-card">
+          <p className="pr-login-note">正在连接病例记录服务…</p>
+        </div>
+      </div>
+    )
+  }
+
+  // 未登录（多用户模式）→ 登录页
+  if (!user) {
+    return (
+      <LoginPanel
+        single={mode === 'single'}
+        onEnterSingle={() => setUser({ id: 'local', loginName: 'local', displayName: '本机用户', role: 'admin' })}
+        onLoggedIn={setUser}
+      />
+    )
+  }
+
   return (
     <div className="pr-app">
       {/* ---- 讲义 p47 原图：整套工具的总纲，放在最顶端 ---- */}
@@ -643,6 +713,17 @@ export default function App() {
           <button type="button" onClick={() => downloadText(`${baseName}.csv`, toCsv(set), 'text/csv')}>
             导出 CSV
           </button>
+          <span className="pr-header-user" title={mode === 'single' ? '单机模式：本机数据，不与他人共享' : '当前登录账号'}>
+            <span className={mode === 'single' ? 'pr-mode-badge pr-mode-single' : 'pr-mode-badge'}>
+              {mode === 'single' ? '单机模式' : '多用户'}
+            </span>
+            {mode === 'multi' && <span className="pr-user-name">{user.displayName || user.loginName}</span>}
+          </span>
+          {mode === 'multi' && (
+            <button type="button" className="pr-ghost" onClick={() => void doLogout()}>
+              退出登录
+            </button>
+          )}
         </div>
       </header>
 

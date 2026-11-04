@@ -6,32 +6,7 @@
  */
 
 import type { CustomSymbol } from '../domain/symbols'
-
-/** 服务端没起／起不来时，给出可照做的提示 */
-const OFFLINE = '连不上本地服务（/api/symbols）。请用 npm run start 起本地应用。'
-
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  let res: Response
-  try {
-    res = await fetch(path, {
-      ...init,
-      headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
-    })
-  } catch {
-    throw new Error(OFFLINE)
-  }
-  if (!res.ok) {
-    let msg = `请求失败（${res.status}）`
-    try {
-      const body = await res.json()
-      if (body?.error) msg = String(body.error)
-    } catch {
-      /* 保留默认信息 */
-    }
-    throw new Error(msg)
-  }
-  return (await res.json()) as T
-}
+import { request } from './http'
 
 /** 自定义符号清单 */
 export async function listCustomSymbols(): Promise<CustomSymbol[]> {

@@ -9,6 +9,7 @@
  */
 
 import type { Constitution, LayoutMode, Therapy } from '../domain/types'
+import { request } from './http'
 
 /** 一次就诊记录（某一天的脉象） */
 export interface Visit {
@@ -60,34 +61,10 @@ export interface MedicationRow {
   note: string
 }
 
-/** 服务端没起／起不来时，给出可照做的提示，而不是静默丢数据 */
-const OFFLINE =
-  '连不上本地病例记录服务（/api/patients）。请用 npm run dev 起前后端（开发），或 npm run build && npm start（本地应用）。'
-
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  let res: Response
-  try {
-    res = await fetch(path, {
-      ...init,
-      headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
-    })
-  } catch {
-    throw new Error(OFFLINE)
-  }
-  if (!res.ok) {
-    // 502/503/504 多为代理连不上后端（服务没起），给可照做的提示
-    if ([502, 503, 504].includes(res.status)) throw new Error(OFFLINE)
-    let msg = `请求失败（${res.status}）`
-    try {
-      const body = await res.json()
-      if (body?.error) msg = String(body.error)
-    } catch {
-      /* 保留默认信息 */
-    }
-    throw new Error(msg)
-  }
-  return (await res.json()) as T
-}
+/**
+ * 服务端没起／起不来时，给出可照做的提示，而不是静默丢数据。
+ * 统一在 api/http.ts 的 request() 里处理（带登录令牌、401 语义化）。
+ */
 
 /** 患者列表（含就诊次数），按最近记录时间倒序 */
 export async function listPatients(): Promise<PatientSummary[]> {

@@ -4,6 +4,10 @@
  * 不引第三方依赖（不用 concurrently），直接 spawn 两个子进程并把输出转发到同一个终端。
  * Ctrl+C 时一并退出。
  *
+ * 单机模式（默认）：服务端不要求登录，打开就能用 —— 与改造前的用法完全一样。
+ *   npm run dev              # 单机
+ *   npm run dev:multi        # 多用户（注册／登录后才进）
+ *
  * 局域网预览（让另一台设备打开这个页面）：
  *   npm run dev:lan        # 等于 HOST=0.0.0.0 node scripts/dev.mjs
  * 开了之后同一 Wi-Fi 下的手机／别的电脑可以用
@@ -43,7 +47,11 @@ if (await portBusy(API_PORT)) {
 const children = []
 
 function run(name, cmd, args) {
-  const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], env: process.env })
+  const child = spawn(cmd, args, {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    // 单机模式默认开着：不设 PULSE_SINGLE_USER 时按单机跑（打开就能用）
+    env: { ...process.env, PULSE_SINGLE_USER: process.env.PULSE_SINGLE_USER ?? '1' },
+  })
   const prefix = `[${name}]`
   const pipe = (stream, out) => {
     stream.setEncoding('utf8')

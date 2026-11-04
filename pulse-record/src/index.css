@@ -3179,3 +3179,157 @@ button:disabled {
   color: var(--sage);
   line-height: 1.4;
 }
+
+/* ---------- 登录页（多用户） ---------- */
+
+.pr-login {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+}
+
+.pr-login-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--card);
+  border: 1px solid var(--divider);
+  border-radius: 10px;
+  padding: 28px 26px 24px;
+  box-shadow: 0 6px 24px rgba(44, 41, 37, 0.06);
+}
+
+.pr-login-card h1 {
+  margin: 0 0 6px;
+  font-size: 19px;
+  letter-spacing: 0.5px;
+}
+
+.pr-login-note {
+  margin: 0 0 16px;
+  color: var(--sage);
+  font-size: 13px;
+}
+
+.pr-login-mode {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.pr-login-mode b {
+  color: var(--clay);
+}
+
+.pr-login-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.pr-login-tab {
+  flex: 1;
+  padding: 7px 0;
+  border: 1px solid var(--divider);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--sage);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.pr-login-tab-on {
+  background: var(--sage);
+  border-color: var(--sage);
+  color: #fff;
+}
+
+.pr-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pr-login-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--sage);
+}
+
+.pr-login-label input {
+  padding: 8px 10px;
+  border: 1px solid var(--divider);
+  border-radius: 6px;
+  font-size: 14px;
+  color: var(--ink);
+  background: #fff;
+}
+
+.pr-login-label input:focus {
+  outline: none;
+  border-color: var(--sage);
+}
+
+.pr-login-error {
+  margin: 0;
+  color: var(--high);
+  font-size: 13px;
+}
+
+.pr-login-submit {
+  margin-top: 4px;
+  padding: 9px 0;
+  border: none;
+  border-radius: 6px;
+  background: var(--sage);
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.pr-login-submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.pr-login-tip {
+  margin: 16px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--divider);
+  font-size: 12px;
+  color: var(--sage);
+}
+
+.pr-login-tip b {
+  color: var(--clay);
+}
+
+/* ---------- 页头：模式标识与当前用户 ---------- */
+
+.pr-header-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+  font-size: 13px;
+}
+
+.pr-mode-badge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--sage);
+  color: #fff;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+}
+
+.pr-mode-single {
+  background: var(--clay);
+}
+
+.pr-user-name {
+  color: var(--ink);
+}

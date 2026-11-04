@@ -222,10 +222,39 @@ const PATIENTS = [
   },
 ]
 
+/**
+ * 登录令牌。
+ *
+ * 单机模式（服务端 PULSE_SINGLE_USER=1）不用令牌，直接跑。
+ * 多用户模式要带令牌 —— 两种给法：
+ *   PULSE_TOKEN=<token>                    直接用现成的令牌
+ *   PULSE_LOGIN=<登录名> PULSE_PASSWORD=<密码>   脚本自己去换一个
+ */
+const TOKEN = await resolveToken()
+
+async function resolveToken() {
+  if (process.env.PULSE_TOKEN) return process.env.PULSE_TOKEN
+  const login = process.env.PULSE_LOGIN
+  const password = process.env.PULSE_PASSWORD
+  if (!login || !password) return null
+  const res = await fetch(`${BASE}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ loginName: login, password }),
+  })
+  if (!res.ok) throw new Error(`登录失败：${res.status}`)
+  const data = await res.json()
+  return data?.token ?? null
+}
+
 async function api(path, init) {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
-    headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
+    headers: {
+      'content-type': 'application/json',
+      ...(TOKEN ? { authorization: `Bearer ${TOKEN}` } : {}),
+      ...(init?.headers ?? {}),
+    },
   })
   if (!res.ok) throw new Error(`${init?.method ?? 'GET'} ${path} → ${res.status}`)
   return res.json()
