@@ -104,13 +104,14 @@ npm run mp:dev -- --port 6000
 ## 4. 不打开开发者工具也能验证
 
 ```bash
-npm run test:e2e:mp       # 静态检查（29 项）
+npm run test:e2e:mp       # 静态检查（31 项）
 npm run test:e2e:mp:api   # 数据层端到端（38 项）
+npm run test:e2e:mp:sim   # 模拟器冒烟（12 项）—— 需要先开开发者工具的自动化端口，见 4.5
 ```
 
 `test:e2e:mp` 查的是**页面骨架**：`app.json` 登记的 8 个页面都在、WXML 里没在 `{{ }}` 中调函数
 （小程序不支持）、绑定的每个事件都有对应方法、`require` 的相对路径都存在、没用到 ES2019+ 的运行时内建
-（老机型 JSCore 会白屏）。
+（老机型 JSCore 会白屏）、出图链路没把底图传成尺寸占位对象、没用已弃用的 `wx.getSystemInfoSync`。
 
 `test:e2e:mp:api` 查的是**页面底下那一层**：垫一个 `wx`（`wx.request` 走 fetch、Storage 走 Map）
 上去，加载**真实的** `utils/config.js` / `api.js` / `data.js` / `auth.js`，连**真实的后端**跑：
@@ -131,6 +132,59 @@ npm run test:e2e:mp:api   # 数据层端到端（38 项）
 
 ---
 
+## 4.5 让模拟器自己跑一遍（不用人点）
+
+静态检查和数据层都过了，**页面在模拟器里长什么样、点下去会不会炸**，还是得真跑。
+这件事可以交给命令行做 —— 开发者工具自带 `cli`，配 `miniprogram-automator` 就能开工程、编译、
+切页面、截图、读 console，**全程不需要点授权弹窗**。
+
+### 怎么跑
+
+```bash
+# 1) 开发者工具开工程并打开自动化端口（另开一个终端，跑着别关）
+cli auto --project "$PWD/miniprogram" --auto-port 9420 --trust-project --port 63190
+
+# 2) 后端 + 一个带演示数据的账号
+npm run mp:dev -- --multi
+npm run admin -- create mptest01 mpTest2026 测试
+PULSE_LOGIN=mptest01 PULSE_PASSWORD=mpTest2026 npm run seed:demo
+
+# 3) 跑冒烟
+npm run test:e2e:mp:sim
+```
+
+`test:e2e:mp:sim` 走完 8 个页面，逐页截图（存到 `$TMPDIR/mp-sim/`），断言：
+页面能打开、**出图画布有尺寸**、**临时图出得来**、console 没有报错。
+
+退出码：`0` 全过；`1` 有失败项；`2` 环境没就绪（开发者工具没开自动化端口，不是测试失败）。
+
+> 这套脚本就是 2026-11-04 抓到出图 bug 的地方：
+> 小程序侧把底图传成了尺寸占位对象，`drawImage` 抛 TypeError，
+> 表格和寸关尺图示一个都画不出来 —— 而页面只在 console 里留一条异常，
+> 业务上看着像「图还没生成」，不真跑一遍根本发现不了。
+
+### 开发者工具常用命令
+
+| 事 | 命令 |
+|---|---|
+| 看登录态 | `cli islogin --port 63190` |
+| 开工程 | `cli open --project <小程序目录> --port 63190` |
+| 开自动化端口 | `cli auto --project <小程序目录> --auto-port 9420 --trust-project --port 63190` |
+| 出预览二维码 | `cli preview --project <小程序目录> -f image -o <输出.png> --port 63190` |
+| 上传体验版 | `cli upload --project <小程序目录> -v 1.0.0 -d "说明" --port 63190` |
+| 构建 npm | `cli build-npm --project <小程序目录> --port 63190` |
+
+> `--port 63190` 是开发者工具的 HTTP 服务端口，缺了它 `cli` 会报「IDE service port disabled」。
+
+### 和官方 wechatide skill 的关系
+
+开发者工具还自带官方 skill（`wechatide`），能力更多（云开发全套、预览直接推到开发者微信、
+`simulator_screenshot` 等）。但它**需要在开发者工具里点一次授权弹窗**才能用；
+点不了的时候走上面这条 `cli` + `miniprogram-automator` 的路，功能上覆盖了
+编译、导航、截图、日志、预览二维码、上传，**且完全不需要点击**。
+
+---
+
 ## 5. 卡住了看这张表
 
 | 现象 | 原因 | 怎么办 |
@@ -140,7 +194,7 @@ npm run test:e2e:mp:api   # 数据层端到端（38 项）
 | 提示 `request:fail` / timeout（真机） | 手机连的不是同一个网 / 防火墙拦了端口 | 换同一 Wi-Fi；电脑放行 5178；用 `mp:dev` 打出的 IP |
 | 「测试连接」连不上但浏览器能开 | 地址填成了网站前端端口 5180 | 后端是 **5178**，前端 5180 不提供 `/api` |
 | 一直跳登录页 | 令牌失效或多用户模式下没登录 | 重新登录；单机模式不该出现，检查后端是否为 `PULSE_SINGLE_USER=1` |
-| 导出 PNG 存不进相册 | 没给相册权限 | 首次会弹授权，拒绝过要去「设置」里重开 |
+| 导出 PNG 存不进相册 | ①后台没声明「相册（仅写入）」②用户拒绝过授权 | ①去后台《用户隐私保护指引》补声明（见 `deploy.md` 6.3）②去设置里重开 |
 | `npm run mp:dev` 报端口占用 | 5178 被上一个进程占着 | 关掉旧进程，或 `npm run mp:dev -- --port 6000`（记得同步改「我的」页地址） |
 
 ---
@@ -149,6 +203,7 @@ npm run test:e2e:mp:api   # 数据层端到端（38 项）
 
 | 事项 | 状态 | 说明 |
 |---|---|---|
+| 模拟器冒烟 | ✅ 已做 | 8 个页面逐页跑通、逐页截图、console 干净；抓到并修掉了「出图画不出来」的 bug（见 4.5） |
 | 真机验证 | ⬜ 未做 | 代码与数据层都已自动验证，但**从未在手机上跑过**；真机才会暴露相册授权、软键盘/触屏录入手感、字体渲染 |
 | 真实 AppID | ✅ 已填 `wx3a21eb903a16cbc4` | 开发者工具需登录对应管理员微信号才能预览／上传 |
 | AppSecret | ✅ 在 `.secrets/server.env` | 微信免登要服务端 `code2Session`；已由 `mp:dev` 自动加载 |
