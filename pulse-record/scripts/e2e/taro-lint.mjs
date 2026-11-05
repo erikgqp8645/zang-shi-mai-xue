@@ -456,6 +456,90 @@ for (const f of pageFiles) {
 ok('知识页有出处标注（讲义／讲稿／同和堂版）', sourceMiss.length === 0, sourceMiss.join(' '))
 
 /* ========================================================================
+ * 21. 隐私接口清单（微信后台《用户隐私保护指引》必须同步）
+ * ======================================================================== */
+
+/**
+ * **已知**的隐私接口 —— 这就是「后台该勾哪几项」的唯一真源。
+ *
+ * 每个接口对应后台要勾的隐私类型（值即类型名）：
+ *   saveImageToPhotosAlbum → 「相册（仅写入）」
+ *   setClipboardData        → 「剪切板」
+ *
+ * ⚠️ 微信的隐私接口**没在后台声明就直接 fail**（errno 112），
+ * 而且**用户在设置里也打不开** —— 开发者侧配置缺失，用户改不了。
+ */
+const KNOWN_PRIVACY_APIS = {
+  saveImageToPhotosAlbum: '相册（仅写入）',
+  setClipboardData: '剪切板',
+}
+
+/**
+ * 候选池 —— 微信隐私接口里**常用的**那些。
+ *
+ * 为什么要有候选池：光比对「已知清单」永远发现不了**新增**的接口
+ * （清单里没有的，扫出来也不会报）。
+ * 所以先拿候选池去扫代码，扫到谁，再问「这人是不是在已知清单里」。
+ */
+const WECHAT_PRIVACY_API_CANDIDATES = [
+  // 相册
+  'saveImageToPhotosAlbum', 'chooseImage', 'chooseMedia', 'getSavedMediaList',
+  // 剪切板
+  'setClipboardData', 'getClipboardData',
+  // 位置
+  'getLocation', 'getFuzzyLocation', 'onLocationChange', 'openLocation', 'chooseLocation',
+  // 通讯录
+  'chooseContact', 'chooseAddress',
+  // 手机号
+  'getPhoneNumber',
+  // 用户信息
+  'getUserProfile', 'getUserInfo', 'chooseAvatar', 'chooseNickName',
+  // 摄像头 / 麦克风
+  'startRecord', 'camera',
+  // 蓝牙
+  'getBluetoothAdapterState', 'getBluetoothDevices',
+]
+
+/** 扫一批文件里调了哪些隐私接口（去注释，只看代码行） */
+function findPrivacyCalls(files) {
+  const found = new Set()
+  for (const f of files) {
+    const src = stripComments(read(f))
+    for (const api of WECHAT_PRIVACY_API_CANDIDATES) {
+      if (new RegExp(`(?:Taro|wx)\\.${api}\\b`).test(src)) found.add(api)
+    }
+  }
+  return found
+}
+
+const taroPrivacyCalls = findPrivacyCalls(tsxFiles)
+const legacyPrivacyCalls = findPrivacyCalls(
+  walk(join(ROOT, 'miniprogram'), [], (p) => p.endsWith('.js')),
+)
+const usedPrivacyApis = new Set([...taroPrivacyCalls, ...legacyPrivacyCalls])
+
+const unknownPrivacy = [...usedPrivacyApis].filter((a) => !(a in KNOWN_PRIVACY_APIS))
+ok(
+  `调用的隐私接口都在已知清单里（当前 ${usedPrivacyApis.size} 个：${[...usedPrivacyApis].join('、')}）`,
+  unknownPrivacy.length === 0,
+  unknownPrivacy.join(' ') + ' —— 新增隐私接口要同步：① 本清单 ② 微信后台隐私指引 ③ docs/miniprogram-release-checklist.md',
+)
+
+const stalePrivacy = Object.keys(KNOWN_PRIVACY_APIS).filter((a) => !usedPrivacyApis.has(a))
+ok('已知清单里的隐私接口都还在用（清单不能留着已废弃的）', stalePrivacy.length === 0, stalePrivacy.join(' '))
+
+const privacyPagePath = join(SRC, 'pages', 'privacy', 'index.tsx')
+const privacyPage = existsSync(privacyPagePath) ? read(privacyPagePath) : ''
+const undeclaredTypes = Object.values(KNOWN_PRIVACY_APIS).filter((t) => !privacyPage.includes(t))
+ok('隐私政策页写明了每种隐私类型', privacyPage !== '' && undeclaredTypes.length === 0, undeclaredTypes.join(' '))
+
+const mePagePath = join(SRC, 'pages', 'me', 'index.tsx')
+ok(
+  '「我的」页有隐私政策入口（审核要求小程序内可见）',
+  existsSync(mePagePath) && read(mePagePath).includes('pages/privacy/index'),
+)
+
+/* ========================================================================
  * 汇总
  * ======================================================================== */
 console.log(`\n合计：${pass + fail} 项，通过 ${pass}，失败 ${fail}`)
