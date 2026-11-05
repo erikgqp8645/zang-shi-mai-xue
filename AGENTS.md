@@ -766,7 +766,7 @@ Windows 桌面程序：Electron 壳 + **原封不动**的 `dist/` 与 `server/`�
 | **禁 `copyFileSync` 拷库** | 备份／导出只能用 `VACUUM INTO` | 库里开着 WAL，活跃数据不在主文件里，直接拷会拿到半截事务 |
 | **数据落点** | 病例库：安装版 `%APPDATA%\臧氏脉学\history.sqlite`；**免安装版 exe 旁边的 `data\history.sqlite`**（靠 electron-builder 设的 `PORTABLE_EXECUTABLE_DIR` 认出来）。Electron 自己的缓存（Cache/GPUCache）**始终留在本机 %APPDATA%**，不往 U 盘上写。SQLite **不能放进 asar**（只读、且要写 WAL/SHM），也不能放进 Program Files |
 | **owner 归属** | 桌面版是单机免登录 → 所有请求归内置 `local` 账号。**别的账号名下的数据原样拷过去是一条也看不到** | `owner_id` 是归属列，读写一律按它过滤。导入时必须改挂（`desktop/db-transfer.mjs`） |
-| **后端只许拆不许改** | `server/index.mjs` 只拆出一个 `startServer()`，业务路由一行不改 | 桌面版与网页版共用同一份后端；回归 340 项必须全绿 |
+| **后端只许拆不许改** | `server/index.mjs` 只拆出一个 `startServer()`，业务路由一行不改 | 桌面版与网页版共用同一份后端；回归 356 项必须全绿 |
 | **同源** | 窗口加载 `http://127.0.0.1:<端口>/`（端口 0 → OS 分配） | 同源 → 页面里 `/api/…` 相对路径直接可用，**绕开 Electron 沙箱的 CORS 限制** |
 | **渲染进程权限** | `nodeIntegration:false` ＋ `contextIsolation:true`；preload 只暴露「另存为」一个写文件能力 | 渲染进程拿不到 db 路径／SQL／连接，也拿不到任意写盘的口子 |
 
@@ -844,10 +844,11 @@ npm run mp:taro:build   # taro build --type weapp → taro/dist/
 ```bash
 npm run mp:taro:build        # 编小程序（Taro）
 npm run mp:taro:typecheck    # Taro 端类型检查
-npm run test:e2e:mp          # 静态检查 113 项：扫 TSX（禁 wx. 直调、禁 WXML/WXSS 残留、组件同源、术语用字…）＋ copy 规则 ＋ 产物残留
+npm run test:e2e:mp          # 静态检查 129 项：扫 TSX（禁 wx. 直调、禁 WXML/WXSS 残留、组件同源、术语用字…）＋ copy 规则 ＋ 产物残留 ＋ 共享绘制代码在「假微信 ctx」上真跑一遍
 npm run test:e2e:mp:api      # 数据层端到端 45 项：垫一个 Taro，连真后端跑全链路
 npm run test:e2e:mp:sim      # 55 项：纯函数断言 ＋ 编译产物断言 ＋ 模拟器截图（含白屏判定 ＋ 包内底图运行时可读）
 npm run test:e2e:mp:privacy  # 6 项：隐私政策页模拟器验证（截图 ＋ 白屏判定）
+npm run test:e2e:mp:canvas   # 8 项：**微信 canvas 2d 出图端到端**（打开页面 → 等它自己把「寸关尺关系图」画出来 → 把 PNG 读回来判「不是白图」）
 npm run test:e2e:mp:legacy   # 原生回退工程的三套（mp-lint / mp-api / mp-sim）
 ```
 
@@ -885,6 +886,23 @@ npm run test:e2e:mp:legacy   # 原生回退工程的三套（mp-lint / mp-api / 
   ⚠️ **automator 的元素查询（`$$` / `$` / `data()`）在这套 Taro 产物上不返回**（40s 超时也挂死），
   而导航（`switchTab` / `navigateTo`）与截图正常 → 所以模拟器只断言「能打开、能渲染、**不是白屏**」，
   **文案正确性交给静态回归**。
+  ⚠️ **小程序的 JS bundle 在服务上下文里是缓存的** —— `reLaunch` 只换页面，**不重新 require 产物**。
+  所以改完代码重新构建之后，模拟器里跑的**还是旧产物**（实测：写坏验证时故意让出图失败的代码
+  进了产物，回归却全绿；重跑一次 `cli auto` 后立刻报红）。
+  → 三个模拟器回归（`mp:sim` / `mp:privacy` / `mp:canvas`）现在都会**自己先重启小程序**
+  （`scripts/e2e/lib-devtools.mjs` 的 `rearm()`：调开发者工具 CLI 的 `auto`，**不带 `--port`**
+  —— IDE 服务端口会变，实测 45820 → 23211）。
+- **共享绘制代码必须逐个 API 对「微信 canvas 2d」核过**（2026-11-05 踩坑）：
+  网站端与小程序端**共用** `pulse-record/src/export/` 的绘制代码，而**浏览器的 canvas API 比微信宽松** ——
+  真出过：微信的 `roundRect` 第 5 个参数（圆角半径）按**序列**收，传数字直接抛
+  `Failed to execute 'roundRect' on 'CanvasRenderingContext2D': The provided value cannot be converted to a sequence.`
+  → 点「看寸关尺图示」只弹一个 toast，图出不来；**浏览器两种写法都收，所以网站端毫无察觉**。
+  - 改 `src/export/` 里的绘制代码后，**必须**跑 `npm run test:e2e:mp:canvas`（真微信运行时端到端）
+    ＋ `npm run test:e2e:mp`（第 24 节：拿「假微信 ctx」把真绘制代码跑一遍）；
+  - 新增绘制 API 时，先在真机上用 `wx.createOffscreenCanvas({type:'2d'})` 试它**收不收**，
+    再写进 `PainterCtx`（`src/export/canvas.ts`）—— **别照着浏览器的 API 列表抄**；
+  - 小程序运行时里可以按模块名 `require('common.js')` 拿到产物里的函数直接调
+    （`renderDiagramImage` 就在里面）→ 端到端回归就是这么跑的。
 - 手册：[`pulse-record/docs/miniprogram-dev.md`](./pulse-record/docs/miniprogram-dev.md)（三条路线／手工清单／凭据放哪／卡点表）。
 
 ### 小程序侧硬约束（个人主体）
@@ -895,7 +913,7 @@ npm run test:e2e:mp:legacy   # 原生回退工程的三套（mp-lint / mp-api / 
 | `web-view` 嵌网页 | ❌ 个人主体不支持业务域名 → **必须原生开发** |
 | `getPhoneNumber` | ❌ 需非个人主体＋微信认证＋已认证商户号 → 账号绑定只走「网站账号＋密码」 |
 | request 合法域名 | 必须 **HTTPS ＋ 已 ICP 备案** ＋ 主体一致 ＋ **不带端口** ＋ 不能用 IP |
-| **隐私接口** | **只有 2 个**：`saveImageToPhotosAlbum`（相册·仅写入）、`setClipboardData`（剪切板·写入）。**位置、通讯录、摄像头、麦克风、手机号、昵称头像一律不用** —— 代码里没调，勾了反而是「声明了没用」 |
+| **隐私接口** | **上线包（Taro）一个都没有**（2026-11-05 起）—— 原来的「相册（仅写入）」「剪切板（写入）」随三个导出选项一起去掉了 → 微信后台《用户隐私保护指引》**一项都不用勾**。**位置、通讯录、摄像头、麦克风、手机号、昵称头像一律不用** —— 代码里没调，勾了反而是「声明了没用」。⚠️ 原生回退工程 `miniprogram/` 里**仍带**这两个接口 —— 它不上传；若改用它上线，才要重新声明 |
 | 隐私接口变更 | 新增/删除隐私接口要**同步三处**：① 平台适配层代码 ② 微信后台《用户隐私保护指引》③ `pulse-record/docs/miniprogram-release-checklist.md`。后台没声明 → 真机直接 fail（errno 112），且**用户在设置里打不开** |
 | **静态图片进包** | 走 Taro 的 `copy`（`taro/config/index.ts`）。**两条硬规矩**：① `from` 必须用**正斜杠**（copy 底层是 fast-glob，反斜杠是转义符 → Windows 下**静默匹配 0 个**，图没进包还不报错）② `to` 必须**带扩展名**（`to` 写成 `assets/` 会让 `rename` 被塞成 `'/'`，所有图撞到同一路径只剩最后一张）。所以**一图一 pattern**。违反的后果：真机点「看寸关尺图示」提示**「底图没载入」** |
 | **编译期注入** | 线上包的默认 API 地址走 `config/index.ts` 的 `defineConstants`（`PULSE_API_BASE`）。⚠️ **这段一旦失效，产物里会留下 `process.env.PULSE_API_BASE` → 小程序运行时没有 `process` 这个全局量 → 启动即抛「process is not defined」→ 整屏白**（2026-11-05 真出过，构建不报错、静态回归全绿）。回归第 23 节专门盯：产物里不许残留无守卫的 `process.xxx` |
@@ -905,9 +923,10 @@ npm run test:e2e:mp:legacy   # 原生回退工程的三套（mp-lint / mp-api / 
 
 - **录入用 WXML 网格**：部位列纵向合并一组三行、日期组横跨「左＋右」两列 —— 结构取自共享包
   `domain/layout.ts` 的 `groupRows`，**不是目测**。
-- **导出用 canvas**：复用共享包的 `planTable` / `withDiagram` / `paintTable` / `drawDiagram`。
-- 小程序不能下载文件 → PNG 走 `wx.canvasToTempFilePath` ＋ `wx.saveImageToPhotosAlbum`；
-  Markdown/CSV 走 `wx.setClipboardData`。
+- **寸关尺关系图直接显示在页面上**（2026-11-05 维护者定）：小程序**不提供任何导出** ——
+  「存到相册」「复制 Markdown」「复制 CSV」三个选项与相册／剪切板两个隐私接口一起去掉了。
+  图仍然是真的画出来的（离屏 canvas → 共享绘制器 → 临时文件 → `<Image>`），在
+  `components/diagram-view` 里，画哪一次跟着当前选中的那一列。
 - 页面必须声明「**本工具只做记录，不构成诊断**」。
 
 ---
@@ -980,7 +999,7 @@ npm run test:e2e:mp:legacy   # 原生回退工程的三套（mp-lint / mp-api / 
 - [ ] 小程序：跑过模拟器回归后，**截图是不是白屏**？小程序启动崩溃时截图就是纯白一张，`npm run test:e2e:mp:sim` 与 `npm run test:e2e:mp:privacy` 现在会解 PNG 判「有没有内容」（`scripts/e2e/lib-png.mjs`）。⚠️ 自动化端口**每次用完都会掉**（`disconnect()` 之后开发者工具把 9421 收了），跑之前先 `cli auto --auto-port 9421` 重新拉起。
 - [ ] 小程序：改过 `taro/config/index.ts` 的 **copy 规则**或 `taro/src/platform/canvas.ts` 的**底图路径**后，`npm run mp:taro:build` 的日志里有没有 `[vite-plugin-static-copy] Copied N items.`，`dist/assets/` 下的图是不是与 `pulse-record/src/assets/` **逐字节一致**（`taro-lint` 第 22 节会查，但只在编过之后）？`from` 是不是正斜杠、`to` 是不是带扩展名？
 - [ ] 小程序：上线包的**默认 API 地址**是不是正式 https 域名（`PULSE_API_BASE` 编译期注入，不注入就是 `http://127.0.0.1:5178`）？「我的」页里的服务器地址是不是仍可改（联调包与正式包要能并存）？
-- [ ] 桌面版：改过 `server/index.mjs` 后，`node server/index.mjs` 的行为是否**完全不变**（`isMain` 判定）？`npm test` 是否仍 **340 项全绿**（core 26 ＋ taro-lint 113 ＋ taro-api 45 ＋ migration 53 ＋ auth 52 ＋ app 18 ＋ desktop 33）？
+- [ ] 桌面版：改过 `server/index.mjs` 后，`node server/index.mjs` 的行为是否**完全不变**（`isMain` 判定）？`npm test` 是否仍 **356 项全绿**（core 26 ＋ taro-lint 129 ＋ taro-api 45 ＋ migration 53 ＋ auth 52 ＋ app 18 ＋ desktop 33）？
 - [ ] 桌面版：数据是否落在 `%APPDATA%\臧氏脉学\`（安装版）／ exe 旁边的 `data\`（免安装版）？有没有把库放进 asar 或 Program Files（SQLite 写不了）？**Electron 缓存有没有被误放到 exe 旁边**（缓存留本机 %APPDATA%）？
 - [ ] 桌面版：改过落点判定后，`desktop/data-dir.mjs` 的规则与 `desktop/main.mjs` 的实际用法是否一致（主进程必须调用那套纯函数，不要内联另写一份）？便携版与安装版的 userData 是否仍分开（否则单实例锁互相吞）？
 - [ ] 桌面版：导入老数据后，**别的账号名下那些病例在桌面端看得见吗**（owner 归属有没有改挂）？重复导入会不会翻倍？
