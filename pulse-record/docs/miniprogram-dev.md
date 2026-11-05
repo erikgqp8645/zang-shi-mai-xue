@@ -205,6 +205,29 @@ npm run test:e2e:mp:sim
 npm run admin -- layout <登录名> <患者id或姓名> nine|seven   # 改，并顺带自检
 ```
 
+### 记录表：与录入记录是**同一个组件**
+
+「录入记录」和病例详情页的「记录表」现在都渲染 `miniprogram/components/record-sheet/` ——
+**版式与交互只有一份**，两处不可能长得不一样。
+
+| 页面 | 表格 | 能改吗 | 改完怎么存 |
+|---|---|---|---|
+| 录入页 `pages/record/record` | `<record-sheet>` | 能 | 改完先在页面 state 里，点「保存」整份存 |
+| 病例详情页 `pages/case-detail/case-detail` | `<record-sheet>` | **能**（点格直接改） | **立即落库**（`PATCH /api/visits/:id`，只写回被改动的那一次） |
+
+病例详情页**没有「保存」按钮** —— 那边的「记录表」标题行右侧有「录入编辑」按钮，跳到录入页做
+「加记录／改名／换体例」这类整份编辑。
+
+改组件后要**重跑 `cli auto`**（开发者工具不热重载 `components/`、`utils/` 这些非页面模块）。
+
+**坑：视图层会把嵌套数组压成对象。** 自定义组件的属性（`sessions`）会走一圈
+逻辑层 → 视图层 → 逻辑层，视图层的数据协议把嵌套数组压成「数字下标的普通对象」
+（`["X"]` 回来变成 `{"0":"X"}`）。表现是 `formatCodes` 里 `codes.join` 报
+「codes.join is not a function」，而且**是静默失败** —— 表格那一列画不出来，页面看不出所以然。
+组件里所有读格值、往外抛 `sessions` 的地方都先按数字下标还原成数组
+（`toCodeArray`／`cleanValues`／`cleanSessions`）；服务端 `server/db.mjs` 的 `normalizeValues`
+也兜一道（写库前规整、读出来也规整），所以老脏数据照样读得对。
+
 ### 开发者工具常用命令
 
 | 事 | 命令 |

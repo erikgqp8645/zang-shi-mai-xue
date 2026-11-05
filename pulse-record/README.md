@@ -121,12 +121,16 @@ npm run mp:dev:multi   # 同上，但多用户模式（要注册/登录，验证
   **AppSecret 绝不入小程序包** —— 它只放在服务器的 `/etc/pulse-record.env`。
 - 账号打通：小程序 `wx.login` → 服务端 `code2Session` → 没绑过就引导输入「网站账号＋密码」绑定
   → 绑定后两端看到**同一份病例**。
+- **「录入记录」和病例详情页的「记录表」是同一个组件**（`miniprogram/components/record-sheet/`）——
+  版式与交互只有一份，两处不可能长得不一样。病例详情页的记录表**可以直接点格改**，
+  改完**立即落库**（逐次就诊 `PATCH /api/visits/:id`）；那边没有「保存」按钮，
+  整份编辑（加记录／改名／换体例）在标题行右侧的「录入编辑」按钮跳去录入页做。
 
 **不用开发者工具也能验证**（数据层是真的跑）：
 
 ```bash
-npm run test:e2e:mp       # 静态检查：WXML 不调函数、事件都有方法、require 路径都存在（31 项）
-npm run test:e2e:mp:api   # 数据层端到端：wx 垫片加载真实 utils/*.js，连真后端跑全链路（38 项）
+npm run test:e2e:mp       # 静态检查：WXML 不调函数、事件都有方法、require 路径都存在（50 项）
+npm run test:e2e:mp:api   # 数据层端到端：wx 垫片加载真实 utils/*.js，连真后端跑全链路（46 项）
 ```
 
 `test:e2e:mp:api` 覆盖「改服务器地址立刻生效 → 未登录 401 回登录页 → 注册 → 建患者（脉象/体质/疗法）
