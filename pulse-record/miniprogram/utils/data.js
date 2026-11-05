@@ -56,6 +56,22 @@ async function deletePatient(id) {
   return api.request({ method: 'DELETE', path: '/api/patients/' + encodeURIComponent(id) })
 }
 
+/**
+ * 改患者的体例（7 脉点 / 9 行）。
+ *
+ * 体例是患者级属性 —— 病例详情页的记录表与录入页的表格都按它画，
+ * 所以切换要**立刻落库**，两处才会一直对得上。
+ * 只改体例、不动格值：7↔9 来回切，「尺浮/尺中」两行的数据仍原样留着。
+ */
+async function updatePatientLayout(id, layout) {
+  const data = await api.request({
+    method: 'PATCH',
+    path: '/api/patients/' + encodeURIComponent(id),
+    body: { layout },
+  })
+  return data && data.patient
+}
+
 /** 改一次就诊记录（日期标签／脉象值／体质／疗法／该次用药） */
 async function updateVisit(id, patch) {
   const data = await api.request({
@@ -152,6 +168,7 @@ module.exports = {
   getPatient,
   savePatient,
   renamePatient,
+  updatePatientLayout,
   deletePatient,
   updateVisit,
   deleteVisit,

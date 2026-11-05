@@ -58,6 +58,15 @@ Page({
     this.load()
   },
 
+  onShow() {
+    // 从「录入编辑」返回时，体例可能已经被改过（那边是**切换即落库**）——
+    // 这里重新拉一次，记录表画的行数才跟录入页对得上。
+    if (this._shown && this.data.patientId) {
+      this.load()
+    }
+    this._shown = true
+  },
+
   async load() {
     try {
       const [patient, customSymbols] = await Promise.all([

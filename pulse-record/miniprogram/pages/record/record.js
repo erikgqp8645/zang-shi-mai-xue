@@ -302,9 +302,48 @@ Page({
     this.setData({ name: e.detail.value })
   },
 
-  toggleLayout() {
-    this.setData({ layout: this.data.layout === 'nine' ? 'seven' : 'nine' })
-    this.rebuild()
+  /**
+   * 切换体例（7 脉点 / 9 行）。
+   *
+   * **体例是患者级属性** —— 病例详情页的「记录表」与这一页的表格都按它画。
+   * 所以这里切换**立刻落库**（新建患者还没 id 时才只改本地）：
+   * 否则同一位患者会在两个页面显示出不同的行数 —— 记录表 7 行、录入记录 9 行。
+   *
+   * 只改体例、不动格值：7↔9 来回切，「尺浮/尺中」两行的数据仍原样留着，切回来还在。
+   */
+  async toggleLayout() {
+    if (this.data.saving) return
+    const next = this.data.layout === 'nine' ? 'seven' : 'nine'
+    const patientId = this.data.patientId
+
+    // 新建患者（还没落库）→ 没有 id 可改，先切本地，保存时随患者一起存
+    if (!patientId) {
+      this.setData({ layout: next })
+      this.rebuild()
+      this.hintLayout(next)
+      return
+    }
+
+    try {
+      const patient = await data.updatePatientLayout(patientId, next)
+      if (!patient) throw new Error('没有这位患者的记录')
+      // 以服务端返回的为准（服务端是唯一真源）
+      const applied = patient.layout === 'seven' ? 'seven' : 'nine'
+      this.setData({ layout: applied })
+      this.rebuild()
+      this.hintLayout(applied)
+    } catch (e) {
+      wx.showToast({ title: (e && e.message) || '体例改不了', icon: 'none' })
+    }
+  },
+
+  /** 切换体例后把影响说清楚（多出/少掉哪两行、导出也会跟着变） */
+  hintLayout(layout) {
+    const text =
+      layout === 'nine'
+        ? '已改为 9 行：多出「尺浮、尺中」两行，没数据就是空行，导出的图也会多两行'
+        : '已改为 7 脉点：「尺浮、尺中」两行不再显示，数据仍留着，切回来还在'
+    wx.showToast({ title: text, icon: 'none', duration: 2600 })
   },
 
   /** 载入讲义 p34 的实例（少娟 6 次记录）—— 与网站同一个按钮 */

@@ -15,6 +15,10 @@
   <!-- 出图画布（版式与网站导出同一份绘制代码） -->
   <view class="pr-card">
     <view class="pr-card-title">记录表</view>
+    <!-- 体例写在标题旁边：这一页画的行数、录入页画的行数，认的都是它 -->
+    <view class="pr-note">
+      {{layout === 'nine' ? '9 行体例（尺浮中沉）' : '7 脉点体例（尺只沉）'}} —— 与录入记录的体例一致
+    </view>
     <view class="pr-note" wx:if="{{!canvasW}}">正在出图……</view>
     <scroll-view scroll-x class="pr-canvas-scroll">
       <canvas

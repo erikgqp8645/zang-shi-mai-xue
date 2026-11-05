@@ -13,6 +13,9 @@
  *   5. 用了老机型 JSCore 没有的 ES2019+ 运行时内建 —— 白屏。
  *   6. 出图链路传错底图对象、用了已弃用的 wx.getSystemInfoSync ——
  *      这类是**静默失败**：页面看着像「图还没生成」，不翻 console 发现不了。
+ *   7. 体例（7 脉点 / 9 行）只能有一个真源 —— 录入页切换体例必须**立刻落库**，
+ *      且两处都要把当前体例显示出来，否则同一位患者在「记录表」与「录入记录」
+ *      里会显示出不同的行数（这是 2026-11-05 实际发生过的现象）。
  *
  * 用法：node scripts/e2e/mp-lint.mjs
  */
@@ -169,6 +172,30 @@ for (const f of mpJsFiles) {
 }
 ok('planDiagram 的底图参数是真图片对象（不是尺寸占位）', placeholderDiagram.length === 0, placeholderDiagram.join(', '))
 ok('页面没有用已弃用的 wx.getSystemInfoSync', deprecatedSysInfo.length === 0, deprecatedSysInfo.join(', '))
+
+/* ---- 7. 体例只有一个真源：切换即落库，两处都显示 ---- */
+const recordJs = readFileSync(join(MP, 'pages/record/record.js'), 'utf8')
+const recordWxml = readFileSync(join(MP, 'pages/record/record.wxml'), 'utf8')
+const detailWxml = readFileSync(join(MP, 'pages/case-detail/case-detail.wxml'), 'utf8')
+
+// 取出 toggleLayout 的函数体
+const toggleIdx = recordJs.indexOf('toggleLayout')
+const toggleBody = toggleIdx >= 0 ? recordJs.slice(toggleIdx, toggleIdx + 2000) : ''
+ok(
+  '录入页切换体例会落库（updatePatientLayout），不是只改页面状态',
+  /updatePatientLayout\s*\(/.test(toggleBody),
+  toggleIdx >= 0 ? '没找到 updatePatientLayout 调用' : '找不到 toggleLayout',
+)
+ok(
+  '录入页的体例按钮写明了是「体例」',
+  /体例/.test(recordWxml),
+  'record.wxml 里没有「体例」字样',
+)
+ok(
+  '病例详情页的记录表也标出当前体例',
+  /体例/.test(detailWxml),
+  'case-detail.wxml 里没有「体例」字样',
+)
 
 console.log(`\n共 ${pass + fail} 项，通过 ${pass}，失败 ${fail}`)
 if (failures.length) {

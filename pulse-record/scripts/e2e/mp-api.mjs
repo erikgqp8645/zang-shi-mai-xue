@@ -200,6 +200,23 @@ c.check('删除自定义符号', !!(symDel && symDel.ok))
 const symsAfter = await dataApi.listCustomSymbols()
 c.check('删完清单里没有了', !symsAfter.some((s) => s.code === 'Z'))
 
+/* —— 改体例（7 脉点 / 9 行）：只改体例，不动格值 —— */
+const before = await dataApi.getPatient(patientId)
+const beforeValues = JSON.stringify(before.visits[0].values)
+const toNine = await dataApi.updatePatientLayout(patientId, 'nine')
+c.check('改体例 → nine 生效', !!(toNine && toNine.layout === 'nine'), toNine && toNine.layout)
+const readNine = await dataApi.getPatient(patientId)
+c.check('体例落库了（重新读还是 nine）', !!(readNine && readNine.layout === 'nine'), readNine && readNine.layout)
+c.check(
+  '改体例不动格值',
+  JSON.stringify(readNine.visits[0].values) === beforeValues,
+  JSON.stringify(readNine.visits[0].values),
+)
+const toSeven = await dataApi.updatePatientLayout(patientId, 'seven')
+c.check('改体例 → seven 生效', !!(toSeven && toSeven.layout === 'seven'), toSeven && toSeven.layout)
+const badLayout = await expectError(() => dataApi.updatePatientLayout(patientId, 'ten'))
+c.check('非法体例被拒（400）', !!badLayout && badLayout.status === 400, badLayout && badLayout.message)
+
 /* —— 改名 ＋ 删除患者 —— */
 const renamed = await dataApi.renamePatient(patientId, '小程序联调·改名')
 c.check('患者改名', !!(renamed && renamed.name === '小程序联调·改名'))

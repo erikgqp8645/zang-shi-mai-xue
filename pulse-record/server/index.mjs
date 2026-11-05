@@ -27,7 +27,7 @@
  *   DELETE /api/symbols/:code       → { ok: true }              删除自定义符号
  *   GET    /api/patients/:id       → { patient }                一位患者 ＋ 其全部就诊记录
  *   POST   /api/patients           → { patient }                整份保存（患者 ＋ 就诊记录 ＋ 用药记录）
- *   PATCH  /api/patients/:id       → { patient }                重命名
+ *   PATCH  /api/patients/:id       → { patient }                重命名／改体例（body: {name?} {layout?}）
  *   DELETE /api/patients/:id       → { ok: true }               删除患者（连带其就诊记录）
  *   GET    /api/visits/:id         → { visit }                  取一次就诊记录
  *   PATCH  /api/visits/:id         → { visit }                  改一次就诊记录（标签／脉象值／该次用药）
@@ -63,6 +63,7 @@ import {
   putVisit,
   putVisitMedication,
   renamePatient,
+  updatePatientLayout,
   searchPatients,
   DB_PATH,
   RESERVED_SYMBOL_CODES,
@@ -587,11 +588,22 @@ const server = createServer(async (req, res) => {
       }
       if (method === 'PATCH') {
         const body = await readJson(req)
-        if (typeof body.name !== 'string') {
-          sendJson(res, 400, { error: '请求体需含 name' })
+        // PATCH 改两样：姓名（重命名）、体例（7 脉点 / 9 行）。
+        // 体例是患者级属性 —— 记录表与录入记录都按它画，所以改一下就落库，
+        // 不能只留在某个页面的临时状态里（同一位患者两个页面显示不同行数）。
+        const hasName = typeof body.name === 'string'
+        const hasLayout = body.layout === 'nine' || body.layout === 'seven'
+        if (!hasName && !hasLayout) {
+          sendJson(res, 400, { error: '请求体需含 name（改姓名）或 layout（nine / seven，改体例）' })
           return
         }
-        const patient = await renamePatient(db, id, ownerId, body.name)
+        let patient = null
+        if (hasName) {
+          patient = await renamePatient(db, id, ownerId, body.name)
+        }
+        if (hasLayout) {
+          patient = await updatePatientLayout(db, id, ownerId, body.layout)
+        }
         if (!patient) {
           sendJson(res, 404, { error: '没有这位患者的记录' })
           return

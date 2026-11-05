@@ -11,11 +11,14 @@
  *   npm run admin -- claim <登录名>                 把内置单机账号名下的老数据转给该账号
  *   npm run admin -- claim-local <登录名>           把该账号名下的数据转给内置单机账号（桌面版用）
  *   npm run admin -- bind-wechat <登录名> <openid>  把 openid 手动绑到账号上（运维兜底）
+ *   npm run admin -- layout <登录名> <患者id或姓名> <nine|seven>
+ *                                        改某位患者的体例（并顺带自检体例与格值是否自洽）
  *
  * 直接操作本机 SQLite（server/db.mjs），不经过 HTTP —— 所以服务器上也能用。
  */
 
-import { openDb, getLocalUser } from '../server/db.mjs'
+import { openDb, getLocalUser, getPatient } from '../server/db.mjs'
+import { checkPatientLayout, describeLayoutCheck } from './lib/layout-check.mjs'
 import {
   authenticate,
   bindWechatIdentity,
@@ -191,6 +194,46 @@ switch (cmd) {
     break
   }
 
+  case 'layout': {
+    // 改某位患者的体例（7 脉点 / 9 行）。
+    //
+    // 体例是患者级属性 —— 记录表与录入记录都按它画，所以正常情况下在界面上切就够
+    // （小程序录入页／网站布局单选，都是切换即落库）。这条命令是运维兜底：
+    // 用来修「体例与格值对不上」的脏数据（比如体例被改成 nine、格值却还是 7 脉点那 14 格）。
+    const [loginName, who, layout] = args
+    if (!loginName || !who || !['nine', 'seven'].includes(layout)) {
+      die('用法：npm run admin -- layout <登录名> <患者id或姓名> <nine|seven>')
+    }
+    const row = byLoginName(loginName)
+    if (!row) die('没有这个账号')
+    const ownerId = row.id
+    // 先按 id 找，找不到再按姓名找（同名多位就让用 id）
+    let p = db.prepare('SELECT * FROM patients WHERE id = ? AND owner_id = ?').get(String(who), ownerId)
+    if (!p) {
+      const same = db.prepare('SELECT * FROM patients WHERE owner_id = ? AND name = ?').all(ownerId, String(who))
+      if (same.length === 1) p = same[0]
+      else if (same.length > 1) die('这个账号名下有多位同名患者，请改用患者 id')
+    }
+    if (!p) die('这个账号名下没有这位患者')
+
+    db.prepare('UPDATE patients SET layout = ?, updated_at = ? WHERE id = ? AND owner_id = ?').run(
+      layout,
+      Date.now(),
+      p.id,
+      ownerId,
+    )
+    console.log(`✓ ${p.name} 的体例改为 ${layout === 'nine' ? '9 行（尺浮中沉）' : '7 脉点（尺只沉）'}`)
+
+    // 顺带自检：改完体例后，格值跟体例对不对得上
+    const full = await getPatient(db, p.id, ownerId)
+    const check = checkPatientLayout(full ?? { layout, visits: [] })
+    console.log(`  ${describeLayoutCheck(check)}`)
+    if (!check.ok) {
+      console.log('  （体例与格值对不上时，表格里会多出/少掉空行 —— 这是数据的实情，不是工具改坏了）')
+    }
+    break
+  }
+
   case 'verify': {
     // 自检：账号密码能不能对上（排查「明明密码没错却登不上」）
     const [loginName, password] = args
@@ -212,6 +255,7 @@ switch (cmd) {
   npm run admin -- claim-local <登录名>            把该账号名下的数据转给内置单机账号（桌面版用）
   npm run admin -- wechat <登录名>                看微信绑定状态
   npm run admin -- bind-wechat <登录名> <openid>  手动绑微信（运维兜底）
+  npm run admin -- layout <登录名> <患者id或姓名> <nine|seven>  改体例（并自检）
   npm run admin -- verify <登录名> <密码>         自检密码
 `)
     break

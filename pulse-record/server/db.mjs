@@ -573,6 +573,29 @@ export async function renamePatient(db, id, ownerId, name) {
   return await getPatient(db, id, ownerId)
 }
 
+/**
+ * 只改患者的**体例**（7 脉点 / 9 行）。
+ *
+ * 体例是**患者级**属性 —— 记录表（canvas / 导出 PNG）与录入记录都必须按同一个值画，
+ * 所以它改一下就要立刻落库，不能只留在某个页面的临时状态里，
+ * 否则同一位患者在两个页面会显示出不同的行数。
+ *
+ * 只改体例**不动格值**：7↔9 来回切时，「尺浮/尺中」两行的数据仍原样留在 visits 里，
+ * 切回去还在（切到 9 行时那两行没数据，就是空行）。
+ */
+export async function updatePatientLayout(db, id, ownerId, layout) {
+  if (layout !== 'nine' && layout !== 'seven') return null
+  const cur = await getPatient(db, id, ownerId)
+  if (!cur) return null
+  db.prepare('UPDATE patients SET layout = ?, updated_at = ? WHERE id = ? AND owner_id = ?').run(
+    layout,
+    Date.now(),
+    id,
+    ownerId,
+  )
+  return await getPatient(db, id, ownerId)
+}
+
 export async function deleteVisit(db, id, ownerId) {
   const info = db.prepare('DELETE FROM visits WHERE id = ? AND owner_id = ?').run(id, ownerId)
   return Number(info.changes) > 0

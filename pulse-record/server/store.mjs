@@ -15,6 +15,7 @@
  * | `putPatient(db, ownerId, patient)` | **整份覆盖**患者 ＋ 就诊 ＋ 用药；id 属别人 → null |
  * | `putVisit(db, id, ownerId, patch)` | **只写回这一次**；不属于该 owner → null |
  * | `renamePatient(db, id, ownerId, name)` | 改姓名 |
+ * | `updatePatientLayout(db, id, ownerId, layout)` | 改体例（7 脉点 / 9 行）；**只改体例，不动格值** |
  * | `deleteVisit(db, id, ownerId)` / `deletePatient(db, id, ownerId)` | 删（级联） |
  * | `listMedication(db, patientId, ownerId)` | 该患者的全部用药 |
  * | `listVisitMedication(db, visitId, ownerId)` | 某次就诊的用药 |
@@ -59,6 +60,7 @@ export const {
   putPatient,
   putVisit,
   renamePatient,
+  updatePatientLayout,
   deleteVisit,
   deletePatient,
   listMedication,

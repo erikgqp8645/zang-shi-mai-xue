@@ -137,6 +137,22 @@ export async function renamePatient(id: string, name: string): Promise<Patient> 
   return patient
 }
 
+/**
+ * 改患者的体例（7 脉点 / 9 行）。
+ *
+ * 体例是患者级属性 —— 记录表（导出 PNG）与录入记录都必须按同一个值画，
+ * 所以改一下就落库，不能只留在某个页面的临时状态里，
+ * 否则同一位患者在两个界面会显示出不同的行数。
+ * 只改体例、不动格值：7↔9 来回切，「尺浮/尺中」两行的数据仍原样留着。
+ */
+export async function updatePatientLayout(id: string, layout: LayoutMode): Promise<Patient> {
+  const { patient } = await request<{ patient: Patient }>(`/api/patients/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ layout }),
+  })
+  return patient
+}
+
 /** 删除患者（连带其就诊记录） */
 export async function deletePatient(id: string): Promise<void> {
   await request<{ ok: true }>(`/api/patients/${encodeURIComponent(id)}`, { method: 'DELETE' })

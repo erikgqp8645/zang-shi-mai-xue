@@ -159,6 +159,8 @@ try {
   }
 
   /* ---- 4. 三个带 patientId 的页 ---- */
+  /** 记录表（病例详情页）画了多少行 —— 用来跟录入记录的行数对账 */
+  let detailRows = 0
   for (const [name, path] of [
     ['05-case-detail', '/pages/case-detail/case-detail'],
     ['06-record', '/pages/record/record'],
@@ -177,6 +179,7 @@ try {
         // 不含寸关尺图示 —— 图示默认不显示，要看单独开窗体。
         // 常量与 src/export/table-painter.ts 一致（HEAD_H 42 / ROW_H 40）。
         const rows = d.layout === 'seven' ? 7 : 9
+        detailRows = rows
         const expectH = 42 * 2 + rows * 40
         ok(
           '病例详情：页面画布只有表格（默认不显示寸关尺图示）',
@@ -202,6 +205,18 @@ try {
           }, method)
           ok(`病例详情：${name}出得来`, !!r.ok && r.out.length > 0, r.ok ? r.out : r.err)
         }
+      }
+      if (path.includes('/record') && p) {
+        // 录入记录的行数，必须与记录表（画布）画的一致 ——
+        // 体例只有一个真源（库里的 patients.layout），两边永远要一样。
+        const d = await p.data()
+        const rows = (d.groups || []).reduce((n, g) => n + g.rows.length, 0)
+        ok(
+          '录入记录与记录表的行数一致（体例只有一个真源）',
+          rows > 0 && rows === detailRows,
+          `录入记录 ${rows} 行，记录表 ${detailRows} 行`,
+        )
+        ok('录入记录没有报错', !d.error, String(d.error || ''))
       }
       await mp.navigateBack()
       await sleep(600)

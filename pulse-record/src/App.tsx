@@ -39,6 +39,7 @@ import {
   listVisitMedication,
   renamePatient,
   savePatient,
+  updatePatientLayout,
   updateVisit,
   type PatientSummary,
 } from './api/patients'
@@ -81,6 +82,8 @@ export default function App() {
   const [historyOpen, setHistoryOpen] = useState(false)
   /** 每次保存后自增，让病例面板把展开的明细重新拉一遍 */
   const [historyVersion, setHistoryVersion] = useState(0)
+  /** 切换体例后的提示（说清多出/少掉哪两行） */
+  const [layoutHint, setLayoutHint] = useState('')
 
   /** 自定义符号（使用者自建，如「涩」＝S）：存本机 SQLite，与病例记录同一套永久存储 */
   const [customSymbols, setCustomSymbols] = useState<CustomSymbol[]>([])
@@ -540,6 +543,39 @@ export default function App() {
     }
   }
 
+  /**
+   * 切换体例（7 脉点 / 9 行）。
+   *
+   * 体例是**患者级**属性 —— 记录表（导出 PNG）与录入记录都必须按同一个值画，
+   * 所以这里切换**立刻落库**（新建患者还没 id 时才只改本地）：
+   * 否则同一位患者会在两个界面显示出不同的行数 —— 记录表 7 行、录入记录 9 行。
+   *
+   * 只改体例、不动格值：7↔9 来回切，「尺浮/尺中」两行的数据仍原样留着，切回来还在。
+   */
+  const doSwitchLayout = async (layout: LayoutMode) => {
+    if (layout === set.layout) return
+    const patientId = editing.patientId
+    // 新建患者（还没落库）→ 没有 id 可改，先切本地，保存时随患者一起存
+    if (!patientId) {
+      setSet((p) => ({ ...p, layout }))
+      setLayoutHint('')
+      return
+    }
+    try {
+      const patient = await updatePatientLayout(patientId, layout)
+      // 以服务端返回的为准（服务端是唯一真源）
+      const applied: LayoutMode = patient.layout === 'seven' ? 'seven' : 'nine'
+      setSet((p) => ({ ...p, layout: applied }))
+      setLayoutHint(
+        applied === 'nine'
+          ? '已改为 9 行：多出「尺浮、尺中」两行，没数据就是空行，导出的图也会多两行'
+          : '已改为 7 脉点：「尺浮、尺中」两行不再显示，数据仍留着，切回来还在',
+      )
+    } catch (e) {
+      setHistoryError(String((e as Error)?.message ?? e))
+    }
+  }
+
   /** 载入某位患者的全部次记录（整体编辑模式） */
   const doLoadPatient = async (id: string) => {
     try {
@@ -767,12 +803,16 @@ export default function App() {
                   type="radio"
                   name="layout"
                   checked={set.layout === o.v}
-                  onChange={() => setSet((p) => ({ ...p, layout: o.v }))}
+                  onChange={() => doSwitchLayout(o.v)}
                 />
                 {o.label}
               </label>
             ))}
           </div>
+          <span className="pr-field-hint">
+            体例是这位患者的设置，切换立即保存；记录表与录入记录都按它画。
+            {layoutHint ? ' ' + layoutHint : ''}
+          </span>
         </div>
 
         <div className="pr-field">

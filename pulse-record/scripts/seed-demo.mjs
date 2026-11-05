@@ -12,6 +12,8 @@
  * - 只写 patients / visits 两张表，不碰其它数据。
  */
 
+import { checkPatientLayout, describeLayoutCheck } from './lib/layout-check.mjs'
+
 const BASE = process.env.PULSE_API ?? 'http://localhost:5178'
 
 /** 一次就诊记录的取法行：部位+取法 → [左手符号, 右手符号] */
@@ -299,6 +301,7 @@ try {
   }
 
   let pi = 0
+  let mismatched = 0
   for (const p of PATIENTS) {
     const { patient } = await api('/api/patients', {
       method: 'POST',
@@ -312,13 +315,25 @@ try {
         })),
       }),
     })
-    console.log(`写入：${patient.name}（${p.layout === 'nine' ? '9 行' : '7 脉点'}）${patient.visits.length} 次`)
+    // 自检：体例与格值必须对得上（seven → 14 格，nine → 18 格）。
+    // 对不上说明「体例是 nine、格值却只有 7 脉点那 14 格」这种脏数据混进来了 ——
+    // 表格会多出两行空行，看着像数据丢了。
+    const check = checkPatientLayout(patient)
+    if (!check.ok) mismatched++
+    console.log(
+      `写入：${patient.name}（${p.layout === 'nine' ? '9 行' : '7 脉点'}）${patient.visits.length} 次` +
+        (check.ok ? '' : `　⚠ ${describeLayoutCheck(check)}`),
+    )
     pi += 1
   }
 
   const after = await api('/api/patients')
   console.log(`\n当前共 ${after.patients.length} 位患者：`)
   for (const p of after.patients) console.log(`  ${p.name}　${p.visitCount} 次　${p.layout}`)
+  if (mismatched) {
+    console.error(`\n✗ 有 ${mismatched} 位患者的体例与格值对不上（详见上面 ⚠ 那几行）`)
+    process.exit(1)
+  }
 } catch (e) {
   console.error(`写入失败：${e.message}`)
   console.error('请先在另一个终端跑 npm run dev（服务默认在 5178 端口）。')

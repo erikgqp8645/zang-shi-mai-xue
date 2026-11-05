@@ -179,6 +179,9 @@ try {
     const p = await api(`/api/patients/${patientId}`, { method: 'PATCH', token: tokenB, body: { name: '被改了' } })
     check('B 改名 A 的患者 → 404', p.status === 404, `实际 ${p.status}`)
 
+    const pl = await api(`/api/patients/${patientId}`, { method: 'PATCH', token: tokenB, body: { layout: 'seven' } })
+    check('B 改 A 的患者体例 → 404', pl.status === 404, `实际 ${pl.status}`)
+
     const d = await api(`/api/patients/${patientId}`, { method: 'DELETE', token: tokenB })
     check('B 删 A 的患者 → 404', d.status === 404, `实际 ${d.status}`)
 

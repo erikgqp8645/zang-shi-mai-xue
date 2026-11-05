@@ -165,6 +165,36 @@ try {
   }
   rmSync(dlDir, { recursive: true, force: true })
 
+  /* ---- ⑦ 体例切换：必须立刻落库 ---- */
+  console.log('\n【⑦】体例（7 脉点 / 9 行）切换即落库')
+  // 先把示例存成一位患者（存完 editing.patientId 才有值，体例才「有地方可落」）
+  await chrome.ev(
+    `(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent.includes('保存为新患者'));b&&b.click();return 1})()`,
+  )
+  await sleep(1500)
+  const saved = await (await fetch(`${api.base}/api/patients`)).json()
+  const patient = (saved.patients ?? [])[0]
+  c.check('示例已存成患者（拿得到 id）', !!patient && !!patient.id, JSON.stringify(patient))
+
+  const rowsBefore = await chrome.ev(`document.querySelectorAll('.pr-table tbody tr').length`)
+  console.log(`  切换前表格行数：${rowsBefore}`)
+
+  // 点「7 脉点（尺只沉）」那个单选
+  await chrome.ev(
+    `(()=>{const l=[...document.querySelectorAll('.pr-radio label')].find(l=>l.textContent.includes('7 脉点'));l&&l.click();return 1})()`,
+  )
+  await sleep(1500)
+
+  const rowsAfter = await chrome.ev(`document.querySelectorAll('.pr-table tbody tr').length`)
+  console.log(`  切换后表格行数：${rowsAfter}`)
+  c.check('切换后表格立刻变成 7 行（少掉尺浮/尺中）', rowsAfter === 7 && rowsBefore === 9, `${rowsBefore} → ${rowsAfter}`)
+
+  if (patient && patient.id) {
+    const back = await (await fetch(`${api.base}/api/patients/${patient.id}`)).json()
+    const layout = back.patient && back.patient.layout
+    c.check('体例已经落库（重新读还是 seven）', layout === 'seven', `库里是 ${layout}`)
+  }
+
   /* ---- ⑤ 控制台 ---- */
   console.log('\n【⑤】控制台异常')
   console.log('  ', chrome.errors.length ? chrome.errors : '（无）')

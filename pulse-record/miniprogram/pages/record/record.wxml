@@ -6,7 +6,7 @@
       <picker mode="date" value="{{today}}" bindchange="onPickDate">
         <view class="pr-btn pr-btn-sm">＋ 记录</view>
       </picker>
-      <view class="pr-btn pr-btn-sm" bindtap="toggleLayout">{{layout === 'nine' ? '9 行' : '7 脉点'}}</view>
+      <view class="pr-btn pr-btn-sm" bindtap="toggleLayout">体例 {{layout === 'nine' ? '9 行' : '7 脉点'}}</view>
       <view class="pr-btn pr-btn-sm" bindtap="loadSample">载入示例</view>
     </view>
   </view>
