@@ -354,6 +354,40 @@ function parseValues(json) {
   }
 }
 
+/**
+ * 把一次就诊的格值规整成「每个格＝一个符号数组」。
+ *
+ * ## 为什么服务端也要管
+ *
+ * 小程序的自定义组件属性（sessions）会走一圈 **逻辑层 → 视图层 → 逻辑层**，
+ * 视图层的数据协议把**嵌套数组**压成了「数字下标的普通对象」：
+ * `["X"]` 回来变成 `{"0":"X"}`。
+ * 这种形状一旦被存进库，这一格以后就再也读不出来了。
+ *
+ * 所以两端都兜住：
+ *   · 小程序侧（components/record-sheet）读写前先还原成数组
+ *   · 服务端侧（本函数）写库前规整、读出来也规整 —— 老的脏数据照样读得对
+ */
+function normalizeValues(values) {
+  const out = {}
+  if (!values || typeof values !== 'object') return out
+  for (const [key, raw] of Object.entries(values)) {
+    let arr = raw
+    if (!Array.isArray(raw)) {
+      if (raw && typeof raw === 'object') {
+        arr = Object.keys(raw)
+          .filter((k) => /^\d+$/.test(k))
+          .sort((a, b) => Number(a) - Number(b))
+          .map((k) => raw[k])
+      } else {
+        arr = []
+      }
+    }
+    if (arr.length) out[key] = arr
+  }
+  return out
+}
+
 /** 体质与疗法的合法取值（讲义 p47 图上的用字）；不合规的一律当作未填 */
 const CONSTITUTIONS = ['肾虚', '上盛下虚', '平和']
 const THERAPIES = ['三焦疗法', '五脏疗法', '一体疗法']
@@ -368,7 +402,7 @@ function rowToVisit(row) {
     id: row.id,
     label: row.label,
     at: Number(row.at),
-    values: parseValues(row.pulse_values),
+    values: normalizeValues(parseValues(row.pulse_values)),
     constitution: pickEnum(CONSTITUTIONS, row.constitution),
     therapy: pickEnum(THERAPIES, row.therapy),
   }
@@ -518,7 +552,7 @@ export async function putPatient(db, ownerId, patient) {
         ownerId,
         v.label || '',
         Number(v.at) || now,
-        JSON.stringify(v.values ?? {}),
+        JSON.stringify(normalizeValues(v.values)),
         i,
         pickEnum(CONSTITUTIONS, v.constitution),
         pickEnum(THERAPIES, v.therapy),
@@ -541,7 +575,10 @@ export async function putVisit(db, id, ownerId, patch) {
   const cur = await getVisit(db, id, ownerId)
   if (!cur) return null
   const label = typeof patch.label === 'string' ? patch.label : cur.label
-  const values = patch.values && typeof patch.values === 'object' ? patch.values : cur.values
+  // 格值一律规整成「每格一个数组」——客户端可能送来视图层压过的 {"0":"X"} 形状
+  const values = normalizeValues(
+    patch.values && typeof patch.values === 'object' ? patch.values : cur.values,
+  )
   const at = Number(patch.at) || cur.at
   // 体质与疗法：patch 里带了这两个键就按给的写（可以是 null＝清除），没带就保持原值
   const has = (k) => Object.prototype.hasOwnProperty.call(patch, k)

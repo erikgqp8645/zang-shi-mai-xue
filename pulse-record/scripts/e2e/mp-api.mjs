@@ -174,6 +174,33 @@ c.check('搜不到时返回空数组而非报错', Array.isArray(miss) && miss.l
 const patched = await dataApi.updateVisit(VISIT_ID, { label: '261104-改' })
 c.check('改日期标签只动这一次', !!(patched && patched.label === '261104-改'), JSON.stringify(patched && patched.label))
 
+/* —— 格值形状：视图层压过的 {"0":"X"} 要还原成 ["X"] ——
+ * 小程序自定义组件的属性会在 逻辑层→视图层→逻辑层 之间转一圈，
+ * 数组被压成「数字下标的普通对象」。这种形状存进库，这一格就废了，
+ * 所以服务端写库前一律规整、读出来也规整。 */
+const shapeFixed = await dataApi.updateVisit(VISIT_ID, { values: { 'L|寸|浮': { 0: 'X' }, 'R|寸|中': { 0: '++', 1: '↑' } } })
+const shapeVals = (shapeFixed && shapeFixed.values) || {}
+c.check(
+  '服务端把 {"0":"X"} 还原成 ["X"]（视图层压过的形状不能存进库）',
+  Array.isArray(shapeVals['L|寸|浮']) && shapeVals['L|寸|浮'][0] === 'X',
+  JSON.stringify(shapeVals['L|寸|浮']),
+)
+c.check(
+  '多符号的 {"0":"++","1":"↑"} 还原成 ["++","↑"]（顺序不乱）',
+  Array.isArray(shapeVals['R|寸|中']) && shapeVals['R|寸|中'].join('') === '++↑',
+  JSON.stringify(shapeVals['R|寸|中']),
+)
+const shapeBack = await dataApi.getPatient(patientId)
+const shapeVisit = ((shapeBack && shapeBack.visits) || []).find((v) => v.id === VISIT_ID)
+const backVals = (shapeVisit && shapeVisit.values) || {}
+c.check(
+  '读回来的格值仍是数组（库里没有脏形状）',
+  !!shapeVisit &&
+    Object.keys(backVals).length > 0 &&
+    Object.values(backVals).every((v) => Array.isArray(v)),
+  JSON.stringify(backVals),
+)
+
 /* —— 用药记录 —— */
 const meds = await dataApi.saveVisitMedication(VISIT_ID, [
   { name: '引火归元', pulse: '右关 沉 ++', adjust: '', usage: '冷水服', note: '联调用' },

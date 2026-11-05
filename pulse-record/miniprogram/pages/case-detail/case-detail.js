@@ -1,8 +1,19 @@
 /**
  * 病例详情 ＋ 出图 —— 对应网站的病例详情与「导出 PNG / Markdown / CSV」
  *
- * 出图走**共享包**里网站同一份绘制代码（`export/table-painter.ts` ＋ `export/diagram.ts`），
- * 所以小程序存到相册的图与网站导出的图**版式完全一致**（同一套绘制代码，不是照着画一遍）。
+ * ## 记录表：与「录入记录」**同一个组件**
+ *
+ * 2026-11-05 的毛病：这里的「记录表」是 canvas 画的，录入页的「录入记录」是 WXML 画的，
+ * 两套各画各的 —— 同一位患者在两个界面长得不一样（canvas 版没有表下「体质／（未判）」两行、也不能改）。
+ * 现在两处都用 `components/record-sheet`：**版式与交互只有一份**，不可能再走偏。
+ *
+ * 这里**没有「保存」按钮** —— 改完立即落库（与「体例切换即落库」同一原则）。
+ * 逐次就诊的改动走 `PATCH /api/visits/:id`，只写回被改动的那一次，不动该患者的其它次。
+ *
+ * ## 出图走**共享包**里网站同一份绘制代码
+ *
+ * （`export/table-painter.ts` ＋ `export/diagram.ts`），所以小程序存到相册的图与网站导出的图
+ * **版式完全一致**（同一套绘制代码，不是照着画一遍）。
  *
  * 小程序不能下载文件 → 改成：
  *   PNG  → canvas 出图 → 存相册 / 转发
@@ -14,7 +25,6 @@ const { planTable, withDiagram, paintTable } = require('../../utils/core/export/
 const { planDiagram, drawDiagram } = require('../../utils/core/export/diagram.js')
 const { IMG_W, IMG_H } = require('../../utils/core/domain/diagram.js')
 const { toMarkdown, toCsv } = require('../../utils/core/export/text.js')
-const { formatCodes } = require('../../utils/core/domain/symbols.js')
 
 /** 导出用像素倍率 —— 与网站 src/export/png.ts 相同（2），两端导出的 PNG 尺寸一致 */
 const EXPORT_DPR = 2
@@ -36,15 +46,32 @@ function formatAt(at) {
   )
 }
 
+/** 两份格值是否一样（键序可能不同，按键排序后比） */
+function sameValues(a, b) {
+  const ka = Object.keys(a || {}).sort()
+  const kb = Object.keys(b || {}).sort()
+  if (ka.length !== kb.length) return false
+  for (let i = 0; i < ka.length; i += 1) {
+    if (ka[i] !== kb[i]) return false
+    if (JSON.stringify(a[ka[i]]) !== JSON.stringify(b[kb[i]])) return false
+  }
+  return true
+}
+
 Page({
   data: {
     patientId: '',
     name: '',
     layout: 'nine',
+    /** 每次就诊一次记录（record-sheet 组件的数据源） */
+    sessions: [],
+    /** 「每次就诊记录」列表用（带本地时间文本） */
     visits: [],
     medications: [],
     customSymbols: [],
-    /** 画布尺寸（rpx 换算后的逻辑尺寸，与共享包算出的版式一致） */
+    /** 当前列（点表头日期切换） */
+    activeSessionId: '',
+    /** 离屏画布的逻辑尺寸（与共享包算出的版式一致） */
     canvasW: 0,
     canvasH: 0,
     busy: false,
@@ -59,8 +86,8 @@ Page({
   },
 
   onShow() {
-    // 从「录入编辑」返回时，体例可能已经被改过（那边是**切换即落库**）——
-    // 这里重新拉一次，记录表画的行数才跟录入页对得上。
+    // 从「录入编辑」返回时，体例／记录可能已经被改过（那边是**切换即落库**）——
+    // 这里重新拉一次，记录表画的行数与内容才跟录入页对得上。
     if (this._shown && this.data.patientId) {
       this.load()
     }
@@ -78,74 +105,121 @@ Page({
         return
       }
       const medications = await data.listMedication(this.data.patientId)
-      const visits = (patient.visits || []).map((v) =>
-        Object.assign({}, v, { atText: formatAt(v.at) }),
-      )
+      const sessions = (patient.visits || []).map((v) => ({
+        id: v.id,
+        label: v.label,
+        at: v.at,
+        values: v.values || {},
+        constitution: v.constitution || null,
+        therapy: v.therapy || null,
+      }))
       this.setData({
         name: patient.name || '',
         layout: patient.layout === 'seven' ? 'seven' : 'nine',
-        visits,
+        sessions,
+        visits: sessions.map((v) => Object.assign({}, v, { atText: formatAt(v.at) })),
         medications,
         customSymbols,
       })
-      this.renderCanvas()
+      // 落库前的快照 —— 用来判断「哪一次就诊被改了」
+      this.snapshot = sessions.map((s) => ({
+        id: s.id,
+        values: s.values,
+        constitution: s.constitution,
+        therapy: s.therapy,
+      }))
+      this.syncCanvasSize()
     } catch (e) {
       this.setData({ error: (e && e.message) || '读取失败' })
     }
   },
+
+  /** 离屏画布的显示尺寸（只影响画布在屏幕外的占位，出图尺寸另由 canvas.width/height 决定） */
+  syncCanvasSize() {
+    const set = this.buildSet()
+    if (!set.sessions.length) return
+    const layout = planTable(set, this.data.customSymbols)
+    this.setData({ canvasW: layout.canvasW, canvasH: layout.height })
+  },
+
+  /* --------------------------- 组件回调 --------------------------- */
+
+  /**
+   * 组件里改了格值／体质／疗法 → **立即落库**（这一页没有「保存」按钮）。
+   *
+   * 只写回**被改动的那一次**就诊（PATCH /api/visits/:id），
+   * 该患者其它次的记录、用药记录都不动 —— 与网站「单次编辑」语义一致。
+   */
+  async onSheetChange(e) {
+    const sessions = (e.detail && e.detail.sessions) || []
+    this.setData({ sessions })
+    this.syncVisits(sessions)
+
+    const before = this.snapshot || []
+    const changed = []
+    sessions.forEach((s) => {
+      const old = before.find((o) => o.id === s.id)
+      if (!old) return
+      if (
+        sameValues(old.values, s.values) &&
+        (old.constitution || null) === (s.constitution || null) &&
+        (old.therapy || null) === (s.therapy || null)
+      ) {
+        return
+      }
+      changed.push(s)
+    })
+    if (!changed.length) return
+
+    try {
+      for (const s of changed) {
+        await data.updateVisit(s.id, {
+          values: s.values || {},
+          constitution: s.constitution || null,
+          therapy: s.therapy || null,
+        })
+      }
+      // 落库成功后更新快照（失败的这次不更新 → 下次还能重试）
+      this.snapshot = sessions.map((s) => ({
+        id: s.id,
+        values: s.values,
+        constitution: s.constitution,
+        therapy: s.therapy,
+      }))
+    } catch (err) {
+      this.setData({ error: (err && err.message) || '保存失败' })
+      wx.showToast({ title: (err && err.message) || '保存失败', icon: 'none' })
+      // 存不进去就把页面重新拉回库里的样子，别让人以为改成功了
+      this.load()
+    }
+  },
+
+  /** 点了表头日期 → 设为当前列（与网站一致：图示、① 框都跟着这一列） */
+  onSessionTap(e) {
+    const id = e.detail && e.detail.id
+    if (id) this.setData({ activeSessionId: id })
+  },
+
+  /** 「每次就诊记录」列表跟着表里的改动更新（体质／疗法标签） */
+  syncVisits(sessions) {
+    this.setData({
+      visits: sessions.map((v) => Object.assign({}, v, { atText: formatAt(v.at) })),
+    })
+  },
+
+  /* --------------------------- 出图 --------------------------- */
 
   /** 组一份绘制用的 RecordSet（与网站同一形状） */
   buildSet() {
     return {
       name: this.data.name,
       layout: this.data.layout,
-      sessions: this.data.visits.map((v) => ({
-        id: v.id,
-        label: v.label,
-        values: v.values || {},
+      sessions: (this.data.sessions || []).map((s) => ({
+        id: s.id,
+        label: s.label,
+        values: s.values || {},
       })),
     }
-  },
-
-  /**
-   * 画到**页面上的** canvas —— 只画表格，不带寸关尺图示。
-   *
-   * 为什么页面不画图示：底图只有 1070×876，塞进表格宽的画布里会被放大
-   * （手机 dpr＝3 时放大 1.8 倍），又宽过手机屏，看着是一张糊掉的大手。
-   * 所以页面默认不显示它；要看的时候点「寸关尺图示」，单独一个窗体打开
-   * （系统图片预览，可双指缩放）。
-   *
-   * 导出到相册／转发的图**仍然带图示** —— 与网站导出同一份绘制代码、同一 dpr。
-   */
-  renderCanvas() {
-    const set = this.buildSet()
-    if (!set.sessions.length) return
-
-    // planTable 不带图示：canvasW＝表宽，height＝表高＋自定义符号图例高
-    const layout = planTable(set, this.data.customSymbols)
-
-    const query = wx.createSelectorQuery()
-    query
-      .select('#pulse-canvas')
-      .fields({ node: true, size: true })
-      .exec((res) => {
-        const info = res && res[0]
-        if (!info || !info.node) {
-          this.setData({ error: '画布没拿到（canvas 节点不可用）' })
-          return
-        }
-        const canvas = info.node
-        const ctx = canvas.getContext('2d')
-        this.canvasNode = canvas
-
-        const dpr = (wx.getDeviceInfo && wx.getDeviceInfo().pixelRatio) || 2
-        canvas.width = layout.canvasW * dpr
-        canvas.height = layout.height * dpr
-        ctx.scale(dpr, dpr)
-        ctx.clearRect(0, 0, layout.canvasW, layout.height)
-        paintTable(ctx, set, this.data.customSymbols, layout)
-        this.setData({ canvasW: layout.canvasW, canvasH: layout.height })
-      })
   },
 
   /** 取离屏画布节点（只取一次）—— 离屏画布不显示，只用来出图 */
@@ -274,7 +348,7 @@ Page({
   /**
    * 存相册 —— 导出图（表格＋寸关尺图示）现场出，再问相册权限。
    *
-   * 页面上的画布只画表格（不带图示），所以要存的那张得单独出。
+   * 页面上没有可见画布（记录表已经是 WXML 组件），所以要存的那张得单独出。
    */
   async saveImage() {
     if (this.data.busy) return
@@ -372,6 +446,7 @@ Page({
     })
   },
 
+  /** 「录入编辑」→ 跳到录入页（那边能加记录、改名、换体例、显式保存） */
   goRecord() {
     wx.navigateTo({
       url: '/pages/record/record?patientId=' + encodeURIComponent(this.data.patientId),

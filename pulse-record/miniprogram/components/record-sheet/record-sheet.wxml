@@ -1,0 +1,191 @@
+<!-- 录入记录表（组件）—— 录入页与病例详情页「记录表」共用
+     版式照抄讲义 2026-10 PDF p34 实例表；行结构取自共享包 domain/layout.ts -->
+
+<view class="pr-sheet-root">
+  <!-- ---------- 主表（横向可滚） ---------- -->
+  <scroll-view scroll-x class="pr-table-scroll" show-scrollbar="{{false}}">
+    <view class="pr-table">
+      <!-- 表头第一行：标签区留白；日期横跨「左＋右」两列 -->
+      <view class="pr-thead">
+        <view class="pr-thead-lead">
+          <view class="pr-thead-blank"></view>
+          <view class="pr-thead-name">{{name || '姓名'}}</view>
+        </view>
+        <view class="pr-thead-cols">
+          <view class="pr-thead-dates">
+            <view
+              class="pr-thead-date"
+              wx:for="{{headSessions}}"
+              wx:key="id"
+              bindtap="onHeadTap"
+              data-id="{{item.id}}"
+            >
+              {{item.label}}
+            </view>
+          </view>
+          <view class="pr-thead-hands">
+            <view class="pr-thead-hand" wx:for="{{headSessions}}" wx:key="id">
+              <view class="pr-thead-hand-l">左</view>
+              <view class="pr-thead-hand-r">右</view>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <!-- 正文：部位列纵向合并一组三行，组内不画横线 -->
+      <view class="pr-tbody">
+        <view class="pr-grp" wx:for="{{groups}}" wx:key="organ" wx:for-item="g">
+          <view class="pr-organ">{{g.organ}}</view>
+          <view class="pr-grp-rows">
+            <view class="pr-row" wx:for="{{g.rows}}" wx:key="depth" wx:for-item="row">
+              <view class="pr-depth">{{row.depth}}</view>
+              <view class="pr-cells">
+                <block wx:for="{{row.cells}}" wx:key="sessionId" wx:for-item="c">
+                  <view
+                    class="pr-cell"
+                    bindtap="onCellTap"
+                    data-session-id="{{c.sessionId}}"
+                    data-hand="L"
+                    data-organ="{{row.organ}}"
+                    data-depth="{{row.depth}}"
+                  >{{c.L}}</view>
+                  <view
+                    class="pr-cell"
+                    bindtap="onCellTap"
+                    data-session-id="{{c.sessionId}}"
+                    data-hand="R"
+                    data-organ="{{row.organ}}"
+                    data-depth="{{row.depth}}"
+                  >{{c.R}}</view>
+                </block>
+              </view>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <!-- 表下：体质行 / 疗法行（每个记录日期各记各的；讲义原表没有这两行，不进导出） -->
+      <view class="pr-tfoot">
+        <view class="pr-tfoot-lead">
+          <view class="pr-tfoot-blank"></view>
+          <view class="pr-tfoot-label">体质</view>
+        </view>
+        <view class="pr-tfoot-cols">
+          <view class="pr-tfoot-row">
+            <view
+              class="pr-tfoot-cell"
+              wx:for="{{headSessions}}"
+              wx:key="id"
+              bindtap="onConstitutionTap"
+              data-id="{{item.id}}"
+            >{{item.constitution || '（未判）'}}</view>
+          </view>
+          <view class="pr-tfoot-row">
+            <view
+              class="pr-tfoot-cell"
+              wx:for="{{headSessions}}"
+              wx:key="id"
+              bindtap="onTherapyTap"
+              data-id="{{item.id}}"
+            >{{item.therapy || '（未定）'}}</view>
+          </view>
+        </view>
+      </view>
+    </view>
+  </scroll-view>
+
+  <!-- ---------- 体质选择 ---------- -->
+  <view class="pr-mask" wx:if="{{editingConstitution}}" bindtap="onConstitutionTap">
+    <view class="pr-dialog" catchtap="noop">
+      <view class="pr-dialog-title">选这次的体质（① 判体质）</view>
+      <view class="pr-note">体质的判定由你自己判断后手工选定，工具不代判。选后会按讲义 p47 图上的配对带出疗法，疗法仍可改。</view>
+      <view
+        class="pr-dialog-item"
+        wx:for="{{constitutionOptions}}"
+        wx:key="id"
+        bindtap="pickConstitution"
+        data-session-id="{{editingConstitution}}"
+        data-id="{{item.id}}"
+      >
+        <view class="pr-dialog-item-title">{{item.label}}</view>
+        <view class="pr-note">{{item.path}}</view>
+        <view class="pr-note" wx:if="{{item.stateHint}}">状态佐证：{{item.stateHint}}</view>
+        <view class="pr-note">〔{{item.source}}〕</view>
+      </view>
+      <view class="pr-dialog-item pr-dialog-clear" bindtap="clearConstitution" data-session-id="{{editingConstitution}}">
+        清除这次的体质
+      </view>
+    </view>
+  </view>
+
+  <!-- ---------- 疗法选择 ---------- -->
+  <view class="pr-mask" wx:if="{{editingTherapy}}" bindtap="onTherapyTap">
+    <view class="pr-dialog" catchtap="noop">
+      <view class="pr-dialog-title">选这次的疗法（② 定疗法）</view>
+      <view
+        class="pr-dialog-item"
+        wx:for="{{therapyOptions}}"
+        wx:key="id"
+        bindtap="pickTherapy"
+        data-session-id="{{editingTherapy}}"
+        data-id="{{item.id}}"
+      >
+        <view class="pr-dialog-item-title">{{item.label}}</view>
+        <view class="pr-note" wx:for="{{item.prescriptions}}" wx:key="no" wx:for-item="p">
+          {{p.no}}. {{p.name}}
+        </view>
+        <view class="pr-note">〔{{item.source}}〕</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- ---------- 符号录入面板 ---------- -->
+  <view class="pr-mask" wx:if="{{selected}}" bindtap="closePalette">
+    <view class="pr-sheet" catchtap="noop">
+      <view class="pr-sheet-head">
+        <view>当前格：{{selectedTarget}}</view>
+        <view class="pr-x" bindtap="closePalette">×</view>
+      </view>
+
+      <scroll-view scroll-y class="pr-sheet-body">
+        <view class="pr-pal-grp" wx:for="{{paletteGroups}}" wx:key="title">
+          <view class="pr-pal-title">常用脉象 {{item.title}}</view>
+          <view class="pr-pal-btns">
+            <view
+              class="pr-sym {{selectedSet[item.code] ? 'is-on' : ''}}"
+              wx:for="{{item.items}}"
+              wx:key="code"
+              bindtap="toggleSymbol"
+              data-code="{{item.code}}"
+            >
+              <text class="pr-sym-code">{{item.code}}</text>
+              <text class="pr-sym-label">{{item.label}}</text>
+            </view>
+          </view>
+        </view>
+
+        <view class="pr-pal-grp" wx:if="{{customSymbols.length}}">
+          <view class="pr-pal-title">自定义符号（自建，如 涩＝S）</view>
+          <view class="pr-pal-btns">
+            <view
+              class="pr-sym {{selectedSet[item.code] ? 'is-on' : ''}}"
+              wx:for="{{customSymbols}}"
+              wx:key="code"
+              bindtap="toggleSymbol"
+              data-code="{{item.code}}"
+            >
+              <text class="pr-sym-code">{{item.code}}</text>
+              <text class="pr-sym-label">{{item.name}}</text>
+            </view>
+          </view>
+        </view>
+
+        <view class="pr-manual">
+          <view class="pr-label">手输组合（如 X↑ / 0+# / ++）</view>
+          <input class="pr-input" value="{{manualText}}" bindinput="onManualInput" />
+          <view class="pr-btn pr-btn-sm pr-manual-clear" bindtap="clearCell">清空本格</view>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+</view>

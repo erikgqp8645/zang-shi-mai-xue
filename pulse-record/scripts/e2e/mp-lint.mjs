@@ -122,6 +122,51 @@ for (const jsPath of pages) {
   ok(`${name}：require 的相对路径都存在`, badReq.length === 0, badReq.join(', '))
 }
 
+/* ---- 2d. 自定义组件：同样查「WXML 调函数」「事件没方法」「require 路径不存在」 ----
+ * 组件的方法在 methods 里缩进 4 格（页面是 2 格），所以单独用一套正则。 */
+const components = walk(join(MP, 'components'), [], (p) => p.endsWith('.js'))
+for (const jsPath of components) {
+  const dir = dirname(jsPath)
+  const name = toPosix(jsPath).replace(toPosix(MP) + '/', '')
+  const wxmlPath = jsPath.replace(/\.js$/, '.wxml')
+  const js = readFileSync(jsPath, 'utf8')
+
+  if (existsSync(wxmlPath)) {
+    const wxml = readFileSync(wxmlPath, 'utf8')
+    const blocks = wxml.match(/\{\{[\s\S]*?\}\}/g) || []
+    const fnCalls = []
+    for (const b of blocks) {
+      const stripped = b.replace(/'[^']*'/g, "''").replace(/"[^"]*"/g, '""')
+      const m = stripped.match(/\b[A-Za-z_$][\w$]*\s*\(/)
+      if (m) fnCalls.push(m[0].trim())
+    }
+    ok(`${name}：WXML 里没有在 {{ }} 中调用函数`, fnCalls.length === 0, fnCalls.join(', '))
+
+    // methods 里的方法名（4 格缩进，形如 `    onCellTap(e) {`）
+    const methods = new Set()
+    const re = /^\s{4}(?:async\s+)?([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*\{/gm
+    let m
+    while ((m = re.exec(js)) !== null) methods.add(m[1])
+
+    const handlers = new Set()
+    const hre = /(?:bind|catch)[a-zA-Z]+=["']([A-Za-z_$][\w$]*)["']/g
+    let h
+    while ((h = hre.exec(wxml)) !== null) handlers.add(h[1])
+    const noMethod = [...handlers].filter((x) => !methods.has(x))
+    ok(`${name}：绑定的 ${handlers.size} 个事件都有对应方法`, noMethod.length === 0, noMethod.join(', '))
+  }
+
+  const reqRe = /require\(['"]([^'"]+)['"]\)/g
+  const badReq = []
+  let r
+  while ((r = reqRe.exec(js)) !== null) {
+    const spec = r[1]
+    if (!spec.startsWith('.')) continue
+    if (!existsSync(resolve(dir, spec))) badReq.push(spec)
+  }
+  ok(`${name}：require 的相对路径都存在`, badReq.length === 0, badReq.join(', '))
+}
+
 /* ---- 3. 共享包必须已编译 ---- */
 const coreDir = join(MP, 'utils/core')
 const coreFiles = existsSync(coreDir)
@@ -195,6 +240,72 @@ ok(
   '病例详情页的记录表也标出当前体例',
   /体例/.test(detailWxml),
   'case-detail.wxml 里没有「体例」字样',
+)
+
+/* ---- 8. 记录表两页必须用**同一个组件** ----
+ *
+ * 2026-11-05 的病根：病例详情页的「记录表」是 canvas 画的，录入页的「录入记录」是 WXML 画的，
+ * 两套各画各的 —— 同一位患者在两个界面长得不一样（canvas 版没有表下「体质／（未判）」两行、也不能编辑）。
+ *
+ * 修法是把两处都换成 `components/record-sheet`。这里把「结构上只有一份」钉死：
+ * 页面里不许再出现自己画的表格骨架；组件改了必须抛 change；病例详情页收到 change 要立刻落库。 */
+const sheetDir = join(MP, 'components/record-sheet')
+const sheetJsonPath = join(sheetDir, 'record-sheet.json')
+ok('record-sheet 组件存在', existsSync(sheetJsonPath), sheetJsonPath)
+
+if (existsSync(sheetJsonPath)) {
+  const sheetJson = JSON.parse(readFileSync(sheetJsonPath, 'utf8'))
+  ok('record-sheet 是自定义组件（component: true）', sheetJson.component === true)
+}
+
+const sheetWxml = existsSync(join(sheetDir, 'record-sheet.wxml'))
+  ? readFileSync(join(sheetDir, 'record-sheet.wxml'), 'utf8')
+  : ''
+const sheetJs = existsSync(join(sheetDir, 'record-sheet.js'))
+  ? readFileSync(join(sheetDir, 'record-sheet.js'), 'utf8')
+  : ''
+
+// 表格骨架（表头／正文／表下）只能出现在组件里
+const TABLE_MARKS = ['pr-thead', 'pr-tbody', 'pr-tfoot', 'pr-table-scroll']
+for (const [label, file] of [
+  ['录入页', join(MP, 'pages/record/record.wxml')],
+  ['病例详情页', join(MP, 'pages/case-detail/case-detail.wxml')],
+]) {
+  const wxml = readFileSync(file, 'utf8')
+  ok(`${label}用的是 <record-sheet> 组件`, /<record-sheet[\s>]/.test(wxml))
+  const own = TABLE_MARKS.filter((mk) => wxml.includes(`class="${mk}`))
+  ok(`${label}没有自己画表格骨架（版式只在组件里）`, own.length === 0, own.join(', '))
+
+  const jsonPath = file.replace(/\.wxml$/, '.json')
+  const json = JSON.parse(readFileSync(jsonPath, 'utf8'))
+  const using = (json.usingComponents || {})['record-sheet']
+  ok(`${label}的 json 注册了 record-sheet 组件`, typeof using === 'string' && using.length > 0, jsonPath)
+}
+
+// 组件里必须真的有那张表（防止组件被掏空、页面变成空白）
+ok(
+  'record-sheet 里画着那张表（表头／正文／表下都在）',
+  TABLE_MARKS.every((mk) => sheetWxml.includes(`class="${mk}`)),
+)
+// 组件改了要抛事件，页面才知道「哪几格变了」
+ok("record-sheet 改了会 triggerEvent('change')", /triggerEvent\(\s*'change'/.test(sheetJs))
+// 面板分组不能跟表格分组同名（.pr-grp 撞名会把面板拉成一行、底下多一条黑线）
+ok(
+  '符号面板的分组用 .pr-pal-*（不与表格的 .pr-grp 撞名）',
+  sheetWxml.includes('pr-pal-grp') && !/class="pr-grp"\s+wx:for="\{\{paletteGroups\}\}"/.test(sheetWxml),
+)
+
+// 病例详情页没有「保存」按钮 → 收到 change 必须立刻落库
+const detailJs = readFileSync(join(MP, 'pages/case-detail/case-detail.js'), 'utf8')
+ok(
+  '病例详情页改表后立刻落库（updateVisit）',
+  /updateVisit\s*\(/.test(detailJs),
+  'case-detail.js 里没有 updateVisit 调用',
+)
+const detailWxmlText = readFileSync(join(MP, 'pages/case-detail/case-detail.wxml'), 'utf8')
+ok(
+  '病例详情页「记录表」标题行有「录入编辑」按钮',
+  /录入编辑/.test(detailWxmlText) && /bindtap="goRecord"/.test(detailWxmlText),
 )
 
 console.log(`\n共 ${pass + fail} 项，通过 ${pass}，失败 ${fail}`)

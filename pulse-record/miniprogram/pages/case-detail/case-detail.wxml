@@ -7,27 +7,35 @@
       <view class="pr-case-meta">{{visits.length}} 次记录</view>
     </view>
     <view class="pr-case-ops">
-      <text class="pr-link" bindtap="goRecord">录入编辑</text>
       <text class="pr-link" bindtap="goMedication">用药记录</text>
     </view>
   </view>
 
-  <!-- 出图画布（版式与网站导出同一份绘制代码） -->
+  <!-- 记录表：与「录入记录」**同一个组件**（record-sheet）——
+       版式、交互只有一份，两处不可能长得不一样。
+       这里可以直接点格子改脉象、改体质／疗法，改完立刻落库。 -->
   <view class="pr-card">
-    <view class="pr-card-title">记录表</view>
+    <view class="pr-card-head">
+      <view class="pr-card-title">记录表</view>
+      <view class="pr-card-actions">
+        <view class="pr-btn pr-btn-sm" bindtap="goRecord">录入编辑</view>
+      </view>
+    </view>
     <!-- 体例写在标题旁边：这一页画的行数、录入页画的行数，认的都是它 -->
     <view class="pr-note">
       {{layout === 'nine' ? '9 行体例（尺浮中沉）' : '7 脉点体例（尺只沉）'}} —— 与录入记录的体例一致
     </view>
-    <view class="pr-note" wx:if="{{!canvasW}}">正在出图……</view>
-    <scroll-view scroll-x class="pr-canvas-scroll">
-      <canvas
-        type="2d"
-        id="pulse-canvas"
-        class="pr-canvas"
-        style="width:{{canvasW}}px;height:{{canvasH}}px"
-      ></canvas>
-    </scroll-view>
+
+    <record-sheet
+      id="sheet"
+      sessions="{{sessions}}"
+      layout="{{layout}}"
+      customSymbols="{{customSymbols}}"
+      name="{{name}}"
+      bindchange="onSheetChange"
+      bindsessiontap="onSessionTap"
+    />
+
     <view class="pr-case-ops">
       <text class="pr-link" bindtap="showDiagram">寸关尺图示</text>
       <text class="pr-link" bindtap="saveImage">存到相册</text>

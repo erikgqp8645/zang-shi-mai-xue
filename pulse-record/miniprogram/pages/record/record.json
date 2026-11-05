@@ -1,3 +1,6 @@
 {
-  "navigationBarTitleText": "录入 · 臧氏脉学"
+  "navigationBarTitleText": "录入 · 臧氏脉学",
+  "usingComponents": {
+    "record-sheet": "/components/record-sheet/record-sheet"
+  }
 }

@@ -1,0 +1,363 @@
+/* 录入记录表（组件）—— 版式照抄讲义 2026-10 PDF p34「④ 脉象记录」实例表：
+     部位列（橙 #ffc000）纵向合并一组三行，组内不画横线
+     表底 #cce8cf，网格线 #000000
+   表格宽度会随记录条数变宽 —— 横向滚动，不压缩。
+
+   列宽（rpx）：部位 64 ｜ 取法 64 ｜ 每个「左/右」数据格 84
+   这些样式原来在录入页（pages/record/record.wxss），
+   2026-11-05 抽成组件时搬过来 —— 录入页与病例详情页共用同一份。 */
+
+.pr-sheet-root {
+  display: block;
+}
+
+/* ---------- 表格骨架 ---------- */
+
+.pr-table-scroll {
+  width: 100%;
+  background: #cce8cf;
+  border: 2rpx solid #000000;
+  border-radius: 8rpx;
+  overflow: hidden;
+}
+
+.pr-table {
+  display: inline-flex;
+  flex-direction: column;
+  min-width: 100%;
+}
+
+/* 表头 */
+.pr-thead {
+  display: flex;
+  border-bottom: 2rpx solid #000000;
+}
+
+.pr-thead-lead {
+  width: 128rpx;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.pr-thead-blank {
+  height: 56rpx;
+}
+
+.pr-thead-name {
+  height: 56rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28rpx;
+  font-weight: 600;
+  border-top: 1rpx solid #000000;
+  border-right: 1rpx solid #000000;
+  padding: 0 6rpx;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.pr-thead-cols {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.pr-thead-dates,
+.pr-thead-hands {
+  display: flex;
+}
+
+.pr-thead-date {
+  width: 168rpx;
+  flex: none;
+  height: 56rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24rpx;
+  border-right: 1rpx solid #000000;
+  padding: 0 4rpx;
+  white-space: nowrap;
+}
+
+.pr-thead-hand {
+  width: 168rpx;
+  flex: none;
+  height: 56rpx;
+  display: flex;
+  border-right: 2rpx solid #000000;
+  border-top: 1rpx solid #000000;
+}
+
+.pr-thead-hand-l,
+.pr-thead-hand-r {
+  width: 84rpx;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24rpx;
+}
+
+.pr-thead-hand-r {
+  border-left: 1rpx solid #000000;
+}
+
+/* 正文 */
+.pr-tbody {
+  display: flex;
+  flex-direction: column;
+}
+
+.pr-grp {
+  display: flex;
+  border-bottom: 2rpx solid #000000;
+}
+
+.pr-grp:last-child {
+  border-bottom: none;
+}
+
+.pr-organ {
+  width: 64rpx;
+  flex: none;
+  background: #ffc000;
+  border-right: 2rpx solid #000000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34rpx;
+  font-weight: 600;
+}
+
+.pr-grp-rows {
+  flex: 1;
+}
+
+.pr-row {
+  display: flex;
+  height: 64rpx;
+}
+
+.pr-depth {
+  width: 64rpx;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26rpx;
+  border-right: 1rpx solid #000000;
+  border-bottom: 1rpx solid #000000;
+  background: #cce8cf;
+}
+
+.pr-grp .pr-row:last-child .pr-depth {
+  border-bottom: none;
+}
+
+.pr-cells {
+  flex: 1;
+  display: flex;
+}
+
+.pr-cell {
+  width: 84rpx;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28rpx;
+  border-right: 1rpx solid #000000;
+  border-bottom: 1rpx solid #000000;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.pr-grp .pr-row:last-child .pr-cell {
+  border-bottom: none;
+}
+
+.pr-cell:active {
+  background: #ffffff;
+}
+
+/* 表下：体质行 / 疗法行 */
+.pr-tfoot {
+  display: flex;
+  border-top: 2rpx solid #000000;
+  background: #ffffff;
+}
+
+.pr-tfoot-lead {
+  width: 128rpx;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.pr-tfoot-blank {
+  height: 56rpx;
+  border-right: 1rpx solid #000000;
+}
+
+.pr-tfoot-label {
+  height: 56rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26rpx;
+  border-top: 1rpx solid #000000;
+  border-right: 1rpx solid #000000;
+}
+
+.pr-tfoot-cols {
+  flex: 1;
+}
+
+.pr-tfoot-row {
+  display: flex;
+  height: 56rpx;
+}
+
+.pr-tfoot-cell {
+  width: 168rpx;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24rpx;
+  border-right: 2rpx solid #000000;
+  border-top: 1rpx solid #000000;
+  padding: 0 6rpx;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* ---------- 弹层 ---------- */
+
+.pr-mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(44, 41, 37, 0.45);
+  display: flex;
+  align-items: flex-end;
+  z-index: 50;
+}
+
+.pr-dialog {
+  width: 100%;
+  background: #fdfbf7;
+  border-radius: 20rpx 20rpx 0 0;
+  padding: 32rpx 28rpx 48rpx;
+  max-height: 76vh;
+  overflow-y: auto;
+}
+
+.pr-dialog-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  margin-bottom: 12rpx;
+}
+
+.pr-dialog-item {
+  padding: 18rpx 0;
+  border-bottom: 1rpx solid #e6e2d6;
+}
+
+.pr-dialog-item-title {
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.pr-dialog-clear {
+  color: #b03a2e;
+  margin-top: 12rpx;
+}
+
+/* 符号面板 */
+.pr-sheet {
+  width: 100%;
+  background: #fdfbf7;
+  border-radius: 20rpx 20rpx 0 0;
+  padding: 24rpx 24rpx 40rpx;
+  max-height: 78vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.pr-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 28rpx;
+  font-weight: 600;
+  padding-bottom: 12rpx;
+  border-bottom: 1rpx solid #e6e2d6;
+}
+
+.pr-sheet-body {
+  flex: 1;
+  max-height: 60vh;
+}
+
+/* 符号面板的分组。
+   注意：这里**不能**用 .pr-grp —— 表格的部位分组也叫 .pr-grp（display:flex ＋ 黑色下边框），
+   同名会串样式（面板分组被拉成一行、底下多一条黑线）。所以另起 .pr-pal-* 一套。 */
+.pr-pal-grp {
+  margin-top: 20rpx;
+}
+
+.pr-pal-title {
+  font-size: 24rpx;
+  color: #7c8974;
+  margin-bottom: 10rpx;
+}
+
+.pr-pal-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.pr-sym {
+  min-width: 108rpx;
+  padding: 10rpx 14rpx;
+  border: 1rpx solid #e6e2d6;
+  border-radius: 10rpx;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.pr-sym.is-on {
+  background: #2c2925;
+  border-color: #2c2925;
+}
+
+.pr-sym-code {
+  font-size: 30rpx;
+  font-family: 'Songti SC', 'STSong', serif;
+}
+
+.pr-sym-label {
+  font-size: 21rpx;
+  color: #7c8974;
+}
+
+.pr-sym.is-on .pr-sym-label {
+  color: #fdfbf7;
+}
+
+.pr-manual {
+  margin-top: 24rpx;
+}
+
+.pr-manual-clear {
+  margin-top: 12rpx;
+}

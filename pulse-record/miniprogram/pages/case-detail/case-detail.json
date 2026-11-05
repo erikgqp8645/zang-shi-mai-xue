@@ -1,3 +1,6 @@
 {
-  "navigationBarTitleText": "病例详情 · 臧氏脉学"
+  "navigationBarTitleText": "病例详情 · 臧氏脉学",
+  "usingComponents": {
+    "record-sheet": "/components/record-sheet/record-sheet"
+  }
 }
