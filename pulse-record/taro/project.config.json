@@ -9,13 +9,14 @@
     "es6": false,
     "enhance": false,
     "postcss": false,
-    "minified": false,
+    "minified": true,
     "babelSetting": {
       "ignore": [],
       "disablePlugins": [],
       "outputPath": ""
     },
-    "minifyWXML": true
+    "minifyWXML": true,
+    "minifyWXSS": true
   },
   "condition": {
     "miniprogram": {

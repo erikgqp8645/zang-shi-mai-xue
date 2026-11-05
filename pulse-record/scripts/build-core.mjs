@@ -44,7 +44,21 @@ for (const file of walk(CORE)) {
 console.log(`[build:core] 相对 require 补后缀：${patched} 个文件`)
 
 /* ---- 2. 复制图片资源 ---- */
-const IMAGES = ['hands-pulse.png', 'triad-p47.png']
+/**
+ * 底图用 **JPEG**（2026-11-05）。
+ *
+ * 微信开发者工具「代码质量 → 图片和音频资源大小不应超过 200 K」未通过：
+ * PNG 底图 298 KB 压不动（照片类 PNG 的无损下限就在 300 KB 上下），
+ * 缩到 850×696 还是 220 KB 且印刷字发糊。
+ *
+ * 改用同尺寸 JPEG（1070 × 876，180.7 KB，**尺寸不变所以覆盖层坐标不跑位**），
+ * 由 `scripts/compress-assets.mjs` 生成。生成脚本见该文件的说明。
+ *
+ * `triad-p47.png` **不复制**：它在原生小程序端没有任何地方引用
+ * （三部曲是 `pages/triad/triad.wxml` 用样式画出来的，不是贴图），
+ * 只被网站端的 `src/components/TriadImage.tsx` 用。
+ */
+const IMAGES = ['hands-pulse.jpg']
 mkdirSync(ASSETS, { recursive: true })
 for (const name of IMAGES) {
   const from = join(ROOT, 'src/assets', name)

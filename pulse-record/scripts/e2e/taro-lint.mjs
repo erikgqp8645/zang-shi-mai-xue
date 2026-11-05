@@ -21,6 +21,9 @@ import { basename, dirname, extname, join, resolve } from 'node:path'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+// 第 25 节要解码底图 JPEG、跟 PNG 真源逐像素比 —— 这两个只在 devDependencies 里
+import { PNG } from 'pngjs'
+import jpeg from 'jpeg-js'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const TARO = join(ROOT, 'taro')
@@ -984,6 +987,167 @@ if (diagramMod) {
     noneRun.fake.calls.quadraticCurveTo === 24,
     `实际 ${noneRun.fake.calls.quadraticCurveTo} 段`,
   )
+}
+
+/* ========================================================================
+ * 25. 代码质量两条「未通过」不许复现（2026-11-05）
+ * ======================================================================== */
+
+/**
+ * ## 这一节抓的是什么
+ *
+ * 微信开发者工具「代码质量」面板里两条 **未通过**：
+ *
+ *   · **代码压缩 → JS文件：对JS文件进行压缩**（未通过）
+ *   · **代码包 → 图片和音频资源大小不应超过 200 K**（未通过）
+ *
+ * 官方规则原文（微信开放文档「性能扫描 / 代码质量」）：
+ *
+ *   > 图片和音频资源大小超过 200 K【建议】……建议图片、音频等静态资源体积大小超过 200K 时，
+ *   > 将它们上传到 CDN，用 URL 引入会是个更好的选择。
+ *   > 未开启JS压缩【必须】在工具「详情」-「本地设置」中开启「上传代码时自动压缩脚本文件」的设置
+ *
+ * ## 为什么这两条必须进回归
+ *
+ * 它们**不拦编译、不拦测试、不拦本地运行** —— 只在开发者工具扫代码质量时才报，
+ * 而且要等到**上传前**才暴露。等到那时候才发现，返工的是整个包。
+ * 更麻烦的是第 2 条：底图是照片类素材，**PNG 无损压不动**（300 KB 地板），
+ * 一旦有人把底图换回 PNG，这条立刻复发 —— 而真机上只表现为「图有点糊」，没人会去查体积。
+ *
+ * ## 断言拆成五块
+ *
+ *   1. `project.config.json` 的 `minified` 必须为 true（对应「未开启JS压缩」）；
+ *   2. 产物里**没有单个 > 200 KB 的图片/音频**（对应「图片和音频资源大小不应超过 200 K」）；
+ *   3. 底图**尺寸必须是 1070 × 876**（缩小会让覆盖层标记跑位 —— 见 `src/domain/diagram.ts`）；
+ *   3b. 底图 JPEG **内容必须与 PNG 真源一致**（解码回读逐像素比 —— 抓「体积合规但内容是废图」）；
+ *   4. `triad-p47.png` **不许进小程序包**（小程序端没人引用它，白带 91.6 KB）。
+ */
+{
+  /* --- 1. JS 压缩开关 --- */
+  const projCfg = JSON.parse(read(join(TARO, 'project.config.json')))
+  ok(
+    'project.config.json 开了 minified（开发者工具「未开启JS压缩」就是这条）',
+    projCfg.setting && projCfg.setting.minified === true,
+    `当前 setting.minified = ${JSON.stringify(projCfg.setting?.minified)}`,
+  )
+  ok(
+    'project.config.json 开了 minifyWXSS（WXSS 压缩）',
+    projCfg.setting && projCfg.setting.minifyWXSS === true,
+    `当前 setting.minifyWXSS = ${JSON.stringify(projCfg.setting?.minifyWXSS)}`,
+  )
+  ok(
+    'project.config.json 开了 minifyWXML（WXML 压缩）',
+    projCfg.setting && projCfg.setting.minifyWXML === true,
+    `当前 setting.minifyWXML = ${JSON.stringify(projCfg.setting?.minifyWXML)}`,
+  )
+
+  /* --- 2. 产物里没有超 200 KB 的图片/音频 --- */
+  const LIMIT = 200 * 1024
+  if (existsSync(DIST)) {
+    const mediaExts = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.mp3', '.wav', '.m4a', '.mp4'])
+    const mediaFiles = walk(DIST, [], (p) => mediaExts.has(extname(p).toLowerCase()))
+    const oversize = mediaFiles.filter((f) => statSync(f).size >= LIMIT)
+    ok(
+      `产物里没有单个 ≥ 200 KB 的图片/音频（开发者工具「图片和音频资源大小不应超过 200 K」）`,
+      oversize.length === 0,
+      oversize.map((f) => `${rel(f)} ${statSync(f).size}B`).join(' '),
+    )
+    const totalMedia = mediaFiles.reduce((s, f) => s + statSync(f).size, 0)
+    ok(
+      `产物里图片/音频总量 ${(totalMedia / 1024).toFixed(1)} KB（提审时整包都要过）`,
+      totalMedia < LIMIT * 2,
+      `${totalMedia}B`,
+    )
+  } else {
+    ok('还没构建，产物体积检查跳过（先跑 npm run mp:taro:build）', true)
+  }
+
+  /* --- 3. 底图尺寸不变 --- */
+  const jpgPath = join(ROOT, 'src', 'assets', 'hands-pulse.jpg')
+  ok('底图 JPEG 存在（scripts/compress-assets.mjs 生成）', existsSync(jpgPath), rel(jpgPath))
+  if (existsSync(jpgPath)) {
+    const jpgBytes = statSync(jpgPath).size
+    ok(
+      `底图 JPEG ${(jpgBytes / 1024).toFixed(1)} KB < 200 KB（超了开发者工具那条就红）`,
+      jpgBytes < LIMIT,
+      `${jpgBytes}B`,
+    )
+    // JPEG 的 SOF0 段带尺寸，直接读字节头，不引依赖
+    const buf = readFileSync(jpgPath)
+    let w = 0
+    let h = 0
+    for (let i = 0; i < buf.length - 9; i++) {
+      if (buf[i] === 0xff && (buf[i + 1] & 0xf0) === 0xc0) {
+        h = buf.readUInt16BE(i + 5)
+        w = buf.readUInt16BE(i + 7)
+        break
+      }
+    }
+    ok(
+      '底图 JPEG 尺寸仍是 1070×876（缩小会让覆盖层标记跑位：坐标是按原图像素量的）',
+      w === 1070 && h === 876,
+      `实际 ${w}×${h}`,
+    )
+
+    /* --- 3b. 底图 JPEG 内容必须与 PNG 真源一致 --- */
+    // 2026-11-05 踩过的坑：`jpeg-js` 的编码器按 **RGBA（4 字节/像素）** 读 stride，
+    // 喂 RGB 会产出**体积合规、尺寸合规、内容却斜切成废图**的 JPEG。
+    // 「存在 / <200KB / 1070×876」三条断言全绿 —— 只有把图渲染出来才发现是废图。
+    // 所以这里解码回来跟 PNG 真源逐像素比，把这类错钉死在静态这关。
+    const pngPath = join(ROOT, 'src', 'assets', 'hands-pulse.png')
+    if (existsSync(pngPath)) {
+      let cmp = null
+      let err = ''
+      try {
+        const dec = jpeg.decode(readFileSync(jpgPath))
+        const png = PNG.sync.read(readFileSync(pngPath))
+        if (dec.width !== png.width || dec.height !== png.height) {
+          err = `尺寸对不上：JPEG ${dec.width}×${dec.height} vs PNG ${png.width}×${png.height}`
+        } else {
+          let sumAbs = 0
+          let sumSq = 0
+          let n = 0
+          for (let i = 0; i < dec.data.length; i += 4) {
+            for (let c = 0; c < 3; c++) {
+              const d = Math.abs(dec.data[i + c] - png.data[i + c])
+              sumAbs += d
+              sumSq += d * d
+              n++
+            }
+          }
+          if (!n) err = '像素数据是空的'
+          else {
+            const mse = sumSq / n
+            cmp = {
+              mae: sumAbs / n,
+              psnr: mse === 0 ? Infinity : 10 * Math.log10((255 * 255) / mse),
+            }
+          }
+        }
+      } catch (e) {
+        err = String(e?.message || e)
+      }
+      ok(
+        '底图 JPEG 解码回来与 PNG 真源一致（MAE ≤ 12、PSNR ≥ 15 dB —— 抓「合规但内容是废图」）',
+        !err && cmp && cmp.mae <= 12 && cmp.psnr >= 15,
+        err || (cmp ? `MAE ${cmp.mae.toFixed(2)} / PSNR ${cmp.psnr.toFixed(2)} dB` : '没比出结果'),
+      )
+    } else {
+      ok('PNG 真源不在（跳过底图内容一致性比对）', true)
+    }
+  }
+  ok(
+    'PNG 真源保留（网站端 PNG 导出要无损底图，JPEG 会二次压缩）',
+    existsSync(join(ROOT, 'src', 'assets', 'hands-pulse.png')),
+  )
+
+  /* --- 4. triad-p47.png 不许进小程序包 --- */
+  if (existsSync(DIST)) {
+    ok(
+      'triad-p47.png 不在小程序包里（小程序端没人引用它，白带 91.6 KB）',
+      !existsSync(join(DIST, 'assets', 'triad-p47.png')),
+    )
+  }
 }
 
 /* ========================================================================

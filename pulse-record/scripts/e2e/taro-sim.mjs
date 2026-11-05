@@ -21,7 +21,7 @@
  */
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { basename, extname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { build } from '../../taro/node_modules/esbuild/lib/main.js'
@@ -213,8 +213,11 @@ if (existsSync(DIST)) {
     for (const p of REQUIRED_PAGES) {
       ok(`${p} 在 dist 里有产物`, existsSync(join(DIST, `${p}.js`)) && existsSync(join(DIST, `${p}.wxml`)))
     }
-    ok('dist/assets 有图示底图（/assets/hands-pulse.png）', existsSync(join(DIST, 'assets', 'hands-pulse.png')))
-    ok('dist/assets 有三部曲图（/assets/triad-p47.png）', existsSync(join(DIST, 'assets', 'triad-p47.png')))
+    ok('dist/assets 有图示底图（/assets/hands-pulse.jpg）', existsSync(join(DIST, 'assets', 'hands-pulse.jpg')))
+    ok(
+      'dist/assets 里没有 triad-p47.png（小程序端没人引用，白带 91.6 KB）',
+      !existsSync(join(DIST, 'assets', 'triad-p47.png')),
+    )
     ok('dist/assets 有 tabBar 图标目录', existsSync(join(DIST, 'assets', 'tabbar')))
   }
 
@@ -247,6 +250,24 @@ if (existsSync(DIST)) {
   }
   const bytes = size(DIST)
   ok(`主包 ${(bytes / 1024 / 1024).toFixed(2)} MB < 微信上限 2 MB`, bytes < 2 * 1024 * 1024, `${bytes} 字节`)
+
+  // 单个图片/音频资源 < 200 KB（微信「代码质量」那条，未通过不拦编译、只拦提审）
+  const MEDIA = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.mp3', '.wav', '.m4a', '.mp4'])
+  const mediaFiles = []
+  const collectMedia = (d) => {
+    for (const name of readdirSync(d)) {
+      const p = join(d, name)
+      if (statSync(p).isDirectory()) collectMedia(p)
+      else if (MEDIA.has(extname(p).toLowerCase())) mediaFiles.push(p)
+    }
+  }
+  collectMedia(DIST)
+  const oversize = mediaFiles.filter((f) => statSync(f).size >= 200 * 1024)
+  ok(
+    '产物里没有单个 ≥ 200 KB 的图片/音频（开发者工具「图片和音频资源大小不应超过 200 K」）',
+    oversize.length === 0,
+    oversize.map((f) => `${basename(f)} ${statSync(f).size}B`).join(' '),
+  )
 }
 
 /* ========================================================================
@@ -337,20 +358,17 @@ if (automator) {
           src,
         )
 
-      const hands = await withTimeout(readLocalImage('/assets/hands-pulse.png'), 20000, 'getImageInfo')
+      const hands = await withTimeout(readLocalImage('/assets/hands-pulse.jpg'), 20000, 'getImageInfo')
       ok(
-        '运行时能读到包内底图 /assets/hands-pulse.png（这就是「底图没载入」的判据）',
+        '运行时能读到包内底图 /assets/hands-pulse.jpg（这就是「底图没载入」的判据）',
         hands && hands.ok === true,
         JSON.stringify(hands),
       )
       ok(
-        '底图像素是 1070×876（与真源一致）',
+        '底图像素是 1070×876（与真源一致；缩小会让覆盖层标记跑位）',
         hands && hands.width === 1070 && hands.height === 876,
         JSON.stringify(hands),
       )
-
-      const triad = await withTimeout(readLocalImage('/assets/triad-p47.png'), 20000, 'getImageInfo')
-      ok('运行时能读到包内三部曲图 /assets/triad-p47.png', triad && triad.ok === true, JSON.stringify(triad))
 
       // 对照组：路径写错时必须读不到 —— 证明上面两条不是「怎么都过」
       const missing = await withTimeout(readLocalImage('/assets/NO-SUCH-IMAGE.png'), 20000, 'getImageInfo')

@@ -276,7 +276,7 @@ Page({
         this.paintExport(canvas, ctx, set, session, layout, null)
         resolve()
       }
-      img.src = '/assets/hands-pulse.png'
+      img.src = '/assets/hands-pulse.jpg'
     })
     return this.toTempFile(canvas)
   },
@@ -307,7 +307,7 @@ Page({
     await new Promise((resolve, reject) => {
       img.onload = resolve
       img.onerror = () => reject(new Error('底图没载入'))
-      img.src = '/assets/hands-pulse.png'
+      img.src = '/assets/hands-pulse.jpg'
     })
 
     // planDiagram(image, IMG_W) → scale＝1（不放大），画布就是原图像素

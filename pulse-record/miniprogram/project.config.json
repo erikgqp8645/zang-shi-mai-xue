@@ -9,7 +9,7 @@
     "es6": true,
     "enhance": false,
     "postcss": true,
-    "minified": false,
+    "minified": true,
     "newFeature": true,
     "coverView": true,
     "nodeModules": false,
@@ -30,6 +30,7 @@
     "packNpmManually": false,
     "packNpmRelationList": [],
     "minifyWXSS": true,
+    "minifyWXML": true,
     "useCompilerPlugins": false,
     "ignoreUploadUnusedFiles": true
   },

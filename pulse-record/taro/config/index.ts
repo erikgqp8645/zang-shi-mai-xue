@@ -67,8 +67,31 @@ const SHARED = path.resolve(ROOT, '..', 'src')
  *
  * 直接指向 `pulse-record/src/assets/`（在 `taro/` 工程目录**之外**）——
  * copy 插件不限制工程外的路径（实测过），不需要先同步进工程内。
+ *
+ * ## 为什么是 JPEG 而不是 PNG（2026-11-05）
+ *
+ * 微信开发者工具「代码质量 → 代码包 → 图片和音频资源大小不应超过 200 K」
+ * 这条**未通过**，根因是底图 298 KB。
+ *
+ * 底图是**真人手部照片 ＋ 印刷标注**，PNG 无损重编码压不动（300 KB 地板），
+ * 缩到 850×696 还是 220 KB 且印刷字发糊。
+ * 所以改用**同尺寸 JPEG**（`scripts/compress-assets.mjs` 生成，1070 × 876 不变）：
+ * 180.7 KB，2 倍放大下「心／肝／肾—寸／关／尺」完全清晰。
+ *
+ * **尺寸必须不变** —— 覆盖层标记坐标（`src/domain/diagram.ts`）是按原图像素量的，
+ * 底图一缩放标记就跑位。
+ *
+ * **网站端仍用 PNG**（`src/export/png.ts` 导出 PNG，底图有损会二次压缩）；
+ * 两份图并存是刻意的，不是重复。
+ *
+ * ## 为什么只有这一张（`triad-p47.png` 不进包）
+ *
+ * `triad-p47.png`（91.6 KB，讲义 p47 三部曲原图）在小程序端**没有任何地方引用**
+ * —— 小程序的三部曲是 `components/visit-judge` 用 `pr-triad-*` 样式**画**出来的，
+ * 不是贴图。它只被网站端的 `src/components/TriadImage.tsx` 用。
+ * 所以小程序包**不带它**（省 91.6 KB）；网站端那份照旧。
  */
-const SHARED_IMAGES = ['hands-pulse.png', 'triad-p47.png']
+const SHARED_IMAGES = ['hands-pulse.jpg']
 
 function assetCopyPatterns() {
   const srcDir = path.resolve(SHARED, 'assets').replace(/\\/g, '/')

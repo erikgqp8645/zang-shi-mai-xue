@@ -25,6 +25,7 @@
     "mp:taro:typecheck": "npm --prefix taro run typecheck",
     "mp:taro:harmony": "npm --prefix taro run build:harmony",
     "mp:icons": "node scripts/gen-tabbar-icons.mjs",
+    "assets:compress": "node scripts/compress-assets.mjs",
     "test": "npm run build:core && npm run test:e2e:core && npm run test:e2e:mp && npm run test:e2e:mp:api && npm run test:e2e:migration && npm run test:e2e:auth && npm run test:e2e:app && npm run test:e2e:desktop",
     "test:e2e:core": "node scripts/e2e/core-smoke.mjs",
     "test:e2e:mp": "node scripts/e2e/taro-lint.mjs",
@@ -55,7 +56,9 @@
     "@vitejs/plugin-react": "^6.1.2",
     "electron": "^44.10.2",
     "electron-builder": "^26.18.0",
+    "jpeg-js": "^0.3.7",
     "miniprogram-automator": "^0.13.0",
+    "pngjs": "^3.4.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.5"
   }

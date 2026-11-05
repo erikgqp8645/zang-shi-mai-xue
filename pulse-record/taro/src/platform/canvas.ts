@@ -55,13 +55,19 @@ export const OFF_CANVAS_ID = 'pulse-off-canvas'
  * 底图（寸关尺图示的原图）在小程序包里的路径。
  *
  * 与原生版 `miniprogram/pages/case-detail/case-detail.js` 的
- * `img.src = '/assets/hands-pulse.png'` **完全一致**。
+ * `img.src = '/assets/hands-pulse.jpg'` **完全一致**。
  *
  * 这张图由 `config/index.ts` 的 `assetCopyPatterns()` 从 `pulse-record/src/assets`
  * 拷进 `dist/assets/`（真源在工程目录外，靠 copy 插件的正斜杠绝对路径拿）。
  * 产物是否存在由 `scripts/e2e/taro-sim.mjs` 断言。
+ *
+ * **为什么是 `.jpg` 不是 `.png`**（2026-11-05）：
+ * 微信「图片和音频资源大小不应超过 200 K」未通过 —— PNG 底图 298 KB 压不动
+ * （照片类 PNG 的无损下限就在 300 KB 上下）。
+ * 改用同尺寸 JPEG（1070 × 876，180.7 KB），**尺寸不变所以覆盖层坐标不跑位**，
+ * 印刷的「寸／关／尺」标注仍然清晰。详见 `scripts/compress-assets.mjs` 的说明。
  */
-const HANDS_IMAGE = '/assets/hands-pulse.png'
+const HANDS_IMAGE = '/assets/hands-pulse.jpg'
 
 
 /**
