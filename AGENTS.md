@@ -766,7 +766,7 @@ Windows 桌面程序：Electron 壳 + **原封不动**的 `dist/` 与 `server/`�
 | **禁 `copyFileSync` 拷库** | 备份／导出只能用 `VACUUM INTO` | 库里开着 WAL，活跃数据不在主文件里，直接拷会拿到半截事务 |
 | **数据落点** | 病例库：安装版 `%APPDATA%\臧氏脉学\history.sqlite`；**免安装版 exe 旁边的 `data\history.sqlite`**（靠 electron-builder 设的 `PORTABLE_EXECUTABLE_DIR` 认出来）。Electron 自己的缓存（Cache/GPUCache）**始终留在本机 %APPDATA%**，不往 U 盘上写。SQLite **不能放进 asar**（只读、且要写 WAL/SHM），也不能放进 Program Files |
 | **owner 归属** | 桌面版是单机免登录 → 所有请求归内置 `local` 账号。**别的账号名下的数据原样拷过去是一条也看不到** | `owner_id` 是归属列，读写一律按它过滤。导入时必须改挂（`desktop/db-transfer.mjs`） |
-| **后端只许拆不许改** | `server/index.mjs` 只拆出一个 `startServer()`，业务路由一行不改 | 桌面版与网页版共用同一份后端；回归 207 项必须全绿 |
+| **后端只许拆不许改** | `server/index.mjs` 只拆出一个 `startServer()`，业务路由一行不改 | 桌面版与网页版共用同一份后端；回归 259 项必须全绿 |
 | **同源** | 窗口加载 `http://127.0.0.1:<端口>/`（端口 0 → OS 分配） | 同源 → 页面里 `/api/…` 相对路径直接可用，**绕开 Electron 沙箱的 CORS 限制** |
 | **渲染进程权限** | `nodeIntegration:false` ＋ `contextIsolation:true`；preload 只暴露「另存为」一个写文件能力 | 渲染进程拿不到 db 路径／SQL／连接，也拿不到任意写盘的口子 |
 
@@ -829,9 +829,16 @@ npm run build:core     # tsc -p tsconfig.core.json + 补 require 后缀 + 复制
 ```bash
 npm run mp:dev            # 共享包没编就编 + 起后端（单机模式）+ 打印导入目录与局域网 IP
 npm run mp:dev:multi      # 同上，多用户模式（要注册/登录）
-npm run test:e2e:mp       # 静态检查 29 项：WXML 不在 {{ }} 调函数、事件都有方法、require 路径存在
-npm run test:e2e:mp:api   # 数据层端到端 38 项：wx 垫片加载真实 utils/*.js，连真后端跑全链路
+npm run test:e2e:mp       # 静态检查 34 项：WXML 不在 {{ }} 调函数、事件都有方法、require 路径存在
+npm run test:e2e:mp:api   # 数据层端到端 43 项：wx 垫片加载真实 utils/*.js，连真后端跑全链路
+npm run test:e2e:mp:sim   # 模拟器冒烟 16 项：开发者工具 cli ＋ miniprogram-automator，8 页逐页跑
 ```
+
+- **体例只有一个真源**：「7 脉点 / 9 行」是**患者的属性**（库里的 `patients.layout`）。
+  记录表（canvas / 导出 PNG）与录入记录都按它画 —— **切换体例必须立刻落库**，
+  否则同一位患者在两个界面会显示出不同的行数（真出过：记录表 7 行、录入记录 9 行）。
+  改体例**只动体例、不动格值**：7↔9 来回切，「尺浮/尺中」两行的数据仍原样留着。
+  自检用 `scripts/lib/layout-check.mjs`（体例 ⇄ 格值行数是否对得上）。
 
 - **服务器地址运行时可改**：「我的 → 服务器」卡片写本地 `pulse.apiBase`；`api.js` 每次请求走
   `config.resolveApiBase()`，`config.js` 的 `API_BASE` 只是默认值 —— 真机换 IP 不用改代码重编译。
@@ -923,8 +930,9 @@ npm run test:e2e:mp:api   # 数据层端到端 38 项：wx 垫片加载真实 ut
 - [ ] 改过**存储层**（建表／迁移／备份）后，是否跑过 `npm run test:e2e:migration`？其它 e2e 都走新建空库的路径、**完全不经过迁移** —— 迁移写错了它们照样全绿（真出过：UPSERT 缺 `WHERE`，新建库不触发，只有第一次打开自己的老库时后端才起不来）。
 - [ ] 迁移／备份在**还有第二个连接开着这个库**时是否安全？WAL 的共享状态一旦被重置（如 `wal_checkpoint(TRUNCATE)`），另一个连接退出时会把 `-wal/-shm` 删掉，服务端还开着旧 fd，之后的写入全进孤儿 WAL、进程退出就丢（症状：刚注册好的账号在库里查不到）。备份要用 SQLite 的 `VACUUM INTO`（一致性快照），不要 `copyFileSync`。
 - [ ] 小程序与网站**查方结果是否逐字一致**（同一份 `dose-lookup` 编译产物）？两套剂量（克／比例制）在两端是否都分栏标注出处、没有被换算？
+- [ ] 改过**体例**（7 脉点 / 9 行）相关代码后：录入页切换是不是**立刻落库**（不能只改页面状态）？记录表与录入记录画的是不是**同一个体例**（体例只有 `patients.layout` 一个真源）？改体例有没有**动到格值**（不该动 —— 7↔9 来回切，「尺浮/尺中」两行的数据要留着）？患者的体例与格值行数对不对得上（`scripts/lib/layout-check.mjs`）？
 - [ ] 改过小程序 `utils/*.js`（`api` / `data` / `auth` / `config`）或**服务端接口**后，是否跑过 `npm run test:e2e:mp:api`？`test:e2e:mp` 只看页面骨架，数据层写错了它照样全绿（真出过：`putVisitMedication` 漏 `await getVisit()`，单次就诊保存用药必 500，两端的这条链路都坏了而回归没发现）。
-- [ ] 桌面版：改过 `server/index.mjs` 后，`node server/index.mjs` 的行为是否**完全不变**（`isMain` 判定）？`npm test` 是否仍 **207 项全绿**？
+- [ ] 桌面版：改过 `server/index.mjs` 后，`node server/index.mjs` 的行为是否**完全不变**（`isMain` 判定）？`npm test` 是否仍 **259 项全绿**？
 - [ ] 桌面版：数据是否落在 `%APPDATA%\臧氏脉学\`（安装版）／ exe 旁边的 `data\`（免安装版）？有没有把库放进 asar 或 Program Files（SQLite 写不了）？**Electron 缓存有没有被误放到 exe 旁边**（缓存留本机 %APPDATA%）？
 - [ ] 桌面版：改过落点判定后，`desktop/data-dir.mjs` 的规则与 `desktop/main.mjs` 的实际用法是否一致（主进程必须调用那套纯函数，不要内联另写一份）？便携版与安装版的 userData 是否仍分开（否则单实例锁互相吞）？
 - [ ] 桌面版：导入老数据后，**别的账号名下那些病例在桌面端看得见吗**（owner 归属有没有改挂）？重复导入会不会翻倍？
