@@ -125,7 +125,7 @@ npm run mp:dev:multi   # 同上，但多用户模式（要注册/登录，验证
 **不用开发者工具也能验证**（数据层是真的跑）：
 
 ```bash
-npm run test:e2e:mp       # 静态检查：WXML 不调函数、事件都有方法、require 路径都存在（29 项）
+npm run test:e2e:mp       # 静态检查：WXML 不调函数、事件都有方法、require 路径都存在（31 项）
 npm run test:e2e:mp:api   # 数据层端到端：wx 垫片加载真实 utils/*.js，连真后端跑全链路（38 项）
 ```
 
@@ -137,6 +137,10 @@ npm run test:e2e:mp:api   # 数据层端到端：wx 垫片加载真实 utils/*.j
 `tsc` 编成 CommonJS 搬进小程序；`src/export/png.ts` 拆成**纯绘制器**
 （`table-painter.ts` ＋ `diagram.ts` ＋ `canvas.ts`）与 DOM 驱动两部分，
 小程序用**同一份绘制代码**（canvas 2d），所以**小程序存到相册的图与网站导出的图版式完全一致**。
+
+小程序病例详情页**默认只显示表格**，手部寸关尺示意图**不放页面上**（塞进表格宽的画布里会被放大，
+出来是一张糊掉的大手）—— 要看时点「寸关尺图示」，单独弹一个系统图片预览窗体，
+按原图 1:1 显示，可双指缩放。**导出仍然带图示**，与网站导出一致。
 
 个人主体的硬约束：`code2Session` 可用；**`web-view` 不可用**（不支持业务域名）→ 必须原生开发；
 **`getPhoneNumber` 不可用** → 账号绑定只走「网站账号＋密码」。
