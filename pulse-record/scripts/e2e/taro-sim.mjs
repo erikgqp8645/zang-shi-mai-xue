@@ -19,12 +19,14 @@
  *   node scripts/e2e/taro-sim.mjs            # ①② 必跑，③ 环境没就绪就跳过
  *   MP_SIM_WS=ws://127.0.0.1:9420 node ...   # 指定自动化端口
  */
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { build } from '../../taro/node_modules/esbuild/lib/main.js'
+
+import { isBlankShot } from './lib-png.mjs'
 
 const ROOT = resolve(join(import.meta.dirname, '../..'))
 const TARO = join(ROOT, 'taro')
@@ -166,7 +168,22 @@ if (existsSync(DIST)) {
 
   if (existsSync(appJsonPath)) {
     const appJson = JSON.parse(readFileSync(appJsonPath, 'utf8'))
-    ok('app.json 登记 6 个页面', appJson.pages.length === 6, String(appJson.pages.length))
+    // 核心页面集合 —— **加页面不用改这里**，只要不动核心页
+    const REQUIRED_PAGES = [
+      'pages/cases/index',
+      'pages/visit/index',
+      'pages/formulas/index',
+      'pages/me/index',
+      'pages/case-detail/index',
+      'pages/login/index',
+      'pages/privacy/index',
+    ]
+    const missingPages = REQUIRED_PAGES.filter((p) => !appJson.pages.includes(p))
+    ok(
+      `app.json 登记了全部 ${REQUIRED_PAGES.length} 个核心页面`,
+      missingPages.length === 0,
+      missingPages.join(' '),
+    )
     ok(
       'app.json 有 4 个 tab',
       appJson.tabBar && appJson.tabBar.list.length === 4,
@@ -183,10 +200,12 @@ if (existsSync(DIST)) {
         appJson.tabBar.list.every((t) => t.iconPath && t.selectedIconPath),
       )
     }
-    for (const p of ['pages/cases/index', 'pages/visit/index', 'pages/formulas/index', 'pages/me/index']) {
+    for (const p of REQUIRED_PAGES) {
       ok(`${p} 在 dist 里有产物`, existsSync(join(DIST, `${p}.js`)) && existsSync(join(DIST, `${p}.wxml`)))
     }
     ok('dist/assets 有图示底图（/assets/hands-pulse.png）', existsSync(join(DIST, 'assets', 'hands-pulse.png')))
+    ok('dist/assets 有三部曲图（/assets/triad-p47.png）', existsSync(join(DIST, 'assets', 'triad-p47.png')))
+    ok('dist/assets 有 tabBar 图标目录', existsSync(join(DIST, 'assets', 'tabbar')))
   }
 
   // 记录表组件的样式（讲义 p34 取色）进了产物
@@ -256,6 +275,8 @@ if (automator) {
       //   · `connect()` 返回的**就是 MiniProgram**，它自己没有 `launch`（launch 在 Automator 上）
       //   · 截图是 **MiniProgram.screenshot({path})**，Page 上没有 screenshot 方法
       //   · tabBar 页用 `switchTab` 切，不是 `navigateTo`
+      // 截图目录要先建 —— 少了这一步，automator 写文件直接 ENOENT（实测踩过）
+      mkdirSync(OUT, { recursive: true })
       const pages = [
         { path: '/pages/cases/index', name: '病例' },
         { path: '/pages/visit/index', name: '就诊' },
@@ -264,11 +285,22 @@ if (automator) {
       ]
       for (const p of pages) {
         await mp.switchTab(p.path)
-        await new Promise((r) => setTimeout(r, 900))
+        // 多等一会儿：Taro 首屏渲染比原生慢，截太早会拍到还没画完的帧
+        await new Promise((r) => setTimeout(r, 1500))
         const file = join(OUT, `${p.name}.png`)
         await mp.screenshot({ path: file })
         shots.push({ name: p.name, file })
         ok(`${p.name} 页能打开并截图`, existsSync(file), file)
+
+        // **白屏检查** —— 小程序启动崩溃时截图是纯白一张。
+        // 这类错构建不报错、静态回归全绿（查的是文件在不在，不是运行时），
+        // 只有这条能抓到（真出过：产物里残留 process.env.xxx → 运行时没有 process → 整屏白）。
+        const shot = isBlankShot(file)
+        ok(
+          `${p.name} 页不是白屏（${shot.distinctColors} 种颜色 / 非白像素 ${(shot.nonWhiteRatio * 100).toFixed(1)}%）`,
+          !shot.blank,
+          JSON.stringify(shot),
+        )
       }
       console.log(`\n截图目录：${OUT}`)
       shots.forEach((s) => console.log(`  · ${s.name} → ${s.file}`))

@@ -41,6 +41,44 @@ const ROOT = path.resolve(__dirname, '..')
 const SHARED = path.resolve(ROOT, '..', 'src')
 
 /**
+ * 与网站端共用的图 —— **真源仍是 `pulse-record/src/assets`**，小程序包里的那份是拷贝。
+ *
+ * ## 为什么不用 `import` 拿图
+ *
+ * `import img from '../assets/x.png'` 在 Taro 4 的 vite 目标下会报
+ * 「fileName 必须是既非绝对路径也非相对路径的字符串」——
+ * 那是 Taro `vite-plugin-assets` 的已知毛病，这两张图因此**不能走 import**。
+ *
+ * ## 两条硬规矩（2026-11-05 实测踩坑后定，改这块之前先读完）
+ *
+ * 1. **`from` 必须用正斜杠。**
+ *    copy 插件底层是 fast-glob，而 fast-glob 里反斜杠是转义符 ——
+ *    Windows 上 `path.resolve()` 给的反斜杠路径**一律匹配 0 个，而且不报错**（静默跳过）
+ *    → 图没进包 → 真机点「看寸关尺图示」提示「底图没载入」。
+ *    所以这里统一把反斜杠换成正斜杠。
+ *
+ * 2. **`to` 必须带扩展名。**
+ *    Taro 的 `convertCopyOptions`：`to` 带扩展名 → `to` 取目录部分、`rename` 取文件名；
+ *    `to` 不带扩展名（写成 `assets/`）→ `rename` 被塞成 `'/'`，
+ *    而复制器把字符串型 `rename` **直接当目标文件名** → 所有图撞到同一路径 → 只剩最后一张。
+ *    所以：**一条 pattern 对应一张图**，`to` 写成 `assets/<文件名>`。
+ *
+ * ## 图从哪来
+ *
+ * 直接指向 `pulse-record/src/assets/`（在 `taro/` 工程目录**之外**）——
+ * copy 插件不限制工程外的路径（实测过），不需要先同步进工程内。
+ */
+const SHARED_IMAGES = ['hands-pulse.png', 'triad-p47.png']
+
+function assetCopyPatterns() {
+  const srcDir = path.resolve(SHARED, 'assets').replace(/\\/g, '/')
+  return SHARED_IMAGES.map((name) => ({
+    from: `${srcDir}/${name}`,
+    to: `assets/${name}`,
+  }))
+}
+
+/**
  * 编译目标（`--type` 的值）—— Taro CLI 会先设 `process.env.TARO_ENV`，再读配置。
  *
  * **鸿蒙为什么要在配置里手动挂插件**
@@ -98,23 +136,31 @@ export default defineConfig(async (merge) => {
      *
      * 不传就是空串 → 运行时就用 `src/utils/config.ts` 里的本机默认值。
      * 「我的」页里也能改（存在本地存储），所以联调包与正式包可以并存。
+     *
+     * ⚠️ **这一段被误删过一次，整屏白过一次**（2026-11-05）：
+     * define 失效 → 产物里留下 `process.env.PULSE_API_BASE` →
+     * 小程序运行时**没有 `process` 这个全局量** → 启动即抛
+     * 「process is not defined」→ 页面全白、元素查不到。
+     * 回归里有一条断言专门盯这个（见 `scripts/e2e/taro-lint.mjs` 第 23 节：
+     * 产物里不许残留 `process.xxx`）。
      */
     defineConstants: {
       'process.env.PULSE_API_BASE': JSON.stringify(process.env.PULSE_API_BASE || ''),
     },
 
-    /** 图片资源：拷进小程序包，运行时路径仍是 `/assets/xxx.png`
-     *  （与原生版 `case-detail.js` 里 `img.src = '/assets/hands-pulse.png'` 完全一致）
+    /**
+     * 图片资源：拷进小程序包，运行时路径是 `/assets/xxx.png`
+     *  （与原生版 `miniprogram/pages/case-detail/case-detail.js` 里
+     *    `img.src = '/assets/hands-pulse.png'` 完全一致）
      *
-     *  两个来源：
-     *   · `../src/assets` —— 网站端的图（寸关尺底图、三部曲图），**两端共用同一份文件**
-     *   · `src/assets`     —— 小程序自己的资源（tabBar 图标）
+     * tabBar 图标（`src/assets/tabbar/*.png`）**不归这里管** ——
+     * 那是 Taro 自己按 `app.config.ts` 的 `iconPath` 拷的，已经落在 `dist/assets/tabbar/`。
+     * 这里只补网站端共用的大图（寸关尺底图、开方三部曲图）。
+     *
+     * 写法上的两条硬规矩（正斜杠 / `to` 带扩展名）见 `assetCopyPatterns()` 上面的注释。
      */
     copy: {
-      patterns: [
-        { from: path.resolve(SHARED, 'assets') + '/', to: 'assets/' },
-        { from: path.resolve(ROOT, 'src', 'assets') + '/', to: 'assets/' },
-      ],
+      patterns: assetCopyPatterns(),
       options: {},
     },
 

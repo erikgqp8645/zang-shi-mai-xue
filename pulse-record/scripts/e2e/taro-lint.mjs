@@ -16,9 +16,11 @@
  *
  * 用法：node scripts/e2e/taro-lint.mjs
  */
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { basename, dirname, extname, join, resolve } from 'node:path'
+import { createRequire } from 'node:module'
+import { tmpdir } from 'node:os'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const TARO = join(ROOT, 'taro')
@@ -353,7 +355,7 @@ const taroConfig = read(join(TARO, 'config', 'index.ts'))
 ok("alias 指向共享 domain（'@domain'）", /@domain/.test(taroConfig))
 ok("alias 指向共享绘制器（'@export'）", /@export/.test(taroConfig))
 ok('compiler 用 vite（鸿蒙 C-API 只支持 Vite）', /compiler:\s*'vite'/.test(taroConfig))
-ok('图片资源拷进小程序包（/assets/xxx.png）', /assets/.test(taroConfig))
+ok('配置里声明了 copy 规则（规则细节见 §22）', /copy:\s*\{/.test(taroConfig))
 
 const projConfig = JSON.parse(read(join(TARO, 'project.config.json')))
 ok('project.config.json 的 miniprogramRoot 指向 dist/', projConfig.miniprogramRoot === 'dist/')
@@ -538,6 +540,166 @@ ok(
   '「我的」页有隐私政策入口（审核要求小程序内可见）',
   existsSync(mePagePath) && read(mePagePath).includes('pages/privacy/index'),
 )
+
+/* ========================================================================
+ * 22. 出图底图必须真进包（2026-11-05）
+ * ======================================================================== */
+
+/**
+ * 把 `taro/config/index.ts` **真的跑一遍**，拿 `copy.patterns`。
+ *
+ * ## 为什么要真跑，不能用正则猜
+ *
+ * 这一节的规则用正则看不出来，而这两个规则错了**不报错** ——
+ * 图只是安安静静地没进包，真机上点「看寸关尺图示」才提示「底图没载入」。
+ *
+ * ## 两条规则（都是实测踩出来的）
+ *
+ * 1. **`from` 必须用正斜杠。**
+ *    copy 插件底层是 fast-glob，而 fast-glob 里反斜杠是转义符 ——
+ *    Windows 上 `path.resolve()` 给的反斜杠绝对路径**一律匹配 0 个，而且不报错**。
+ * 2. **`to` 必须带扩展名。**
+ *    Taro 的 `convertCopyOptions`：`to` 带扩展名 → `to` 取目录部分、`rename` 取文件名；
+ *    `to` 不带扩展名（写成 `assets/`）→ `rename` 被塞成 `'/'`，
+ *    而复制器把字符串型 `rename` **直接当目标文件名** → 所有图撞到同一路径 → 只剩最后一张。
+ *
+ * ## 怎么跑这份配置
+ *
+ *   · esbuild 打成 **CJS** —— 配置里用了 `__dirname`，ESM 里没这个变量；
+ *   · 桩掉 `@tarojs/cli` —— 只需要它的 `defineConfig`（原样返回那个工厂函数）；
+ *   · 调一次工厂，拿合并后的配置。
+ */
+let copyPatterns = []
+{
+  let esbuildBuild = null
+  try {
+    const esm = await import(pathToFileURL(join(TARO, 'node_modules', 'esbuild', 'lib', 'main.js')).href)
+    esbuildBuild = esm.build
+  } catch {
+    esbuildBuild = null
+  }
+  ok('taro 子工程依赖已安装（回归要用 taro/node_modules/esbuild）', !!esbuildBuild, '先跑：npm --prefix taro install')
+
+  if (esbuildBuild) {
+    const stubDir = mkdtempSync(join(tmpdir(), 'taro-lint-'))
+    try {
+      const stubFile = join(stubDir, 'taro-cli-stub.cjs')
+      writeFileSync(stubFile, 'exports.defineConfig = (fn) => fn\n', 'utf8')
+      const out = await esbuildBuild({
+        entryPoints: [join(TARO, 'config', 'index.ts')],
+        bundle: true,
+        platform: 'node',
+        format: 'cjs',
+        write: false,
+        // 配置靠 __dirname 定位自己（ROOT / SHARED 都是从它算出来的）；
+        // bundle 落在临时目录会算错，所以把 __dirname 直接钉成配置真实所在目录。
+        define: { __dirname: JSON.stringify(join(TARO, 'config')) },
+        plugins: [
+          {
+            name: 'stub-taro-cli',
+            setup(b) {
+              b.onResolve({ filter: /^@tarojs\/cli$/ }, () => ({ path: stubFile }))
+            },
+          },
+        ],
+      })
+      const bundleFile = join(stubDir, 'config.cjs')
+      writeFileSync(bundleFile, out.outputFiles[0].text, 'utf8')
+      const requireCjs = createRequire(import.meta.url)
+      const factory = requireCjs(bundleFile).default
+      const merged = await factory((...objs) => Object.assign({}, ...objs))
+      copyPatterns = (merged && merged.copy && merged.copy.patterns) || []
+    } finally {
+      try {
+        rmSync(stubDir, { recursive: true, force: true })
+      } catch {
+        /* 临时目录清不掉不影响结论 */
+      }
+    }
+  }
+}
+
+ok('配置里有 copy 规则（出图底图靠它进包）', copyPatterns.length > 0, `当前 ${copyPatterns.length} 条`)
+
+const backslashFrom = copyPatterns.filter((p) => String(p.from).includes('\\'))
+ok(
+  'copy 的 from 全用正斜杠（fast-glob 不认 Windows 反斜杠，会静默匹配 0 个 → 图没进包）',
+  backslashFrom.length === 0,
+  backslashFrom.map((p) => String(p.from)).join(' '),
+)
+
+const noExtTo = copyPatterns.filter((p) => !extname(String(p.to)))
+ok(
+  'copy 的 to 都带扩展名（否则 rename 被塞成 "/"，所有图撞到同一路径，只剩最后一张）',
+  noExtTo.length === 0,
+  noExtTo.map((p) => String(p.to)).join(' '),
+)
+
+const missingFrom = copyPatterns.filter((p) => !existsSync(String(p.from)))
+ok('copy 的 from 都指向真实存在的文件', missingFrom.length === 0, missingFrom.map((p) => String(p.from)).join(' '))
+
+// 代码里写的包内路径，必须和 copy 规则真能产出的路径对得上
+const canvasSrc = read(join(SRC, 'platform', 'canvas.ts'))
+const handsMatch = canvasSrc.match(/const HANDS_IMAGE = '([^']+)'/)
+ok('canvas.ts 里写死了底图路径', !!handsMatch)
+const handsImage = handsMatch ? handsMatch[1] : ''
+const copyOutPaths = copyPatterns.map((p) => '/' + String(p.to).replace(/^\/+/, ''))
+ok(
+  `canvas.ts 的底图路径 ${handsImage} 与 copy 规则能对上`,
+  copyOutPaths.includes(handsImage),
+  `copy 产出：${copyOutPaths.join(' ') || '(无)'}`,
+)
+
+// 产物层（编过才有）—— 逐字节比对，防止图被改坏或路径对不上
+const DIST = join(TARO, 'dist')
+if (existsSync(DIST)) {
+  const { createHash } = await import('node:crypto')
+  const sha = (f) => createHash('sha256').update(readFileSync(f)).digest('hex')
+  for (const p of copyPatterns) {
+    const built = join(DIST, String(p.to))
+    ok(`产物里有 ${p.to}`, existsSync(built))
+    if (existsSync(built) && existsSync(String(p.from))) {
+      ok(`产物 ${basename(String(p.to))} 与真源逐字节一致`, sha(built) === sha(String(p.from)))
+    }
+  }
+}
+
+/* ========================================================================
+ * 23. 产物里不许残留 Node 专有全局量（2026-11-05）
+ * ======================================================================== */
+
+/**
+ * ## 为什么要有这一节
+ *
+ * 小程序运行时**没有 `process` 这个全局量**（浏览器有，是打包器 polyfill 的）。
+ * 源码里写 `process.env.XXX` 只有在 **编译期被 define 替换掉**时才安全。
+ *
+ * 一旦 define 没生效（比如配置里那段被删了、键名写错、构建器换了），
+ * 产物里就会留下 `process.env.XXX` → 小程序**启动就抛**
+ * 「ReferenceError: process is not defined」→ 页面全白、元素查不到。
+ *
+ * ## 这类错为什么容易漏
+ *
+ * - 构建**不报错**，测试**全绿**（断言查的是源码与产物文件在不在，不查运行时）；
+ * - 模拟器截图是**纯白一张**，看着像「截图功能坏了」，其实是**小程序崩了**；
+ * - 元素查询（`page.$$()`）会**一直挂着**，看起来像自动化端口的问题。
+ *
+ * 所以这里直接查**产物**：只要产物里还有 `process.` 残留，就是错的。
+ */
+if (existsSync(DIST)) {
+  const distJs = walk(DIST, [], (p) => p.endsWith('.js'))
+  const processOffenders = distJs.filter((f) => /(^|[^.\w$])process\s*\./.test(read(f)))
+  ok(
+    '产物里没有残留 process.xxx（小程序运行时没有 process 全局量，残留就是启动即崩、整屏白）',
+    processOffenders.length === 0,
+    processOffenders.slice(0, 5).map((f) => rel(f)).join(' '),
+  )
+
+  const defineInConfig = /defineConstants\s*:/.test(read(join(TARO, 'config', 'index.ts')))
+  ok('配置里有 defineConstants（编译期注入默认 API 地址靠它）', defineInConfig)
+} else {
+  ok('还没构建，产物检查跳过（先跑 npm run mp:taro:build）', true)
+}
 
 /* ========================================================================
  * 汇总

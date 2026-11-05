@@ -1,5 +1,6 @@
 import Taro from '@tarojs/taro'
 
+
 import { IMG_H, IMG_W } from '@domain/diagram'
 import type { RecordSet, Session } from '@domain/types'
 import { drawDiagram, planDiagram } from '@export/diagram'
@@ -49,8 +50,18 @@ export interface CanvasImage {
 /** 离屏画布的 selector —— 页面里要放一个 <canvas id="pulse-off-canvas" type="2d" /> */
 export const OFF_CANVAS_ID = 'pulse-off-canvas'
 
-/** 底图（寸关尺图示的原图）在小程序包里的路径 */
+/**
+ * 底图（寸关尺图示的原图）在小程序包里的路径。
+ *
+ * 与原生版 `miniprogram/pages/case-detail/case-detail.js` 的
+ * `img.src = '/assets/hands-pulse.png'` **完全一致**。
+ *
+ * 这张图由 `config/index.ts` 的 `assetCopyPatterns()` 从 `pulse-record/src/assets`
+ * 拷进 `dist/assets/`（真源在工程目录外，靠 copy 插件的正斜杠绝对路径拿）。
+ * 产物是否存在由 `scripts/e2e/taro-sim.mjs` 断言。
+ */
 const HANDS_IMAGE = '/assets/hands-pulse.png'
+
 
 /**
  * 取离屏画布节点（只取一次）—— 离屏画布不显示，只用来出图。
