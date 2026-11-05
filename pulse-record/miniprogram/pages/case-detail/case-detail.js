@@ -427,13 +427,27 @@ Page({
     wx.showToast({ title: '点右上角「···」转发', icon: 'none' })
   },
 
-  /** 复制 Markdown */
+  /**
+   * 复制 Markdown
+   *
+   * ⚠️ fail 分支不能省：后台《用户隐私保护指引》没声明「读取你的剪切板」时，
+   * setClipboardData 直接被禁用且**没有任何提示**，用户点了像坏了。
+   */
   copyMarkdown() {
     const set = this.buildSet()
     const md = toMarkdown(set, undefined, this.data.customSymbols, set.sessions[0] && set.sessions[0].id)
     wx.setClipboardData({
       data: md,
       success: () => wx.showToast({ title: 'Markdown 已复制', icon: 'success' }),
+      fail: (err) => {
+        const msg = (err && err.errMsg) || '复制失败'
+        wx.showToast({
+          title: /api scope is not declared in the privacy agreement/.test(msg)
+            ? '复制失败：后台未声明剪贴板权限'
+            : msg,
+          icon: 'none',
+        })
+      },
     })
   },
 
@@ -443,6 +457,15 @@ Page({
     wx.setClipboardData({
       data: csv,
       success: () => wx.showToast({ title: 'CSV 已复制', icon: 'success' }),
+      fail: (err) => {
+        const msg = (err && err.errMsg) || '复制失败'
+        wx.showToast({
+          title: /api scope is not declared in the privacy agreement/.test(msg)
+            ? '复制失败：后台未声明剪贴板权限'
+            : msg,
+          icon: 'none',
+        })
+      },
     })
   },
 

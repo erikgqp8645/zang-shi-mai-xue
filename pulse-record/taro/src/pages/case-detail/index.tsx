@@ -9,6 +9,7 @@ import { toCsv, toMarkdown } from '@export/text'
 
 import { getPatient, listCustomSymbols, listMedication, updateVisit } from '../../utils/data'
 import { getAlbumAuthState, isPrivacyNotAuthorized, saveImageToAlbum } from '../../platform/album'
+import { isPrivacyNotDeclared, setClipboard } from '../../platform/clipboard'
 import { previewImage } from '../../platform/preview'
 import { renderDiagramImage, renderExportImage } from '../../platform/canvas'
 import { selectPatient, useVisitContext } from '../../store/context'
@@ -212,12 +213,25 @@ export default function CaseDetail() {
     }
   }
 
+  /** 复制 Markdown／CSV：失败一定要提示，否则用户点了完全没反应 */
+  const copyText = async (text: string) => {
+    try {
+      await setClipboard(text)
+    } catch (e) {
+      const msg = (e as Error)?.message || '复制失败'
+      Taro.showToast({
+        title: isPrivacyNotDeclared(msg) ? '复制失败：后台未声明剪贴板权限' : msg,
+        icon: 'none',
+      })
+    }
+  }
+
   const onCopyMarkdown = () => {
-    Taro.setClipboardData({ data: toMarkdown(buildSet(), undefined, customSymbols, activeSessionId) })
+    void copyText(toMarkdown(buildSet(), undefined, customSymbols, activeSessionId))
   }
 
   const onCopyCsv = () => {
-    Taro.setClipboardData({ data: toCsv(buildSet()) })
+    void copyText(toCsv(buildSet()))
   }
 
   /** 去「就诊」工作台 —— 切 tab，不是跳页 */
