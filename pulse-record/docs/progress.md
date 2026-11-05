@@ -13,7 +13,7 @@
 |---|---|---|---|
 | **P0 多用户与数据隔离** | ✅ 已完成 | `users`＋`identities`＋`sessions` 三表；四张业务表下沉 `owner_id`；跨用户一律 404 | 等 PR #6 合并 |
 | **P1 网站上线** | ⏸ **卡在用户侧手续** | 脚本与文档已就绪，**域名／ICP 备案／服务器三样都没有** | 备案 7~20 工作日是整条时间线最长的一段 → **今天就去提交备案** |
-| **P2 微信小程序** | 🟡 **已迁 Taro ＋ 界面重排完成**；模拟器逐页截图已验，未真机验证 | 8 个平级页面 → **4 个 tab（病例／就诊／用方／我的）**，「就诊」是工作台页（吸顶上下文条 ＋ 4 个页内 tab ＋ 底部操作条）；Taro 4.3.2 ＋ React 18，与网站**共用同一份 domain 源码**；鸿蒙 C-API 编译已通；**寸关尺关系图直接显示在页面上**（不提供导出 → 隐私接口 0 个）；回归 **356 项全绿** | 真机跑一遍（备案前先用局域网 IP） |
+| **P2 微信小程序** | 🟡 **已迁 Taro ＋ 界面重排完成**；模拟器逐页截图已验，未真机验证 | 8 个平级页面 → **4 个 tab（病例／就诊／用方／我的）**，「就诊」是工作台页（吸顶上下文条 ＋ 4 个页内 tab ＋ 底部操作条）；Taro 4.3.2 ＋ React 18，与网站**共用同一份 domain 源码**；鸿蒙 C-API 编译已通；**寸关尺关系图直接显示在页面上**（不提供导出 → 隐私接口 0 个）；微信「代码质量」两条已修（JS 压缩已开、图片 298 KB → 116.3 KB）；回归 **365 项全绿** | 真机跑一遍（备案前先用局域网 IP） |
 | **P3 后期迁 CloudBase** | ⏸ 规划完成，待触发 | 存储已收敛成 `server/store.mjs` 一层；db/auth 全 async | 真正迁的时候只改一处 |
 | **P4 Windows 桌面应用** | ✅ **已实现**，本机出包并实测 | Electron 44.10.2；复用现有 `server/`＋`dist/`，业务逻辑不重写 | 交给使用者安装使用；macOS 包另找 Mac 机器补 |
 
@@ -618,6 +618,147 @@ Failed to execute 'roundRect' on 'CanvasRenderingContext2D': The provided value 
 | **开发者工具 IDE 服务端口会变** | 实测 45820 → 23211，`cli auto --port 45820` 报「must be restarted on port 45820 first」 | `rearm()` 调 CLI 时**不带 `--port`**，让它自己找当前端口 |
 | `<Image>` 的 `src` 取不到 | `fields({properties:['src']})` 返回空 | 要写成 `fields({properties:['src'], attributes:true})` |
 
+### 3.12 微信「代码质量」两条未通过修掉 —— 外加一个把断言全骗过的坑（2026-11-05 晚）
+
+**维护者贴的**：微信开发者工具「代码质量」面板里两条 **未通过**：
+
+| 面板条目 | 判据 | 根因 | 改法 |
+|---|---|---|---|
+| **代码压缩 → JS文件：对JS文件进行压缩** | 开发者工具「上传代码时自动压缩脚本文件」没开 | `taro/project.config.json` 的 `setting.minified: false` | 改 `true`，并显式补 `minifyWXSS` / `minifyWXML` |
+| **代码包 → 图片和音频资源大小不应超过 200 K** | **单个**图片/音频 > 200 KB | 底图 `hands-pulse.png` **298 KB** | 换成**同尺寸** JPEG **116.3 KB** |
+
+官方规则原文（微信开放文档「性能扫描 / 代码质量」）：
+
+> 图片和音频资源大小超过 200 K【建议】……建议图片、音频等静态资源体积大小超过 200K 时，将它们上传到 CDN，用 URL 引入会是个更好的选择。
+> 未开启JS压缩【必须】在工具「详情」-「本地设置」中开启「上传代码时自动压缩脚本文件」的设置
+
+#### 底图为什么改成 JPEG（且尺寸一点没动）
+
+底图是**真人手部照片 ＋ 印刷标注**（1070 × 876，RGB）。试过的路：
+
+| 方案 | 体积 | 结论 |
+|---|---|---|
+| PNG 无损重编码（自适应滤波 ＋ zlib level 9） | 300–363 KB | ❌ PNG 对照片本来就不擅长，压不动 |
+| PNG 缩到 850 × 696 | 220.2 KB | ❌ 还是超 200 K，且印刷字明显发糊 |
+| JPEG q70 | 52.8 KB | ✅ |
+| JPEG q85 | 69.9 KB | ✅ |
+| **JPEG q95（1070 × 876 不变）** | **116.3 KB** | ✅ **选定**：肉眼无损，余 83.7 KB |
+| JPEG q98 | 159.3 KB | ✅ 更好，但只剩 45 KB 余量 |
+| JPEG q100 | 250.4 KB | ❌ 超线 |
+
+**尺寸必须保持 1070 × 876**：覆盖层的标记坐标（`src/domain/diagram.ts` 的 `MARKS` / `RIGHT_DOT_X`）
+是按原图像素量得的，底图一旦缩放，标记就会跑位。
+
+**PNG 真源保留**（`src/assets/hands-pulse.png`，298 KB）：网站端与桌面端的 **PNG 导出**
+（`src/export/png.ts`）要无损底图 —— 导出物是 PNG，底图有损会二次压缩。
+两份图并存是刻意的，不是冗余。
+
+**`triad-p47.png`（91.6 KB）从小程序包里删掉**：小程序端**零引用**（三部曲是
+`components/visit-judge` 用样式**画**出来的），这张图只被网站端 `TriadImage.tsx` 用。
+删完构建日志变成 `Copied 1 items`。
+
+#### ⚠️ 最大的坑：`jpeg-js` 的编码器按 **RGBA（4 字节/像素）** 读 stride
+
+`jpeg-js@0.3.7` 的 `lib/encoder.js` 把步长**写死**了：
+
+```js
+var quadWidth = width * 4;                                  // ← 固定 4 字节/像素
+r = imageData[p++]; g = imageData[p++]; b = imageData[p++];   // 第 4 字节（alpha）被跳过
+```
+
+也就是说**它只接受 RGBA**。我最初在脚本里把 pngjs 的 RGBA 转成了 RGB（3 字节/像素）再 encode，
+编码器仍按 4 字节取色 —— **每行错位 1/3 像素**，1070 宽累积下来整幅图**斜切并环绕重复**，
+底部还会读到越界的 `undefined`（脏色块）。
+
+**症状极具欺骗性**：
+
+| 检查项 | 结果 |
+|---|---|
+| 文件能不能打开 | ✅ 能 |
+| 体积 | ✅ 185 KB < 200 KB |
+| SOF0 头里的尺寸 | ✅ 1070 × 876 |
+| 当时已有的三条断言 | ✅ **全绿** |
+| 真机出图 | ❌ 底图是斜切环绕的废图 |
+
+**更糟的是**：当时那张「q70 = 180.7 KB、q78 = 223 KB 超线」的选型表 **整个是错的** ——
+那些体积数字**全是从废图上量的**（废图高熵，压不动）。正确喂 RGBA 之后，q70 只要 **52.8 KB**，
+q95 也才 116.3 KB —— 余量比原以为的大得多，**画质反而可以更好**（所以最后选了 q95 而不是 q70）。
+
+> 教训：**「体积合规 ＋ 尺寸合规 ＋ 断言全绿」不能证明内容是对的。**
+> 凡是「把 A 转成 B 再落盘」的加工步骤，都必须**把产物读回来跟源比一遍**。
+
+#### 处置：两道内容校验（都「写坏」验过）
+
+1. **生成时就拦** —— `scripts/compress-assets.mjs` 落盘前**自己解码回读**，
+   跟 PNG 真源逐像素比（MAE / PSNR），不过就 `exit 1`、**不落盘**；
+2. **回归里守着** —— `scripts/e2e/taro-lint.mjs` 第 25 节加一条**内容一致性**断言：
+   不管底图是怎么来的，只要 JPEG 与 PNG 真源对不上就红。
+
+阈值 **MAE ≤ 12、PSNR ≥ 15 dB**。实际值：正常 q95 是 **MAE 0.30 / PSNR 51.60 dB**；
+斜切废图是 **MAE 65.67 / PSNR 7.52 dB** —— 中间隔着十万八千里，鉴别力绰绰有余。
+
+**写坏验过**：把废图塞回 `src/assets/hands-pulse.jpg` → 「内容一致」红（MAE 65.67 / PSNR 7.52 dB）；
+复原后 138/138 全绿。
+
+#### 改动清单
+
+| 文件 | 改了什么 |
+|---|---|
+| `scripts/compress-assets.mjs` | **新增**：PNG → 同尺寸 JPEG（q95）＋ 回读比对（MAE/PSNR） |
+| `src/assets/hands-pulse.jpg` | **新增**：116.3 KB / 1070 × 876 |
+| `taro/config/index.ts` | `SHARED_IMAGES` = `['hands-pulse.jpg']`（去掉 `triad-p47.png`） |
+| `taro/src/platform/canvas.ts` | 底图路径 → `/assets/hands-pulse.jpg` |
+| `scripts/build-core.mjs` | `IMAGES` = `['hands-pulse.jpg']`（桌面端跟着换） |
+| `miniprogram/pages/case-detail/case-detail.js` | 两处 `img.src` → `.jpg`（原生回退工程） |
+| `taro/project.config.json` | `minified: true` ＋ `minifyWXSS: true` ＋ `minifyWXML: true` |
+| `miniprogram/project.config.json` | 同上（原生回退工程） |
+| `scripts/e2e/taro-lint.mjs` | 第 25 节 **+9 项**（含内容一致性） |
+| `scripts/e2e/taro-sim.mjs` | 底图断言改 `.jpg`、triad 不在包、≥200KB 媒体断言 |
+
+**网站端与桌面端的 PNG 导出仍用 PNG 真源** —— `src/export/png.ts` 与 `src/components/PulseDiagram.tsx` 未动。
+
+#### 回归（全部实跑）
+
+| 命令 | 结果 |
+|---|---|
+| `npm run test:e2e:mp`（taro-lint） | **138/138**（基线 129 → +9） |
+| `npm test`（全量） | **365/365**（core 26 ＋ taro-lint 138 ＋ taro-api 45 ＋ migration 53 ＋ auth 52 ＋ app 18 ＋ desktop 33） |
+| `npm run mp:taro:build` | ✅ `built in 4.82s`，`Copied 1 items` |
+| `npm run test:e2e:mp:sim` | **55/55**（含「运行时能读到包内底图」「底图像素是 1070×876」「对照组：不存在路径必须读不到」） |
+| `npm run test:e2e:mp:canvas` | **8/8** —— 出图见 `local-data/mp-canvas-diagram.png`，**底图完整、标记块位置正确** |
+
+**产物核对**：`dist/assets/hands-pulse.jpg` **116.3 KB** ＋ 8 个 tabbar 图标（≤ 0.4 KB），
+**图片/音频总量 119.0 KB**，最大单文件 116.3 KB —— **全部 < 200 KB**。
+
+#### 顺带记下的平台事实
+
+| 事实 | 怎么验的 |
+|---|---|
+| `jpeg-js@0.3.7` 的 `encode()` **只认 RGBA**（`lib/encoder.js` 里 `quadWidth = width*4` 写死） | 读源码 ＋ 两种喂法各出一张图对比 |
+| 微信「图片和音频 > 200 K」判据是**单个文件**，不是总量 | 官方文档 |
+| 底图 JPEG 与 PNG 真源的真实差距：q95 MAE 0.30 / PSNR 51.60 dB | `scripts/compress-assets.mjs` 的回读比对 |
+
+#### 未解决：预览插件的 H5 近似跑不动 Taro runtime
+
+用 `wechat-miniprogram-preview` 插件打开 `pulse-record/taro/dist`（含 `app.json` ＋ `project.config.json`）
+→ **build = ok**，7 个页面、4 个 tabBar 都被正确识别，但**运行时报**：
+
+```
+app.js 执行失败：ReferenceError: global is not defined
+    at new hr (wx:///taro.js:3:43285)
+    at Object.eval (wx:///taro.js:3:44167)
+```
+
+**根因**：Taro runtime 里那段是 **jsdom 的 Window 垫片**，代码写成
+`Object.getOwnPropertyNames(global||{})` —— 在浏览器/H5 里 **`global` 根本没声明**，
+`||` 救不了**未声明标识符**（直接抛 ReferenceError）；
+而**微信小程序运行时是有 `global` 的**，所以真机/开发者工具里一路正常
+（`taro-sim` 55/55、`taro-canvas` 8/8 都实跑过）。
+
+→ 这是**预览器 H5 近似的环境限制**，不是应用缺陷（插件自己也注明 `H5 approximation only`）。
+→ **下一步待定**：要么给预览环境补 `global` 垫片（但**不能为迁就预览去改应用代码**），
+要么这条验收改走**微信开发者工具真运行时**（已自动化覆盖）＋ **真机手验**。
+
 ## 4. P3 · 后期迁 CloudBase（规划完成，待触发）
 
 **目标**：网站跑静态托管、API 跑云函数、数据存 **PostgreSQL**、小程序走 `wx.cloud.callFunction`（不走合法域名校验）。
@@ -736,9 +877,9 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 当前分支 | `feat/wechat-miniprogram`（基点 `c1814f3`） |
 | 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`feat/wechat-miniprogram` = 小程序 Taro 迁移实施中 |
 | PR | #6 `chore/multi-user → main`，**OPEN**；#7 `chore/desktop-electron → chore/multi-user`，**OPEN**（避免依赖倒置）；`feat/wechat-miniprogram` **暂不开 PR**（上线时统一收口） |
-| 全量回归 | **356/356 全绿**（core 26 ＋ taro-lint 129 ＋ taro-api 45 ＋ migration 53 ＋ auth 52 ＋ app 18 ＋ 桌面端 33） |
+| 全量回归 | **365/365 全绿**（core 26 ＋ taro-lint 138 ＋ taro-api 45 ＋ migration 53 ＋ auth 52 ＋ app 18 ＋ 桌面端 33） |
 | 小程序工程 | `pulse-record/taro/`（Taro 4.3.2 ＋ React 18）；**原生 `miniprogram/` 原样保留作回退** |
-| 小程序包体 | **1.02 MB**（微信上限 2 MB；含寸关尺底图 305 KB ＋ 三部曲图 94 KB） |
+| 小程序包体 | 媒体资源 **119.0 KB**（底图 JPEG 116.3 KB ＋ 8 个 tabbar 图标 ≤0.4 KB）；**微信「图片和音频 > 200 K」已通过**（详见 §3.12） |
 | 模拟器回归 | `npm run test:e2e:mp:sim`（**55 项**：4 个 tab 逐页截图 ＋ **白屏判定** ＋ **包内底图运行时可读**）、`npm run test:e2e:mp:privacy`（**6 项**：隐私政策页）、`npm run test:e2e:mp:canvas`（**8 项**：**真微信 canvas 2d 出图端到端**）；三个都会**自己先重启小程序**（bundle 是缓存的，不重启跑的是旧产物） |
 | 上线前清单 | `pulse-record/docs/miniprogram-release-checklist.md`（隐私指引勾选项＋可复制文案、服务器域名、类目截图、审核退路对照表） |
 | 本机库 | `pulse-record/local-data/history.sqlite`（已迁移到多用户结构：15 患者／57 就诊／1 自定义符号，归属归到 `local`；迁移前快照 `history.sqlite.bak-20261104102030`） |
@@ -760,6 +901,8 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 🔴 2c | **填运营者主体与联系邮箱** | 隐私政策**第八**节现在是占位文字（`运营者：（待填写）`），审核会看 |
 | 🟡 2b | 注册微信小程序（个人主体）→ 填真实 AppID | ✅ 已完成（`wx3a21eb903a16cbc4`）；开发者工具需登录对应管理员微信号才能预览／上传 |
 | 🟡 3 | **买境内轻量服务器（2 核 4G）** | 备案通过后要立刻部署 |
+| 🟡 3b | **真机跑一遍新界面**（备案前先用局域网 IP） | 寸关尺关系图「直接显示在页面上、点图可放大」—— 模拟器已验，**真机还没验**（详见 §3.11） |
+| 🟡 3c | **上传前在开发者工具里重扫一次「代码质量」** | 两条已修（`minified` 已开 ＋ 底图 298 KB → 116.3 KB），但**以工具实际扫描结果为准** —— 扫完确认这两条变成「通过」再传（详见 §3.12） |
 | 🟡 4 | **桌面版装到自己的电脑上试一遍** | 已出包（`release/*.exe`），试过再决定要不要换签名证书 |
 | ⚪ 5 | AGENTS.md「下游用途」空位 | 由维护者自行填写一行 |
 | ⚪ 6 | 代码签名证书（可选） | 只影响安装时的 SmartScreen 提示，不影响功能 |
