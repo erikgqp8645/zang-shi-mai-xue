@@ -89,6 +89,17 @@ import { code2Session } from './wechat.mjs'
 
 const PORT = Number(process.env.PORT ?? 5178)
 /**
+ * 监听地址 —— 默认只听本机回环（`127.0.0.1`），外部访问不到。
+ *
+ * 真机联调时手机要连电脑的局域网 IP，必须改成 `0.0.0.0`：
+ *
+ *     HOST=0.0.0.0 npm run mp:dev
+ *
+ * 不改的话，手机请求会直接超时/连不上 —— 这是「本机能跑、手机连不上」最常见的原因。
+ * 只在本机开发时可以保持默认值，避免把服务暴露到公网上。
+ */
+const HOST = process.env.HOST ?? '127.0.0.1'
+/**
  * 前端构建产物目录。
  * 桌面版（Electron）把打包后的 dist/ 放在 asar 外的 resources/ui，
  * 用 PULSE_DIST 指过来；网页版走默认的 ../dist。
@@ -674,8 +685,11 @@ const server = createServer(async (req, res) => {
 const isMain = process.argv[1] ? resolve(process.argv[1]) === fileURLToPath(import.meta.url) : false
 
 if (isMain) {
-  const { port } = await startServer({ port: PORT, host: '127.0.0.1' })
+  const { port } = await startServer({ port: PORT, host: HOST })
   console.log(`[臧氏脉学] 病例记录服务已启动：http://localhost:${port}/api/health`)
+  if (HOST !== '127.0.0.1' && HOST !== 'localhost') {
+    console.log(`[臧氏脉学] 已监听 ${HOST} —— 手机可用电脑局域网 IP 访问（记得放行防火墙 ${port} 端口）`)
+  }
   console.log(`[臧氏脉学] SQLite 文件：${DB_PATH}`)
   console.log(`[臧氏脉学] 模式：${SINGLE_USER ? '单机（不用登录）' : '多用户（需登录）'}`)
   if (existsSync(DIST)) console.log(`[臧氏脉学] 同时托管已构建页面：${DIST}`)

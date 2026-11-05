@@ -77,7 +77,7 @@
 | AppSecret / 上传私钥 | ✅ 在 `pulse-record/.secrets/`（gitignore，600） | AppSecret 只给服务端；私钥给命令行上传，用前加 IP 白名单 |
 | 用户隐私保护指引 | ❌ **未声明任何隐私类型（需两项）** | ①「相册（仅写入）」→ `saveImageToPhotosAlbum`；②「读取你的剪切板」→ `setClipboardData`（复制 Markdown／CSV）。缺任一项 → 真机报 `api scope is not declared in the privacy agreement`（errno 112），且用户在设置里打不开（不是用户拒绝）。**现在就能配，不依赖备案**，约 5 分钟生效。填写清单见 `deploy.md` 6.3 |
 | 合法域名 | ❌ 未配置 | 依赖 P1 的域名与备案 |
-| 真机验证 | ⬜ 未做 | 代码完成但**从未在真机上跑过** |
+| 真机验证 | 🟡 **流程就绪，待实跑** | 逐步清单已写入 `docs/miniprogram-dev.md` 第 5 节（6 步 + 10 项验收表）；**尚未在手机上跑过** |
 
 **账号打通方案（已拍板）**：小程序用**网站账号＋密码**绑定微信（`/api/auth/wechat/bind`），网站与小程序共用同一 `users` 行。
 
@@ -87,7 +87,7 @@
 
 | 做了什么 | 结果 |
 |---|---|
-| `npm run mp:dev` / `mp:dev:multi` | 一条命令：自动 `build:core` ＋ 起后端 ＋ 打印导入目录／本机局域网 IP／真机注意事项 |
+| `npm run mp:dev` / `mp:dev:multi` | 一条命令：自动构建 Taro 产物 ＋ 起后端（**监听 0.0.0.0**，真机才连得上）＋ 打印导入目录／本机局域网 IP／真机注意事项 |
 | 服务器地址改成**运行时可改** | 「我的 → 服务器」卡片（保存／测试连接／恢复默认），存本地 `pulse.apiBase`；`api.js` 每次请求现取地址 → 真机换 IP 不用改代码重编译 |
 | `npm run test:e2e:mp:api` | **wx 垫片**在 Node 里加载真实 `utils/{config,api,data,auth}.js` 连真后端跑全链路，**38 项全通过** |
 | 修一个真 bug | `server/db.mjs` `putVisitMedication` 漏 `await getVisit()` → `cur.patientId` 是 `undefined` → **单次就诊保存用药必 500**。这条链路小程序与网页共用，等于网页版也一直是坏的（回归没覆盖到） |
