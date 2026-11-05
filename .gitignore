@@ -43,6 +43,9 @@ pulse-record/taro/.rpt2_cache/
 
 # 桌面版打包产物（electron-builder 输出，不进版本库）
 pulse-record/release/
+# 打包时的临时输出目录（换个 output 目录避开旧产物被占用时用）
+# app.asar 常年被宿主应用的索引锁住，删不掉 —— 别让它进版本库
+pulse-record/release-new/
 
 # 微信开发者工具的本地配置（含个人 AppID 等，不进版本库）
 pulse-record/miniprogram/project.private.config.json

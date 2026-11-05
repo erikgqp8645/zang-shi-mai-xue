@@ -6,6 +6,7 @@ export default defineAppConfig({
     'pages/me/index', // tab 4 · 我的
     'pages/case-detail/index',
     'pages/login/index',
+    'pages/privacy/index', // 隐私政策（审核要求「小程序内可见」）
   ],
   window: {
     backgroundTextStyle: 'dark',

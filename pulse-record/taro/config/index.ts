@@ -85,7 +85,23 @@ export default defineConfig(async (merge) => {
           path.resolve(__dirname, 'harmony-workaround.ts'),
         ]
       : [],
-    defineConstants: {},
+    /**
+     * 编译期注入「默认 API 地址」。
+     *
+     * 上线包必须指向**正式 https 域名** ——
+     * 微信的 request 合法域名不接受 IP、不接受端口、必须是已 ICP 备案的 https。
+     * 用环境变量注入，不用改源码：
+     *
+     * ```bash
+     * PULSE_API_BASE=https://mai.example.com npm run mp:taro:build
+     * ```
+     *
+     * 不传就是空串 → 运行时就用 `src/utils/config.ts` 里的本机默认值。
+     * 「我的」页里也能改（存在本地存储），所以联调包与正式包可以并存。
+     */
+    defineConstants: {
+      'process.env.PULSE_API_BASE': JSON.stringify(process.env.PULSE_API_BASE || ''),
+    },
 
     /** 图片资源：拷进小程序包，运行时路径仍是 `/assets/xxx.png`
      *  （与原生版 `case-detail.js` 里 `img.src = '/assets/hands-pulse.png'` 完全一致）

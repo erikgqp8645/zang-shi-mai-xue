@@ -1,0 +1,11 @@
+/* 隐私政策页：条款段落。整体沿用通用卡片样式（pr-card / pr-card-title / pr-note）。 */
+
+/* 条款正文：一段一段排，行距给足，中文长句可读 */
+.pr-privacy-p {
+  display: block;
+  margin-top: 14rpx;
+  font-size: 26rpx;
+  line-height: 1.75;
+  color: #3a3630;
+  word-break: break-all;
+}

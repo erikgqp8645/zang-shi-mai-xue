@@ -287,6 +287,11 @@ export default function Me() {
     }
   }, [])
 
+  /** 隐私政策 —— 审核要求「小程序内可见」，从「我的」页一键可达 */
+  const goPrivacy = useCallback(() => {
+    Taro.navigateTo({ url: '/pages/privacy/index' })
+  }, [])
+
   const logout = useCallback(async () => {
     const ok = await confirmModal('退出登录？', '数据仍存在服务器上，重新登录即可看到。')
     if (!ok) return
@@ -345,6 +350,16 @@ export default function Me() {
             解绑微信
           </View>
         ) : null}
+      </View>
+
+      <View className="pr-card">
+        <View className="pr-card-title">隐私政策</View>
+        <View className="pr-note">
+          我们收集哪些信息、为什么收集、保存多久、怎么删 —— 都在这一页里写明了。
+        </View>
+        <View className="pr-btn pr-btn-sm" onClick={goPrivacy}>
+          查看隐私政策
+        </View>
       </View>
 
       <View className="pr-card">

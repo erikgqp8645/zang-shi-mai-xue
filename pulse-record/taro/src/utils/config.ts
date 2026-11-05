@@ -16,8 +16,16 @@ import { getStorageSync, removeStorageSync, setStorageSync } from '../platform/s
  * - 真机联调：填电脑的局域网 IP，例如 `http://192.168.1.20:5178`（手机与电脑同一网段）
  * - 上线：填已备案域名的 https 地址，例如 `https://mai.example.com`
  *   —— 微信的 request 合法域名**不接受端口、不接受 IP、必须是 HTTPS 且已 ICP 备案**
+ *
+ * **上线包用环境变量注入**（编译期替换，见 `config/index.ts` 的 defineConstants）：
+ *
+ * ```bash
+ * PULSE_API_BASE=https://mai.example.com npm run mp:taro:build
+ * ```
+ *
+ * 不注入就用下面这个本机默认值；「我的」页里可以改（存在本地），不写死在包里。
  */
-export const API_BASE = 'http://127.0.0.1:5178'
+export const API_BASE = process.env.PULSE_API_BASE || 'http://127.0.0.1:5178'
 
 /** 本地存储的键：使用者改过的服务器地址 */
 export const API_BASE_KEY = 'pulse.apiBase'
