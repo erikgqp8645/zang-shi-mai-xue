@@ -9,6 +9,10 @@
  *   那是 DOM 专属类型，小程序侧没有；共享包若依赖它，老机型与小程序都编不过。
  *
  * 只列**实际用到**的方法 —— 少写一个方法，每个平台就少一处不兼容。
+ *
+ * 2026-11-05 补 `quadraticCurveTo` / `closePath`：微信的 canvas 2d 把 `roundRect`
+ * 的半径按**序列**收（传数字直接抛错），`src/export/diagram.ts` 于是改用手写圆角路径兜底，
+ * 这两个方法是那条路径要用的。
  */
 export type PainterCtx = {
   // ---- 状态 ----
@@ -26,6 +30,8 @@ export type PainterCtx = {
   beginPath(): void
   moveTo(x: number, y: number): void
   lineTo(x: number, y: number): void
+  quadraticCurveTo(cx: number, cy: number, x: number, y: number): void
+  closePath(): void
   stroke(): void
   fill(): void
   setLineDash(segments: number[]): void

@@ -31,6 +31,7 @@ import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { isBlankShot } from './lib-png.mjs'
+import { connect, rearm } from './lib-devtools.mjs'
 
 const WS = process.env.MP_SIM_WS ?? 'ws://127.0.0.1:9421'
 const OUT_DIR = process.env.MP_SIM_OUT ?? join(process.cwd(), 'local-data')
@@ -72,7 +73,13 @@ if (!automator) {
 }
 
 mkdirSync(OUT_DIR, { recursive: true })
-const mp = await withTimeout(automator.connect({ wsEndpoint: WS }), 20000, 'connect')
+// 先重启小程序 —— 否则跑的还是旧 bundle（bundle 在服务上下文里是缓存的）
+rearm()
+const mp = await connect(automator, WS)
+if (!mp) {
+  console.log(`连不上自动化端口 ${WS} —— 跳过（不是测试失败）`)
+  process.exit(0)
+}
 console.log('已连上开发者工具自动化端口', WS, '\n')
 
 try {

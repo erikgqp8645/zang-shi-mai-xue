@@ -1,19 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Canvas, Text, View } from '@tarojs/components'
+import { Text, View } from '@tarojs/components'
 import Taro, { useDidShow } from '@tarojs/taro'
 
 import type { MedicationInput } from '@domain/api'
 import type { Constitution, LayoutMode, Therapy } from '@domain/types'
 import { todayYmd, ymdToLabel, ymdToTimestamp } from '@domain/dates'
 import { sampleShaoJuan } from '@domain/sample'
-import { toCsv, toMarkdown } from '@export/text'
 
 import { getPatient, listCustomSymbols, savePatient, updatePatientLayout, updateVisit } from '../../utils/data'
 import { getStorageSync, setStorageSync } from '../../platform/storage'
-import { getAlbumAuthState, isPrivacyNotAuthorized, saveImageToAlbum } from '../../platform/album'
-import { isPrivacyNotDeclared, setClipboard } from '../../platform/clipboard'
-import { previewImage } from '../../platform/preview'
-import { renderDiagramImage, renderExportImage } from '../../platform/canvas'
 import { useVisitContext } from '../../store/context'
 
 import ContextBar from '../../components/context-bar'
@@ -22,6 +17,7 @@ import ActionBar from '../../components/action-bar'
 import VisitPulse from '../../components/visit-pulse'
 import VisitJudge from '../../components/visit-judge'
 import MedicationPanel from '../../components/medication-panel'
+import DiagramView from '../../components/diagram-view'
 import type { SheetSession } from '../../components/record-sheet'
 
 import './index.scss'
@@ -38,7 +34,9 @@ import './index.scss'
  *   脉象 → 录入这一次的左右手脉象（宽表 ／ 一次一屏）
  *   判读 → 开方三部曲的 ①②③（体质／疗法落库到这次就诊）
  *   用药 → 这一次的用药记录
- *   出图 → 寸关尺图示 ＋ 记录表 PNG（存相册／复制 Markdown／CSV）
+ *   出图 → **寸关尺关系图直接显示**（2026-11-05 维护者定：原来的「存相册／
+ *         复制 Markdown／复制 CSV」三个导出选项，连同相册、剪切板两个隐私接口
+ *         一并去掉了 —— 小程序不再提供任何导出）
  *
  * ## 落库语义
  *
@@ -50,7 +48,7 @@ const TABS = [
   { key: 'pulse', label: '脉象' },
   { key: 'judge', label: '判读' },
   { key: 'med', label: '用药' },
-  { key: 'export', label: '出图' },
+  { key: 'export', label: '寸关尺图' },
 ]
 
 /** 录入视图偏好（本地，不落库 —— 落库的只有体例） */
@@ -68,7 +66,6 @@ export default function Visit() {
   const [view, setView] = useState<'wide' | 'single'>('wide')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
-  const [busy, setBusy] = useState(false)
 
   /* ---------------- 载入 ---------------- */
 
@@ -264,87 +261,6 @@ export default function Visit() {
     })),
   })
 
-  /** 存相册 —— 现场出图，再问相册权限 */
-  const onSaveImage = async () => {
-    if (busy) return
-    setBusy(true)
-    let p = ''
-    try {
-      p = await renderExportImage(buildSet())
-    } catch (e) {
-      setBusy(false)
-      Taro.showToast({ title: (e as Error)?.message || '图还没生成', icon: 'none' })
-      return
-    }
-    setBusy(false)
-    // 先看授权态：用户明确拒绝过就别白跑一趟，直接引导去设置页重新打开。
-    const granted = await getAlbumAuthState()
-    if (granted === false) {
-      Taro.showModal({
-        title: '暂时存不了',
-        content: '你之前拒绝过「保存到相册」的授权。可以在设置里重新打开。',
-        confirmText: '去设置',
-        success: (r) => {
-          if (r.confirm) Taro.openSetting({})
-        },
-      })
-      return
-    }
-    try {
-      await saveImageToAlbum(p)
-      Taro.showToast({ title: '已存到相册', icon: 'success' })
-    } catch (e) {
-      const msg = (e as Error)?.message || ''
-      if (isPrivacyNotAuthorized(msg)) {
-        // 小程序后台《用户隐私保护指引》里没声明「相册（仅写入）」——
-        // 这是开发者侧的配置缺失，用户在设置里也打不开，只能如实告知。
-        Taro.showModal({
-          title: '暂时存不了',
-          content: '这个小程序还没在后台声明「保存到相册」的使用说明，需要开发者补充后才能保存。',
-          showCancel: false,
-          confirmText: '知道了',
-        })
-        return
-      }
-      Taro.showToast({ title: msg || '保存失败', icon: 'none' })
-    }
-  }
-
-  /** 「寸关尺图示」—— 单独一个窗体看（系统图片预览，可双指缩放） */
-  const onShowDiagram = async () => {
-    if (busy) return
-    setBusy(true)
-    try {
-      const path = await renderDiagramImage(buildSet())
-      previewImage(path)
-    } catch (e) {
-      Taro.showToast({ title: (e as Error)?.message || '图示出不来', icon: 'none' })
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  /** 复制 Markdown／CSV：失败一定要提示，否则用户点了完全没反应（后台未声明剪贴板隐私时就是这样） */
-  const copyText = async (text: string) => {
-    try {
-      await setClipboard(text)
-    } catch (e) {
-      const msg = (e as Error)?.message || '复制失败'
-      Taro.showToast({
-        title: isPrivacyNotDeclared(msg) ? '复制失败：后台未声明剪贴板权限' : msg,
-        icon: 'none',
-      })
-    }
-  }
-
-  const onCopyMarkdown = () => {
-    void copyText(toMarkdown(buildSet(), undefined, customSymbols, activeSessionId))
-  }
-
-  const onCopyCsv = () => {
-    void copyText(toCsv(buildSet()))
-  }
-
   /* ---------------- 渲染 ---------------- */
 
   return (
@@ -403,33 +319,17 @@ export default function Visit() {
         />
       ) : null}
 
-      {/* ---------- 出图 ---------- */}
+      {/* ---------- 寸关尺关系图 ---------- */}
       {tab === 'export' ? (
         <View className='pr-card'>
-          <View className='pr-card-title'>出图</View>
+          <View className='pr-card-title'>寸关尺关系图</View>
           <Text className='pr-note'>
-            导出的记录表照讲义 p34 的版例画（表格 ＋ 寸关尺图示），与网站端同一套绘制代码。
+            图上标的是
+            {activeSessionId ? '你点的那一次' : '最近一次'}
+            的脉象 —— 改完格子图会跟着变。点图可放大。
           </Text>
 
-          {/* 离屏画布：不显示，只用来出图。
-              不放进 ScrollView —— ScrollView 的 DOM 变化会让节点引用失效。 */}
-          <Canvas id='pulse-off-canvas' type='2d' className='pr-off-canvas' />
-
-          <View className='pr-export-ops'>
-            <View className='pr-btn pr-btn-primary' onClick={onSaveImage}>
-              导出 PNG 存相册
-            </View>
-            <View className='pr-btn' onClick={onShowDiagram}>
-              看寸关尺图示
-            </View>
-            <View className='pr-btn' onClick={onCopyMarkdown}>
-              复制 Markdown
-            </View>
-            <View className='pr-btn' onClick={onCopyCsv}>
-              复制 CSV
-            </View>
-          </View>
-          <Text className='pr-note'>存相册需要「保存到相册」授权；开发者若还没在后台声明，会提示存不了。</Text>
+          <DiagramView set={buildSet()} sessionId={activeSessionId} />
         </View>
       ) : null}
 

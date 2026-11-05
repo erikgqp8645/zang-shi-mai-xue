@@ -27,6 +27,7 @@ import { pathToFileURL } from 'node:url'
 import { build } from '../../taro/node_modules/esbuild/lib/main.js'
 
 import { isBlankShot } from './lib-png.mjs'
+import { connect, rearm } from './lib-devtools.mjs'
 
 const ROOT = resolve(join(import.meta.dirname, '../..'))
 const TARO = join(ROOT, 'taro')
@@ -269,9 +270,11 @@ try {
 }
 
 if (automator) {
+  // 先重启小程序 —— 否则跑的还是旧 bundle（bundle 在服务上下文里是缓存的）
+  rearm()
   let mp = null
   try {
-    mp = await automator.connect({ wsEndpoint: WS })
+    mp = await connect(automator, WS)
   } catch (e) {
     console.log(`  · 连不上自动化端口 ${WS} —— 环境没就绪，跳过截图段（不是测试失败）`)
     console.log('    先跑：cli auto --project pulse-record/taro --auto-port 9420 --trust-project')

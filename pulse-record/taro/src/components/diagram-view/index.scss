@@ -1,0 +1,23 @@
+/* 离屏画布：挪到屏幕外，只用来出图。
+   不能用 display:none —— 那样拿不到 canvas 节点（fields({node:true}) 会空）。 */
+.pr-off-canvas {
+  position: fixed;
+  left: -3000px;
+  top: 0;
+  display: block;
+  width: 1px;
+  height: 1px;
+}
+
+/* 寸关尺关系图：直接摆在页面上 */
+.pr-diagram-view {
+  margin-top: 16rpx;
+}
+
+.pr-diagram-img {
+  display: block;
+  width: 100%;
+  background: #ffffff;
+  border: 1rpx solid #e6e2d6;
+  border-radius: 8rpx;
+}

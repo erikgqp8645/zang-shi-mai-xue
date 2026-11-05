@@ -299,8 +299,9 @@ if (existsSync(caseDetail)) {
   ok('病例详情页改完立刻落库（updateVisit）', /updateVisit/.test(src))
   ok('病例详情页按「快照 diff」只写回被改动的那一次', /snapshot/.test(src) && /sameValues/.test(src))
   ok('病例详情页标题行有「录入编辑」按钮', /录入编辑/.test(src))
-  ok('病例详情页的高频动作是按钮不是文字链接', /pr-detail-ops/.test(src))
-  ok('病例详情页有离屏画布（出图用）', /pulse-off-canvas/.test(src))
+  // 2026-11-05：原来这一排是「寸关尺图示／存到相册／复制 Markdown／复制 CSV」四个按钮，
+  // 现在图**直接显示**在页面上（diagram-view），按钮那一排整个去掉。
+  ok('病例详情页直接显示寸关尺关系图（diagram-view）', /diagram-view/.test(src))
 }
 
 /* ========================================================================
@@ -308,7 +309,7 @@ if (existsSync(caseDetail)) {
  * ======================================================================== */
 if (existsSync(visitPage)) {
   const src = read(visitPage)
-  ok('就诊工作台有 4 个页内 tab（脉象/判读/用药/出图）', /脉象/.test(src) && /判读/.test(src) && /用药/.test(src) && /出图/.test(src))
+  ok('就诊工作台有 4 个页内 tab（脉象/判读/用药/寸关尺图）', /脉象/.test(src) && /判读/.test(src) && /用药/.test(src) && /寸关尺图/.test(src))
   ok('就诊工作台用了吸顶上下文条', /context-bar/.test(src))
   ok('就诊工作台有底部固定操作条', /action-bar/.test(src))
   ok('就诊工作台切体例立刻落库（updatePatientLayout）', /updatePatientLayout/.test(src))
@@ -337,13 +338,14 @@ if (existsSync(ctxLogic)) {
 /* ========================================================================
  * 12. 平台适配层齐全
  * ======================================================================== */
-for (const name of ['storage', 'request', 'album', 'preview', 'auth', 'canvas']) {
+// 2026-11-05：不再有「存到相册」→ platform/album.ts 随之删掉；平台适配层清单同步收窄
+for (const name of ['storage', 'request', 'preview', 'auth', 'canvas']) {
   ok(`platform/${name}.ts 存在`, existsSync(join(SRC, 'platform', `${name}.ts`)))
 }
 const canvasFile = join(SRC, 'platform', 'canvas.ts')
 if (existsSync(canvasFile)) {
   const src = read(canvasFile)
-  ok('出图用共享绘制器（table-painter / diagram），不是另写一套', /@export\/table-painter/.test(src) && /@export\/diagram/.test(src))
+  ok('出图用共享绘制器（diagram），不是另写一套', /@export\/diagram/.test(src))
   ok('出图底图传的是真图片对象（不是尺寸占位）', /planDiagram\(img/.test(src))
   ok('出图有鸿蒙降级说明', /降级/.test(src))
 }
@@ -470,6 +472,14 @@ ok('知识页有出处标注（讲义／讲稿／同和堂版）', sourceMiss.le
  *
  * ⚠️ 微信的隐私接口**没在后台声明就直接 fail**（errno 112），
  * 而且**用户在设置里也打不开** —— 开发者侧配置缺失，用户改不了。
+ *
+ * ## 上线包 vs 回退工程（2026-11-05）
+ *
+ * `miniprogram/` 是**原生回退工程**，不上传微信后台；
+ * 真正上线的是 `taro/`。所以：
+ *   · **后台勾哪些** —— 按**上线包（Taro）**实际调用的算；
+ *   · 清单里留着回退工程还在用的那两个 —— 它俩在 Taro 里已经删干净了，
+ *     回退工程若改用它上线，才需要重新勾。
  */
 const KNOWN_PRIVACY_APIS = {
   saveImageToPhotosAlbum: '相册（仅写入）',
@@ -514,7 +524,9 @@ function findPrivacyCalls(files) {
   return found
 }
 
+/** 上线包（Taro）实际调用的隐私接口 —— **后台就按这个勾** */
 const taroPrivacyCalls = findPrivacyCalls(tsxFiles)
+/** 原生回退工程（不上传）调用的隐私接口 */
 const legacyPrivacyCalls = findPrivacyCalls(
   walk(join(ROOT, 'miniprogram'), [], (p) => p.endsWith('.js')),
 )
@@ -522,7 +534,7 @@ const usedPrivacyApis = new Set([...taroPrivacyCalls, ...legacyPrivacyCalls])
 
 const unknownPrivacy = [...usedPrivacyApis].filter((a) => !(a in KNOWN_PRIVACY_APIS))
 ok(
-  `调用的隐私接口都在已知清单里（当前 ${usedPrivacyApis.size} 个：${[...usedPrivacyApis].join('、')}）`,
+  `调用的隐私接口都在已知清单里（仓库共 ${usedPrivacyApis.size} 个：${[...usedPrivacyApis].join('、') || '无'}）`,
   unknownPrivacy.length === 0,
   unknownPrivacy.join(' ') + ' —— 新增隐私接口要同步：① 本清单 ② 微信后台隐私指引 ③ docs/miniprogram-release-checklist.md',
 )
@@ -531,15 +543,81 @@ const stalePrivacy = Object.keys(KNOWN_PRIVACY_APIS).filter((a) => !usedPrivacyA
 ok('已知清单里的隐私接口都还在用（清单不能留着已废弃的）', stalePrivacy.length === 0, stalePrivacy.join(' '))
 
 const privacyPagePath = join(SRC, 'pages', 'privacy', 'index.tsx')
-const privacyPage = existsSync(privacyPagePath) ? read(privacyPagePath) : ''
-const undeclaredTypes = Object.values(KNOWN_PRIVACY_APIS).filter((t) => !privacyPage.includes(t))
-ok('隐私政策页写明了每种隐私类型', privacyPage !== '' && undeclaredTypes.length === 0, undeclaredTypes.join(' '))
+/** 政策页的**正文**（去掉注释 —— 注释里会解释「以前有、现在没了」，那不是声明） */
+const privacyPage = existsSync(privacyPagePath) ? stripComments(read(privacyPagePath)) : ''
+
+/**
+ * 隐私政策页要跟**上线包实际调用**对齐，两个方向都要对：
+ *   · 上线包用到的类型 → 政策页**必须**写明（漏写＝告知缺失）；
+ *   · 上线包没用到的类型 → 政策页**不能**写（写了＝声明了却没用，对不上后台）。
+ */
+const shippedTypes = [...new Set([...taroPrivacyCalls].map((a) => KNOWN_PRIVACY_APIS[a]))]
+const undeclaredTypes = shippedTypes.filter((t) => !privacyPage.includes(t))
+ok(
+  `隐私政策页写明了上线包用到的每种隐私类型（当前 ${shippedTypes.length} 种：${shippedTypes.join('、') || '无'}）`,
+  privacyPage !== '' && undeclaredTypes.length === 0,
+  undeclaredTypes.join(' '),
+)
+
+const overdeclared = Object.values(KNOWN_PRIVACY_APIS).filter(
+  (t) => !shippedTypes.includes(t) && privacyPage.includes(t),
+)
+ok(
+  '隐私政策页没有声明上线包没用到的隐私类型（声明了却没用＝对不上后台）',
+  overdeclared.length === 0,
+  overdeclared.join(' ') + ' —— 要么把调用删掉，要么把政策页改回来',
+)
 
 const mePagePath = join(SRC, 'pages', 'me', 'index.tsx')
 ok(
   '「我的」页有隐私政策入口（审核要求小程序内可见）',
   existsSync(mePagePath) && read(mePagePath).includes('pages/privacy/index'),
 )
+
+/* ========================================================================
+ * 21b. 小程序不再提供导出（2026-11-05 维护者定）
+ * ======================================================================== */
+
+/**
+ * ## 这条锁的是什么
+ *
+ * 维护者 2026-11-05 定：**寸关尺关系图直接显示在页面上**，
+ * 「存到相册」「复制 Markdown」「复制 CSV」三个导出选项**删掉**。
+ *
+ * 连带的后果（也要锁住，否则会漂回去）：
+ *   · 小程序**不再调用任何隐私接口** → 微信后台《用户隐私保护指引》**一项都不用勾**；
+ *   · 不再有「整表 PNG 导出」→ `platform/canvas.ts` 里只出图示这一张；
+ *   · 网站端**不受影响**（那边的 PNG 导出在 `src/export/png.ts`，与小程序无关）。
+ */
+const EXPORT_OPTION_WORDS = ['存到相册', '复制 Markdown', '复制 CSV', '存相册']
+// 只查**有过那几个按钮的页面** —— 隐私政策页会提到「不提供存相册这类导出」，那是正文，不是按钮
+for (const p of ['pages/case-detail/index.tsx', 'pages/visit/index.tsx']) {
+  const src = stripComments(read(join(SRC, p)))
+  const hit = EXPORT_OPTION_WORDS.filter((w) => src.includes(w))
+  ok(`${p} 里没有导出选项的文案`, hit.length === 0, hit.join(' '))
+}
+
+ok(
+  '上线包不再调用任何隐私接口（后台隐私指引一项都不用勾）',
+  taroPrivacyCalls.size === 0,
+  [...taroPrivacyCalls].join(' '),
+)
+
+ok(
+  'platform/album.ts 与 platform/clipboard.ts 已删掉（没有导出就没有这两个平台模块）',
+  !existsSync(join(SRC, 'platform', 'album.ts')) && !existsSync(join(SRC, 'platform', 'clipboard.ts')),
+)
+
+const diagramViewPath = join(SRC, 'components', 'diagram-view', 'index.tsx')
+ok(
+  '寸关尺关系图有专门的展示组件（直接显示在页面上）',
+  existsSync(diagramViewPath) && read(diagramViewPath).includes('renderDiagramImage'),
+)
+
+for (const p of ['pages/case-detail/index.tsx', 'pages/visit/index.tsx']) {
+  const src = read(join(SRC, p))
+  ok(`${p} 用了 diagram-view（图直接显示，不是按钮弹窗）`, src.includes('diagram-view'))
+}
 
 /* ========================================================================
  * 22. 出图底图必须真进包（2026-11-05）
@@ -699,6 +777,213 @@ if (existsSync(DIST)) {
   ok('配置里有 defineConstants（编译期注入默认 API 地址靠它）', defineInConfig)
 } else {
   ok('还没构建，产物检查跳过（先跑 npm run mp:taro:build）', true)
+}
+
+/* ========================================================================
+ * 24. 共享绘制代码必须能在「微信式 canvas 2d」上跑通（2026-11-05）
+ * ======================================================================== */
+
+/**
+ * ## 这一节抓的是什么
+ *
+ * 真机点「看寸关尺图示」弹过这个错：
+ *
+ *   Failed to execute 'roundRect' on 'CanvasRenderingContext2D':
+ *   The provided value cannot be converted to a sequence.
+ *
+ * 根因：微信的 canvas 2d 把 `roundRect` 的半径按**序列**收，
+ * 而共享绘制代码 `src/export/diagram.ts` 传的是**单个数字** → 整个出图抛错、只弹一个 toast。
+ *
+ * ## 为什么要「拿假 ctx 真跑一遍」
+ *
+ * 这类错**编译器抓不到、常规测试也抓不到**：
+ *
+ *   · `PainterCtx` 是结构类型，`roundRect` 压根不在类型里（用 `as unknown` 转的）→ tsc 无感；
+ *   · 浏览器（Chrome/Safari/Firefox）数字与数组**都收** → 网站端跑得好好的；
+ *   · 只有真的在小程序的 canvas 2d 上画，才会炸 —— 而小程序侧此前**没有出图链路的回归**。
+ *
+ * 所以这里照微信的规矩造一个**假 ctx**：
+ *   · `roundRect` 的半径不是数组就抛 TypeError（与微信一模一样）；
+ *   · 其它方法只记录不画。
+ * 再把**真的那份绘制代码**灌进去跑 —— 抛了就说明这条共享代码在小程序上会炸。
+ *
+ * ## 覆盖三种 ctx
+ *
+ *   1. **微信式**（半径必须是序列）→ 主场景，必须一次不抛；
+ *   2. **roundRect 一直抛**（假想某个基础库版本不收数组）→ 必须靠手写圆角路径兜底；
+ *   3. **压根没有 roundRect**（老浏览器／老基础库）→ 同上。
+ */
+function makeFakeCtx(mode) {
+  const calls = {
+    roundRect: 0,
+    radii: [],
+    quadraticCurveTo: 0,
+    closePath: 0,
+    rect: 0,
+    drawImage: 0,
+    fillText: 0,
+  }
+  const ctx = {
+    save() {},
+    restore() {},
+    translate() {},
+    scale() {},
+    fillRect() {},
+    clearRect() {},
+    rect() {
+      calls.rect += 1
+    },
+    fillText() {
+      calls.fillText += 1
+    },
+    measureText() {
+      return { width: 10 }
+    },
+    beginPath() {},
+    moveTo() {},
+    lineTo() {},
+    quadraticCurveTo() {
+      calls.quadraticCurveTo += 1
+    },
+    closePath() {
+      calls.closePath += 1
+    },
+    stroke() {},
+    fill() {},
+    setLineDash() {},
+    drawImage() {
+      calls.drawImage += 1
+    },
+    fillStyle: '',
+    strokeStyle: '',
+    lineWidth: 1,
+    lineJoin: 'miter',
+    font: '',
+    textAlign: 'left',
+    textBaseline: 'alphabetic',
+  }
+  if (mode !== 'none') {
+    ctx.roundRect = function (_x, _y, _w, _h, radii) {
+      calls.roundRect += 1
+      calls.radii.push(radii)
+      if (mode === 'alwaysThrow') {
+        throw new TypeError(
+          "Failed to execute 'roundRect' on 'CanvasRenderingContext2D': The provided value cannot be converted to a sequence.",
+        )
+      }
+      if (!Array.isArray(radii)) {
+        throw new TypeError(
+          "Failed to execute 'roundRect' on 'CanvasRenderingContext2D': The provided value cannot be converted to a sequence.",
+        )
+      }
+    }
+  }
+  return { ctx, calls }
+}
+
+/** 把共享绘制代码（src/export/diagram.ts）用 esbuild 打成可执行的 ESM */
+let diagramMod = null
+{
+  let esm = null
+  try {
+    esm = await import(pathToFileURL(join(TARO, 'node_modules', 'esbuild', 'lib', 'main.js')).href)
+  } catch {
+    esm = null
+  }
+  if (esm) {
+    const stubDir = mkdtempSync(join(tmpdir(), 'taro-lint-draw-'))
+    try {
+      const out = await esm.build({
+        entryPoints: [join(ROOT, 'src', 'export', 'diagram.ts')],
+        bundle: true,
+        platform: 'node',
+        format: 'esm',
+        write: false,
+      })
+      const file = join(stubDir, 'diagram.mjs')
+      writeFileSync(file, out.outputFiles[0].text, 'utf8')
+      diagramMod = await import(pathToFileURL(file).href)
+    } catch (e) {
+      diagramMod = null
+      ok('共享绘制代码能编译出来（回归要真跑 src/export/diagram.ts）', false, String(e?.message || e))
+    } finally {
+      try {
+        rmSync(stubDir, { recursive: true, force: true })
+      } catch {
+        /* 临时目录清不掉不影响结论 */
+      }
+    }
+  }
+  ok('共享绘制代码能编译出来（回归要真跑 src/export/diagram.ts）', !!diagramMod)
+}
+
+if (diagramMod) {
+  const drawSet = {
+    name: '回归',
+    layout: 'nine',
+    sessions: [
+      {
+        id: 's1',
+        label: '1月1日',
+        values: { 'L|寸|浮': ['有'], 'R|关|中': ['↑'] },
+      },
+    ],
+  }
+  const drawSession = drawSet.sessions[0]
+  const drawPlan = { image: { width: 1070, height: 876 }, scale: 1, dx: 0, dy: 0, w: 1070, h: 876 }
+
+  const run = (mode) => {
+    const fake = makeFakeCtx(mode)
+    let err = null
+    try {
+      diagramMod.drawDiagram(fake.ctx, drawPlan, drawSet, drawSession)
+    } catch (e) {
+      err = e
+    }
+    return { fake, err }
+  }
+
+  // 1) 微信式 ctx：半径必须是序列
+  const wxRun = run('strict')
+  ok(
+    '在「微信式 canvas 2d」上画图示不抛错（整个出图不能失败：只弹 toast 用户什么都拿不到）',
+    !wxRun.err,
+    wxRun.err ? String(wxRun.err?.message || wxRun.err) : '',
+  )
+  ok(
+    '六个标记块的圆角都画了，且半径每次都是数组',
+    wxRun.fake.calls.roundRect === 6 && wxRun.fake.calls.radii.every((r) => Array.isArray(r)),
+    `实际 ${wxRun.fake.calls.roundRect} 次，首个半径参数 ${JSON.stringify(wxRun.fake.calls.radii[0])}`,
+  )
+  ok('底图画进去了（drawImage 调过一次）', wxRun.fake.calls.drawImage === 1, `实际 ${wxRun.fake.calls.drawImage} 次`)
+
+  // 2) roundRect 一直抛 → 必须靠手写圆角路径兜底
+  const throwRun = run('alwaysThrow')
+  ok(
+    'roundRect 不可用时仍能画出来（手写圆角路径兜底，不能让出图整个失败）',
+    !throwRun.err,
+    throwRun.err ? String(throwRun.err?.message || throwRun.err) : '',
+  )
+  ok(
+    '兜底路径真的画了圆角（每块 4 段二次曲线 × 6 块 = 24 段）',
+    throwRun.fake.calls.quadraticCurveTo === 24,
+    `实际 ${throwRun.fake.calls.quadraticCurveTo} 段`,
+  )
+  ok('兜底路径用 closePath 收了口', throwRun.fake.calls.closePath === 6, `实际 ${throwRun.fake.calls.closePath} 次`)
+  ok('兜底路径没有退化成直角矩形', throwRun.fake.calls.rect === 0, `实际 ${throwRun.fake.calls.rect} 次`)
+
+  // 3) 压根没有 roundRect → 同上
+  const noneRun = run('none')
+  ok(
+    'ctx 没有 roundRect 时仍能画出来',
+    !noneRun.err,
+    noneRun.err ? String(noneRun.err?.message || noneRun.err) : '',
+  )
+  ok(
+    '没有 roundRect 时靠手写圆角路径（24 段二次曲线）',
+    noneRun.fake.calls.quadraticCurveTo === 24,
+    `实际 ${noneRun.fake.calls.quadraticCurveTo} 段`,
+  )
 }
 
 /* ========================================================================

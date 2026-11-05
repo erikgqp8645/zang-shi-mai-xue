@@ -1,20 +1,16 @@
 import { useCallback, useRef, useState } from 'react'
-import { Canvas, Text, View } from '@tarojs/components'
+import { Text, View } from '@tarojs/components'
 import Taro, { useDidShow, useRouter, useShareAppMessage } from '@tarojs/taro'
 
 import type { MedicationRow, Patient } from '@domain/api'
 import { formatAt } from '@domain/api'
 import type { LayoutMode } from '@domain/types'
-import { toCsv, toMarkdown } from '@export/text'
 
 import { getPatient, listCustomSymbols, listMedication, updateVisit } from '../../utils/data'
-import { getAlbumAuthState, isPrivacyNotAuthorized, saveImageToAlbum } from '../../platform/album'
-import { isPrivacyNotDeclared, setClipboard } from '../../platform/clipboard'
-import { previewImage } from '../../platform/preview'
-import { renderDiagramImage, renderExportImage } from '../../platform/canvas'
 import { selectPatient, useVisitContext } from '../../store/context'
 
 import RecordSheet, { type SheetSession } from '../../components/record-sheet'
+import DiagramView from '../../components/diagram-view'
 
 import './index.scss'
 
@@ -45,7 +41,6 @@ export default function CaseDetail() {
   const [customSymbols, setCustomSymbols] = useState<{ code: string; name: string }[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
 
   /** 落库前的快照 —— 用来判断「哪一次就诊被改了」 */
   const snapshot = useRef<{ id: string; values: Record<string, string[]>; constitution: string | null; therapy: string | null }[]>([])
@@ -154,86 +149,6 @@ export default function CaseDetail() {
     })),
   })
 
-  /** 存相册 —— 现场出图，再问相册权限 */
-  const onSaveImage = async () => {
-    if (busy) return
-    setBusy(true)
-    let p = ''
-    try {
-      p = await renderExportImage(buildSet())
-    } catch (e) {
-      setBusy(false)
-      Taro.showToast({ title: (e as Error)?.message || '图还没生成', icon: 'none' })
-      return
-    }
-    setBusy(false)
-    const granted = await getAlbumAuthState()
-    if (granted === false) {
-      Taro.showModal({
-        title: '暂时存不了',
-        content: '你之前拒绝过「保存到相册」的授权。可以在设置里重新打开。',
-        confirmText: '去设置',
-        success: (r: { confirm?: boolean }) => {
-          if (r.confirm) Taro.openSetting({})
-        },
-      })
-      return
-    }
-    try {
-      await saveImageToAlbum(p)
-      Taro.showToast({ title: '已存到相册', icon: 'success' })
-    } catch (e) {
-      const msg = (e as Error)?.message || ''
-      if (isPrivacyNotAuthorized(msg)) {
-        // 小程序后台《用户隐私保护指引》里没声明「相册（仅写入）」——
-        // 这是开发者侧的配置缺失，用户在设置里也打不开，只能如实告知。
-        Taro.showModal({
-          title: '暂时存不了',
-          content: '这个小程序还没在后台声明「保存到相册」的使用说明，需要开发者补充后才能保存。',
-          showCancel: false,
-          confirmText: '知道了',
-        })
-        return
-      }
-      Taro.showToast({ title: msg || '保存失败', icon: 'none' })
-    }
-  }
-
-  /** 「寸关尺图示」—— 单独一个窗体看（系统图片预览，可双指缩放） */
-  const onShowDiagram = async () => {
-    if (busy) return
-    setBusy(true)
-    try {
-      const path = await renderDiagramImage(buildSet())
-      previewImage(path)
-    } catch (e) {
-      Taro.showToast({ title: (e as Error)?.message || '图示出不来', icon: 'none' })
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  /** 复制 Markdown／CSV：失败一定要提示，否则用户点了完全没反应 */
-  const copyText = async (text: string) => {
-    try {
-      await setClipboard(text)
-    } catch (e) {
-      const msg = (e as Error)?.message || '复制失败'
-      Taro.showToast({
-        title: isPrivacyNotDeclared(msg) ? '复制失败：后台未声明剪贴板权限' : msg,
-        icon: 'none',
-      })
-    }
-  }
-
-  const onCopyMarkdown = () => {
-    void copyText(toMarkdown(buildSet(), undefined, customSymbols, activeSessionId))
-  }
-
-  const onCopyCsv = () => {
-    void copyText(toCsv(buildSet()))
-  }
-
   /** 去「就诊」工作台 —— 切 tab，不是跳页 */
   const goVisit = async () => {
     try {
@@ -294,22 +209,19 @@ export default function CaseDetail() {
           onChange={onSheetChange}
           onSessionTap={setActiveSessionId}
         />
+      </View>
 
-        {/* 高频动作全部是按钮（原生版是文字链接，手机上不好点） */}
-        <View className='pr-detail-ops'>
-          <View className='pr-btn' onClick={onShowDiagram}>
-            寸关尺图示
-          </View>
-          <View className='pr-btn' onClick={onSaveImage}>
-            存到相册
-          </View>
-          <View className='pr-btn' onClick={onCopyMarkdown}>
-            复制 Markdown
-          </View>
-          <View className='pr-btn' onClick={onCopyCsv}>
-            复制 CSV
-          </View>
-        </View>
+      {/* 寸关尺关系图：**直接显示**在页面上（2026-11-05 维护者定）
+          —— 原来这里是「寸关尺图示／存到相册／复制 Markdown／复制 CSV」四个按钮，
+             现在图直接摆在下面；三个导出选项与两个隐私接口（相册、剪切板）一并去掉。 */}
+      <View className='pr-card'>
+        <View className='pr-card-title'>寸关尺关系图</View>
+        <Text className='pr-note'>
+          图上标的是
+          {sessions.length ? (activeSessionId ? '你点的那一次' : '最近一次') : '记录'}
+          的脉象 —— 改完格子图会跟着变。
+        </Text>
+        <DiagramView set={buildSet()} sessionId={activeSessionId} />
       </View>
 
       {/* 每次就诊记录 */}
@@ -347,9 +259,6 @@ export default function CaseDetail() {
           </View>
         ))}
       </View>
-
-      {/* 离屏画布：不显示，只用来出图（存相册／转发／寸关尺图示预览） */}
-      <Canvas id='pulse-off-canvas' type='2d' className='pr-off-canvas' />
 
       <View className='pr-disclaimer pr-detail-disclaimer'>
         本工具只做记录，不构成诊断。体质与疗法由使用者自己判断后手工选，工具不代判。

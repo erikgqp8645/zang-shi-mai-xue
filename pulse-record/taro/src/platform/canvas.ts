@@ -2,9 +2,8 @@ import Taro from '@tarojs/taro'
 
 
 import { IMG_H, IMG_W } from '@domain/diagram'
-import type { RecordSet, Session } from '@domain/types'
+import type { RecordSet } from '@domain/types'
 import { drawDiagram, planDiagram } from '@export/diagram'
-import { paintTable, planTable, withDiagram, type TableLayout } from '@export/table-painter'
 import type { PainterCtx } from '@export/canvas'
 
 /**
@@ -19,17 +18,19 @@ import type { PainterCtx } from '@export/canvas'
  *   2. 把共享绘制器接到画布上下文上
  *   3. canvas → 临时文件
  *
- * 所以两端导出的 PNG 尺寸一致（记录表 1272×1977 @dpr2；图示 1070×876 @scale1）。
+ * ## 这里只出「寸关尺图示」这一张（2026-11-05）
+ *
+ * 原来还有一个「表格 ＋ 图示」的整表导出（`renderExportImage`），配的是「存到相册」按钮 ——
+ * 维护者定：**小程序不提供导出**，图**直接显示在页面上**（`components/diagram-view`），
+ * 那个按钮连同相册／剪切板两个隐私接口一起去掉了。
+ * 网站端不受影响（那边的 PNG 导出在 `src/export/png.ts`，与小程序无关）。
  *
  * ## 鸿蒙降级
  *
  * 鸿蒙侧能否拿到 2D 画布节点**待验证**（P3 阶段实测）。
  * 若拿不到，这一层会抛错并带明确的降级提示 ——
- * 上层应当降级为「在页内显示 ＋ 让用户自行截图」，**不得让整个就诊流程不可用**。
+ * 上层应当降级为「页内提示 ＋ 让用户自行截图」，**不得让整个就诊流程不可用**。
  */
-
-/** 导出倍率：与网站端一致（dpr 2） */
-export const EXPORT_DPR = 2
 
 /** 小程序侧的画布节点（type="2d"） */
 export interface CanvasNode {
@@ -111,58 +112,21 @@ export function toTempFile(canvas: CanvasNode): Promise<string> {
   })
 }
 
-function paintExport(
-  canvas: CanvasNode,
-  ctx: PainterCtx,
-  set: RecordSet,
-  session: Session | null,
-  layout: TableLayout,
-  diagramPlan: ReturnType<typeof planDiagram> | null,
-): void {
-  canvas.width = layout.canvasW * EXPORT_DPR
-  canvas.height = layout.height * EXPORT_DPR
-  ctx.scale(EXPORT_DPR, EXPORT_DPR)
-  ctx.clearRect(0, 0, layout.canvasW, layout.height)
-  paintTable(ctx, set, [], layout)
-  if (diagramPlan) drawDiagram(ctx, diagramPlan, set, session)
-}
-
 /**
- * 出「表格 ＋ 寸关尺图示」的图（存相册／转发用）。
- *
- * 与网站 src/export/png.ts 同一套绘制代码、同一 dpr＝2 → 两端导出的 PNG 尺寸一致。
- */
-export async function renderExportImage(set: RecordSet): Promise<string> {
-  if (!set.sessions.length) throw new Error('还没有记录')
-  const session = set.sessions[0]
-  const canvas = await getOffCanvas()
-  const ctx = canvas.getContext('2d')
-
-  let layout = planTable(set)
-
-  const img = await loadImage(canvas, HANDS_IMAGE)
-  if (!img) {
-    // 底图没载入出来也把表画上（表格本身不依赖底图）
-    paintExport(canvas, ctx, set, session, layout, null)
-    return toTempFile(canvas)
-  }
-
-  // 底图对象必须**传进 plan** —— drawDiagram 会 ctx.drawImage(plan.image, …)。
-  // 传尺寸占位对象（{width,height}）会直接抛 TypeError，表格和图示一个都画不出来。
-  const dp = planDiagram(img, layout.tableW)
-  layout = withDiagram(layout, { w: dp.w, h: dp.h })
-  paintExport(canvas, ctx, set, session, layout, { ...dp, dy: layout.diagramDy })
-  return toTempFile(canvas)
-}
-
-/**
- * 出「只有寸关尺图示」的图（预览用）。
+ * 出「只有寸关尺图示」的图（**直接显示在页面上**用）。
  *
  * 按原图 1:1 画（scale＝1、画布＝原图像素）—— 不放大，所以不糊。
+ *
+ * `sessionId` 给了就画那一次（用户点了表头日期就跟着换）；
+ * 没给就画**最后一次**（与录入页「一次一屏」的默认一致）。
  */
-export async function renderDiagramImage(set: RecordSet): Promise<string> {
+export async function renderDiagramImage(
+  set: RecordSet,
+  sessionId?: string,
+): Promise<string> {
   if (!set.sessions.length) throw new Error('还没有记录')
-  const session = set.sessions[0]
+  const session =
+    set.sessions.find((s) => s.id === sessionId) ?? set.sessions[set.sessions.length - 1]
   const canvas = await getOffCanvas()
   const ctx = canvas.getContext('2d')
 

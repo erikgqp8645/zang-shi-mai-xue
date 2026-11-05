@@ -70,8 +70,31 @@ export function planDiagram(image: DiagramImage, tableWidth: number): DiagramPla
   }
 }
 
-/** 圆角矩形（老浏览器没有 roundRect 时退回直角） */
+/**
+ * 圆角矩形。
+ *
+ * ## 为什么不能直接 `ctx.roundRect(x, y, w, h, r)`
+ *
+ * 微信小程序的 canvas 2d 把第 5 个参数（圆角半径）按**序列**接收，
+ * 传单个数字会抛：
+ *
+ *   Failed to execute 'roundRect' on 'CanvasRenderingContext2D':
+ *   The provided value cannot be converted to a sequence.
+ *
+ * 浏览器（Chrome / Safari / Firefox）两种写法都收 —— 所以网站端一直没暴露这个问题，
+ * 一到小程序就整个出图失败、只弹一个 toast。
+ *
+ * ## 这里的做法（两层保险）
+ *
+ * 1. **统一传数组** `[r]` —— 浏览器也认（`[3]` 与 `3` 画出来完全一样），微信这才不抛；
+ * 2. **再兜一层手写路径** —— 万一某个基础库版本的 `roundRect` 仍不收数组，
+ *    就自己用 `moveTo / lineTo / quadraticCurveTo` 拼出圆角。
+ *    **不能让出图整个失败**：宁可少个圆角，也不能让用户点一下只弹一个 toast。
+ */
 function roundRect(ctx: PainterCtx, x: number, y: number, w: number, h: number, r: number) {
+  // 半径不得超过边长的一半（与浏览器 roundRect 的钳制规则一致）
+  const radius = Math.max(0, Math.min(r, w / 2, h / 2))
+
   const hasRoundRect = (ctx as unknown as { roundRect?: unknown }).roundRect
   if (typeof hasRoundRect === 'function') {
     const fn = hasRoundRect as (
@@ -80,14 +103,36 @@ function roundRect(ctx: PainterCtx, x: number, y: number, w: number, h: number, 
       y: number,
       w: number,
       h: number,
-      r: number,
+      radii: number[],
     ) => void
-    ctx.beginPath()
-    fn.call(ctx, x, y, w, h, r)
-    return
+    try {
+      ctx.beginPath()
+      // 半径传**数组**（微信要序列，浏览器两种都收）
+      fn.call(ctx, x, y, w, h, [radius])
+      return
+    } catch {
+      // 这个平台的 roundRect 不收数组 —— 落到下面的手写路径
+    }
   }
-  ctx.beginPath()
-  ctx.rect(x, y, w, h)
+
+  // 手写圆角路径：只用 moveTo / lineTo / quadraticCurveTo（浏览器与小程序都支持）
+  try {
+    ctx.beginPath()
+    ctx.moveTo(x + radius, y)
+    ctx.lineTo(x + w - radius, y)
+    ctx.quadraticCurveTo(x + w, y, x + w, y + radius)
+    ctx.lineTo(x + w, y + h - radius)
+    ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h)
+    ctx.lineTo(x + radius, y + h)
+    ctx.quadraticCurveTo(x, y + h, x, y + h - radius)
+    ctx.lineTo(x, y + radius)
+    ctx.quadraticCurveTo(x, y, x + radius, y)
+    ctx.closePath()
+  } catch {
+    // 连手写路径都不行（极老的基础库）—— 退回直角矩形，至少能把图出来
+    ctx.beginPath()
+    ctx.rect(x, y, w, h)
+  }
 }
 
 /**
