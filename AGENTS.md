@@ -844,11 +844,22 @@ npm run mp:taro:build   # taro build --type weapp → taro/dist/
 ```bash
 npm run mp:taro:build        # 编小程序（Taro）
 npm run mp:taro:typecheck    # Taro 端类型检查
-npm run test:e2e:mp          # 静态检查 94 项：扫 TSX（禁 wx. 直调、禁 WXML/WXSS 残留、组件同源、术语用字…）
+npm run test:e2e:mp          # 静态检查 113 项：扫 TSX（禁 wx. 直调、禁 WXML/WXSS 残留、组件同源、术语用字…）＋ copy 规则 ＋ 产物残留
 npm run test:e2e:mp:api      # 数据层端到端 45 项：垫一个 Taro，连真后端跑全链路
-npm run test:e2e:mp:sim      # 39 项：纯函数断言 ＋ 编译产物断言 ＋ 模拟器截图
+npm run test:e2e:mp:sim      # 51 项：纯函数断言 ＋ 编译产物断言 ＋ 模拟器截图（含白屏判定）
+npm run test:e2e:mp:privacy  # 6 项：隐私政策页模拟器验证（截图 ＋ 白屏判定）
 npm run test:e2e:mp:legacy   # 原生回退工程的三套（mp-lint / mp-api / mp-sim）
 ```
+
+- **开发小程序时用 `wechat-miniprogram-preview` 插件预览**（维护者 2026-11-05 指示）：
+  插件已装在 MCode 里（`miniapp list` 能看到 `wechat-miniprogram-preview`，runtime 状态 running），
+  它把原生工程编译成 H5 近似预览，在 MCode 面板里看画面。
+  **本机实测的现状（2026-11-05）**：插件的 `preview_*` MCP 工具（`preview_open_project` /
+  `preview_status` / `preview_logs` / `preview_navigate` / `preview_list` …）**没有出现在会话的工具列表里**；
+  绕过去直连插件的 MCP 端点（`http://127.0.0.1:<runtime 端口>/mcp/preview`）会被 Host 的
+  **loopback 令牌守卫**挡下（401，守卫在 `app.asar` 的 `host-runner.js` 里，令牌由 Host 签发、Agent 拿不到）。
+  → **要真正用上这个插件，得让 Host 把它的 MCP 工具接进会话**（重启会话／重新激活插件）；
+  在那之前，小程序的可视化验证走**官方微信开发者工具自动化**这条（见下）。
 
 - **体例只有一个真源**：「7 脉点 / 9 行」是**患者的属性**（库里的 `patients.layout`）。
   记录表（canvas / 导出 PNG）与录入记录都按它画 —— **切换体例必须立刻落库**，
@@ -864,6 +875,16 @@ npm run test:e2e:mp:legacy   # 原生回退工程的三套（mp-lint / mp-api / 
 - **凭据**：AppID（`wx3a21eb903a16cbc4`）写在 `taro/project.config.json`，可以入库；**AppSecret 与代码上传私钥**
   放 `pulse-record/.secrets/`（已 gitignore，权限 600），`mp:dev` 自动把 `WX_APPID`/`WX_APPSECRET` 交给后端。
   **AppSecret 绝不进小程序包，也绝不进仓库** —— 小程序包可被反编译，AppSecret 只属于服务端环境变量。
+- **官方微信开发者工具自动化**（当前的小程序可视化验证路径）：
+  ```bash
+  cli auto --project pulse-record/taro --auto-port 9421 --trust-project --port 45820
+  MP_SIM_WS=ws://127.0.0.1:9421 npm run test:e2e:mp:sim
+  MP_SIM_WS=ws://127.0.0.1:9421 npm run test:e2e:mp:privacy
+  ```
+  ⚠️ **自动化端口每次用完都会掉**（`disconnect()` 之后开发者工具把 9421 收了）→ 跑之前先 `cli auto` 重新拉起。
+  ⚠️ **automator 的元素查询（`$$` / `$` / `data()`）在这套 Taro 产物上不返回**（40s 超时也挂死），
+  而导航（`switchTab` / `navigateTo`）与截图正常 → 所以模拟器只断言「能打开、能渲染、**不是白屏**」，
+  **文案正确性交给静态回归**。
 - 手册：[`pulse-record/docs/miniprogram-dev.md`](./pulse-record/docs/miniprogram-dev.md)（三条路线／手工清单／凭据放哪／卡点表）。
 
 ### 小程序侧硬约束（个人主体）
