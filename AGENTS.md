@@ -766,7 +766,7 @@ Windows 桌面程序：Electron 壳 + **原封不动**的 `dist/` 与 `server/`�
 | **禁 `copyFileSync` 拷库** | 备份／导出只能用 `VACUUM INTO` | 库里开着 WAL，活跃数据不在主文件里，直接拷会拿到半截事务 |
 | **数据落点** | 病例库：安装版 `%APPDATA%\臧氏脉学\history.sqlite`；**免安装版 exe 旁边的 `data\history.sqlite`**（靠 electron-builder 设的 `PORTABLE_EXECUTABLE_DIR` 认出来）。Electron 自己的缓存（Cache/GPUCache）**始终留在本机 %APPDATA%**，不往 U 盘上写。SQLite **不能放进 asar**（只读、且要写 WAL/SHM），也不能放进 Program Files |
 | **owner 归属** | 桌面版是单机免登录 → 所有请求归内置 `local` 账号。**别的账号名下的数据原样拷过去是一条也看不到** | `owner_id` 是归属列，读写一律按它过滤。导入时必须改挂（`desktop/db-transfer.mjs`） |
-| **后端只许拆不许改** | `server/index.mjs` 只拆出一个 `startServer()`，业务路由一行不改 | 桌面版与网页版共用同一份后端；回归 321 项必须全绿 |
+| **后端只许拆不许改** | `server/index.mjs` 只拆出一个 `startServer()`，业务路由一行不改 | 桌面版与网页版共用同一份后端；回归 323 项必须全绿 |
 | **同源** | 窗口加载 `http://127.0.0.1:<端口>/`（端口 0 → OS 分配） | 同源 → 页面里 `/api/…` 相对路径直接可用，**绕开 Electron 沙箱的 CORS 限制** |
 | **渲染进程权限** | `nodeIntegration:false` ＋ `contextIsolation:true`；preload 只暴露「另存为」一个写文件能力 | 渲染进程拿不到 db 路径／SQL／连接，也拿不到任意写盘的口子 |
 
@@ -874,7 +874,9 @@ npm run test:e2e:mp:legacy   # 原生回退工程的三套（mp-lint / mp-api / 
 | `web-view` 嵌网页 | ❌ 个人主体不支持业务域名 → **必须原生开发** |
 | `getPhoneNumber` | ❌ 需非个人主体＋微信认证＋已认证商户号 → 账号绑定只走「网站账号＋密码」 |
 | request 合法域名 | 必须 **HTTPS ＋ 已 ICP 备案** ＋ 主体一致 ＋ **不带端口** ＋ 不能用 IP |
-| 迁 CloudBase 后 | 改用 `wx.cloud.callFunction` → **不走合法域名校验**，备案没下来也能先跑通 |
+| **隐私接口** | **只有 2 个**：`saveImageToPhotosAlbum`（相册·仅写入）、`setClipboardData`（剪切板·写入）。**位置、通讯录、摄像头、麦克风、手机号、昵称头像一律不用** —— 代码里没调，勾了反而是「声明了没用」 |
+| 隐私接口变更 | 新增/删除隐私接口要**同步三处**：① 平台适配层代码 ② 微信后台《用户隐私保护指引》③ `pulse-record/docs/miniprogram-release-checklist.md`。后台没声明 → 真机直接 fail（errno 112），且**用户在设置里打不开** |
+| 迁 CloudBase 后 | 改用 `wx.cloud.callFunction` → **不走合法域名校验**，备案没下来也能先跑通；但**必须补声明「腾讯云 CloudBase」这个第三方 SDK** |
 
 ### 录入口径
 
@@ -950,7 +952,9 @@ npm run test:e2e:mp:legacy   # 原生回退工程的三套（mp-lint / mp-api / 
 - [ ] 改过**体例**（7 脉点 / 9 行）相关代码后：录入页切换是不是**立刻落库**（不能只改页面状态）？记录表与录入记录画的是不是**同一个体例**（体例只有 `patients.layout` 一个真源）？改体例有没有**动到格值**（不该动 —— 7↔9 来回切，「尺浮/尺中」两行的数据要留着）？患者的体例与格值行数对不对得上（`scripts/lib/layout-check.mjs`）？
 - [ ] 改过 `taro/src/components/record-sheet/`（或任何自定义组件）后：录入页与病例详情页的「记录表」是不是**同一个组件**（页面里不许再自己画表格骨架，`taro-lint` 有断言）？病例详情页改表是不是**立即落库**（逐次 `PATCH /api/visits/:id`，那里没有「保存」按钮）？**视图层把嵌套数组压成 `{"0":"X"}` 的坑兜住了吗**（组件侧 `toCodeArray`／`cleanValues`／`cleanSessions` 规整 —— 都在 `taro/src/components/record-sheet/shapes.ts`，**只此一份**，medication-panel 也复用它，别另写）＋ 服务端 `server/db.mjs` 的 `normalizeValues` 规整）—— 漏一处，`formatCodes` 的 `codes.join` 就炸（**静默失败**，表格那列画不出来），而且**第二次编辑**会把脏形状存进库，那一格从此废了。
 - [ ] 改过小程序 `taro/src/utils/*.ts`（`api` / `data` / `auth` / `config`）或**服务端接口**后，是否跑过 `npm run test:e2e:mp:api`？`test:e2e:mp` 只看页面骨架，数据层写错了它照样全绿（真出过：`putVisitMedication` 漏 `await getVisit()`，单次就诊保存用药必 500，两端的这条链路都坏了而回归没发现）。
-- [ ] 桌面版：改过 `server/index.mjs` 后，`node server/index.mjs` 的行为是否**完全不变**（`isMain` 判定）？`npm test` 是否仍 **321 项全绿**（core 26 ＋ taro-lint 94 ＋ taro-api 45 ＋ migration 53 ＋ auth 52 ＋ app 18 ＋ desktop 33）？
+- [ ] 小程序：新增或删除**隐私接口**后，是否同步了「平台适配层代码 ＋ 微信后台隐私指引 ＋ `docs/miniprogram-release-checklist.md`」三处？调用失败时是不是**接住了错误并提示**（`setClipboardData` 不给 fail 回调时是彻底静默的 —— 用户点了像坏了）？相册授权被拒时是不是引导去设置页，而不是反复弹？
+- [ ] 小程序：上线包的**默认 API 地址**是不是正式 https 域名（`PULSE_API_BASE` 编译期注入，不注入就是 `http://127.0.0.1:5178`）？「我的」页里的服务器地址是不是仍可改（联调包与正式包要能并存）？
+- [ ] 桌面版：改过 `server/index.mjs` 后，`node server/index.mjs` 的行为是否**完全不变**（`isMain` 判定）？`npm test` 是否仍 **323 项全绿**（core 26 ＋ taro-lint 96 ＋ taro-api 45 ＋ migration 53 ＋ auth 52 ＋ app 18 ＋ desktop 33）？
 - [ ] 桌面版：数据是否落在 `%APPDATA%\臧氏脉学\`（安装版）／ exe 旁边的 `data\`（免安装版）？有没有把库放进 asar 或 Program Files（SQLite 写不了）？**Electron 缓存有没有被误放到 exe 旁边**（缓存留本机 %APPDATA%）？
 - [ ] 桌面版：改过落点判定后，`desktop/data-dir.mjs` 的规则与 `desktop/main.mjs` 的实际用法是否一致（主进程必须调用那套纯函数，不要内联另写一份）？便携版与安装版的 userData 是否仍分开（否则单实例锁互相吞）？
 - [ ] 桌面版：导入老数据后，**别的账号名下那些病例在桌面端看得见吗**（owner 归属有没有改挂）？重复导入会不会翻倍？
