@@ -40,6 +40,15 @@ let pass = 0
 let fail = 0
 const failures = []
 
+/** 每步都带超时 —— automator 的调用在环境不满足时会一直挂着，没有超时的脚本像卡死 */
+function withTimeout(promise, ms, tag) {
+  let timer
+  const guard = new Promise((_, rej) => {
+    timer = setTimeout(() => rej(new Error(`${tag} 超时 ${ms}ms`)), ms)
+  })
+  return Promise.race([promise, guard]).finally(() => clearTimeout(timer))
+}
+
 function ok(name, cond, detail = '') {
   if (cond) {
     pass++
@@ -302,6 +311,52 @@ if (automator) {
           JSON.stringify(shot),
         )
       }
+      // ---------------------------------------------------------------
+      // 「底图没载入」的真正判据：**包内图片能不能被运行时读到**。
+      //
+      // 为什么不用点按钮：automator 的元素查询（`$$` / `$` / `data()`）在这套
+      // Taro 产物上**不返回**（给 40 秒超时也是挂死），而导航与截图正常。
+      // 所以不去点「寸关尺图示」，而是直接问运行时：这张图在包里吗？
+      //
+      // 用 `wx.getImageInfo`（服务层 API，能读包内图片）——
+      // `wx.createImage` 是渲染层 API，在服务层上下文里没有。
+      // ---------------------------------------------------------------
+      const readLocalImage = (src) =>
+        mp.evaluate(
+          (path) =>
+            new Promise((resolve) => {
+              wx.getImageInfo({
+                src: path,
+                success: (r) => resolve({ ok: true, width: r.width, height: r.height, path: r.path }),
+                fail: (e) => resolve({ ok: false, err: String((e && e.errMsg) || e) }),
+              })
+            }),
+          src,
+        )
+
+      const hands = await withTimeout(readLocalImage('/assets/hands-pulse.png'), 20000, 'getImageInfo')
+      ok(
+        '运行时能读到包内底图 /assets/hands-pulse.png（这就是「底图没载入」的判据）',
+        hands && hands.ok === true,
+        JSON.stringify(hands),
+      )
+      ok(
+        '底图像素是 1070×876（与真源一致）',
+        hands && hands.width === 1070 && hands.height === 876,
+        JSON.stringify(hands),
+      )
+
+      const triad = await withTimeout(readLocalImage('/assets/triad-p47.png'), 20000, 'getImageInfo')
+      ok('运行时能读到包内三部曲图 /assets/triad-p47.png', triad && triad.ok === true, JSON.stringify(triad))
+
+      // 对照组：路径写错时必须读不到 —— 证明上面两条不是「怎么都过」
+      const missing = await withTimeout(readLocalImage('/assets/NO-SUCH-IMAGE.png'), 20000, 'getImageInfo')
+      ok(
+        '对照组：不存在的包内路径必须读不到（证明上面两条有鉴别力）',
+        missing && missing.ok === false,
+        JSON.stringify(missing),
+      )
+
       console.log(`\n截图目录：${OUT}`)
       shots.forEach((s) => console.log(`  · ${s.name} → ${s.file}`))
     } catch (e) {
