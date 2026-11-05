@@ -846,7 +846,7 @@ npm run mp:taro:build        # 编小程序（Taro）
 npm run mp:taro:typecheck    # Taro 端类型检查
 npm run test:e2e:mp          # 静态检查 113 项：扫 TSX（禁 wx. 直调、禁 WXML/WXSS 残留、组件同源、术语用字…）＋ copy 规则 ＋ 产物残留
 npm run test:e2e:mp:api      # 数据层端到端 45 项：垫一个 Taro，连真后端跑全链路
-npm run test:e2e:mp:sim      # 51 项：纯函数断言 ＋ 编译产物断言 ＋ 模拟器截图（含白屏判定）
+npm run test:e2e:mp:sim      # 55 项：纯函数断言 ＋ 编译产物断言 ＋ 模拟器截图（含白屏判定 ＋ 包内底图运行时可读）
 npm run test:e2e:mp:privacy  # 6 项：隐私政策页模拟器验证（截图 ＋ 白屏判定）
 npm run test:e2e:mp:legacy   # 原生回退工程的三套（mp-lint / mp-api / mp-sim）
 ```

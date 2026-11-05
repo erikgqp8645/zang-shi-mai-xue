@@ -395,6 +395,24 @@ canvas 版没有表下「体质／（未判）」「（未定）」两行、不�
 `dist/assets/hands-pulse.png`（305 137 B）与 `triad-p47.png`（93 828 B）都在，
 **SHA256 与真源逐字节一致**；包体 0.99 → **1.02 MB**（上限 2 MB）。
 
+**决定性验证（不是看文件在不在，是问运行时）**：automator 的 `evaluate` 可以在小程序
+**运行时上下文**里执行代码，于是直接问它「这张图在包里吗」：
+
+```
+wx.getImageInfo({ src: '/assets/hands-pulse.png' })
+  → { ok: true, width: 1070, height: 876, path: 'assets/hands-pulse.png' }
+wx.getImageInfo({ src: '/assets/triad-p47.png' })
+  → { ok: true, width: 701, height: 605 }
+wx.getImageInfo({ src: '/assets/NO-SUCH-IMAGE.png' })   # 对照组
+  → { ok: false, err: 'getImageInfo:fail file not found' }
+```
+
+1070×876 正是「寸关尺图示底图（原图，1070 × 876）」的尺寸，701×605 正是「讲义 p47 三部曲原图」。
+**这就是「底图没载入」的判据** —— 图在包里且运行时读得到，出图就不会再抛那句错。
+
+> 为什么不用 `wx.createImage`：它是**渲染层** API，在服务层上下文里没有；
+> `wx.getImageInfo` 是服务层 API，能读包内图片。
+
 #### 锁进回归（`taro-lint` 第 22 节，100 → 111）
 
 不靠正则猜配置长什么样，而是**用 esbuild 把 `taro/config/index.ts` 真跑一遍**：
@@ -601,7 +619,7 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 全量回归 | **340/340 全绿**（core 26 ＋ taro-lint 113 ＋ taro-api 45 ＋ migration 53 ＋ auth 52 ＋ app 18 ＋ 桌面端 33） |
 | 小程序工程 | `pulse-record/taro/`（Taro 4.3.2 ＋ React 18）；**原生 `miniprogram/` 原样保留作回退** |
 | 小程序包体 | **1.02 MB**（微信上限 2 MB；含寸关尺底图 305 KB ＋ 三部曲图 94 KB） |
-| 模拟器回归 | `npm run test:e2e:mp:sim`（4 个 tab 逐页截图 ＋ **白屏判定**）与 `npm run test:e2e:mp:privacy`（隐私政策页）；**都要先 `cli auto --auto-port 9421` 拉起自动化端口**（用完会掉） |
+| 模拟器回归 | `npm run test:e2e:mp:sim`（**55 项**：4 个 tab 逐页截图 ＋ **白屏判定** ＋ **包内底图运行时可读**）与 `npm run test:e2e:mp:privacy`（**6 项**：隐私政策页）；**都要先 `cli auto --auto-port 9421` 拉起自动化端口**（用完会掉） |
 | 上线前清单 | `pulse-record/docs/miniprogram-release-checklist.md`（隐私指引勾选项＋可复制文案、服务器域名、类目截图、审核退路对照表） |
 | 本机库 | `pulse-record/local-data/history.sqlite`（已迁移到多用户结构：15 患者／57 就诊／1 自定义符号，归属归到 `local`；迁移前快照 `history.sqlite.bak-20261104102030`） |
 | 桌面版产物 | `pulse-record/release/`（安装包 ＋ 免安装版，已 gitignore） |
