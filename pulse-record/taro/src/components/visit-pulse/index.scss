@@ -1,0 +1,33 @@
+/* 页内 tab「脉象」—— 工具条 + 视图切换 */
+
+.pr-vp {
+  display: block;
+}
+
+.pr-toolbar {
+  margin-bottom: 16rpx;
+}
+
+.pr-name-input {
+  margin-bottom: 12rpx;
+}
+
+.pr-toolbar-ops {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  flex-wrap: wrap;
+}
+
+.pr-viewswitch {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  flex-wrap: wrap;
+  margin-bottom: 16rpx;
+}
+
+.pr-viewswitch-hint {
+  flex: 1;
+  min-width: 240rpx;
+}

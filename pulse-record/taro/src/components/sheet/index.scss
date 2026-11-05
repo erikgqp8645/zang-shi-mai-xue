@@ -1,0 +1,51 @@
+/* 底部弹层（通用件）—— 遮罩点击关闭，内容区不关 */
+
+.pr-sheet-mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(44, 41, 37, 0.45);
+  display: flex;
+  align-items: flex-end;
+  z-index: 50;
+}
+
+.pr-sheet-panel {
+  width: 100%;
+  background: #fdfbf7;
+  border-radius: 20rpx 20rpx 0 0;
+  padding: 28rpx 24rpx 0;
+  max-height: 76vh;
+  display: flex;
+  flex-direction: column;
+  /* 底部安全区：Home Indicator 压不住按钮 */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.pr-sheet-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 16rpx;
+  border-bottom: 1rpx solid #e6e2d6;
+}
+
+.pr-sheet-panel-title {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.pr-sheet-panel-close {
+  color: #7c8974;
+  font-size: 36rpx;
+  line-height: 1;
+  padding: 0 8rpx;
+}
+
+.pr-sheet-panel-body {
+  flex: 1;
+  max-height: 62vh;
+  padding-bottom: 24rpx;
+}

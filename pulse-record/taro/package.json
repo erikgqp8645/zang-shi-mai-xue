@@ -1,0 +1,41 @@
+{
+  "name": "pulse-record-taro",
+  "private": true,
+  "version": "0.1.0",
+  "description": "臧氏脉学 · 脉象记录表生成器（Taro 小程序 / 鸿蒙）",
+  "templateInfo": {
+    "name": "default",
+    "typescript": true,
+    "css": "sass",
+    "compiler": "vite"
+  },
+  "scripts": {
+    "build:weapp": "taro build --type weapp",
+    "dev:weapp": "taro build --type weapp --watch",
+    "build:harmony": "taro build --type harmony_cpp",
+    "dev:harmony": "taro build --type harmony_cpp --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tarojs/components": "4.3.2",
+    "@tarojs/helper": "4.3.2",
+    "@tarojs/plugin-framework-react": "4.3.2",
+    "@tarojs/plugin-platform-harmony-cpp": "4.3.2",
+    "@tarojs/plugin-platform-weapp": "4.3.2",
+    "@tarojs/runtime": "4.3.2",
+    "@tarojs/shared": "4.3.2",
+    "@tarojs/taro": "4.3.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@babel/preset-typescript": "^7.29.7",
+    "@tarojs/cli": "4.3.2",
+    "@tarojs/vite-runner": "4.3.2",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.0",
+    "sass": "^1.83.4",
+    "typescript": "^5.7.3",
+    "vite": "^4.5.5"
+  }
+}

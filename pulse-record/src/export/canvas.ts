@@ -19,6 +19,7 @@ export type PainterCtx = {
 
   // ---- 绘制 ----
   fillRect(x: number, y: number, w: number, h: number): void
+  clearRect(x: number, y: number, w: number, h: number): void
   rect(x: number, y: number, w: number, h: number): void
   fillText(text: string, x: number, y: number): void
   measureText(text: string): { width: number }

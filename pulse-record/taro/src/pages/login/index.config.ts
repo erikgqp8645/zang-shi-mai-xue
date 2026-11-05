@@ -1,0 +1,3 @@
+export default definePageConfig({
+  navigationBarTitleText: '登录 · 臧氏脉学',
+})

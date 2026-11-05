@@ -1,0 +1,128 @@
+/* 离屏画布：挪到屏幕外，只用来出图。
+   不能用 display:none —— 那样拿不到 canvas 节点（fields({node:true}) 会空）。 */
+.pr-off-canvas {
+  position: fixed;
+  left: -3000px;
+  top: 0;
+  display: block;
+}
+
+/* 卡片标题行：左标题 ＋ 右操作（绿框位：这里放「录入编辑」） */
+.pr-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12rpx;
+}
+
+.pr-card-head .pr-card-title {
+  margin-bottom: 0;
+}
+
+.pr-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.pr-case-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.pr-case-name {
+  font-size: 34rpx;
+  font-weight: 600;
+}
+
+.pr-case-meta {
+  color: #7c8974;
+  font-size: 24rpx;
+}
+
+.pr-case-ops {
+  display: flex;
+  align-items: center;
+  gap: 28rpx;
+  margin-top: 16rpx;
+}
+
+.pr-link {
+  color: #7c8974;
+  font-size: 24rpx;
+  text-decoration: underline;
+}
+
+.pr-visit {
+  padding: 12rpx 0;
+  border-bottom: 1rpx dashed #e6e2d6;
+}
+
+.pr-visit-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.pr-visit-label {
+  font-weight: 600;
+}
+
+.pr-visit-at {
+  color: #a39a8c;
+  font-size: 22rpx;
+}
+
+.pr-visit-summary {
+  color: #5c574f;
+  font-size: 24rpx;
+  margin-top: 4rpx;
+}
+
+.pr-visit-tags {
+  color: #b48464;
+  font-size: 23rpx;
+  margin-top: 4rpx;
+}
+
+.pr-err {
+  color: #b03a2e;
+}
+
+/* ---------- Taro 版新增：高频动作按钮化 ---------- */
+
+.pr-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12rpx;
+}
+
+.pr-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.pr-detail-ops {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  margin-top: 20rpx;
+  padding-top: 16rpx;
+  border-top: 1rpx solid #e6e2d6;
+}
+
+.pr-err {
+  color: #b03a2e;
+}
+
+/* 离屏画布：不显示，只用来出图 */
+.pr-off-canvas {
+  position: absolute;
+  left: -9999rpx;
+  top: -9999rpx;
+  width: 1px;
+  height: 1px;
+}

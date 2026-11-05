@@ -1,0 +1,31 @@
+{
+  "appid": "wx3a21eb903a16cbc4",
+  "projectname": "pulse-record",
+  "description": "臧氏脉学 · 脉象记录表生成器（Taro 工程；产物在 dist/）",
+  "miniprogramRoot": "dist/",
+  "compileType": "miniprogram",
+  "setting": {
+    "urlCheck": false,
+    "es6": false,
+    "enhance": false,
+    "postcss": false,
+    "minified": false,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    }
+  },
+  "condition": {
+    "miniprogram": {
+      "list": [
+        {
+          "name": "微信小程序",
+          "pathName": "pages/cases/index",
+          "query": "",
+          "scene": null
+        }
+      ]
+    }
+  }
+}

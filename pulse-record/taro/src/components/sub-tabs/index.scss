@@ -1,0 +1,46 @@
+/* 页内 tab（通用件）*/
+
+.pr-subtabs {
+  background: #fdfbf7;
+  border-bottom: 1rpx solid #e6e2d6;
+  position: sticky;
+  top: 88rpx;
+  z-index: 15;
+}
+
+.pr-subtabs-scroll {
+  width: 100%;
+  white-space: nowrap;
+}
+
+.pr-subtabs-inner {
+  display: inline-flex;
+  padding: 0 12rpx;
+}
+
+.pr-subtab {
+  padding: 20rpx 24rpx 16rpx;
+  position: relative;
+}
+
+.pr-subtab-label {
+  font-size: 28rpx;
+  color: #7c8974;
+}
+
+.pr-subtab.is-on .pr-subtab-label {
+  color: #2c2925;
+  font-weight: 600;
+}
+
+/* 选中态下划线 */
+.pr-subtab.is-on::after {
+  content: '';
+  position: absolute;
+  left: 24rpx;
+  right: 24rpx;
+  bottom: 0;
+  height: 4rpx;
+  background: #2c2925;
+  border-radius: 2rpx;
+}

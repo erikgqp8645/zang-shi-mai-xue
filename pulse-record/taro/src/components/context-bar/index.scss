@@ -1,0 +1,64 @@
+/* 吸顶上下文条（通用件）*/
+
+.pr-ctx {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.pr-ctx-bar {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  background: #fdfbf7;
+  border-bottom: 1rpx solid #e6e2d6;
+  padding: 16rpx 24rpx;
+}
+
+.pr-ctx-who {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #2c2925;
+  max-width: 320rpx;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pr-ctx-when {
+  font-size: 26rpx;
+  color: #7c8974;
+}
+
+.pr-ctx-caret {
+  margin-left: auto;
+  font-size: 24rpx;
+  color: #7c8974;
+}
+
+.pr-ctx-sec {
+  font-size: 24rpx;
+  color: #7c8974;
+  margin: 20rpx 0 8rpx;
+}
+
+.pr-ctx-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18rpx 4rpx;
+  border-bottom: 1rpx solid #e6e2d6;
+}
+
+.pr-ctx-item.is-on {
+  background: #f6f1e6;
+}
+
+.pr-ctx-item-name {
+  font-size: 28rpx;
+}
+
+.pr-ctx-item-meta {
+  font-size: 23rpx;
+  color: #7c8974;
+}

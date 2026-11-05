@@ -8,58 +8,33 @@
  * 与旧版的差别：不再写浏览器 localStorage —— 清缓存、换浏览器、换机都还在。
  */
 
-import type { Constitution, LayoutMode, Therapy } from '../domain/types'
+import type { LayoutMode } from '../domain/types'
+import type {
+  MedicationInput,
+  MedicationRow,
+  Patient,
+  PatientSummary,
+  SavePatientInput,
+  Visit,
+  VisitPatch,
+} from '../domain/api'
 import { request } from './http'
 
-/** 一次就诊记录（某一天的脉象） */
-export interface Visit {
-  id: string
-  /** 日期标签，如「21日」「2月5」 */
-  label: string
-  /** 记录时间（毫秒时间戳） */
-  at: number
-  /** key = `${hand}|${organ}|${depth}`，值为符号代码数组 */
-  values: Record<string, string[]>
-  /** 使用者自判的体质（讲义 p47「①判体质」）；null＝未判 */
-  constitution?: Constitution | null
-  /** 使用者自选的疗法（讲义 p47「②定疗法」）；null＝未定 */
-  therapy?: Therapy | null
+/**
+ * 数据契约的类型来自 `domain/api.ts` —— **与小程序端共用同一份**。
+ * 这里是 type-only 的再导出：网站端的运行时行为一字未改，
+ * 但两端不会各自漂移出一套形状。
+ */
+export type {
+  MedicationInput,
+  MedicationRow,
+  Patient,
+  PatientSummary,
+  SavePatientInput,
+  Visit,
+  VisitPatch,
 }
-
-/** 患者列表条目 */
-export interface PatientSummary {
-  id: string
-  name: string
-  layout: LayoutMode
-  /** 就诊次数 */
-  visitCount: number
-  /** 最近一次记录时间 */
-  at: number
-  /** 搜索命中方式：all（未搜索）／name（姓名命中）／visit（有次记录命中） */
-  matchType?: 'all' | 'name' | 'visit'
-  /** 命中的次记录（matchType 为 visit 时有值） */
-  matchedVisits?: { id: string; label: string; at: number }[]
-}
-
-/** 一位患者 ＋ 其全部就诊记录 */
-export interface Patient extends PatientSummary {
-  visits: Visit[]
-}
-
-/** 一条用药记录（使用者自己填实际用什么方、加减、服法） */
-export interface MedicationRow {
-  id: string
-  /** 挂在哪一次就诊 */
-  visitId: string
-  name: string
-  /** 对应脉象（文字表述） */
-  pulse: string
-  /** 对应脉象（符号表述）：key 同 visits.pulse_values，值为符号代码数组；与文字并存 */
-  symbols: Record<string, string[]>
-  adjust: string
-  usage: string
-  note: string
-}
+export { formatAt } from '../domain/api'
 
 /**
  * 服务端没起／起不来时，给出可照做的提示，而不是静默丢数据。
@@ -93,34 +68,7 @@ export async function getPatient(id: string): Promise<Patient | null> {
  * - 传 id：写回该患者（同 id 的就诊记录更新、没有的删除）
  * - 不传 id：新建一位患者
  */
-export async function savePatient(input: {
-  id?: string
-  name: string
-  layout: LayoutMode
-  visits: {
-    id?: string
-    label: string
-    at?: number
-    values: Record<string, string[]>
-    /** 使用者自判的体质（null＝未判） */
-    constitution?: Constitution | null
-    /** 使用者自选的疗法（null＝未定） */
-    therapy?: Therapy | null
-  }[]
-  /** 用药记录（整份覆盖；挂在 visits 上） */
-  medications?: {
-    id?: string
-    visitId: string
-    name: string
-    /** 对应脉象（文字） */
-    pulse?: string
-    /** 对应脉象（符号），与文字并存 */
-    symbols?: Record<string, string[]>
-    adjust?: string
-    usage?: string
-    note?: string
-  }[]
-}): Promise<Patient> {
+export async function savePatient(input: SavePatientInput): Promise<Patient> {
   const { patient } = await request<{ patient: Patient }>('/api/patients', {
     method: 'POST',
     body: JSON.stringify(input),
@@ -159,27 +107,7 @@ export async function deletePatient(id: string): Promise<void> {
 }
 
 /** 改一次就诊记录（日期标签／脉象值／该次用药） */
-export async function updateVisit(
-  id: string,
-  patch: {
-    label?: string
-    values?: Record<string, string[]>
-    at?: number
-    /** 使用者自判的体质（传 null＝清除） */
-    constitution?: Constitution | null
-    /** 使用者自选的疗法（传 null＝清除） */
-    therapy?: Therapy | null
-    medications?: {
-      id?: string
-      name: string
-      pulse?: string
-      symbols?: Record<string, string[]>
-      adjust?: string
-      usage?: string
-      note?: string
-    }[]
-  },
-): Promise<Visit> {
+export async function updateVisit(id: string, patch: VisitPatch): Promise<Visit> {
   const { visit } = await request<{ visit: Visit }>(`/api/visits/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
@@ -206,16 +134,7 @@ export async function listVisitMedication(visitId: string): Promise<MedicationRo
 /** 整份覆盖某位患者的用药记录 */
 export async function saveMedication(
   patientId: string,
-  rows: {
-    id?: string
-    visitId: string
-    name: string
-    pulse?: string
-    symbols?: Record<string, string[]>
-    adjust?: string
-    usage?: string
-    note?: string
-  }[],
+  rows: MedicationInput[],
 ): Promise<MedicationRow[]> {
   const { medication } = await request<{ medication: MedicationRow[] }>(
     `/api/patients/${encodeURIComponent(patientId)}/medication`,
@@ -227,11 +146,4 @@ export async function saveMedication(
 /** 删除一次就诊记录 */
 export async function deleteVisit(id: string): Promise<void> {
   await request<{ ok: true }>(`/api/visits/${encodeURIComponent(id)}`, { method: 'DELETE' })
-}
-
-/** 保存时间 → 本地可读文本 */
-export function formatAt(at: number): string {
-  const d = new Date(at)
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
 }

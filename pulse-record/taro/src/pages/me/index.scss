@@ -1,0 +1,59 @@
+/* 「我的」页私有样式 —— 原生版 miniprogram/pages/me/me.wxss 原样搬过来，
+   类名保持一致；全局设计令牌见 app.scss，这里不重复定义。 */
+
+.pr-me-row {
+  display: flex;
+  align-items: baseline;
+  padding: 10rpx 0;
+  border-bottom: 1rpx dashed #e6e2d6;
+}
+
+.pr-me-key {
+  width: 160rpx;
+  flex: none;
+  color: #7c8974;
+  font-size: 25rpx;
+}
+
+.pr-me-val {
+  flex: 1;
+  font-size: 26rpx;
+  word-break: break-all;
+}
+
+.pr-me-path {
+  font-size: 22rpx;
+  color: #a39a8c;
+}
+
+.pr-me-btn {
+  margin-top: 16rpx;
+}
+
+.pr-me-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  margin-top: 16rpx;
+}
+
+.pr-me-actions .pr-btn {
+  margin: 0;
+}
+
+.pr-me-hint {
+  margin-top: 16rpx;
+  word-break: break-all;
+}
+
+.pr-me-disclaimer {
+  margin-top: 32rpx;
+}
+
+.pr-err {
+  color: #b03a2e;
+}
+
+.pr-ok {
+  color: #7c8974;
+}

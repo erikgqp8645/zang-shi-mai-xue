@@ -1,0 +1,30 @@
+/* 就诊工作台 —— tab 2 */
+
+.pr-visit {
+  /* 给底部固定操作条留出空间 */
+  padding-bottom: 160rpx;
+}
+
+.pr-err {
+  color: #b03a2e;
+}
+
+/* 离屏画布：不显示，只用来出图 */
+.pr-off-canvas {
+  position: absolute;
+  left: -9999rpx;
+  top: -9999rpx;
+  width: 1px;
+  height: 1px;
+}
+
+.pr-export-ops {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  margin: 20rpx 0 12rpx;
+}
+
+.pr-btn.is-busy {
+  opacity: 0.6;
+}
