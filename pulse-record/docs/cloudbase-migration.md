@@ -75,9 +75,11 @@ PG 实现可以直接复用同一个写法。
 |---|---|---|
 | `VITE_API_BASE` | 网站前端构建时环境变量 | 网站与 API 不同源时，指定 API 根地址。默认同源，留空即可 |
 | `PULSE_CORS_ORIGINS` | 服务端环境变量 | 逗号分隔的允许来源。**同源部署留空**；迁 CloudBase 后填静态托管域名 |
-| `miniprogram/utils/config.js` 的 `TRANSPORT` | 小程序端 | `'request'` → `wx.request`；`'cloud'` → `wx.cloud.callFunction` |
+| `taro/src/utils/config.ts` 的 `TRANSPORT` | 小程序端 | `'request'` → `wx.request`；`'cloud'` → `wx.cloud.callFunction` |
 
-### 1.7 小程序端的传输层封装 —— `miniprogram/utils/api.js`
+### 1.7 小程序端的传输层封装 —— `taro/src/utils/api.ts`
+
+> Taro 主线（原生回退工程是 `miniprogram/utils/api.js`）。
 
 页面只认一个签名：
 
@@ -85,7 +87,8 @@ PG 实现可以直接复用同一个写法。
 request({ method, path, body }) → Promise<data>
 ```
 
-底下用哪种传输由 `config.js` 的 `TRANSPORT` 决定。**页面代码在两种模式下完全一样**。
+底下用哪种传输由 `config.ts` 的 `TRANSPORT` 决定。**页面代码在两种模式下完全一样**。
+（平台差异全部收在 `taro/src/platform/` 这一层：业务代码里**不许出现 `wx.`**。）
 
 ### 1.8 会话与鉴权不用改
 
@@ -227,13 +230,14 @@ PULSE_CORS_ORIGINS=https://<envId>-<appId>.tcloudbaseapp.com
 
 ### 步骤 6 · 小程序切传输方式
 
-`miniprogram/utils/config.js`：
+`taro/src/utils/config.ts`（原生回退工程是 `miniprogram/utils/config.js`）：
 
 ```js
 const TRANSPORT = 'cloud'   // 从 'request' 改成 'cloud'
 ```
 
-`wx.cloud.callFunction` 的云函数约定（`miniprogram/utils/api.js` 里已经按这个约定写好了）：
+`wx.cloud.callFunction` 的云函数约定（`taro/src/platform/cloud.ts` 里已经按这个约定写好了 ——
+`wx.cloud` **只允许出现在 `taro/src/platform/` 这一层**）：
 
 ```js
 exports.main = async (event) => {

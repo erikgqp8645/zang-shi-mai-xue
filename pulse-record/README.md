@@ -17,13 +17,14 @@ npm run dev:multi  # 开发（多用户模式）：要注册/登录，病例按�
 npm run dev:web    # 只起前端（此时病例记录不可用，页面会明确提示）
 npm run dev:api    # 只起病例记录服务
 npm run build      # 共享包编译 + 类型检查 + 生产构建，产物在 dist/
-npm run build:core # 只编共享包（小程序端用，产物在 miniprogram/utils/core/）
+npm run build:core # 只编共享包（**原生回退工程**用，产物在 miniprogram/utils/core/）
+npm run mp:taro:build  # 编小程序（Taro，产物在 taro/dist/）
 npm run start      # 本地应用：一条命令同时提供页面与 API（读 dist/）
 npm run seed:demo  # 写入 14 位演示患者（-- --reset 可先清空全部再写）
 npm run admin      # 账号维护命令行（list / create / reset / role / wechat …）
 npm run preview    # 预览构建产物（静态，不含病例记录）
 npm run typecheck  # 仅类型检查
-npm test           # 全量回归（共享包冒烟 + 小程序静态检查 + 老库迁移回归 + 越权隔离 + 浏览器回归 + 桌面端）
+npm test           # 全量回归（共享包冒烟 + 小程序三套 + 老库迁移回归 + 越权隔离 + 浏览器回归 + 桌面端）
 ```
 
 `vite.config.ts` 里 `base: './'`，因此 `dist/` 可以直接用 `file://` 打开，便于离线使用与分享；
@@ -103,42 +104,55 @@ npm run desktop:dist    # 出安装包 + 免安装版（release/*.exe）
 
 ## 微信小程序
 
-`miniprogram/` 是原生小程序工程，**功能对齐网站**，两端共用同一个后端、同一套账号、同一份数据。
+`taro/` 是 **Taro 4.3.2 + React 18** 的小程序工程（**功能对齐网站**），
+两端共用同一个后端、同一套账号、同一份数据。
+
+> **2026-11-05 起小程序已从原生迁到 Taro**：界面重排成 4 个 tab
+> （**病例／就诊／用方／我的**），「就诊」是工作台页（吸顶上下文条 ＋ 4 个页内 tab ＋ 底部操作条），
+> 录入支持「宽表」与「一次一屏」两种视图（同一组件两个分支、同一份数据）。
+> 原生工程 `miniprogram/` **原样保留作回退**，功能对齐后退役。
+> 迁移约定见 **[`docs/taro-migration.md`](./docs/taro-migration.md)**。
 
 ```bash
-npm run mp:dev         # ① 编共享包 + 起后端（单机模式，小程序不用登录）+ 打印该怎么填
-npm run mp:dev:multi   # 同上，但多用户模式（要注册/登录，验证账号隔离时用）
+npm run mp:taro:build      # 编小程序（产物在 taro/dist/）
+npm run mp:taro:dev        # 监听模式
+npm run mp:taro:typecheck  # Taro 端类型检查
+npm run mp:taro:harmony    # 编鸿蒙（C-API），需 DevEco 工程，见 docs/taro-migration.md
+npm run mp:icons           # 重生成 tabBar 图标（自写 PNG 编码器，无第三方依赖）
 ```
 
-`mp:dev` 会把「开发者工具该导入哪个目录、服务器地址该填什么（含本机局域网 IP）、真机怎么预览」
-一次打出来。**手写的启动清单见 [docs/miniprogram-dev.md](./docs/miniprogram-dev.md)。**
-
-- 用**微信开发者工具**打开 `pulse-record/miniprogram` 目录，`AppID` 选「测试号」即可本机跑。
-- **服务器地址不用改代码**：开发者工具里「详情 → 本地设置」勾「不校验合法域名」，
-  然后在小程序「我的」页 → 服务器 → 填地址 → 保存 → 「测试连接」应显示「连接正常」。
-  改完存在本地，真机换 IP 也不用重新编译（默认值仍在 `miniprogram/utils/config.js`）。
-- `miniprogram/project.config.json` 的 `appid` 换成真实小程序 AppID 才能预览到手机／提交审核。
+- 用**微信开发者工具**打开 **`pulse-record/taro`** 目录（不是 `miniprogram/`），
+  `AppID` 选「测试号」即可本机跑；`project.config.json` 的 `miniprogramRoot` 指向 `dist/`。
+- **服务器地址不用改代码**：小程序「我的」页 → 服务器 → 填地址 → 保存 → 「测试连接」应显示「连接正常」。
+  改完存在本地，真机换 IP 也不用重新编译。
+- `taro/project.config.json` 的 `appid` 换成真实小程序 AppID 才能预览到手机／提交审核。
   **AppSecret 绝不入小程序包** —— 它只放在服务器的 `/etc/pulse-record.env`。
 - 账号打通：小程序 `wx.login` → 服务端 `code2Session` → 没绑过就引导输入「网站账号＋密码」绑定
   → 绑定后两端看到**同一份病例**。
-- **「录入记录」和病例详情页的「记录表」是同一个组件**（`miniprogram/components/record-sheet/`）——
+- **「录入记录」和病例详情页的「记录表」是同一个组件**（`taro/src/components/record-sheet/`）——
   版式与交互只有一份，两处不可能长得不一样。病例详情页的记录表**可以直接点格改**，
   改完**立即落库**（逐次就诊 `PATCH /api/visits/:id`）；那边没有「保存」按钮，
   整份编辑（加记录／改名／换体例）在标题行右侧的「录入编辑」按钮跳去录入页做。
+- **业务代码里不许出现 `wx.`** —— 一律走 `taro/src/platform/` 适配层（将来加平台只改那一个目录）。
 
 **不用开发者工具也能验证**（数据层是真的跑）：
 
 ```bash
-npm run test:e2e:mp       # 静态检查：WXML 不调函数、事件都有方法、require 路径都存在（50 项）
-npm run test:e2e:mp:api   # 数据层端到端：wx 垫片加载真实 utils/*.js，连真后端跑全链路（46 项）
+npm run test:e2e:mp       # 静态检查：扫 TSX（禁 wx. 直调、禁 WXML/WXSS 残留、组件同源…）（94 项）
+npm run test:e2e:mp:api   # 数据层端到端：垫一个 Taro，连真后端跑全链路（45 项）
+npm run test:e2e:mp:sim   # 纯函数 ＋ 编译产物 ＋ 模拟器截图（39 项）
 ```
 
 `test:e2e:mp:api` 覆盖「改服务器地址立刻生效 → 未登录 401 回登录页 → 注册 → 建患者（脉象/体质/疗法）
 → 读回 → 三种搜索 → 改单次就诊 → 用药记录增删 → 自定义符号增删 → 令牌失效 → 单机模式不用登录」，
 所以页面之外的链路不靠人眼点。
 
-**共享包**（两端同源的关键）：`src/domain/**` 与 `src/export/text.ts` 零 DOM 依赖，整棵子树用
-`tsc` 编成 CommonJS 搬进小程序；`src/export/png.ts` 拆成**纯绘制器**
+原生版的三套回归保留为 `test:e2e:mp:legacy` / `:legacy:api` / `:legacy:sim`，
+回退工程还要用时照旧能跑。
+
+**共享包**（两端同源的关键）：`src/domain/**` 与 `src/export/text.ts` 零 DOM 依赖，
+小程序侧通过 alias（`@domain/*` → `pulse-record/src/domain/*`）**直接引同一份源码**；
+`src/export/png.ts` 拆成**纯绘制器**
 （`table-painter.ts` ＋ `diagram.ts` ＋ `canvas.ts`）与 DOM 驱动两部分，
 小程序用**同一份绘制代码**（canvas 2d），所以**小程序存到相册的图与网站导出的图版式完全一致**。
 
@@ -812,7 +826,19 @@ server/              本地服务（node:sqlite + node:http，无第三方依赖
 ├── symbol-codes.mjs 讲义固定符号常量（知识常量，与存储无关）
 └── index.mjs        HTTP API ＋ 静态页面托管 ＋ 鉴权门 ＋ CORS
 
-miniprogram/         微信小程序端（原生，与网站共用后端与知识库）
+taro/                微信小程序 ＋ 鸿蒙（Taro 4.3.2 ＋ React 18，与网站共用后端与知识库）
+├── config/          Taro 配置（index.ts）＋ 鸿蒙绕行补丁（harmony-workaround.ts）
+├── project.config.json  微信开发者工具打开的是这个（miniprogramRoot=dist/）
+└── src/
+    ├── app.config.ts    6 个页面 ＋ 4 个 tab（病例／就诊／用方／我的）
+    ├── pages/           cases visit formulas me case-detail login
+    ├── components/      record-sheet（记录表，录入与详情共用）/ context-bar / sheet
+    │                    sub-tabs / action-bar / visit-pulse / visit-judge / medication-panel
+    ├── platform/        平台适配层（wx. 只允许出现在这一层）
+    ├── store/           全局上下文（患者 × 就诊，四个 tab 共用）
+    └── utils/           api / auth / storage / config / data
+
+miniprogram/         原生小程序端（**回退工程**，保留到 Taro 版功能对齐为止）
 ├── utils/
 │   ├── api.js        传输层：request({method,path,body})，可换 wx.request / wx.cloud.callFunction
 │   ├── auth.js       wx.login / 绑定 / 注册 / 登出
@@ -827,10 +853,17 @@ scripts/
 ├── admin.mjs        账号维护命令行
 ├── seed-demo.mjs    写入演示患者
 ├── build-core.mjs   共享包构建第二步（补 require 后缀 + 复制图片）
+├── gen-tabbar-icons.mjs  生成 tabBar 图标（自写 PNG 编码器，只用 Node 内置 zlib）
 ├── deploy/          服务器部署脚本（install / deploy / backup / restore / systemd / Caddyfile）
-└── e2e/             回归脚本（core-smoke / mp-lint / auth-isolation / app-regression）
+└── e2e/             回归脚本
+    ├── core-smoke.mjs / migration.mjs / auth-isolation.mjs / app-regression.mjs / desktop-smoke.mjs
+    ├── taro-lint.mjs    Taro 静态检查（94 项）
+    ├── taro-api.mjs     Taro 数据层端到端（45 项）
+    ├── taro-sim.mjs     纯函数 ＋ 产物 ＋ 模拟器截图（39 项）
+    └── mp-lint.mjs / mp-api.mjs / mp-sim.mjs   原生回退工程的三套
 
 docs/
+├── taro-migration.md      Taro 迁移约定（目录 / alias / 写法对照 / 鸿蒙坑位）
 ├── deploy.md              上线手册（备案、服务器、systemd、Caddy、备份、发布）
 ├── cloudbase-migration.md 迁 CloudBase 的规划与坑位清单
 ├── desktop-plan.md        Windows 桌面应用（Electron）的实施方案（尚未实现）

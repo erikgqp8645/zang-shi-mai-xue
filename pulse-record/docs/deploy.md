@@ -239,15 +239,18 @@ cd pulse-record
 npm run build:core      # 编共享包（小程序的知识库与绘制代码）
 ```
 
-然后用**微信开发者工具**打开 `pulse-record/miniprogram` 目录。
+然后用**微信开发者工具**打开 `pulse-record/taro` 目录（Taro 主线；先 `npm run mp:taro:build`，
+产物在 `taro/dist/`，`project.config.json` 的 `miniprogramRoot` 已指向它）。
+原生回退工程则是打开 `pulse-record/miniprogram`。
 
 ### 6.2 配置
 
 | 位置 | 改什么 |
 |---|---|
-| `miniprogram/project.config.json` | `appid` 换成真实的小程序 AppID（个人主体也要先注册） |
-| `miniprogram/utils/config.js` | `API_BASE` 换成 `https://mai.example.com`；`TRANSPORT` 保持 `'request'`（迁 CloudBase 后改 `'cloud'`） |
-| `miniprogram/project.private.config.json` | 本地配置，**已 gitignore**，不要提交 |
+| `taro/project.config.json` | `appid` 换成真实的小程序 AppID（个人主体也要先注册） |
+| `taro/src/utils/config.ts` | `API_BASE` 换成 `https://mai.example.com`；`TRANSPORT` 保持 `'request'`（迁 CloudBase 后改 `'cloud'`） |
+| `taro/project.private.config.json` | 本地配置，**已 gitignore**，不要提交 |
+| `miniprogram/utils/config.js`（原生回退工程） | 同上，对应位置 |
 
 > `AppSecret` **绝不入小程序包** —— 它只放在服务器的 `/etc/pulse-record.env`。
 > 小程序只发 `wx.login` 拿到的 `code`，由服务端换 openid。

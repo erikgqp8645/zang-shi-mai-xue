@@ -1,9 +1,9 @@
 # 项目进度 —— 臧氏脉学 · 脉象记录表生成器
 
-> **更新于** 2026-11-04 ｜ **仓库** `erikgqp8645/zang-shi-mai-xue` ｜ **当前分支** `feat/wechat-miniprogram`（基点 `8bc151f`，即 `chore/desktop-electron`）
+> **更新于** 2026-11-05 ｜ **仓库** `erikgqp8645/zang-shi-mai-xue` ｜ **当前分支** `feat/wechat-miniprogram`（基点 `c1814f3`）
 >
 > 本文是**进度台账**：记每条工作线做到哪了、卡在哪、下一手做什么。
-> 桌面应用的**实施方案**另见 [`desktop-plan.md`](./desktop-plan.md)；上线手册见 [`deploy.md`](./deploy.md)；迁 CloudBase 见 [`cloudbase-migration.md`](./cloudbase-migration.md)。
+> 桌面应用的**实施方案**另见 [`desktop-plan.md`](./desktop-plan.md)；上线手册见 [`deploy.md`](./deploy.md)；迁 CloudBase 见 [`cloudbase-migration.md`](./cloudbase-migration.md)；小程序 Taro 迁移约定见 [`taro-migration.md`](./taro-migration.md)。
 
 ---
 
@@ -13,7 +13,7 @@
 |---|---|---|---|
 | **P0 多用户与数据隔离** | ✅ 已完成 | `users`＋`identities`＋`sessions` 三表；四张业务表下沉 `owner_id`；跨用户一律 404 | 等 PR #6 合并 |
 | **P1 网站上线** | ⏸ **卡在用户侧手续** | 脚本与文档已就绪，**域名／ICP 备案／服务器三样都没有** | 备案 7~20 工作日是整条时间线最长的一段 → **今天就去提交备案** |
-| **P2 微信小程序** | 🟡 代码完成；**模拟器冒烟已跑通**，未真机验证 | 个人主体（不能用 `web-view`、不能用 `getPhoneNumber`）→ 必须原生开发；8 个页面已写完；`mp:dev` 一条命令起来；数据层端到端 43 项通过；模拟器 8 页冒烟 16 项通过；**体例只有一个真源**（记录表与录入记录永远同行数） | 后台声明「相册（仅写入）」→ 真机跑一遍 |
+| **P2 微信小程序** | 🟡 **已迁 Taro ＋ 界面重排完成**；模拟器逐页截图已验，未真机验证 | 8 个平级页面 → **4 个 tab（病例／就诊／用方／我的）**，「就诊」是工作台页（吸顶上下文条 ＋ 4 个页内 tab ＋ 底部操作条）；Taro 4.3.2 ＋ React 18，与网站**共用同一份 domain 源码**；鸿蒙 C-API 编译已通；回归 **321 项全绿** | 后台声明「相册（仅写入）」→ 真机跑一遍 |
 | **P3 后期迁 CloudBase** | ⏸ 规划完成，待触发 | 存储已收敛成 `server/store.mjs` 一层；db/auth 全 async | 真正迁的时候只改一处 |
 | **P4 Windows 桌面应用** | ✅ **已实现**，本机出包并实测 | Electron 44.10.2；复用现有 `server/`＋`dist/`，业务逻辑不重写 | 交给使用者安装使用；macOS 包另找 Mac 机器补 |
 
@@ -245,6 +245,75 @@ canvas 版没有表下「体质／（未判）」「（未定）」两行、不�
 所以规矩是：**能合成一个来源的，绝不留在两处**；跨进程的形状，一律在边界上规整，不指望对端守规矩。
 
 
+### 3.6 小程序迁 Taro ＋ 界面重排（2026-11-05）
+
+**触发**：使用者反馈「界面零散，手机用户需要多次返回，查看才能进行操作」—— 根因是**每个域一套页面**（8 个平级页面，来回跳）。
+决定重排信息架构，并把框架从原生小程序换成 **Taro 4.3.2 ＋ React 18**（近期要上鸿蒙，多端必须同源）。
+
+#### 界面重排：8 个平级页面 → 4 个 tab
+
+| tab | 是什么 | 取代了原来的 |
+|---|---|---|
+| **病例** | 患者列表 ＋ 新建 ＋ 搜索 | `cases` ＋ `findings` 的入口 |
+| **就诊** | **工作台页**：吸顶上下文条（患者 × 就诊）＋ 4 个页内 tab（脉象／判读／用药／出图）＋ 底部固定操作条 | `record` ＋ `triad` ＋ `medication` ＋ 出图 |
+| **用方** | 知识库（分组 chips：讲稿原序／按五行／按左右手） | `findings` |
+| **我的** | 账号／微信绑定／服务器／改密码 | `me` |
+
+- 「就诊」不再是「先进病例、再进就诊、再进录入」的三级下钻 —— **上下文条一直挂在顶上**，随手切患者／切就诊。
+- 录入支持 **宽表** ＋「**一次一屏**」竖排两种视图：**同一组件两个渲染分支、同一份 `values`**；视图偏好存本地（`pulse.recordView`，不落库），
+  **只有体例 `layout` 落库**。表格体例本身**一个字没改**（讲义 p34 的宽表仍是「记录表」本体）。
+
+#### 工程：Taro
+
+| 项 | 值 |
+|---|---|
+| 工程 | `pulse-record/taro/`（**原生 `miniprogram/` 原样保留作回退**） |
+| 版本 | Taro 4.3.2 ＋ React 18.3.1 ＋ Vite 4.5.5 ＋ TS 5.7.3 |
+| 共享包 | alias `@domain/*` → `src/domain/*`（**零复制，直接引同一份源码**）；`@export/*` 只准引 4 个绘制器 |
+| 平台适配层 | `taro/src/platform/` —— **业务代码里不许出现 `wx.`**（`taro-lint` 有断言） |
+| 包体 | **0.99 MB**（微信上限 2 MB）—— 分包**不启用**（tabBar 页必须在主包，分包省包体这条路不成立） |
+| tabBar 图标 | `scripts/gen-tabbar-icons.mjs` 自写 PNG 编码器生成 8 张 81×81（配色 `#7c8974`／`#2c2925`） |
+
+#### 鸿蒙（C-API）—— 本轮最大的技术突破
+
+`npm run mp:taro:harmony` **编译成功**，产出 `harmony/entry/src/main/ets/`：`app.ets` / `render.ets` / `taro_tabbar.ets` / 各页 `index_taro_comp.js`。
+
+| 坑 | 怎么绕过去的 |
+|---|---|
+| `Error: 不存在编译平台 harmony_cpp` | CLI 4.3.2 内置平台清单**没有** `harmony_cpp` → 须在 `config/index.ts` 的 `plugins` 里挂 `@tarojs/plugin-platform-harmony-cpp` |
+| `Cannot find module '@babel/preset-typescript'` | 该插件**漏声明依赖** → 补 `npm i -D @babel/preset-typescript` |
+| `SyntaxError: src/app.tsx: Unexpected token, expected "from"` | 上游 `@tarojs/vite-runner` 的 `dist/harmony/babel.js` 里有个 `enforce:'pre'`、插件名为空串的 babel 插件，`transformSync` **没给 preset** → 写 `taro/config/harmony-workaround.ts` 摊平 vite 插件数组，给它的 `transform` 套一层「`.ts`/`.tsx` 原样放行」 |
+| 绕行补丁注册四坑 | ① 钩子不能写成插件对象的方法 ② 不能写在 `config/index.ts` 的配置字段里（CLI 会覆盖）③ 默认导出必须是**工厂函数** ④ `config.plugins` 只收**字符串** |
+
+> 绕行补丁**收敛在 `taro/config/harmony-workaround.ts` 一个文件里**，用上游同款 `ctx.modifyViteConfig?.(cb)` 注册方式，只在 `TARO_ENV=harmony_cpp` 时注册；上游修好后删该文件即可。
+
+#### 回归改写
+
+| 套 | 脚本 | 结果 |
+|---|---|---|
+| 静态 | `scripts/e2e/taro-lint.mjs` | **94/94**（扫 TSX：禁 `wx.` 直调／禁 WXML-WXSS 残留／组件同源／术语用字／知识库入口收得住） |
+| 数据层 | `scripts/e2e/taro-api.mjs` | **45/45**（垫一个 Taro，连真后端跑全链路） |
+| 真机渲染 | `scripts/e2e/taro-sim.mjs` | 39 项 / 38 通过（纯函数 25 ＋ 产物段全绿；截图段需 `MP_SIM_WS` 指向 `cli auto` 实际打印的端口） |
+
+- **断言本身要先「故意写坏」验证能抓到** —— 本轮四连验全部按预期抓到：① 业务代码真直调 `wx.` ② URL 后同一行藏 `wx.` ③ `cleanValues` 改名 ④ 非白名单组件引知识库。
+- 根 `package.json` 的 `test:e2e:mp` / `:api` / `:sim` **切到 Taro 三套**；原生三套保留为 `test:e2e:mp:legacy` / `:legacy:api` / `:legacy:sim`。
+- **全量回归 278 → 321 全绿**（core 26 ＋ taro-lint 94 ＋ taro-api 45 ＋ migration 53 ＋ auth 52 ＋ app 18 ＋ 桌面端 33）。
+
+#### 模拟器真实渲染验证（端口 9421）
+
+四个 tab **逐页截图通过**：病例页（真实患者数据 ＋ 4 个自绘图标）／就诊工作台（吸顶条 ＋ 4 个页内 tab ＋ 底部操作条）／用方页（分组 chips）／我的页（账号・微信绑定・服务器・改密码全渲染）／登录页（服务端没配 AppID → 自动降级到账号密码步并给提示文案）／病例详情页（记录表 72 格 ＋ 录入编辑 ＋ 出图按钮）。
+**记录表渲染逐项核对**：橙色部位列 `#FFC000`、浅绿表底 `#CCE8CF`、宽表横滚、符号 `++ ↑ X | 0 −` 齐全。
+
+#### 还差的
+
+| 项 | 说明 |
+|---|---|
+| **鸿蒙出 HAP** | 本机**没装 DevEco Studio / ohpm** → 在 DevEco 里 Sync Now 即可（`build-profile.json5` 也要在 DevEco 工程里备好，用 `TARO_HARMONY_PROJECT` 指过去） |
+| 鸿蒙侧能力验证 | `saveImageToPhotosAlbum`／`previewImage`／一键登录的替代能力待验；Canvas 2D 能否拿到节点待验（降级路径：页内显示 ＋ 自行截图，**不得让就诊流程不可用**） |
+| 鸿蒙上游隐患 | `@tarojs/plugin-framework-react` 判平台用 `TARO_ENV === 'harmony'`，我们用 `'harmony_cpp'` → 会落到 mini 分支（当前靠绕行补丁兜住） |
+| 真机验证 | 同 3.1 —— 需扫新二维码，见 §7 |
+
+
 ---
 
 ## 4. P3 · 后期迁 CloudBase（规划完成，待触发）
@@ -358,14 +427,16 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 
 ---
 
-## 6. 当前仓库状态（2026-11-04 实测）
+## 6. 当前仓库状态（2026-11-05 实测）
 
 | 项 | 值 |
 |---|---|
-| 当前分支 | `chore/desktop-electron`（基点 `b9e3b19`） |
-| 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`chore/desktop-electron` = 桌面版实施中 |
-| PR | #6 `chore/multi-user → main`，**OPEN**；#7 `chore/desktop-electron → chore/multi-user`，**OPEN**（避免依赖倒置） |
-| 全量回归 | **174/174 ＋ 桌面端 33/33 通过**（合计 207 项） |
+| 当前分支 | `feat/wechat-miniprogram`（基点 `c1814f3`） |
+| 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`feat/wechat-miniprogram` = 小程序 Taro 迁移实施中 |
+| PR | #6 `chore/multi-user → main`，**OPEN**；#7 `chore/desktop-electron → chore/multi-user`，**OPEN**（避免依赖倒置）；`feat/wechat-miniprogram` **暂不开 PR**（上线时统一收口） |
+| 全量回归 | **321/321 全绿**（core 26 ＋ taro-lint 94 ＋ taro-api 45 ＋ migration 53 ＋ auth 52 ＋ app 18 ＋ 桌面端 33） |
+| 小程序工程 | `pulse-record/taro/`（Taro 4.3.2 ＋ React 18）；**原生 `miniprogram/` 原样保留作回退** |
+| 小程序包体 | **0.99 MB**（微信上限 2 MB） |
 | 本机库 | `pulse-record/local-data/history.sqlite`（已迁移到多用户结构：15 患者／57 就诊／1 自定义符号，归属归到 `local`；迁移前快照 `history.sqlite.bak-20261104102030`） |
 | 桌面版产物 | `pulse-record/release/`（安装包 ＋ 免安装版，已 gitignore） |
 | 桌面版数据 | 安装版 `%APPDATA%\臧氏脉学\`；**免安装版 exe 旁边的 `data\`** |

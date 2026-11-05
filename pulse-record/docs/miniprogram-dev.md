@@ -1,5 +1,10 @@
 # 小程序本机联调手册
 
+> ⚠️ **2026-11-05 起，小程序主线已迁到 Taro**（工程在 `pulse-record/taro/`，React 18，4 个 tab：病例／就诊／用方／我的）。
+> **本页描述的是原生回退工程**（`pulse-record/miniprogram/`，8 个页面）—— 原样保留作回退，等功能对齐后退役。
+> **现在要跑小程序，请看 [`taro-migration.md`](./taro-migration.md)**（Taro 约定、构建、回归、鸿蒙）。
+> 本页的「三条路线／凭据放哪／卡点表／上线手续」仍然通用 —— 那部分与框架无关。
+
 > 小程序端代码在 `pulse-record/miniprogram/`（原生小程序，8 个页面，与网站共用同一个后端与同一份知识库）。
 > 本页只解决一件事：**在自己的电脑上把它跑起来，并且知道每一步卡在哪该看什么。**
 >
@@ -33,6 +38,7 @@ npm run mp:dev -- --port 6000
 它会：
 
 1. **共享包没编译就自动编译**（`build:core`，把 `src/domain/**` 与绘制代码编成小程序能 require 的 CommonJS，产物在 `miniprogram/utils/core/`，不入版本库）；
+   > Taro 主线**不需要这一步** —— 共享包用 alias `@domain/*` 直接引源码（`npm run mp:taro:build` 即可）。
 2. **起后端**（默认单机模式：所有请求都算内置单机账号，不要求登录）；
 3. **把该填的东西打出来**：后端地址、数据库位置、开发者工具要导入的目录、局域网 IP、真机的注意事项。
 
@@ -60,7 +66,7 @@ npm run mp:dev -- --port 6000
 
 ## 3. 服务器地址在「我的」页改，不用改代码
 
-`miniprogram/utils/config.js` 里的 `API_BASE` 只是**默认值**；实际地址每次请求都从
+`miniprogram/utils/config.js`（Taro 主线是 `taro/src/utils/config.ts`）里的 `API_BASE` 只是**默认值**；实际地址每次请求都从
 `config.resolveApiBase()` 现取 —— 本地存储 `pulse.apiBase` 有值就用它，没有才用默认值。
 
 「我的 → 服务器」卡片提供三件事：
@@ -69,7 +75,7 @@ npm run mp:dev -- --port 6000
 |---|---|
 | 保存 | 校验（必须 `http://` / `https://` 开头）→ 存本地 → 立刻探一次 `/api/health` 并显示模式 |
 | 测试连接 | 对**输入框里的地址**探一次（还没保存也能测），连不上会给出针对性的排查提示 |
-| 恢复默认 | 删掉本地覆盖，回到 `config.js` 的默认地址 |
+| 恢复默认 | 删掉本地覆盖，回到 `config.js`／`config.ts` 的默认地址 |
 
 为什么要这样：真机预览时地址得换成局域网 IP，改代码就得重新编译、重新上传；
 改成运行时可改，**换电脑、换 Wi-Fi、换端口都不用动代码**。
@@ -82,7 +88,7 @@ npm run mp:dev -- --port 6000
 
 | 东西 | 放哪 | 进版本库？ |
 |---|---|---|
-| **AppID** `wx3a21eb903a16cbc4` | `miniprogram/project.config.json` 的 `appid` | ✅ 可以（AppID 是公开标识，写在包里也无所谓） |
+| **AppID** `wx3a21eb903a16cbc4` | `taro/project.config.json` 的 `appid`（原生回退工程是 `miniprogram/project.config.json`） | ✅ 可以（AppID 是公开标识，写在包里也无所谓） |
 | **AppSecret** | `pulse-record/.secrets/server.env` 的 `WX_APPSECRET` | ❌ **绝不** |
 | **代码上传私钥** `private.wx3a21eb903a16cbc4.key` | `pulse-record/.secrets/`（权限 600） | ❌ **绝不** |
 
@@ -142,7 +148,8 @@ npm run test:e2e:mp:sim   # 模拟器冒烟（12 项）—— 需要先开开发
 
 ```bash
 # 1) 开发者工具开工程并打开自动化端口（另开一个终端，跑着别关）
-cli auto --project "$PWD/miniprogram" --auto-port 9420 --trust-project --port 63190
+#    Taro 主线导入 "$PWD/taro"（先 npm run mp:taro:build）；原生回退工程导入 "$PWD/miniprogram"
+cli auto --project "$PWD/taro" --auto-port 9421 --trust-project --port 63190
 
 # 2) 后端 + 一个带演示数据的账号
 npm run mp:dev -- --multi
@@ -150,10 +157,13 @@ npm run admin -- create mptest01 mpTest2026 测试
 PULSE_LOGIN=mptest01 PULSE_PASSWORD=mpTest2026 npm run seed:demo
 
 # 3) 跑冒烟
-npm run test:e2e:mp:sim
+npm run test:e2e:mp:sim        # Taro 主线（原生回退工程用 npm run test:e2e:mp:legacy:sim）
 ```
 
-`test:e2e:mp:sim` 走完 8 个页面，逐页截图（存到 `$TMPDIR/mp-sim/`），断言：
+> 自动化端口**不一定是开发者工具窗口里显示的那个** —— `cli auto` 会自己挑端口，看它打印的
+> `{"autoPort": 9421, "requestedAutoPort": 9420}`，把 `MP_SIM_WS=ws://127.0.0.1:9421` 传给脚本。
+
+`test:e2e:mp:sim` 走完各个页面，逐页截图（存到 `$TMPDIR/mp-taro-shot/`），断言：
 页面能打开、**页面画布只有表格**、**导出图出得来**、**寸关尺图示图出得来**、console 没有报错。
 
 退出码：`0` 全过；`1` 有失败项；`2` 环境没就绪（开发者工具没开自动化端口，不是测试失败）。
@@ -209,6 +219,7 @@ npm run admin -- layout <登录名> <患者id或姓名> nine|seven   # 改，并
 
 「录入记录」和病例详情页的「记录表」现在都渲染 `miniprogram/components/record-sheet/` ——
 **版式与交互只有一份**，两处不可能长得不一样。
+（Taro 主线同构：组件在 `taro/src/components/record-sheet/`，录入与详情共用同一份 `values`。）
 
 | 页面 | 表格 | 能改吗 | 改完怎么存 |
 |---|---|---|---|
