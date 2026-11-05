@@ -365,7 +365,120 @@ canvas 版没有表下「体质／（未判）」「（未定）」两行、不�
 | 备案域名 | 等 ICP 备案；域名定下来后 `PULSE_API_BASE=https://…` 重新构建 + 后台配 request 合法域名 |
 
 
----
+### 3.8 小程序出图底图不进包（2026-11-05）
+
+**症状**：真机上点「看寸关尺图示」提示**「底图没载入」** —— `taro/src/platform/canvas.ts`
+的 `renderDiagramImage` 抛出来的（底图取不到就整张图出不来）。
+
+**根因不是「忘了拷」，是 copy 的写法踩了两条规则**（两条都**不报错**，只是图安安静静地没进包）：
+
+| # | 规则 | 踩了会怎样 |
+|---|---|---|
+| 1 | `from` 必须用**正斜杠** | copy 插件底层是 fast-glob，而 fast-glob 里 `\` 是转义符 → Windows 上 `path.resolve()` 给的反斜杠绝对路径**一律匹配 0 个，且不报错**（静默跳过） |
+| 2 | `to` 必须**带扩展名** | Taro 的 `convertCopyOptions`：`to` 带扩展名 → `to` 取目录部分、`rename` 取文件名；`to` 不带扩展名（写成 `assets/`）→ `rename` 被塞成 `'/'`，而复制器把字符串型 `rename` **直接当目标文件名** → 所有图撞到同一路径 → 只剩最后一张 |
+
+**顺带排掉两条死路**：
+
+- `import img from '../assets/x.png'` → Taro 4 的 `vite-plugin-assets` 报
+  「fileName 必须是既非绝对路径也非相对路径的字符串」→ **这两张图不能走 import**；
+- 「copy 插件不拷工程目录外的文件」→ **当时的判断是错的**。真因是反斜杠：
+  实测正斜杠的**工程外**绝对路径照样拷得到（真源 `pulse-record/src/assets/` 直接指过去即可）。
+
+**改法**：
+
+- `taro/config/index.ts`：删掉 `syncSharedAssets()`，改成**一图一 pattern** ——
+  `from` = `pulse-record/src/assets/<名>.png`（正斜杠），`to` = `assets/<名>.png`；
+- `taro/src/platform/canvas.ts`：底图路径改回 `/assets/hands-pulse.png`
+  （与原生版 `miniprogram/pages/case-detail/case-detail.js` 的写法**完全一致**）。
+
+**实测**：构建日志出现 `[vite-plugin-static-copy] Copied 2 items.`；
+`dist/assets/hands-pulse.png`（305 137 B）与 `triad-p47.png`（93 828 B）都在，
+**SHA256 与真源逐字节一致**；包体 0.99 → **1.02 MB**（上限 2 MB）。
+
+#### 锁进回归（`taro-lint` 第 22 节，100 → 111）
+
+不靠正则猜配置长什么样，而是**用 esbuild 把 `taro/config/index.ts` 真跑一遍**：
+打成 **CJS**（配置用了 `__dirname`，ESM 里没这个变量）＋ 桩掉 `@tarojs/cli`，
+调一次工厂拿合并后的 `copy.patterns`，然后逐条验规则：
+
+| 断言 | 拦什么 |
+|---|---|
+| copy 的 `from` 全用正斜杠 | fast-glob 的反斜杠陷阱（静默匹配 0 个） |
+| copy 的 `to` 都带扩展名 | `rename` 被塞成 `'/'` → 图互相覆盖 |
+| copy 的 `from` 都指向真实存在的文件 | 图被删／改名了，配置还指着老路 |
+| `canvas.ts` 的底图路径与 copy 规则能对上 | 代码里写的包内路径与实际产物对不上 |
+| 产物与真源逐字节一致（编过才有） | 图被改坏／拷错文件 |
+
+**三连写坏验过**（每条**隔离**验的，不是叠着验）：
+
+| 故意写坏 | 变红的断言 |
+|---|---|
+| `from` 改回 `path.resolve()` 原样 | copy 的 from 全用正斜杠 |
+| `to` 写成 `assets/` | copy 的 to 都带扩展名（＋ 底图路径对不上） |
+| `canvas.ts` 底图路径改成不存在的图 | canvas.ts 的底图路径与 copy 规则能得上 |
+
+#### 顺手修掉的
+
+- `scripts/e2e/taro-sim.mjs` 的截图段：截图目录**没建** → automator 写文件直接 ENOENT
+  （补 `mkdirSync(OUT, { recursive: true })`）；
+- 自动化端口**每次用完都会掉**：`mp.disconnect()` 之后开发者工具把 9421 收了 →
+  跑模拟器回归前必须先 `cli auto --auto-port 9421` 重新拉起。
+
+### 3.9 一次「整屏白」事故：产物里残留 `process.env.`（2026-11-05）
+
+**怎么发现的**：修完 3.8 的底图问题后跑模拟器，4 张 tab 截图**全是纯白一张**。
+
+**真正的根因不是底图，是我自己把 `config/index.ts` 的 `defineConstants` 整块删掉了** ——
+改配置时用脚本按行定位替换，脚本只认**独占一行**的 `/**`，
+而 copy 那段注释是**单行 JSDoc**（`/** 图片资源：…`）→ 往上找注释块时越过了
+`defineConstants` 的注释 → 连着那一整块被替换掉。
+
+**后果链**：
+
+```
+defineConstants 没了
+  → 产物里留下 process.env.PULSE_API_BASE
+  → 小程序运行时没有 process 这个全局量（浏览器有，是打包器 polyfill 的）
+  → 启动就抛「ReferenceError: process is not defined」
+  → 页面全白
+```
+
+**为什么这么难查**（每一条都单独骗了我一次）：
+
+| 现象 | 容易误判成 |
+|---|---|
+| 构建**不报错** | —— |
+| 静态回归**全绿**（查的是文件在不在，不是运行时） | 以为小程序没问题 |
+| 模拟器截图**纯白** | 「截图功能坏了」 |
+| `page.$$()` **一直挂着**（40s 超时也不回） | 「自动化端口的问题」 |
+| `pageStack()` / `currentPage()` / `switchTab` / `screenshot` **全都正常** | 「页面是好的，只是元素查不到」 |
+
+最后是靠 automator 的 **`console` / `exception` 事件**才看到那句
+`process is not defined`（栈顶在 `common.js:2:1319`）。
+
+#### 补上的三道防线
+
+1. **静态（第 23 节）**：产物里不许残留**无守卫**的 `process.xxx`
+   （`typeof process==="object"&&typeof process.emit==="function"` 这种带 `typeof` 守卫的是安全的，第三方库里就有，不能误报）；
+   另加一条：配置里必须有 `defineConstants`。
+   —— **写坏验过**：故意删掉 `defineConstants` → 重新构建 → 两条断言都红；恢复 → 全绿。
+2. **端到端（白屏判定）**：新增 `scripts/e2e/lib-png.mjs`，**解 PNG** 统计颜色种类与非白像素占比
+   （不靠文件体积猜）→ `taro-sim` 与 `privacy-sim` 的每张截图都断言「不是白屏」。
+   —— 标定过：白屏 = 1 种颜色 / 0% 非白；正常页 = 117~169 种颜色 / 11%~23% 非白。
+3. **运行时可见**：automator 的 `console` / `exception` 事件要挂上（诊断脚本里已用）。
+
+#### 顺带的坑
+
+- **自动化端口每次用完都会掉**：`mp.disconnect()` 之后开发者工具把 9421 收了 →
+  跑模拟器回归前必须先 `cli auto --auto-port 9421` 重新拉起。
+- **automator 的元素查询在这套 Taro 产物上不通**：`$$` / `$` / `data()` 给 40 秒超时也是挂死，
+  而导航与截图正常 → 所以隐私政策页的**文案正确性**交给静态回归（`taro-lint` 第 21 节），
+  模拟器只管「能打开、能渲染、不是白屏」。
+- **截图目录要先建**：`mkdirSync(OUT, { recursive: true })`，否则 automator 写文件直接 ENOENT。
+- **`switchTab` / `navigateTo` 的路径要带前导斜杠**（`/pages/me/index`），不带会抛
+  「Uncaught [object Object]」。
+- **PowerShell 的 `| Select-Object -Last N` 会全缓冲**：脚本跑到一半看不到任何输出，
+  看上去像卡死。诊断脚本改写成**每步带超时 ＋ 进度写日志文件**。
 
 ## 4. P3 · 后期迁 CloudBase（规划完成，待触发）
 
@@ -485,9 +598,10 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 当前分支 | `feat/wechat-miniprogram`（基点 `c1814f3`） |
 | 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`feat/wechat-miniprogram` = 小程序 Taro 迁移实施中 |
 | PR | #6 `chore/multi-user → main`，**OPEN**；#7 `chore/desktop-electron → chore/multi-user`，**OPEN**（避免依赖倒置）；`feat/wechat-miniprogram` **暂不开 PR**（上线时统一收口） |
-| 全量回归 | **327/327 全绿**（core 26 ＋ taro-lint 100 ＋ taro-api 45 ＋ migration 53 ＋ auth 52 ＋ app 18 ＋ 桌面端 33） |
+| 全量回归 | **340/340 全绿**（core 26 ＋ taro-lint 113 ＋ taro-api 45 ＋ migration 53 ＋ auth 52 ＋ app 18 ＋ 桌面端 33） |
 | 小程序工程 | `pulse-record/taro/`（Taro 4.3.2 ＋ React 18）；**原生 `miniprogram/` 原样保留作回退** |
-| 小程序包体 | **0.99 MB**（微信上限 2 MB） |
+| 小程序包体 | **1.02 MB**（微信上限 2 MB；含寸关尺底图 305 KB ＋ 三部曲图 94 KB） |
+| 模拟器回归 | `npm run test:e2e:mp:sim`（4 个 tab 逐页截图 ＋ **白屏判定**）与 `npm run test:e2e:mp:privacy`（隐私政策页）；**都要先 `cli auto --auto-port 9421` 拉起自动化端口**（用完会掉） |
 | 上线前清单 | `pulse-record/docs/miniprogram-release-checklist.md`（隐私指引勾选项＋可复制文案、服务器域名、类目截图、审核退路对照表） |
 | 本机库 | `pulse-record/local-data/history.sqlite`（已迁移到多用户结构：15 患者／57 就诊／1 自定义符号，归属归到 `local`；迁移前快照 `history.sqlite.bak-20261104102030`） |
 | 桌面版产物 | `pulse-record/release/`（安装包 ＋ 免安装版，已 gitignore） |
