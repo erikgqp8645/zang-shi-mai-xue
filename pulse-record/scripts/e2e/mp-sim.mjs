@@ -171,11 +171,37 @@ try {
       const p = await current()
       ok(`${path} 能打开且有数据`, !!p && p.path === path.replace(/^\//, ''), p ? p.path : '（无页面）')
       if (path.includes('case-detail') && p) {
-        // 出图链路：画布要有尺寸、临时文件要出得来（画不出来时这两个都是空）
         const d = await p.data()
         ok('病例详情：出图画布有尺寸', Number(d.canvasW) > 0 && Number(d.canvasH) > 0, `canvasW=${d.canvasW} canvasH=${d.canvasH}`)
-        ok('病例详情：已生成可导出的临时图', !!d.tempFilePath, String(d.tempFilePath || '（空）'))
+        // 页面画布**只画表格**：高度＝表高（42×2 表头 ＋ 行数×40 正文），
+        // 不含寸关尺图示 —— 图示默认不显示，要看单独开窗体。
+        // 常量与 src/export/table-painter.ts 一致（HEAD_H 42 / ROW_H 40）。
+        const rows = d.layout === 'seven' ? 7 : 9
+        const expectH = 42 * 2 + rows * 40
+        ok(
+          '病例详情：页面画布只有表格（默认不显示寸关尺图示）',
+          Math.round(d.canvasH) === expectH,
+          `canvasH=${d.canvasH}，期望 ${expectH}（纯表高）`,
+        )
         ok('病例详情：没有报错', !d.error, String(d.error || ''))
+
+        for (const [name, method] of [
+          ['导出图（表格＋图示）', 'renderExportImage'],
+          ['寸关尺图示（单独一张）', 'renderDiagramImage'],
+        ]) {
+          // automator 的 callMethod 在当前开发者工具版本里整体不可用
+          // （连一直存在的 buildSet 都报「is not a function」），改用 evaluate 驱动页面实例。
+          const r = await mp.evaluate(async (m) => {
+            const pg = getCurrentPages().pop()
+            try {
+              const out = await pg[m]()
+              return { ok: true, out: String(out || '') }
+            } catch (e) {
+              return { ok: false, err: String((e && e.message) || e) }
+            }
+          }, method)
+          ok(`病例详情：${name}出得来`, !!r.ok && r.out.length > 0, r.ok ? r.out : r.err)
+        }
       }
       await mp.navigateBack()
       await sleep(600)

@@ -25,6 +25,7 @@
       ></canvas>
     </scroll-view>
     <view class="pr-case-ops">
+      <text class="pr-link" bindtap="showDiagram">寸关尺图示</text>
       <text class="pr-link" bindtap="saveImage">存到相册</text>
       <text class="pr-link" bindtap="share">转发</text>
       <text class="pr-link" bindtap="copyMarkdown">复制 Markdown</text>
@@ -61,4 +62,12 @@
       <view class="pr-visit-summary" wx:if="{{item.note}}">备注：{{item.note}}</view>
     </view>
   </view>
+
+  <!-- 离屏画布：不显示，只用来出图（存相册／转发／寸关尺图示预览） -->
+  <canvas
+    type="2d"
+    id="pulse-off-canvas"
+    class="pr-off-canvas"
+    style="width:{{canvasW}}px;height:{{canvasH}}px"
+  ></canvas>
 </view>

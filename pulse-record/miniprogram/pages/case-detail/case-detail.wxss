@@ -10,6 +10,15 @@
   display: block;
 }
 
+/* 离屏画布：挪到屏幕外，只用来出图。
+   不能用 display:none —— 那样拿不到 canvas 节点（fields({node:true}) 会空）。 */
+.pr-off-canvas {
+  position: fixed;
+  left: -3000px;
+  top: 0;
+  display: block;
+}
+
 .pr-case-row {
   display: flex;
   align-items: baseline;

@@ -12,8 +12,12 @@
 const data = require('../../utils/data.js')
 const { planTable, withDiagram, paintTable } = require('../../utils/core/export/table-painter.js')
 const { planDiagram, drawDiagram } = require('../../utils/core/export/diagram.js')
+const { IMG_W, IMG_H } = require('../../utils/core/domain/diagram.js')
 const { toMarkdown, toCsv } = require('../../utils/core/export/text.js')
 const { formatCodes } = require('../../utils/core/domain/symbols.js')
+
+/** 导出用像素倍率 —— 与网站 src/export/png.ts 相同（2），两端导出的 PNG 尺寸一致 */
+const EXPORT_DPR = 2
 
 /** 时间戳 → 本地可读文本 */
 function formatAt(at) {
@@ -95,17 +99,21 @@ Page({
   },
 
   /**
-   * 画到 canvas 上。
+   * 画到**页面上的** canvas —— 只画表格，不带寸关尺图示。
    *
-   * 尺寸一律由共享包算（planTable / withDiagram），不另写一套 ——
-   * 两端出来的图才能一模一样。
+   * 为什么页面不画图示：底图只有 1070×876，塞进表格宽的画布里会被放大
+   * （手机 dpr＝3 时放大 1.8 倍），又宽过手机屏，看着是一张糊掉的大手。
+   * 所以页面默认不显示它；要看的时候点「寸关尺图示」，单独一个窗体打开
+   * （系统图片预览，可双指缩放）。
+   *
+   * 导出到相册／转发的图**仍然带图示** —— 与网站导出同一份绘制代码、同一 dpr。
    */
   renderCanvas() {
     const set = this.buildSet()
     if (!set.sessions.length) return
 
-    let layout = planTable(set, this.data.customSymbols)
-    const session = set.sessions[0]
+    // planTable 不带图示：canvasW＝表宽，height＝表高＋自定义符号图例高
+    const layout = planTable(set, this.data.customSymbols)
 
     const query = wx.createSelectorQuery()
     query
@@ -121,64 +129,157 @@ Page({
         const ctx = canvas.getContext('2d')
         this.canvasNode = canvas
 
-        // 先按表格本体的尺寸建一次画布，再按最终尺寸（含图示）重建 —— 与网站同一顺序
         const dpr = (wx.getDeviceInfo && wx.getDeviceInfo().pixelRatio) || 2
-
-        const paint = (plan, diagramPlan) => {
-          canvas.width = plan.canvasW * dpr
-          canvas.height = plan.height * dpr
-          ctx.scale(dpr, dpr)
-          ctx.clearRect(0, 0, plan.canvasW, plan.height)
-          paintTable(ctx, set, this.data.customSymbols, plan)
-          if (diagramPlan) drawDiagram(ctx, diagramPlan, set, session)
-          this.setData({ canvasW: plan.canvasW, canvasH: plan.height })
-        }
-
-        // 底图（小程序用 canvas.createImage 载入本地资源）
-        const img = canvas.createImage ? canvas.createImage() : null
-        if (!img) {
-          paint(layout, null)
-          this.exportReady()
-          return
-        }
-        img.onload = () => {
-          // 底图对象必须**传进 plan** —— drawDiagram 会 ctx.drawImage(plan.image, …)。
-          // 传尺寸占位对象（{width,height}）会直接抛 TypeError，表格和图示一个都画不出来，
-          // tempFilePath 也永远是空的（「存相册」按钮随之失效）。
-          // 网站端 src/export/png.ts 用的是 loadHandsImage() 返回的真图片，两边同理。
-          const dp = planDiagram(img, layout.tableW)
-          layout = withDiagram(layout, { w: dp.w, h: dp.h })
-          paint(layout, Object.assign({}, dp, { dy: layout.diagramDy }))
-          this.exportReady()
-        }
-        img.onerror = () => {
-          // 底图没载入出来也把表画上（表格本身不依赖底图）
-          paint(layout, null)
-          this.exportReady()
-        }
-        img.src = '/assets/hands-pulse.png'
+        canvas.width = layout.canvasW * dpr
+        canvas.height = layout.height * dpr
+        ctx.scale(dpr, dpr)
+        ctx.clearRect(0, 0, layout.canvasW, layout.height)
+        paintTable(ctx, set, this.data.customSymbols, layout)
+        this.setData({ canvasW: layout.canvasW, canvasH: layout.height })
       })
   },
 
-  /** 出图完成后记下临时文件，供「存相册 / 转发」用 */
-  exportReady() {
-    const canvas = this.canvasNode
-    if (!canvas) return
-    wx.canvasToTempFilePath({
-      canvas,
-      fileType: 'png',
-      success: (res) => this.setData({ tempFilePath: res.tempFilePath }),
-      fail: () => {},
+  /** 取离屏画布节点（只取一次）—— 离屏画布不显示，只用来出图 */
+  getOffCanvas() {
+    if (this._offCanvas) return Promise.resolve(this._offCanvas)
+    return new Promise((resolve, reject) => {
+      wx.createSelectorQuery()
+        .select('#pulse-off-canvas')
+        .fields({ node: true, size: true })
+        .exec((res) => {
+          const info = res && res[0]
+          if (!info || !info.node) {
+            reject(new Error('离屏画布没拿到'))
+            return
+          }
+          this._offCanvas = info.node
+          resolve(info.node)
+        })
     })
   },
 
-  /** 存相册 */
-  saveImage() {
-    const p = this.data.tempFilePath
-    if (!p) {
-      wx.showToast({ title: '图还没生成，稍等一下', icon: 'none' })
+  /**
+   * 出「表格 ＋ 寸关尺图示」的图（存相册／转发用）。
+   *
+   * 与网站 src/export/png.ts 同一套绘制代码、同一 dpr＝2 → 两端导出的 PNG 尺寸一致。
+   */
+  async renderExportImage() {
+    const set = this.buildSet()
+    if (!set.sessions.length) throw new Error('还没有记录')
+    const session = set.sessions[0]
+    const canvas = await this.getOffCanvas()
+    const ctx = canvas.getContext('2d')
+
+    let layout = planTable(set, this.data.customSymbols)
+
+    // 底图（小程序用 canvas.createImage 载入本地资源）
+    const img = canvas.createImage ? canvas.createImage() : null
+    if (!img) {
+      this.paintExport(canvas, ctx, set, session, layout, null)
+      return this.toTempFile(canvas)
+    }
+    await new Promise((resolve) => {
+      img.onload = () => {
+        // 底图对象必须**传进 plan** —— drawDiagram 会 ctx.drawImage(plan.image, …)。
+        // 传尺寸占位对象（{width,height}）会直接抛 TypeError，表格和图示一个都画不出来。
+        // 网站端 src/export/png.ts 用的是 loadHandsImage() 返回的真图片，两边同理。
+        const dp = planDiagram(img, layout.tableW)
+        layout = withDiagram(layout, { w: dp.w, h: dp.h })
+        this.paintExport(canvas, ctx, set, session, layout, Object.assign({}, dp, { dy: layout.diagramDy }))
+        resolve()
+      }
+      img.onerror = () => {
+        // 底图没载入出来也把表画上（表格本身不依赖底图）
+        this.paintExport(canvas, ctx, set, session, layout, null)
+        resolve()
+      }
+      img.src = '/assets/hands-pulse.png'
+    })
+    return this.toTempFile(canvas)
+  },
+
+  paintExport(canvas, ctx, set, session, layout, diagramPlan) {
+    canvas.width = layout.canvasW * EXPORT_DPR
+    canvas.height = layout.height * EXPORT_DPR
+    ctx.scale(EXPORT_DPR, EXPORT_DPR)
+    ctx.clearRect(0, 0, layout.canvasW, layout.height)
+    paintTable(ctx, set, this.data.customSymbols, layout)
+    if (diagramPlan) drawDiagram(ctx, diagramPlan, set, session)
+  },
+
+  /**
+   * 出「只有寸关尺图示」的图（预览用）。
+   *
+   * 按原图 1:1 画（scale＝1、画布＝原图像素）—— 不放大，所以不糊。
+   */
+  async renderDiagramImage() {
+    const set = this.buildSet()
+    if (!set.sessions.length) throw new Error('还没有记录')
+    const session = set.sessions[0]
+    const canvas = await this.getOffCanvas()
+    const ctx = canvas.getContext('2d')
+
+    const img = canvas.createImage ? canvas.createImage() : null
+    if (!img) throw new Error('底图拿不到')
+    await new Promise((resolve, reject) => {
+      img.onload = resolve
+      img.onerror = () => reject(new Error('底图没载入'))
+      img.src = '/assets/hands-pulse.png'
+    })
+
+    // planDiagram(image, IMG_W) → scale＝1（不放大），画布就是原图像素
+    const dp = planDiagram(img, IMG_W)
+    canvas.width = IMG_W
+    canvas.height = IMG_H
+    ctx.clearRect(0, 0, IMG_W, IMG_H)
+    drawDiagram(ctx, Object.assign({}, dp, { dy: 0 }), set, session)
+    return this.toTempFile(canvas)
+  },
+
+  /** canvas → 临时文件 */
+  toTempFile(canvas) {
+    return new Promise((resolve, reject) => {
+      wx.canvasToTempFilePath({
+        canvas,
+        fileType: 'png',
+        success: (res) => resolve(res.tempFilePath),
+        fail: (err) => reject(new Error((err && err.errMsg) || '出图失败')),
+      })
+    })
+  },
+
+  /** 「寸关尺图示」—— 单独一个窗体看（系统图片预览，可双指缩放） */
+  async showDiagram() {
+    if (this.data.busy) return
+    this.setData({ busy: true })
+    try {
+      const path = await this.renderDiagramImage()
+      wx.previewImage({ urls: [path], current: path })
+    } catch (e) {
+      wx.showToast({ title: (e && e.message) || '图示出不来', icon: 'none' })
+    } finally {
+      this.setData({ busy: false })
+    }
+  },
+
+  /**
+   * 存相册 —— 导出图（表格＋寸关尺图示）现场出，再问相册权限。
+   *
+   * 页面上的画布只画表格（不带图示），所以要存的那张得单独出。
+   */
+  async saveImage() {
+    if (this.data.busy) return
+    this.setData({ busy: true })
+    let p = ''
+    try {
+      p = await this.renderExportImage()
+      this.setData({ tempFilePath: p })
+    } catch (e) {
+      this.setData({ busy: false })
+      wx.showToast({ title: (e && e.message) || '图还没生成', icon: 'none' })
       return
     }
+    this.setData({ busy: false })
     // 先看授权态：用户明确拒绝过就别白跑一趟，直接引导去设置页重新打开。
     // 没拒绝过（undefined）就直接调，第一次会由系统弹授权框。
     wx.getSetting({
@@ -231,12 +332,16 @@ Page({
   },
 
   /** 转发（分享卡片，图片路径传出去） */
-  share() {
-    const p = this.data.tempFilePath
+  async share() {
     wx.showShareMenu({ withShareTicket: true, menus: ['shareAppMessage'] })
-    if (p) {
-      wx.showToast({ title: '点右上角「···」转发', icon: 'none' })
+    if (!this.data.tempFilePath) {
+      try {
+        this.setData({ tempFilePath: await this.renderExportImage() })
+      } catch (e) {
+        // 出不来也不拦着转发
+      }
     }
+    wx.showToast({ title: '点右上角「···」转发', icon: 'none' })
   },
 
   /** 复制 Markdown */
