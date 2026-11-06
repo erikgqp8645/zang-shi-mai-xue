@@ -1,190 +1,262 @@
-# 迁移到 CloudBase —— 前期规划
+# 迁移到 CloudBase —— 已建成（2026-11-06 实测）
 
-> 目标：把现在的「服务器上跑 Node + SQLite」搬进 **CloudBase**，
-> 网站跑静态托管、API 跑云函数、数据存 **PostgreSQL**、小程序走 `wx.cloud.callFunction`。
+> **状态**：迁完了。网站跑 **CloudBase 静态托管**，API 跑 **CloudBase 云函数**，数据存 **CloudBase PostgreSQL**，
+> 小程序端已切到 `wx.cloud.callFunction`（代码完成，**未真机验证**）。
 >
-> **本轮（多用户改造）已经把代码侧的准备做完了**，本文分两部分：
-> ① 已经做完什么（照着做就不会重复劳动）② 真要迁移时怎么做（含坑位清单）。
+> 本文分三部分：① **实际架构长什么样** ② **实际怎么做的（含踩过的坑）** ③ **验收清单与还差的事**。
+>
+> 环境参数（ap-shanghai 体验版 `baas_trial`，到期 2027-05-04）：
+>
+> | 项 | 值 |
+> |---|---|
+> | 环境 id | `ambitious-parrot-d7ehh7x0fd9d680` |
+> | AppId | `1257312696` |
+> | 网站（静态托管） | `https://ambitious-parrot-d7ehh7x0fd9d680-1257312696.tcloudbaseapp.com` |
+> | API（网关） | `https://ambitious-parrot-d7ehh7x0fd9d680-1257312696.ap-shanghai.app.tcloudbase.com/pulse-api` |
+> | PG 实例 | `postgres-l00fh7pm`（PostgreSQL 17.11，`TenantType: SHARED`） |
+> | 云函数 | `pulse-api`（**Event 类型**，Nodejs20.19，`index.main`，timeout 20s，memory 256MB） |
+> | 小程序 appid | `wx3a21eb903a16cbc4` —— **尚未与本环境关联**（见 §5.2） |
 
 ---
 
 ## 0. 一句话现状
 
-| 项 | 现状 | 迁 CloudBase 后 |
+| 项 | 迁之前 | 迁之后 |
 |---|---|---|
-| 数据库 | 本机/服务器上的 SQLite 单文件 | CloudBase **PostgreSQL**（`auth.uid()` 返回 **text**，与我们的 TEXT id 正好对上） |
-| API | 自建 Node 进程（`node:http`，零第三方依赖） | CloudBase **云函数**（HTTP 类型） |
+| 数据库 | 本机/服务器上的 SQLite 单文件 | CloudBase **PostgreSQL**（`owner_id` 用 **text**） |
+| API | 自建 Node 进程（`node:http`，零第三方依赖） | CloudBase **云函数**（**Event 类型**，网关指向它） |
 | 网站 | 同一 Node 进程托管 `dist/` | CloudBase **静态托管**（`<envId>-<appId>.tcloudbaseapp.com`） |
 | 小程序 | `wx.request` → 合法域名 | `wx.cloud.callFunction` → **不走合法域名校验** |
-| 同源 | 是（网站与 API 同端口） | **否**（静态托管与云函数不同源）→ 需要 CORS |
+| 同源 | 是 | **否**（静态托管与云函数不同源）→ 服务端 CORS 头 |
+
+> **迁移的真正价值**：**免 ICP 备案**（默认域名直接可用；小程序走 callFunction 更是不受合法域名约束）。
+> 不是「避免 IP 变」。
 
 ---
 
-## 1. 代码侧已经做完的准备（这轮）
-
-这些**不是「以后再说」**，已经落地并有测试覆盖。迁移时**不用再改**：
+## 1. 代码侧：换后端只改一处
 
 ### 1.1 存储收敛成一层 —— `server/store.mjs`
 
-路由层（`server/index.mjs`）**只认 `store.mjs` 暴露的函数契约**，不直接碰 SQLite。
-换后端 = 只改 `store.mjs` 一个文件，路由层／前端／小程序**零改动**。
+路由层（`server/index.mjs`）**只认 `store.mjs` 暴露的函数契约**，不直接碰数据库。
+换后端 = 只改 `PULSE_STORE` 环境变量，**路由层／前端／小程序零改动**。
 
 ```
 server/index.mjs（路由 · 鉴权 · CORS）
         ↓  只认这一层的函数契约
-server/store.mjs（存储实现选择层）   ← 迁 CloudBase 只改这里
-        ├── server/db.mjs   （现在的 SQLite 实现）
-        └── server/db-pg.mjs（将来新增的 PG 实现）
+server/store.mjs（存储实现选择层 · PULSE_STORE=sqlite|pg）
+        ├── server/db.mjs    ＋ server/auth.mjs      （SQLite 实现）
+        └── server/db-pg.mjs ＋ server/auth-pg.mjs   （PostgreSQL 实现）
 ```
 
-新增一个 PG 实现、让它在 `PULSE_STORE=pg` 时生效，路由层不用动一行。
+**鉴权层也走了这层** —— 这是迁移时才发现的：`server/auth.mjs` 原本直接用 SQLite 专有的 `db.prepare()`，
+不一起分发的话 PG 后端根本没法复用鉴权。现在 `createUser` / `authenticate` / `createSession` 等
+全部从 `store.mjs` 转发。
 
-### 1.2 db / auth 层全部改成 async
+### 1.2 纯逻辑抽出来，两套实现共用
 
-SQLite 的 `DatabaseSync` 是同步 API，CloudBase PG（postgREST）全是异步。
-本轮把 `server/db.mjs` 与 `server/auth.mjs` 的**全部导出函数改成 `async`**，
-**签名先定死**（参数与返回值形状不变）—— 将来换后端时，调用方（路由层）**零改动**。
-
-```js
-// 现在的写法（已 async 化）
-const patient = await getPatient(db, id, ownerId)
-```
-
-### 1.3 事务收拢进 `withTransaction()`
-
-SQLite 用 `BEGIN/COMMIT/ROLLBACK`，PG 用 `BEGIN/COMMIT/ROLLBACK`（语义一致）。
-本轮把散在各处的裸事务语句收进了 `server/db.mjs` 的 `withTransaction()` 辅助函数，
-PG 实现可以直接复用同一个写法。
-
-### 1.4 去 SQLite 专有语法
-
-| 原来 | 改成 | 为什么 |
+| 文件 | 内容 | 谁在用 |
 |---|---|---|
-| `INSERT OR IGNORE` | `ON CONFLICT DO NOTHING` | 两库通用 |
-| `db.exec()` 带 `?` | `db.prepare().run()` | `exec()` 不支持占位符（SQLite 专属坑） |
-| 依赖 `owner_id` 的索引写在 `schema.sql` | 挪进 `migrate()` | 建表先于 ALTER，会报「no such column」 |
+| `server/values.mjs` | `CONSTITUTIONS` / `THERAPIES` / `parseValues` / `normalizeValues` / `pickEnum` | SQLite ＋ PG **共用一份** |
+| `server/auth-core.mjs` | `SINGLE_USER` / `SESSION_TTL_MS` / `RESERVED_LOGIN_NAMES` / `hashPassword` / `verifyPassword` / `isValidLoginName` | SQLite ＋ PG **共用一份** |
 
-### 1.5 知识常量与存储分离 —— `server/symbol-codes.mjs`
+> 之前 `db.mjs` 与 `db-pg.mjs` 各有一份 `normalizeValues`，改一处忘另一处就会两边行为不一致。
+> 现在**规整逻辑只有一份**（`server/values.mjs`）。
 
-讲义固定符号集（`0 - + ± ++ ±± +++ ++++ ↑ | # TTT DDX X`）从 `db.mjs` 里抽出来了。
-换存储实现时这些常量不变，**也不会**被误当成数据库里的数据。
+### 1.3 PG 访问路线 —— 为什么是「PG 函数（RPC）」
 
-### 1.6 前后端的「换地址」开关
+三条路都试过，只有一条通：
 
-| 开关 | 位置 | 作用 |
-|---|---|---|
-| `VITE_API_BASE` | 网站前端构建时环境变量 | 网站与 API 不同源时，指定 API 根地址。默认同源，留空即可 |
-| `PULSE_CORS_ORIGINS` | 服务端环境变量 | 逗号分隔的允许来源。**同源部署留空**；迁 CloudBase 后填静态托管域名 |
-| `taro/src/utils/config.ts` 的 `TRANSPORT` | 小程序端 | `'request'` → `wx.request`；`'cloud'` → `wx.cloud.callFunction` |
+| 路线 | 结论 |
+|---|---|
+| TCP 直连（`pg` 驱动） | ❌ 本环境 PG 是 `SHARED` 托管实例，**没有暴露连接地址**；个人版/体验版的 VPC 内网互联与公网直连开关都不可用 |
+| 裸 `fetch` 调 PG HTTP 网关 | ❌ 网关要 **access token**，不认 Publishable Key 也不认 API Key（`apikey` 头返回 `MISSING_CREDENTIALS`） |
+| **`@cloudbase/node-sdk` 的 `app.rdb().rpc()`** | ✅ **官方主推**：免 VPC、免数据库密码、凭证自动 |
 
-### 1.7 小程序端的传输层封装 —— `taro/src/utils/api.ts`
+**定下的规矩：所有读写都下沉为 PG 函数（RPC）**，签名统一 `(p_owner text, p_args jsonb)`：
 
-> Taro 主线（原生回退工程是 `miniprogram/utils/api.js`）。
+- **一次 RPC ＝ 一个事务** → 「整份覆盖患者＋就诊＋用药」的语义是原子的
+- **JS 侧不写 SQL** → 不会出现方言漂移
+- 19 个数据域函数 ＋ 15 个鉴权域函数 ＝ **35 个**（定义见 `server/pg-functions.sql`）
 
-页面只认一个签名：
+### 1.4 PG 函数返回值的硬规矩
 
-```js
-request({ method, path, body }) → Promise<data>
+**postgREST 对标量返回（boolean／integer）与 SQL NULL 一律不给 body**（会变成 `{}`）。
+所以本仓库所有 PG 函数的返回值**统一是 jsonb 对象包裹**：
+
+```sql
+RETURN jsonb_build_object('found', ..., 'patient', ...);   -- 不是 RETURN v_row;
+RETURN jsonb_build_object('ok', true);                     -- 不是 RETURN true;
 ```
 
-底下用哪种传输由 `config.ts` 的 `TRANSPORT` 决定。**页面代码在两种模式下完全一样**。
-（平台差异全部收在 `taro/src/platform/` 这一层：业务代码里**不许出现 `wx.`**。）
+这条坑是迁移中途才撞出来的，一撞就撞了 28 处返回值。
 
-### 1.8 会话与鉴权不用改
+### 1.5 路由抽 `handleApi(req, res)`
 
-令牌是**不透明随机 token**，存 `sessions` 表，`Authorization: Bearer` 头传递。
-这套与后端无关 —— 换 PG 之后行为一样，**不需要改成 JWT、不需要接 CloudBase 的登录体系**。
+`server/index.mjs` 的路由主体抽成导出函数，自建 Node 服务与云函数**共用同一份路由／鉴权逻辑**：
 
-> 为什么不接 CloudBase 自带登录？
-> 我们要的是「网站账号＋密码」与「微信 openid」**绑到同一个 `users` 行**上，
-> 这是一套自定义身份模型，CloudBase 的内置登录给不了。自己做反而更简单、也更可控。
+```
+server/index.mjs  →  export async function handleApi(req, res)
+                      export async function initDb()          // 冷启动复用
+```
+
+云函数侧用伪 `req`/`res` 适配（伪 `req` 实现了 `Symbol.asyncIterator`，供 `readJson` 用）。
 
 ---
 
-## 2. 目标架构（迁完之后）
+## 2. 实际架构
 
 ```
 ┌────────────────────────┐          ┌────────────────────────┐
-│ 网站（React 19 SPA）     │          │ 微信小程序（原生）        │
+│ 网站（React 19 SPA）     │          │ 微信小程序（Taro）        │
 │ CloudBase 静态托管        │          │ wx.cloud.callFunction   │
-│ <envId>-<appId>          │          │ （不走 request 合法域名）  │
+│ …-1257312696            │          │ （不走 request 合法域名） │
 │   .tcloudbaseapp.com    │          └───────────┬────────────┘
 └───────────┬────────────┘                      │
             │ HTTPS（跨域 → CORS）                │
             └─────────────────┬────────────────────┘
                               ▼
               ┌───────────────────────────────┐
-              │ CloudBase 云函数（HTTP 类型）    │
-              │  · 路由与鉴权（server/index.mjs）│
-              │  · 存储层（server/store.mjs）   │
+              │ CloudBase 云函数 pulse-api      │
+              │  Type=Event · index.main       │
+              │  · handleApi（server/index.mjs）│
+              │  · store.mjs → db-pg/auth-pg    │
               │  · 微信 code2Session 代理       │
               └───────────────┬───────────────┘
                               ▼
               ┌───────────────────────────────┐
               │ CloudBase PostgreSQL           │
-              │  users / identities / sessions │
-              │  patients / visits / medication│
+              │  7 张表 + 35 个 pulse_* 函数    │
+              │  users/identities/sessions     │
+              │  patients/visits/medication     │
               │  custom_symbols                │
               └───────────────────────────────┘
 ```
 
+### 2.1 为什么云函数用 **Event** 类型
+
+| 类型 | 能不能喂饱两端 |
+|---|---|
+| **Event** | ✅ 小程序 `wx.cloud.callFunction` **只能**调 Event 函数；网关 HTTP Access **也**能指向 Event 函数（返回 `{statusCode, headers, body}`，由网关转成 HTTP 响应）→ **一个函数同时喂饱小程序与网站端** |
+| HTTP | ❌ 小程序调不了；且必须带 `scf_bootstrap` ＋ `listen 9000`，依赖还要打包 |
+
+**函数类型创建后不可改** —— 迁移时先建成了 HTTP 类型，只能删掉重建。
+
+Event 类型**不需要 `scf_bootstrap`**（HTTP 类型才要）。
+
+### 2.2 网关路由：挂在哪个域名上
+
+静态托管域名 `<envId>-<appId>.tcloudbaseapp.com` 是**系统内部域名，不能手动建路由**。
+所以 API 挂在 **HTTPSERVICE 默认域名**上：
+
+| 项 | 值 |
+|---|---|
+| 域名 | `ambitious-parrot-d7ehh7x0fd9d680-1257312696.ap-shanghai.app.tcloudbase.com` |
+| path | `/pulse-api` |
+| upstream | `upstreamResourceType=**SCF**`、`targetName=pulse-api` |
+| 路径透传 | `enablePathTransmission=**true**` |
+| 云函数里的前缀 | 环境变量 `PULSE_API_PREFIX=/pulse-api`（函数侧剥掉前缀） |
+
+> ⚠️ `upstreamResourceType` 必须是 **`SCF`**（Event 函数）。写成 `WEB_SCF`（HTTP 函数）会返回 **400 空 body** —— 这坑踩过。
+
+网站与 API **不同源**，所以服务端要发 CORS 头：
+
+```
+PULSE_CORS_ORIGINS=https://ambitious-parrot-d7ehh7x0fd9d680-1257312696.tcloudbaseapp.com
+```
+
+> `PULSE_CORS_ORIGINS` **不接受 `*`**：病例数据敏感，只允许明确列出的来源。
+
+### 2.3 云函数环境变量
+
+用 `manageFunctions(action="updateFunctionConfig")` 设（`updateFunctionCode` 不带环境变量）：
+
+```
+PULSE_STORE=pg
+PULSE_CB_ENV=ambitious-parrot-d7ehh7x0fd9d680
+PULSE_API_PREFIX=/pulse-api
+PULSE_CORS_ORIGINS=https://ambitious-parrot-d7ehh7x0fd9d680-1257312696.tcloudbaseapp.com
+```
+
+`PULSE_CB_ENV` 是给 `server/pg-client.mjs` 用的；**云函数里其实不用配**（平台会注入 `TCB_ENV` / `SCF_NAMESPACE`），
+配上只是让本地与线上取值一致。
+
+### 2.4 凭证从哪来
+
+| 环境 | 来源 |
+|---|---|
+| 云函数 | 平台自动注入 `TENCENTCLOUD_SECRETID` / `TENCENTCLOUD_SECRETKEY` / `TENCENTCLOUD_SESSIONTOKEN` —— **不用配** |
+| 本地 | `PULSE_CB_SECRET_ID` / `PULSE_CB_SECRET_KEY` / `PULSE_CB_SESSION_TOKEN`（或 `TCLOUD_SECRET_*` / `TENCENTCLOUD_SECRET*`） |
+
+凭证**只从环境变量读**，绝不写进仓库。
+
 ---
 
-## 3. 迁移步骤
+## 3. 实际怎么做的
 
-### 步骤 0 · 建环境（Day 0，与备案并行）
+### 3.1 建表
 
-CloudBase 新建环境时选资源：
-
-- ✅ `function`（云函数）
-- ✅ `postgresql`（数据库）
-- ✅ `storage`（静态托管 —— 云函数运行时代码包也放这儿）
-- ❌ **不要指望 `flexdb`（NoSQL）** —— 新建环境不提供这个资源。
-  这也是本轮把存储层设计成「换 PG 只改一处」的原因：**目标后端从一开始就是 PG**。
-
-### 步骤 1 · 建表
-
-把 `server/schema.sql` 的 DDL 改成 PG 语法后在 PG 里执行：
+`server/schema-pg.sql`（PG 语法 DDL，与 SQLite 版一一对应，只换方言）：
 
 | SQLite | PostgreSQL |
 |---|---|
-| `INTEGER`（时间戳） | `bigint` |
+| `INTEGER`（时间戳） | `bigint`（**毫秒**，**不要** `timestamptz` —— 前端 `Number(at)` 的比较与排序会坏） |
 | `TEXT` | `text` |
-| `REAL` | `double precision` |
 | `INTEGER PRIMARY KEY AUTOINCREMENT` | `text primary key`（我们本来就是自己生成 id） |
-| `strftime('%s','now')` | `extract(epoch from now())::bigint` |
 | `INSERT OR IGNORE` | `ON CONFLICT DO NOTHING` |
 
-> **`owner_id` 用 `text` 而不是 `uuid`** —— CloudBase PG 的 `auth.uid()` 返回的是 **text**，
-> 正好与我们自己的 TEXT id 一致，用 uuid 反而多一层转换。
+三条硬规矩：**`owner_id` 用 `text`**（CloudBase PG 的 `auth.uid()` 也是 text）｜**时间戳 `bigint` 毫秒**｜
+**`custom_symbols` 主键是 `(owner_id, code)`**。
 
-### 步骤 2 · 写 PG 存储实现
+7 张表 ＋ 9 个索引。建表用 3 个 `DO $$ … $$` 块（`EXECUTE $ddl$…$ddl$`）一次执行成功。
 
-新增 `server/db-pg.mjs`，实现 `server/store.mjs` 的同一套函数契约。
-**照抄 `server/db.mjs` 的 SQL 语义**（同样的 WHERE 条件、同样的 404 而非 403 的行为），
-只换方言与驱动。
+### 3.2 部署 35 个 PG 函数
 
-建议用 CloudBase MCP 的 `queryPgDatabase` / `managePgDatabase` 做迁移与校验。
+```bash
+export TCLOUD_SECRET_ID=… TCLOUD_SECRET_KEY=… TCLOUD_SESSION_TOKEN=…
+export PULSE_ENV_ID=ambitious-parrot-d7ehh7x0fd9d680
 
-### 步骤 3 · 搬数据
-
-一次性脚本，从 SQLite 读、往 PG 写：
-
-```
-users / identities / sessions    —— 本机库里只有一个 local 账号；正式数据在服务器上，按需搬
-patients / visits / medication / custom_symbols
+node scripts/pg-admin.mjs run server/pg-functions.sql
 ```
 
-搬完必须核对行数（与 `docs/deploy.md` 的恢复演练同一套口径）：
+`scripts/pg-admin.mjs` 绕开 MCP，直接用临时凭证签名调 `tcb` 的 `ExecutePGSql` CAPI，**SQL 从文件读**。
+它会**先 DROP 同签名旧函数再 CREATE** —— 因为 PG 的 `CREATE OR REPLACE FUNCTION` **不能改返回类型**。
 
-```sql
-SELECT (SELECT count(*) FROM patients),
-       (SELECT count(*) FROM visits),
-       (SELECT count(*) FROM medication),
-       (SELECT count(*) FROM custom_symbols);
+### 3.3 搬数据
+
+```bash
+node scripts/migrate-sqlite-to-pg.mjs --dry-run   # 只看计划
+node scripts/migrate-sqlite-to-pg.mjs              # 真搬
+node scripts/migrate-sqlite-to-pg.mjs --drop-fn    # 撤掉迁移函数（搬完建议做）
 ```
 
-并跑一遍**三条 owner 不变量自检**（`server/db.mjs` 里已有同样的检查，PG 实现也要有）：
+**它做什么**：
+
+1. 读 SQLite 七张表；
+2. 建「SQLite user id → PG user id」映射 —— **PG 里已有同登录名的账号就复用它的 id**
+   （例如单机模式的 `local`），SQLite 那边那个账号不重复建，**它的数据改挂到 PG 那个账号下**；
+   不重映射的话外键会指向一个不存在的 user；
+3. 一次 RPC 调 `pulse_migrate_import`（**一次 RPC ＝ 一个事务**）；
+4. 核对行数 ＋ 跑三条 owner 不变量自检 ＋ **再独立复核一遍**（直接查 PG，不经迁移函数自报）。
+
+**迁移函数是临时的**：`server/pg-migrate-functions.sql` 里的 `pulse_migrate_import` 能绕过 owner 校验批量写表，
+长期留在生产库等于开后门 → **搬完就 `--drop-fn` 撤掉**（脚本每次真跑会重新部署，用的是最新定义）。
+
+**本次实测结果**（源：`local-data/history.sqlite`）：
+
+| 表 | 源库行数 | 本次写入 | 迁后 PG |
+|---|---|---|---|
+| users | 3 | 2（`local` 复用 PG 已有的） | 3 |
+| identities | 3 | 3 | 3 |
+| sessions | 12 | 12 | 12 |
+| patients | 29 | 29 | 29 |
+| visits | 113 | 113 | 113 |
+| medication | 1 | 1 | 1 |
+| custom_symbols | 0 | 0 | 0 |
+
+`sessions` 默认**照搬**（令牌与存储无关，搬过去老会话照样能用）；想跳过用 `--no-sessions`。
+
+### 3.4 三条 owner 不变量自检（必须全为 0）
 
 ```sql
 -- 1. visit 与其 patient 的 owner 一致
@@ -195,111 +267,105 @@ SELECT count(*) FROM medication m JOIN visits v ON v.id = m.visit_id WHERE m.own
 SELECT count(*) FROM custom_symbols WHERE owner_id IS NULL OR owner_id = '';
 ```
 
-三条都必须为 **0**。
+实测：**0 / 0 / 0**（迁移函数自报 ＋ 独立复核，两遍都是 0）。
 
-### 步骤 4 · 云函数
-
-把 `server/index.mjs` 改成 CloudBase HTTP 云函数的入口：
-
-- 路由仍然走**同一张路由表**（`server/index.mjs` 里那套 `if (path === ...)` 判断逻辑可以直接搬）。
-- 鉴权：`Authorization` 头在 HTTP 云函数里拿得到，逻辑不用改。
-- `code2Session`：`wx.cloud.callFunction` 侧不需要额外配置，但**服务端仍要能出网**调
-  `api.weixin.qq.com` —— 云函数默认可以出网 ✓。
-- 静态文件不要再由云函数托管 —— 交给静态托管。
-
-**路由表要抽出来**：现在路由逻辑直接写在 `createServer` 的回调里，
-搬到云函数时应该抽成 `handleApi(req, res, ctx)`，两边共用。这是一处小重构。
-
-### 步骤 5 · 静态托管与 CORS
-
-网站构建：
+### 3.5 云函数打包与部署
 
 ```bash
-VITE_API_BASE=https://<云函数域名> npm run build
+node scripts/build-cloudfunction.mjs     # → .cloudfn/pulse-api/（33 MB，真源仍在 server/）
 ```
 
-服务端：
+组装 `server/` 的 14 个文件 ＋ `index.js` ＋ 生成的 `package.json`（`type: commonjs` ＋ `@cloudbase/node-sdk`）。
+**不生成 `scf_bootstrap`**（Event 函数不需要）。
 
-```ini
-PULSE_CORS_ORIGINS=https://<envId>-<appId>.tcloudbaseapp.com
+`server/cloudfunction/index.js` 兼容两套 event 形状：HTTP 触发（`event.httpMethod` / `event.requestContext.http`）
+↔ 小程序云调用（`event.method` / `event.token`），并把 `event.token` 补成 `Authorization: Bearer` 头
+（与网站端同一套鉴权）。
+
+### 3.6 静态托管与 CORS
+
+```bash
+VITE_API_BASE="https://ambitious-parrot-d7ehh7x0fd9d680-1257312696.ap-shanghai.app.tcloudbase.com/pulse-api" npm run build
+# 再把 dist/ 上传静态托管
 ```
 
-**同时**要在 CloudBase 控制台把静态托管域名加进**安全域名（CORS 白名单）**。
-
-> 注意 `PULSE_CORS_ORIGINS` **不接受 `*`**：病例数据敏感，只允许明确列出的来源。
-
-### 步骤 6 · 小程序切传输方式
-
-`taro/src/utils/config.ts`（原生回退工程是 `miniprogram/utils/config.js`）：
-
-```js
-const TRANSPORT = 'cloud'   // 从 'request' 改成 'cloud'
-```
-
-`wx.cloud.callFunction` 的云函数约定（`taro/src/platform/cloud.ts` 里已经按这个约定写好了 ——
-`wx.cloud` **只允许出现在 `taro/src/platform/` 这一层**）：
-
-```js
-exports.main = async (event) => {
-  // event = { path, method, body, token }
-  // 返回 { statusCode, body }
-  return { statusCode: 200, body: { ok: true } }
-}
-```
-
-**这一步的价值**：小程序不再受「request 合法域名必须 HTTPS＋已备案」的约束 ——
-**备案没下来也能先跑通小程序侧**。
+实测：站点首页 200、JS 资源 200（`application/javascript`）、CORS 预检 204 带正确 `allow-origin`、
+真实浏览器里跨域 `fetch /api/health` 返回 200。
 
 ---
 
-## 4. 坑位清单（已核实，别重踩）
+## 4. 坑位清单（都已核实，别重踩）
 
 ### 4.1 CloudBase 侧
 
 | # | 坑 | 结论 |
 |---|---|---|
 | 1 | 新建环境能不能选 NoSQL（flexdb） | **不能**。`resources` 只有 `storage`/`function`/`postgresql` → 目标后端是 PG |
-| 2 | PG 的 `auth.uid()` 返回什么类型 | **text**（不是 uuid）→ owner 列用 `text`/`varchar(64)` |
-| 3 | PG 模式的 API 是不是 NoSQL 那套 | **不是**。用 `.match()/.eq()/.order()/.range()`，**不是** `.where()/.orderBy()/.count()/.offset()` |
-| 4 | 静态托管与云函数同源吗 | **不同源**（`<envId>-<appId>.tcloudbaseapp.com` vs 云函数域名）→ 必须配 CORS 与安全域名 |
-| 5 | `wx.cloud.callFunction` 要不要配 request 合法域名 | **不要** —— 它不走合法域名校验 |
-| 6 | `code2Session` 个人主体能不能用 | **能**。官方文档「适用范围：小程序 ✔」不按主体类型限制；但**必须服务端调用**，`session_key` 不下发前端 |
+| 2 | PG 的 `auth.uid()` 返回什么类型 | **text**（不是 uuid）→ owner 列用 `text` |
+| 3 | PG 能不能 TCP 直连 | **本环境不能**（`SHARED` 托管实例无连接地址；体验版 VPC／公网开关不可用）→ 走 `app.rdb().rpc()` |
+| 4 | 裸 fetch 调 PG HTTP 网关行不行 | **不行**（要 access token，不认 API Key／Publishable Key）→ 走 SDK |
+| 5 | MCP 的 `queryPgDatabase` / `managePgDatabase` | **本机不可用** —— 它把**首次**的 PG 就绪探测结果缓存成**模块级 Promise**，首次失败后被永久缓存，之后所有调用直接抛同一个错、**不会重新探测**。绕法：`scripts/pg-admin.mjs`（`tcb/ExecutePGSql` CAPI） |
+| 6 | `CREATE OR REPLACE FUNCTION` 能改返回类型吗 | **不能**（`cannot change return type of existing function`）→ 建前先 `DROP FUNCTION IF EXISTS <name>(<types>)` |
+| 7 | postgREST 对标量返回／SQL NULL | **不给 body**（一律 `{}`）→ 返回值统一 jsonb **对象包裹** |
+| 8 | `jsonb_agg(jsonb_build_object(…) ORDER BY …)` | 括号位置要小心：`jsonb_agg(jsonb_build_object(...) ORDER BY ...)` |
+| 9 | 云函数类型创建后能改吗 | **不能**。先用 Event：Event 能同时喂小程序 `callFunction` 与网关；HTTP 只能喂网关 |
+| 10 | Event 函数要 `scf_bootstrap` 吗 | **不要**（HTTP 类型才要，且要 `listen 9000`） |
+| 11 | 网关 HTTP Access 的 `upstreamResourceType` | Event 函数要写 **`SCF`**，写 `WEB_SCF` 返回 400 空 body |
+| 12 | 网关要不要开路径透传 | **要**（`enablePathTransmission=true`），并在函数侧用 `PULSE_API_PREFIX` 剥掉前缀 |
+| 13 | 静态托管域名能手动建网关路由吗 | **不能**（系统内部域名）→ 挂 HTTPSERVICE 默认域名 |
+| 14 | `ExecutePGSql` 会不会回传 `RETURNING` 的行 | **不会**，只看影响行数（`AffectedRows`） |
+| 15 | PL/pgSQL 里 `record ->> 'k'` | **不合法** → 循环变量声明成 `jsonb`（`FOR v_row IN SELECT jsonb_array_elements(...)`） |
+| 16 | `manageEnv(addSecurityDomain)` 能配安全域名吗 | **体验版不行**（「当前套餐无法执行此操作」）→ 靠**服务端 CORS 头**（已实测 204 ＋ 正确头，浏览器 fetch 可用） |
+| 17 | 默认域名会有「访问提示中间页」吗 | **会**。浏览器**直接访问**（`Sec-Fetch-Mode: navigate`）默认域名时，平台按合规要求展示「风险提醒」中间页，点「确定访问」后写 cookie，短期内不再出现。**唯一合规的去除办法是配自定义域名（须 ICP 备案）**。API 的 fetch 请求（`Sec-Fetch-Mode: cors`）**不受影响** |
 
 ### 4.2 本仓库已经踩过并修掉的
 
 | # | 坑 | 修法 |
 |---|---|---|
-| 7 | `db.exec()` 不支持 `?` 占位符 | 一律用 `db.prepare().run()` |
-| 8 | 依赖 `owner_id` 的索引写在 `schema.sql` 里 → 建表先于 ALTER，报「no such column」 | 索引挪进 `migrate()` |
-| 9 | `return withTransaction(...)` 让后面的 `return await getPatient(...)` 不可达 | 改成 `await` |
-| 10 | `ownerId = user.id` 在静态请求也会执行（user 为 null） | 改 `user?.id` |
-| 11 | `export { X } from './y.mjs'` 是重导出，**函数体内拿不到绑定** | import 后再 export |
-| 12 | `Object.fromEntries` 是 ES2019 内建，老机型 JSCore 没有 | 自写 `toRecord()`（`src/domain/to-record.ts`） |
-| 13 | TS 7 移除了 `moduleResolution=node10` | `tsconfig.core.json` 里**不覆盖** `moduleResolution`，让 `bundler` 继承下去 |
-| 14 | `return withTransaction` 同 9 | 已修 |
+| 18 | `server/auth.mjs` 直接用 SQLite 专有的 `db.prepare()` | 鉴权层也纳入 `store.mjs` 分发；纯逻辑抽到 `server/auth-core.mjs` |
+| 19 | `db.mjs` 与 `db-pg.mjs` 各有一份 `normalizeValues` | 抽到 `server/values.mjs`，两套实现共用一份 |
+| 20 | `values` / `symbols` 在 PG 里是 JSON 字符串，规整得在 JS 侧做 | 沿用 SQLite 版语义，在 `db-pg.mjs` 里用 `values.mjs` 的 `normalizeValues` 还原成数组 |
+| 21 | `pulse_migrate_import` 能绕过 owner 校验批量写表 | **一次性函数**，搬完 `--drop-fn` 撤掉（PG 上现在只剩 35 个运行时函数） |
+| 22 | 对着真库跑回归会留下测试账号 | `scripts/e2e/pg-store.mjs` 现在**自清理**（用管理员通道删掉两个测试账号，外键级联带走它们的患者／就诊／会话） |
 
-### 4.3 迁移时容易漏的
+### 4.3 本仓库踩过、改存储实现前务必再读一遍的
 
-- **`sessions` 表**：SQLite 里存的是旧 token，迁到 PG 后照样能用（token 与存储无关）。
-  但如果顺手改了令牌格式，旧 token 全失效 → 用户被登出（可接受，但要知情）。
-- **`users` 表的 `local` 账号**：单机模式的兜底账号，迁过去后仍要建。
-- **时间戳**：SQLite 里是 `INTEGER` 毫秒，PG 里建议 `bigint` 毫秒（**不要**换成 `timestamptz`，
-  否则前端的 `Number(at)` 比较与排序会出问题）。
-- **`custom_symbols` 的主键**：本轮已从 `code` 改成 `(owner_id, code)` —— PG 建表要照新的来。
+| # | 坑 | 修法 |
+|---|---|---|
+| 23 | `db.exec()` 不支持 `?` 占位符 | 一律用 `db.prepare().run()` |
+| 24 | 依赖 `owner_id` 的索引写在 `schema.sql` 里 → 建表先于 ALTER，报「no such column」 | 索引挪进 `migrate()` |
+| 25 | `return withTransaction(...)` 让后面的 `return await getPatient(...)` 不可达 | 改成 `await` |
+| 26 | `ownerId = user.id` 在静态请求也会执行（user 为 null） | 改 `user?.id` |
+| 27 | `export { X } from './y.mjs'` 是重导出，**函数体内拿不到绑定** | import 后再 export |
+| 28 | `Object.fromEntries` 是 ES2019 内建，老机型 JSCore 没有 | 自写 `toRecord()`（`src/domain/to-record.ts`） |
+| 29 | TS 7 移除了 `moduleResolution=node10` | `tsconfig.core.json` 里**不覆盖** `moduleResolution`，让 `bundler` 继承下去 |
 
 ---
 
-## 5. 迁移时的验收清单
+## 5. 验收清单
 
-- [ ] 账号：网站注册 → 小程序绑定 → 两端看到同一份病例
-- [ ] 隔离：A 账号看不到 B 的患者/就诊/用药/自定义符号（跨用户一律 **404**，不是 403）
-- [ ] 数据：迁前迁后四张业务表行数一致
-- [ ] 不变量：三条 owner 自检全为 0
-- [ ] 网站：静态托管域名打开即用，API 跨域正常
-- [ ] 小程序：`TRANSPORT='cloud'` 下真机预览能取到数据
-- [ ] 令牌：网页端与小程序端的会话互不影响（同一账号，两个端各拿一个 token）
-- [ ] 备份：PG 侧的备份策略（CloudBase 自带快照）已确认
-- [ ] 回滚：旧 SQLite 服务端仍能起（留一台观察期）
+### 5.1 已过 ✅
+
+- [x] **数据**：迁前迁后四张业务表行数一致（29 患者／113 就诊／1 用药／0 自定义符号）
+- [x] **不变量**：三条 owner 自检全为 **0**（迁移函数自报 ＋ 独立复核，两遍）
+- [x] **归属**：`local` 账号的「测试 1」已重映射到 PG 的 `u3c825719f3`，其余 28 位患者归属原样
+- [x] **登录**：用迁移过去的账号 `mptest01` 走真实网关登录成功（密码哈希原样带过去）
+- [x] **读**：网关取患者列表 14 位、患者详情含 4 次就诊、格值 key 形如 `L|寸|浮`、体质／疗法字段正确
+- [x] **网站**：静态托管域名打开即用（首页 200、JS/CSS 200）
+- [x] **跨域**：CORS 预检 204 ＋ 正确 `allow-origin`；**真实浏览器**里跨域 `fetch /api/health` 返回 200
+- [x] **隔离**：PG 存储层回归 49/49（含「跨用户一律 404 不是 403」）
+- [x] **SQLite 没破**：全量回归 **498/498** 全绿
+
+### 5.2 还差的事
+
+- [ ] **小程序与 CloudBase 环境关联** —— 环境 `WxAppId` 仍为空。
+      在微信公众平台把环境 `ambitious-parrot-d7ehh7x0fd9d680` 关联到小程序 appid `wx3a21eb903a16cbc4`。
+      **未关联前小程序会自动退回 `wx.request` 传输**（代码已做兜底，不会白屏，但走不到云函数）。
+- [ ] **小程序真机验证**（用户已明确「不做真机验证」，改为上线前再验）
+- [ ] **自定义域名 ＋ ICP 备案** —— 默认域名**只能用于开发测试**，平台明说「严禁用于正式生产环境或分发给大规模用户」，
+      且流量异常可能触发风控关停。去掉「风险提醒中间页」也只有这一条路。
+- [ ] **PG 侧备份策略**（CloudBase 自带快照）确认
+- [ ] **回滚预案**：旧 SQLite 服务端仍能起（留一台观察期）
 
 ---
 
@@ -312,3 +378,4 @@ exports.main = async (event) => {
 | 3 | 可视化管理后台 | 只做命令行（`scripts/admin.mjs`） |
 | 4 | 患者数据共享给同事 | 本期不做；`patients.owner_id` 之后可加 `patient_members` 关联表 |
 | 5 | 付费订阅 / 微信支付 | 不在本期范围 |
+| 6 | **Windows 桌面端** | **不迁 CloudBase** —— 保持单机、免登录、只在这台电脑上（本地 SQLite） |

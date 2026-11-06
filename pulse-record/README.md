@@ -100,7 +100,18 @@ npm run desktop:dist    # 出安装包 + 免安装版（release/*.exe）
   **每月做一次恢复演练**（备份文件「存在」不等于「能用」）。
 - 访问日志**只记方法/路径/状态/耗时/user id，不含请求体**（病例数据敏感）。
 
-迁移到 CloudBase 的规划见 **[`docs/cloudbase-migration.md`](./docs/cloudbase-migration.md)**。
+**两种部署形态**（同一套代码，只换 `PULSE_STORE`）：
+
+| 形态 | 怎么跑 | 适合 |
+|---|---|---|
+| **自建服务器**（`PULSE_STORE=sqlite`，默认） | `npm run build && npm start`，Caddy 反代 | 要用自己的域名、数据留在自己机器上 |
+| **CloudBase**（`PULSE_STORE=pg`） | 网站走静态托管、API 走云函数 `pulse-api`、数据走 PG | **免 ICP 备案就能跑起来**；小程序走 `callFunction` 不受合法域名约束 |
+
+> ⚠️ CloudBase **默认域名只许开发测试**：浏览器直接访问会先弹「风险提醒中间页」
+> （点「确定访问」后写 cookie），且流量异常可能被风控关停 —— 上线还是得配自定义域名。
+
+迁移到 CloudBase 的**已建成版**见 **[`docs/cloudbase-migration.md`](./docs/cloudbase-migration.md)**
+（架构、PG 函数约定、踩过的坑、验收清单）。
 
 ## 微信小程序
 
@@ -890,9 +901,13 @@ scripts/
 ├── seed-demo.mjs    写入演示患者
 ├── build-core.mjs   共享包构建第二步（补 require 后缀 + 复制图片）
 ├── gen-tabbar-icons.mjs  生成 tabBar 图标（自写 PNG 编码器，只用 Node 内置 zlib）
+├── pg-admin.mjs        CloudBase PG 管理（tcb/ExecutePGSql CAPI，绕开 MCP 的 PG 缓存缺陷）
+├── migrate-sqlite-to-pg.mjs  把本地 SQLite 搬进 CloudBase PG（--dry-run / --no-sessions / --drop-fn）
+├── build-cloudfunction.mjs   组装云函数部署包到 .cloudfn/pulse-api/
 ├── deploy/          服务器部署脚本（install / deploy / backup / restore / systemd / Caddyfile）
 └── e2e/             回归脚本
     ├── core-smoke.mjs / migration.mjs / auth-isolation.mjs / app-regression.mjs / desktop-smoke.mjs
+    ├── pg-store.mjs     PG 存储层端到端（对真库，49 项，**跑完自清理测试账号**）
     ├── taro-lint.mjs    Taro 静态检查（157 项）
     ├── taro-api.mjs     Taro 数据层端到端（45 项）
     ├── taro-sim.mjs     纯函数 ＋ 产物 ＋ 模拟器截图（55 项）
@@ -906,7 +921,7 @@ scripts/
 docs/
 ├── taro-migration.md      Taro 迁移约定（目录 / alias / 写法对照 / 鸿蒙坑位）
 ├── deploy.md              上线手册（备案、服务器、systemd、Caddy、备份、发布）
-├── cloudbase-migration.md 迁 CloudBase 的规划与坑位清单
+├── cloudbase-migration.md 迁 CloudBase 的已建成版（架构、PG 函数约定、坑位、验收清单）
 ├── desktop-plan.md        Windows 桌面应用（Electron）的实施方案（尚未实现）
 └── progress.md            各条工作线的进度台账、阻塞项与待办
 ```

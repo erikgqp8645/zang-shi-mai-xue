@@ -382,21 +382,49 @@ EOF
   - **p47 尤其要小心**：两张图尺寸差别很大（符号对照表 1684×1191 ＝ 最大，开方三部曲 701×605 ＝ 较小）。**只取最大的一张会漏掉「开方三部曲」**，必须把该页所有 XObject 全部导出后逐张看。
 - 文本层有内容时（p30/p39），说明该页是「文字 + 扫描底图」混合，直接 `extract_text()` 反而比 OCR 更准 —— **先试文本层，再降级到 OCR**。
 
-## 病例记录存储层（pulse-record · SQLite）
+## 病例记录存储层（pulse-record · 两套实现：SQLite ／ CloudBase PostgreSQL）
 
 `pulse-record/` 的历史记录按**病例记录**组织：患者 → 每次就诊记录，两级都可查看与编辑。
 
+**存储后端有两套**，由 `PULSE_STORE` 切换（`sqlite` 默认 ／ `pg` 走 CloudBase）。
+**换后端只改这一个环境变量** —— 路由层／前端／小程序零改动。
+
 | 项 | 约定 |
 |---|---|
-| 存盘 | `pulse-record/local-data/history.sqlite`（**运行产物**，已在 `.gitignore` 中，不进版本库） |
-| 依赖 | Node 22+ 内置 `node:sqlite`，无原生模块、无第三方依赖 |
-| 建表 | `pulse-record/server/schema.sql`：`patients`（患者）＋ `visits`（就诊记录，删患者级联删记录）＋ `medication`（用药记录，见下节）＋ `custom_symbols`（自定义符号） |
+| 存储抽象 | `pulse-record/server/store.mjs` —— **数据访问的唯一入口**。路由层只认这一层的函数契约；鉴权层也经它转发 |
+| 实现一（SQLite） | `server/db.mjs` ＋ `server/auth.mjs`；存盘 `pulse-record/local-data/history.sqlite`（**运行产物**，已在 `.gitignore` 中，不进版本库）；Node 22+ 内置 `node:sqlite`，无原生模块、无第三方依赖 |
+| 实现二（PostgreSQL） | `server/db-pg.mjs` ＋ `server/auth-pg.mjs`；PG 访问只走 `server/pg-client.mjs`（`@cloudbase/node-sdk` 的 `app.rdb().rpc()`），**不许在别处碰 PG** |
+| 共享纯逻辑 | `server/values.mjs`（格值规整／枚举）＋ `server/auth-core.mjs`（密码哈希／登录名规则）—— **两套实现共用一份**，改一处不会漏另一处 |
+| 建表 | `server/schema.sql`（SQLite）／ `server/schema-pg.sql`（PG）：`patients`（患者）＋ `visits`（就诊记录，删患者级联删记录）＋ `medication`（用药记录，见下节）＋ `custom_symbols`（自定义符号） |
 | 账号表 | 同文件另有 `users`（账号）＋ `identities`（登录身份）＋ `sessions`（会话），见「多用户与账号」一节 |
 | 归属 | 四张业务表都有 `owner_id`，**由会话决定，绝不接受请求体传入** |
-| 服务 | `pulse-record/server/index.mjs`（HTTP API ＋ 静态页面托管）；开发时 Vite 把 `/api` 代理到 `127.0.0.1:5178` |
+| 服务 | `pulse-record/server/index.mjs`（`handleApi(req, res)` ＋ 静态页面托管）；开发时 Vite 把 `/api` 代理到 `127.0.0.1:5178`；云端跑 CloudBase 云函数 `pulse-api`（**Event 类型**） |
 | 启动 | `npm run dev`（前端＋后端一起起，单机模式）、`npm run dev:multi`（多用户模式）、`npm run start`（构建后单端口本地应用） |
 | 前端 | `src/api/patients.ts`（API 客户端）、`src/components/HistoryPanel.tsx`（两级面板 ＋ 搜索框） |
-| 存储抽象 | `pulse-record/server/store.mjs` —— 路由层只认这一层的函数契约；换存储后端（迁 CloudBase PG）**只改这一处** |
+
+### PG 后端的硬规矩（改 `server/pg-*.mjs` 前必读）
+
+| # | 规矩 |
+|---|---|
+| 1 | **所有读写都下沉为 PG 函数（RPC）**，签名统一 `(p_owner text, p_args jsonb)`；**JS 侧不写 SQL**。一次 RPC ＝ 一个事务 →「整份覆盖」是原子的。函数定义见 `server/pg-functions.sql`（35 个） |
+| 2 | **返回值统一是 jsonb 对象包裹** —— postgREST 对标量返回（boolean／integer）与 SQL NULL **一律不给 body**（会变成 `{}`）。用 `jsonb_build_object('found', …)` / `('ok', …)`，不要 `RETURN v_row` |
+| 3 | **建函数前先 DROP 同签名旧函数** —— PG 的 `CREATE OR REPLACE FUNCTION` **不能改返回类型**。已固化进 `scripts/pg-admin.mjs` |
+| 4 | `owner_id` 用 **text**；时间戳用 **bigint 毫秒**（**不要** `timestamptz` —— 前端 `Number(at)` 的比较与排序会坏） |
+| 5 | `values` / `symbols` 在 PG 里存 **JSON 字符串**，规整（把 `{"0":"X"}` 还原成数组）在 **JS 侧**做，用 `server/values.mjs` 那一份 |
+| 6 | **一次性迁移函数**（`server/pg-migrate-functions.sql` 的 `pulse_migrate_import`）能绕过 owner 校验批量写表 → **搬完就 `node scripts/migrate-sqlite-to-pg.mjs --drop-fn` 撤掉** |
+
+### 本地 PG 工具（MCP 的 PG 模块在本机不可用）
+
+MCP 的 `queryPgDatabase` / `managePgDatabase` 把**首次**的 PG 就绪探测结果缓存成**模块级 Promise**，
+首次失败后被**永久缓存**，之后所有调用直接抛同一个错、**不会重新探测**。
+绕法是走 `tcb` 的 `ExecutePGSql` CAPI：
+
+| 脚本 | 干什么 |
+|---|---|
+| `scripts/pg-admin.mjs` | 临时凭证签名调 `ExecutePGSql`（`run`/`file` 切文件、`exec` 单条）；凭证只从环境变量读 |
+| `scripts/migrate-sqlite-to-pg.mjs` | 搬数据（`--dry-run` 只看计划、`--no-sessions` 跳过会话、`--drop-fn` 撤迁移函数）；自动重映射同登录名账号的 `owner_id` |
+| `scripts/build-cloudfunction.mjs` | 组装云函数部署包到 `.cloudfn/pulse-api/`（真源仍在 `server/`；**不生成 `scf_bootstrap`** —— Event 函数不需要） |
+| `scripts/e2e/pg-store.mjs` | 对真库跑存储层回归（49 项）；**跑完自清理测试账号** |
 
 **不再使用浏览器 localStorage** —— 清缓存、换浏览器即丢数据，不满足「永久存储」。
 （登录令牌例外：它存在 `localStorage['pulse.token']`，只用于鉴权，不是病例数据。）

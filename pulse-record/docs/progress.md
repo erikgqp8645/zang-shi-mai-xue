@@ -1,6 +1,6 @@
 # 项目进度 —— 臧氏脉学 · 脉象记录表生成器
 
-> **更新于** 2026-11-05 ｜ **仓库** `erikgqp8645/zang-shi-mai-xue` ｜ **当前分支** `feat/wechat-miniprogram`（基点 `c1814f3`）
+> **更新于** 2026-11-06 ｜ **仓库** `erikgqp8645/zang-shi-mai-xue` ｜ **当前分支** `feat/wechat-miniprogram`（基点 `c1814f3`）
 >
 > 本文是**进度台账**：记每条工作线做到哪了、卡在哪、下一手做什么。
 > 桌面应用的**实施方案**另见 [`desktop-plan.md`](./desktop-plan.md)；上线手册见 [`deploy.md`](./deploy.md)；迁 CloudBase 见 [`cloudbase-migration.md`](./cloudbase-migration.md)；小程序 Taro 迁移约定见 [`taro-migration.md`](./taro-migration.md)。
@@ -14,7 +14,7 @@
 | **P0 多用户与数据隔离** | ✅ 已完成 | `users`＋`identities`＋`sessions` 三表；四张业务表下沉 `owner_id`；跨用户一律 404 | 等 PR #6 合并 |
 | **P1 网站上线** | ⏸ **卡在用户侧手续** | 脚本与文档已就绪，**域名／ICP 备案／服务器三样都没有** | 备案 7~20 工作日是整条时间线最长的一段 → **今天就去提交备案** |
 | **P2 微信小程序** | 🟡 **已迁 Taro ＋ 界面重排完成**；模拟器逐页截图已验，未真机验证 | 8 个平级页面 → **4 个 tab（病例／就诊／用方／我的）**，「就诊」是工作台页（吸顶上下文条 ＋ **4 个页内 tab（摸脉／体质／疗法／方药）** ＋ 底部操作条）；Taro 4.3.2 ＋ React 18，与网站**共用同一份 domain 源码**；鸿蒙 C-API 编译已通；**寸关尺关系图直接显示在页面上**（不提供导出 → 隐私接口 0 个）；微信「代码质量」两条已修（JS 压缩已开、图片 298 KB → 116.3 KB）；回归 **441 项全绿** | 真机跑一遍（备案前先用局域网 IP） |
-| **P3 后期迁 CloudBase** | ⏸ 规划完成，待触发 | 存储已收敛成 `server/store.mjs` 一层；db/auth 全 async | 真正迁的时候只改一处 |
+| **P3 后期迁 CloudBase** | 🟡 **云端已建成**（开发／试用环境） | 环境 `ambitious-parrot-d7ehh7x0fd9d680`（ap-shanghai 体验版）：PG 7 表 ＋ **35 个 `pulse_*` 函数**、云函数 `pulse-api`（**Event 类型**）、网关 `/pulse-api`、静态托管已上线；网站与小程序**同一套路由**（`handleApi`）；数据已从本机 SQLite 搬过去（29 患者／113 就诊／1 用药），**三条 owner 不变量全 0** | ① **微信后台把环境关联到小程序 appid**（`WxAppId` 还是空）② 换自定义域名（默认域名只许开发测试，有「风险提醒中间页」）③ 备案 |
 | **P4 Windows 桌面应用** | ✅ **已实现**，本机出包并实测 | Electron 44.10.2；复用现有 `server/`＋`dist/`，业务逻辑不重写 | 交给使用者安装使用；macOS 包另找 Mac 机器补 |
 | **P5 鸿蒙端** | 🟡 **已出 HAP**，未实测 | 同一套 Taro 源码走 `harmony_cpp`（C-API）；`pulse-record/harmony/` 是工程真源，编译时镜像到纯 ASCII 路径；9.1 MB unsigned 包 | DevEco 里下模拟器镜像 → 打开镜像目录 Run → 验四个 tab |
 
@@ -1127,18 +1127,73 @@ runtime 把 `uid` 改成用户值 → hydrate 时 `node.uid !== node.sid` → `d
 2. **`.pr-focus` 与 `.pr-formula` 同特异度** —— 高亮样式必须写在卡片样式**之后**才生效，
    放前面会被卡片自身的 `background` 盖掉（不报错，只是高亮不出来）。
 
-## 4. P3 · 后期迁 CloudBase（规划完成，待触发）
-
+## 4. P3 · 迁 CloudBase（🟡 云端已建成，开发／试用环境）
 
 **目标**：网站跑静态托管、API 跑云函数、数据存 **PostgreSQL**、小程序走 `wx.cloud.callFunction`（不走合法域名校验）。
 
-**代码侧前期准备已落地**（迁的时候不用再改）
+**2026-11-06 实测：已经搬完了**（原先记的是「规划完成，待触发」）。
+细节全文见 [`cloudbase-migration.md`](./cloudbase-migration.md)（已改成「已建成」版）。
 
-- db/auth 层全部 **async**；`server/store.mjs` 是**存储契约层** → 换后端只改这一处，路由层／前端／小程序不动
-- `PULSE_STORE=pg` 的分支骨架已留好
-- `docs/cloudbase-migration.md` 记了表结构映射与坑位清单
+### 4.1 实际架构
 
-**触发条件**：P1 上线后、单机/多用户都跑顺了再迁。**不急** —— 现在迁反而多一层风险。
+| 件 | 落点 |
+|---|---|
+| 网站 | CloudBase **静态托管** `https://ambitious-parrot-d7ehh7x0fd9d680-1257312696.tcloudbaseapp.com` |
+| API | CloudBase **云函数 `pulse-api`**（**Event 类型**，Nodejs20.19，`index.main`）→ 网关 `…ap-shanghai.app.tcloudbase.com/pulse-api` |
+| 数据 | CloudBase **PostgreSQL** `postgres-l00fh7pm`（17.11）—— 7 张表 ＋ **35 个 `pulse_*` 函数** |
+
+### 4.2 关键决策
+
+| # | 决策 | 为什么 |
+|---|---|---|
+| 1 | **PG 访问走 `app.rdb().rpc()`，不 TCP 直连** | 本环境 PG 是 `SHARED` 托管实例，**没暴露连接地址**；体验版的 VPC／公网直连开关都不可用 |
+| 2 | **所有读写下沉为 PG 函数（RPC）** | 一次 RPC ＝ 一个事务 →「整份覆盖」原子；JS 侧不写 SQL → 不会方言漂移 |
+| 3 | **PG 函数返回值统一 jsonb 对象包裹** | postgREST 对标量返回／SQL NULL **不给 body**（会变成 `{}`）—— 迁移时一撞就撞了 28 处 |
+| 4 | **云函数用 Event 类型（不是 HTTP）** | Event 能同时喂小程序 `callFunction` 与网关 HTTP Access → **一个函数喂饱两端**；函数类型创建后不可改 |
+| 5 | **网关 `upstreamResourceType=SCF`** | 写 `WEB_SCF`（HTTP 函数）返回 400 空 body |
+| 6 | **API 挂 HTTPSERVICE 默认域名** | 静态托管域名是系统内部域名，**不能手动建路由** |
+| 7 | **规整逻辑与鉴权纯逻辑各抽一份共用** | `server/values.mjs` ＋ `server/auth-core.mjs` —— SQLite 与 PG **共用**，不会改一处忘另一处 |
+| 8 | **鉴权层也纳入 `store.mjs` 分发** | 迁移时才发现 `server/auth.mjs` 直接用了 SQLite 专有的 `db.prepare()` |
+
+### 4.3 搬数据结果
+
+| 表 | 源库（SQLite） | 迁后（PG） |
+|---|---|---|
+| users / identities / sessions | 3 / 3 / 12 | 3 / 3 / 12 |
+| patients / visits / medication | 29 / 113 / 1 | 29 / 113 / 1 |
+| custom_symbols | 0 | 0 |
+
+- `local` 账号在 PG 里**已存在**（单机模式的兜底账号）→ 复用它的 id，SQLite 那边那个不重复建，
+  它的数据（「测试 1」）**重映射**到 PG 那个账号下（不重映射外键会指向不存在的 user）。
+- **三条 owner 不变量自检全为 0**（迁移函数自报 ＋ 独立复核，两遍）。
+- 用迁移过去的账号 `mptest01` 走**真实网关**登录 → 取患者列表 → 取患者详情，全通。
+- 迁移函数 `pulse_migrate_import` 是**一次性的**（能绕过 owner 校验批量写表）→ 搬完已 `--drop-fn` 撤掉。
+
+### 4.4 验收状态
+
+| 项 | 结果 |
+|---|---|
+| 全量回归（SQLite 路径没破） | **498/498 全绿** |
+| PG 存储层回归（对真库） | **49/49 全绿**（含「跨用户一律 404 不是 403」） |
+| 网站静态托管 | 首页 200、JS/CSS 200 |
+| 跨域 | CORS 预检 204 ＋ 正确 `allow-origin`；**真实浏览器**里跨域 `fetch /api/health` 200 |
+
+### 4.5 踩过的坑（别重踩）
+
+1. **MCP 的 PG 模块在本机不可用** —— `queryPgDatabase` / `managePgDatabase` 把**首次**的 PG 就绪探测结果
+   缓存成**模块级 Promise**，首次失败后被**永久缓存**，之后所有调用直接抛同一个错、不会重新探测。
+   绕法：`scripts/pg-admin.mjs`（临时凭证签名调 `tcb/ExecutePGSql` CAPI，SQL 从文件读）。
+2. **`CREATE OR REPLACE FUNCTION` 不能改返回类型** → 建前先 DROP 同签名旧函数（已固化进 `pg-admin.mjs`）。
+3. **postgREST 对标量返回／SQL NULL 不给 body** → 返回值统一 jsonb 对象包裹。
+4. **云函数类型创建后不可改** → 先建了 HTTP 类型，删掉重建为 Event。
+5. **静态托管域名不能手动建网关路由** → 改挂 HTTPSERVICE 默认域名。
+6. **`ExecutePGSql` 不回传 `RETURNING` 的行** → 只看影响行数。
+7. **PL/pgSQL 里 `record ->> 'k'` 不合法** → 循环变量声明成 `jsonb`。
+8. **默认域名有「访问提示中间页」** —— 平台按合规要求对**浏览器直接访问**（`Sec-Fetch-Mode: navigate`）展示
+   「风险提醒」页，点「确定访问」后写 cookie。**唯一合规的去除办法是配自定义域名（须 ICP 备案）**。
+   API 的 fetch 请求不受影响。平台明说默认域名**只许开发测试**，流量异常可能触发风控关停。
+9. **体验版套餐不能加安全域名**（「当前套餐无法执行此操作」）→ 靠服务端 CORS 头（已实测可用）。
+10. **对着真库跑回归会攒测试账号** → `scripts/e2e/pg-store.mjs` 现在自清理（已清掉历史遗留的 12 个）。
 
 ---
 
@@ -1254,6 +1309,10 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 本机库 | `pulse-record/local-data/history.sqlite`（已迁移到多用户结构：15 患者／57 就诊／1 自定义符号，归属归到 `local`；迁移前快照 `history.sqlite.bak-20261104102030`） |
 | 桌面版产物 | `pulse-record/release/`（安装包 ＋ 免安装版，已 gitignore） |
 | 桌面版数据 | 安装版 `%APPDATA%\臧氏脉学\`；**免安装版 exe 旁边的 `data\`** |
+| CloudBase 环境 | `ambitious-parrot-d7ehh7x0fd9d680`（ap-shanghai，**体验版 `baas_trial`，到期 2027-05-04**）；PG `postgres-l00fh7pm`（17.11）7 表 ＋ **35 个 `pulse_*` 函数**；云函数 `pulse-api`（Event）；静态托管已上线 |
+| CloudBase 上的数据 | **3 账号**（`local` / `guoguo` / `mptest01`）＋ **29 患者／113 就诊／1 用药／0 自定义符号**（从本机 SQLite 搬的）；**三条 owner 不变量全 0** |
+| 云端环境变量 | `PULSE_STORE=pg`、`PULSE_CB_ENV=…`、`PULSE_API_PREFIX=/pulse-api`、`PULSE_CORS_ORIGINS=https://…-1257312696.tcloudbaseapp.com` |
+| 本地 PG 工具 | `scripts/pg-admin.mjs`（`tcb/ExecutePGSql` CAPI，绕开 MCP 的 PG 缓存缺陷）、`scripts/migrate-sqlite-to-pg.mjs`（搬数据）、`scripts/build-cloudfunction.mjs`（打包云函数）、`scripts/e2e/pg-store.mjs`（对真库回归 49 项） |
 | 鸿蒙工程 | `pulse-record/harmony/`（DevEco 工程真源，27 个文件）；镜像目录 `~/AiCoding/harmony-pulse-record`（纯 ASCII，不入库）；HAP `entry/build/default/outputs/default/default-default-unsigned.hap`（9.1 MB） |
 
 > ✅ 本机库**已完成迁移**（幂等，迁移前自动留 `.bak-<ts>` 备份）：补上 `owner_id`、
@@ -1266,17 +1325,19 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 
 | 优先级 | 事项 | 为什么急 |
 |---|---|---|
-| 🔴 1 | **域名注册 → 个人实名 → 提交 ICP 备案** | 7~20 工作日，是整条时间线最长的一段；不今天提交，后面小程序、CloudBase 全在等 |
+| 🔴 1 | **域名注册 → 个人实名 → 提交 ICP 备案** | 7~20 工作日，是整条时间线最长的一段；不今天提交，后面小程序、CloudBase 全在等。**且自定义域名是 CloudBase 默认域名的唯一出路**（默认域名只许开发测试，有「风险提醒中间页」，流量异常还可能被风控关停） |
+| 🔴 1b | **微信公众平台把 CloudBase 环境关联到小程序 appid** | 环境 `ambitious-parrot-d7ehh7x0fd9d680` 的 `WxAppId` **还是空** → 小程序的 `wx.cloud.callFunction` 走不通（代码已兜底退回 `wx.request`，不会白屏，但等于没迁） |
 | 🔴 2 | ~~**后台声明《用户隐私保护指引》两项隐私类型**~~ | ✅ **2026-11-05 已不需要** —— 小程序不提供导出，隐私接口降到 **0 个**，后台**一项都不用勾**（详见 §3.11）。剩下要填的只有「用户信息收集」那一栏（用户输入内容／账号信息，见上线清单 §1.3） |
 | 🔴 2c | **填运营者主体与联系邮箱** | 隐私政策**第八**节现在是占位文字（`运营者：（待填写）`），审核会看 |
 | 🟡 2b | 注册微信小程序（个人主体）→ 填真实 AppID | ✅ 已完成（`wx3a21eb903a16cbc4`）；开发者工具需登录对应管理员微信号才能预览／上传 |
-| 🟡 3 | **买境内轻量服务器（2 核 4G）** | 备案通过后要立刻部署 |
-| 🟡 3b | **真机跑一遍新界面**（备案前先用局域网 IP） | 寸关尺关系图「直接显示在页面上、点图可放大」—— 模拟器已验，**真机还没验**（详见 §3.11） |
+| 🟡 3 | **买境内轻量服务器（2 核 4G）** | 备案通过后要立刻部署。**注意：迁 CloudBase 后网站已经能跑在静态托管上，服务器是否还要买，取决于「用自己的域名」还是「用 CloudBase 默认域名」** |
+| 🟡 3b | **真机跑一遍新界面**（备案前先用局域网 IP） | 寸关尺关系图「直接显示在页面上、点图可放大」—— 模拟器已验，**真机还没验**（详见 §3.11）。用户已说本轮不做真机验证 |
 | 🟡 3c | **上传前在开发者工具里重扫一次「代码质量」** | 两条已修（`minified` 已开 ＋ 底图 298 KB → 116.3 KB），但**以工具实际扫描结果为准** —— 扫完确认这两条变成「通过」再传（详见 §3.12） |
 | 🟡 4 | **桌面版装到自己的电脑上试一遍** | 已出包（`release/*.exe`），试过再决定要不要换签名证书 |
 | 🟡 4b | **鸿蒙：DevEco 里下模拟器镜像 → 打开镜像目录 Run** | HAP 已出（9.1 MB unsigned），但**没跑起来过** —— 本机没有模拟器镜像、也没有 hdc。镜像下好后工程路径已是纯 ASCII，直接 Run 就能验四个 tab（详见 §3.15） |
 | ⚪ 5 | AGENTS.md「下游用途」空位 | 由维护者自行填写一行 |
 | ⚪ 6 | 代码签名证书（可选） | 只影响安装时的 SmartScreen 提示，不影响功能 |
+| ⚪ 7 | **CloudBase 套餐升级**（体验版 → 个人版） | 体验版**不能配安全域名**、到期 2027-05-04；升级后才能加安全域名白名单（当前靠服务端 CORS 头，已实测可用） |
 
 ---
 
