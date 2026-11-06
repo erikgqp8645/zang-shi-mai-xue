@@ -13,7 +13,7 @@
 |---|---|---|---|
 | **P0 多用户与数据隔离** | ✅ 已完成 | `users`＋`identities`＋`sessions` 三表；四张业务表下沉 `owner_id`；跨用户一律 404 | 随 `feat/wechat-miniprogram` 走，**不单独合进 `main`** |
 | **P1 网站上线** | ⏸ **卡在用户侧手续** | 脚本与文档已就绪，**域名／ICP 备案／服务器三样都没有** | 备案 7~20 工作日是整条时间线最长的一段 → **今天就去提交备案** |
-| **P2 微信小程序** | 🟡 **已迁 Taro ＋ 界面重排完成**；模拟器逐页截图已验，未真机验证 | 8 个平级页面 → **4 个 tab（病例／就诊／用方／我的）**，「就诊」是工作台页（吸顶上下文条 ＋ **4 个页内 tab（摸脉／体质／疗法／方药）** ＋ 底部操作条）；Taro 4.3.2 ＋ React 18，与网站**共用同一份 domain 源码**；鸿蒙 C-API 编译已通；**寸关尺关系图直接显示在页面上**（不提供导出 → 隐私接口 0 个）；微信「代码质量」两条已修（JS 压缩已开、图片 298 KB → 116.3 KB）；回归 **441 项全绿** | 真机跑一遍（备案前先用局域网 IP） |
+| **P2 微信小程序** | 🟡 **已迁 Taro ＋ 界面重排完成**；模拟器逐页截图已验，未真机验证 | 8 个平级页面 → **4 个 tab（病例／就诊／用方／我的）**，「就诊」是工作台页（吸顶上下文条 ＋ **4 个页内 tab（摸脉／体质／疗法／方药）** ＋ 底部操作条）；Taro 4.3.2 ＋ React 18，与网站**共用同一份 domain 源码**；鸿蒙 C-API 编译已通；**寸关尺关系图直接显示在页面上**（不提供导出 → 隐私接口 0 个）；微信「代码质量」两条已修（JS 压缩已开、图片 298 KB → 116.3 KB）；回归 **515 项全绿**（含网站端浏览器回归 28 项） | 真机跑一遍（备案前先用局域网 IP） |
 | **P3 后期迁 CloudBase** | 🟡 **云端已建成**（开发／试用环境） | 环境 `ambitious-parrot-d7ehh7x0fd9d680`（ap-shanghai 体验版）：PG 7 表 ＋ **35 个 `pulse_*` 函数**、云函数 `pulse-api`（**Event 类型**）、网关 `/pulse-api`、静态托管已上线；网站与小程序**同一套路由**（`handleApi`）；数据已从本机 SQLite 搬过去（29 患者／113 就诊／1 用药），**三条 owner 不变量全 0** | ① **微信后台把环境关联到小程序 appid**（`WxAppId` 还是空）② 换自定义域名（默认域名只许开发测试，有「风险提醒中间页」）③ 备案 |
 | **P4 Windows 桌面应用** | ✅ **已实现**，本机出包并实测 | Electron 44.10.2；复用现有 `server/`＋`dist/`，业务逻辑不重写 | 交给使用者安装使用；macOS 包另找 Mac 机器补 |
 | **P5 鸿蒙端** | 🟡 **已出 HAP**，未实测 | 同一套 Taro 源码走 `harmony_cpp`（C-API）；`pulse-record/harmony/` 是工程真源，编译时镜像到纯 ASCII 路径；9.1 MB unsigned 包 | DevEco 里下模拟器镜像 → 打开镜像目录 Run → 验四个 tab |
@@ -1127,6 +1127,108 @@ runtime 把 `uid` 改成用户值 → hydrate 时 `node.uid !== node.sid` → `d
 2. **`.pr-focus` 与 `.pr-formula` 同特异度** —— 高亮样式必须写在卡片样式**之后**才生效，
    放前面会被卡片自身的 `background` 盖掉（不报错，只是高亮不出来）。
 
+### 3.17 网站端补齐小程序端已有能力：③ 的方名 ↔「用方知识库」（2026-11-06）
+
+**用户**：切回网站端开发，把小程序端已有、网站端缺的能力补上（方向经问卷确认）。
+
+#### 先盘点：网站端到底缺什么
+
+小程序端 §3.16 已经把 ③ 的方名打通到「用方」知识库；而网站端
+`src/domain/formula-links.ts`（远端 `6ebc881` 带来的**共享 domain 层**）**在网站端零引用** ——
+**解析器在，界面没接**。
+
+盘点网站端 `src/`（Vite + React + TS，单页 `App.tsx`）：
+
+| 面板 | 网站端现状 | 与小程序端的差 |
+|---|---|---|
+| ① 摸脉 | `ConstitutionPicker` + `BianmaiNote` + `StateHints` + `PulseTable` + `SymbolPalette` / `PulseDiagram` | 对齐 |
+| ② 疗法 | `TherapyPicker` + `Findings`（663 行） | 讲稿方剂（`DRUGS` 全量）与同和堂版成方**已经渲染**；但讲义 p44 规则条目**只有命中的才显示** |
+| ③ 方药 | `RxList`（纯文字） + `MedicationPanel` | **方名不可点**；**没有「用方」全量视图** |
+
+⇒ 网站端缺的不是「知识库内容」（② 里有），缺的是**③ → 知识库的那条跳转链**，
+以及**规则条目的全量视图**（② 只显示命中的，锚点未必定位得到）—— 这两条是本轮要补的。
+
+#### 落地的文件
+
+| 文件 | 作用 |
+|---|---|
+| `src/components/FormulaLibrary.tsx`（**新**） | ③ 框内**可折叠**的「用方知识库」：讲义 p44 依脉用方**全量 61 条** ＋ 讲稿方剂**全量 30 方**，每条带 DOM 锚点 |
+| `src/components/Findings.tsx` | 导出 `DrugCard` / `FormulaItem`；`onFocusFormula` 变可选；新增 `srcNote` |
+| `src/components/TriadFrame.tsx` | `RxList` / `TherapyPicker` 新增 `onOpenFormula?`；方名对得上渲染成 `.pr-link` 按钮，对不上明说「用方页未载」 |
+| `src/App.tsx` | `formulaFocus` state ＋ `openFormula`；③ 框内插入 `<FormulaLibrary focus={…} />` |
+| `src/index.css` | `.pr-flib*` 与 `.pr-triad-rx-unknown` 样式 |
+| `scripts/e2e/app-regression.mjs` | 第 ⑧ 节：浏览器端 **+10 项**断言（18 → 28） |
+
+#### 为什么放在 ③ 而不是 ②
+
+② 的「方剂备查」是**判读时的参考**（依脉命中了什么方 → 回头查组成）；
+③ 是**正在开方的那一支** —— 读者在这一档问的是「这一支的方，具体怎么吃」。
+
+两者确实有一部分重复（讲稿方剂两边都有），但**用途不同**；小程序端 ③ 档本来就直接显示组成明细，
+网站端对齐它更合理。
+
+**没有动 ② 的 `Findings` 结构** —— ② 的「依脉用方 N」是**命中语义**（命中了几条），
+改结构会破坏既有回归选择器，也会把「命中」与「全量」两件事搅在一起。
+
+#### 四个实现取舍
+
+1. **锚点挂在卡片外面的 wrapper div 上**（不是卡片自己）——
+   卡片同时要挂 `id` 和 `is-focus` 高亮类，两套机制挂在同一元素上容易打架；
+   外壳 div 拿 `id` ＋ 高亮类，卡片本身保持原样。
+2. **`formulaAnchor(kind, id)` 统一生成 id** —— 渲染与跳转走**同一个函数**，不会走偏。
+   锚点 id 全页**唯一**：本区块是页面里唯一给这些卡片发 id 的地方（② 的命中区不给 id）。
+3. **`expanded = open || !!focus`** —— 有 focus 时**强制展开**，锚点元素在同一次渲染里就已进 DOM，
+   `useEffect` 里可直接 `getElementById` → `scrollIntoView({behavior:'smooth', block:'center'})`；
+   CSS 侧 `scroll-margin-top:80px` 兜住吸顶头。
+4. **`focusId` 由 `focus` 推出**，不另存 state —— 少一次渲染、行为可预测。
+   点同一个方名两次时 `resolveFormulaLink` 每次返回新对象引用 → effect 重跑 → 重新滚动。
+
+#### 维度切换：直接复用 ② 那一套
+
+知识库支持 **讲稿原序 / 按五行 / 按左右手** 三个维度，复用
+`groupByWuxing` / `groupByHand` / `FORMULA_ROUTE_ORDER` / `DRUG_GROUPS`（**不另写一套分组**）。
+
+`groupByWuxing` / `groupByHand` 的覆盖率是 **100%**（含「未归类」兜底组），
+所以换维度**不丢条目** —— 回归里专门断言了这一点。
+
+#### ③ 的方名，实测解析结果
+
+| ③ 的方名（讲义 p47） | 落到 | 锚点 | 类型 |
+|---|---|---|---|
+| 上焦方 | 上焦方（讲义 p44「挡路三（左寸）· 变脉无力」） | `rule-fx-dl3-bianmai-wuli` | rule |
+| 中焦方 | 中焦方（加味理中） | `drug-zhongjiao` | drug |
+| 清挡路方 | 清挡路 | `rule-fx-ssx-qingdanglu` | rule |
+| 下焦方 | 下焦方（天乙丹） | `drug-xiajiao` | drug |
+| 引火归元 | 引火归元（肾脏疗法） | `drug-yinhui-guiyuan` | drug |
+| 冷热水 | 一体疗法（冷热水疗法） | `drug-yiti-leng-re-shui` | drug |
+
+对照表与依据是**共享 domain 层** `src/domain/formula-links.ts` 的 —— 与小程序端**同一份**，
+网站端没有另抄一份。查不到的返回 `null`，界面上明说「用方页未载」，**不硬凑、不改名去匹配**。
+
+#### 回归
+
+- **网站端浏览器回归 18 → 28 项**（`npm run test:e2e:app`，**真 Chrome ＋ CDP 驱动**）：
+  ③ 的方名可点且 4 个都能对上 → 每个方名**要么可点、要么明说「用方页未载」** →
+  点「上焦方」→ 知识库自动展开 ＋ 定位 rule 锚点 ＋ 高亮 ＋ 锚点 id 全页唯一 →
+  点「中焦方」→ 定位 drug 锚点 ＋ 高亮 ＋ 唯一 → 换「按五行」维度后锚点仍在 → 控制台无异常。
+- **「故意写坏」两轮验证**（`local-data/break-web.mjs`）：
+  ① 锚点 id 写错（`id={'x-rule-'+r.id}`）→ **4 条断言红**（定位／高亮／唯一／换维度）；
+  ② 高亮 class 不挂 → **1 条断言红**（「定位到的那一条高亮了」，精确命中）。两轮均已复原。
+- 全量回归 **515/515 全绿**（core 26 ＋ taro-lint 202 ＋ taro-api 51 ＋ migration 53 ＋ auth 53 ＋ **app 28** ＋ 桌面端 33 ＋ 鸿蒙 69）。
+- `npm run typecheck`（网站端）与 `npm --prefix taro run typecheck` 均 exit=0。
+
+#### 顺带确认的一件事：网站端单页不需要小程序那套「内存态 ＋ switchTab」
+
+小程序端跳转要走 `store/focus.ts` 的模块级变量，因为 `switchTab` **不支持 query 参数**。
+网站端是**单页平铺**，一个 `useState` 直接传下去就行 —— 不必把小程序那套机制复制过来。
+
+#### 浏览器实看（已做）
+
+`http://localhost:5180/`（vite dev）→ 单机模式自动登录 → 载入示例（少娟）→ 选「三焦疗法」→
+② 疗法卡里的 4 个方名已是带依据的可点按钮（`title` 写着「看「X」的完整条目　依据：…」）→
+③ 清单正常 → 折叠的「用方知识库」标题写着「▸ 用方知识库 · 讲义 p44 依脉用方 61 条 · 讲稿方剂 30 方」→
+点 ③ 的「上焦方」→ 知识库展开并滚到高亮条目。
+
 ## 4. P3 · 迁 CloudBase（🟡 云端已建成，开发／试用环境）
 
 **目标**：网站跑静态托管、API 跑云函数、数据存 **PostgreSQL**、小程序走 `wx.cloud.callFunction`（不走合法域名校验）。
@@ -1301,8 +1403,9 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 当前分支 | `feat/wechat-miniprogram`（基点 `c1814f3`） |
 | 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`feat/wechat-miniprogram` = 小程序 Taro 迁移实施中 |
 | PR | #6 `chore/multi-user → main`，**OPEN**；#7 `chore/desktop-electron → chore/multi-user`，**OPEN**；`feat/wechat-miniprogram` **永不开 PR**（2026-11-06 拍板：**永不合并进 `main`**） |
-| 全量回归 | **498/498 全绿**（core 26 ＋ taro-lint 202 ＋ taro-api 45 ＋ migration 53 ＋ auth 52 ＋ app 18 ＋ 桌面端 33 ＋ 鸿蒙 69） |
+| 全量回归 | **515/515 全绿**（core 26 ＋ taro-lint 202 ＋ taro-api 51 ＋ migration 53 ＋ auth 53 ＋ **app 28** ＋ 桌面端 33 ＋ 鸿蒙 69） |
 | 小程序工程 | `pulse-record/taro/`（Taro 4.3.2 ＋ React 18）；**原生 `miniprogram/` 原样保留作回退** |
+| 网站端 | `pulse-record/src/`（Vite ＋ React ＋ TS，单页 `App.tsx`）；③ 框内有**可折叠「用方知识库」**（p44 依脉用方全量 61 条 ＋ 讲稿方剂全量 30 方），③ 的方名**可点进去定位 ＋ 高亮**（详见 §3.17）；后端**仍跑本机 SQLite**（`local-data/history.sqlite`），**未接 CloudBase PG** |
 | 小程序包体 | 媒体资源 **119.0 KB**（底图 JPEG 116.3 KB ＋ 8 个 tabbar 图标 ≤0.4 KB）；**微信「图片和音频 > 200 K」已通过**（详见 §3.12） |
 | 模拟器回归 | `npm run test:e2e:mp:sim`（**55 项**：4 个 tab 逐页截图 ＋ **白屏判定** ＋ **包内底图运行时可读**）、`npm run test:e2e:mp:privacy`（**6 项**：隐私政策页）、`npm run test:e2e:mp:canvas`（**8 项**：**真微信 canvas 2d 出图端到端**）、`npm run test:e2e:mp:link`（**17 项**：③ 的方名 →「用方」页定位 ＋ 高亮 ＋ 锚点唯一 ＋ 真的滚过去了，详见 §3.16）；四个都会**自己先重启小程序**（bundle 是缓存的，不重启跑的是旧产物）。**2026-11-06 在 macOS 上实测四套全绿：55/55 ＋ 6/6 ＋ 8/8 ＋ 17/17 ＝ 86 项** |
 | 上线前清单 | `pulse-record/docs/miniprogram-release-checklist.md`（隐私指引勾选项＋可复制文案、服务器域名、类目截图、审核退路对照表） |
