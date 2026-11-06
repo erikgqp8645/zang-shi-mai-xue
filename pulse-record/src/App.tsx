@@ -21,6 +21,8 @@ import {
   type TriadStep,
 } from './components/TriadFrame'
 import { TriadImage } from './components/TriadImage'
+import { FormulaLibrary } from './components/FormulaLibrary'
+import type { FormulaLink } from './domain/formula-links'
 import { prescriptionsOf, readTriadReference, therapyOf } from './domain/triad'
 import { HistoryPanel, type EditingRef } from './components/HistoryPanel'
 import { MedicationPanel } from './components/MedicationPanel'
@@ -200,6 +202,19 @@ export default function App() {
   function changeFilter(dim: 'wuxing' | 'hand', keys: string[]) {
     setGroupFilter((prev) => ({ ...prev, [dim]: keys }))
   }
+
+  /**
+   * ③（或 ②）里的方名点进来 → 要定位到「用方知识库」里的哪一条。
+   *
+   * 定位由 `FormulaLibrary` 自己完成（展开 → 滚到锚点 → 高亮），
+   * 这里只负责记住意图 —— 与小程序端那套「内存态 ＋ 切 tab」不同，
+   * web 端是单页平铺，同一个 state 直接传下去就行。
+   */
+  const [formulaFocus, setFormulaFocus] = useState<FormulaLink | null>(null)
+
+  const openFormula = useCallback((link: FormulaLink) => {
+    setFormulaFocus(link)
+  }, [])
 
   const groups = useMemo(() => groupRows(set.layout), [set.layout])
 
@@ -981,6 +996,7 @@ export default function App() {
           onChange={pickTherapy}
           onClear={clearTherapy}
           constitution={manualConstitution}
+          onOpenFormula={openFormula}
         />
 
         <div className="pr-findings-row">
@@ -1004,7 +1020,10 @@ export default function App() {
         state={triadSteps[2].state}
         result={manualPrescriptions.length ? `→ ${manualPrescriptions.map((p) => p.name).join('、')}` : undefined}
       >
-        <RxList prescriptions={manualPrescriptions} />
+        <RxList prescriptions={manualPrescriptions} onOpenFormula={openFormula} />
+
+        {/* 用方知识库：③ 的方名点得进来（组成／服法／加减／禁忌） */}
+        <FormulaLibrary focus={formulaFocus} />
 
         {/* 用药记录（使用者自己填实际用了什么方、加减、服法） */}
         <MedicationPanel

@@ -8,6 +8,7 @@ import {
   type TriadReference,
 } from '../domain/triad'
 import type { Constitution, Therapy } from '../domain/types'
+import { resolveFormulaLink, type FormulaLink } from '../domain/formula-links'
 import { DoseLines } from './DoseLines'
 
 /**
@@ -219,12 +220,15 @@ export function TherapyPicker({
   onChange,
   onClear,
   constitution,
+  onOpenFormula,
 }: {
   value: Therapy | null
   onChange: (t: Therapy) => void
   onClear?: () => void
   /** 已选的体质；用来提示「这个疗法是随体质带出来的」 */
   constitution?: Constitution | null
+  /** 点疗法里的方名 → 跳到「用方知识库」里那一条（与 ③ 的方名同一套对照） */
+  onOpenFormula?: (link: FormulaLink) => void
 }) {
   const carried = constitution ? therapyOf(constitution) : null
   return (
@@ -252,7 +256,26 @@ export function TherapyPicker({
           >
             <span className="pr-triad-pick-name">{o.label}</span>
             <span className="pr-triad-pick-path">
-              {o.prescriptions.map((p) => p.name).join('、')}
+              {o.prescriptions.map((p, i) => {
+                const link = onOpenFormula ? resolveFormulaLink(p.name) : null
+                return (
+                  <span key={p.name}>
+                    {i > 0 && '、'}
+                    {link ? (
+                      <button
+                        type="button"
+                        className="pr-link"
+                        onClick={() => onOpenFormula?.(link)}
+                        title={`看「${link.label}」的完整条目　依据：${link.basis}`}
+                      >
+                        {p.name}
+                      </button>
+                    ) : (
+                      <span>{p.name}</span>
+                    )}
+                  </span>
+                )
+              })}
             </span>
             {carried === o.id && value !== o.id && (
               <span className="pr-triad-pick-hint">随体质带出</span>
@@ -264,22 +287,59 @@ export function TherapyPicker({
   )
 }
 
-/** 开方药清单（③ 里照图列出的方名） */
-export function RxList({ prescriptions }: { prescriptions: Prescription[] }) {
+/**
+ * 开方药清单（③ 里照图列出的方名）
+ *
+ * ## 方名可点
+ *
+ * 图上的方名（「上焦方」「清挡路方」「引火归元」…）是**讲义 p47 的用名**，
+ * 而「用方」知识库是另一套写法 —— 两者是**同一个方**，对照表在
+ * `src/domain/formula-links.ts`（每条都带依据）。
+ *
+ * - 对得上的 → 方名变成链接，点进去看完整条目（组成／服法／加减／禁忌）；
+ * - 对不上的 → **明说「用方页未载」**，不硬凑、不改名去匹配。
+ */
+export function RxList({
+  prescriptions,
+  onOpenFormula,
+}: {
+  prescriptions: Prescription[]
+  /** 点方名 → 跳到「用方知识库」里那一条 */
+  onOpenFormula?: (link: FormulaLink) => void
+}) {
   if (prescriptions.length === 0) {
     return <p className="pr-triad-rx-empty">在 ② 选定疗法后，按讲义 p47 图列出那一支的方</p>
   }
   return (
     <ul className="pr-triad-rx-list">
-      {prescriptions.map((rx) => (
-        <li key={`${rx.no}-${rx.name}`} className="pr-triad-rx">
-          <span className="pr-triad-rx-no">{rx.no}.</span>
-          <span className="pr-triad-rx-name">{rx.name}</span>
-          <span className="pr-triad-rx-src">〔{rx.source}〕</span>
-          {/* 两套资料的组成并列（克 ／ 比例制），各带出处；查不到就明说未载 */}
-          <DoseLines name={rx.name} className="pr-triad-rx-dose" />
-        </li>
-      ))}
+      {prescriptions.map((rx) => {
+        const link = onOpenFormula ? resolveFormulaLink(rx.name) : null
+        return (
+          <li key={`${rx.no}-${rx.name}`} className="pr-triad-rx">
+            <span className="pr-triad-rx-no">{rx.no}.</span>
+            <span className="pr-triad-rx-name">
+              {link ? (
+                <button
+                  type="button"
+                  className="pr-link"
+                  onClick={() => onOpenFormula?.(link)}
+                  title={`看「${link.label}」的完整条目　依据：${link.basis}`}
+                >
+                  {rx.name}
+                </button>
+              ) : (
+                <span>{rx.name}</span>
+              )}
+              {onOpenFormula && !link && (
+                <span className="pr-triad-rx-unknown">　用方页未载</span>
+              )}
+            </span>
+            <span className="pr-triad-rx-src">〔{rx.source}〕</span>
+            {/* 两套资料的组成并列（克 ／ 比例制），各带出处；查不到就明说未载 */}
+            <DoseLines name={rx.name} className="pr-triad-rx-dose" />
+          </li>
+        )
+      })}
     </ul>
   )
 }

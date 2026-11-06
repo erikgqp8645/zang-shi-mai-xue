@@ -100,7 +100,7 @@ function AttrBasis({ attr }: { attr: Attribution | undefined }) {
 }
 
 /** 方剂卡片：组成／服法／科学中药／加减／适用脉象／禁忌，全部照抄讲稿原文 */
-function DrugCard({ drug, showAttr }: { drug: Drug; showAttr?: boolean }) {
+export function DrugCard({ drug, showAttr }: { drug: Drug; showAttr?: boolean }) {
   const attr = RULE_OR_DRUG_ATTRIB[drug.id]
   return (
     <div className="pr-drug" onClick={(e) => e.stopPropagation()}>
@@ -214,22 +214,26 @@ function ScienceLine({ s }: { s: FormulaScience }) {
 }
 
 /** 一条依脉用方条目 */
-function FormulaItem({
+export function FormulaItem({
   item,
   showAttr,
   sessions,
   onFocusFormula,
+  srcNote,
 }: {
   item: SessionFormulaHit
   showAttr?: boolean
   /** 按维度分组时，同一条规则合并多次命中，此处列出命中的记录 */
   sessions?: string[]
-  onFocusFormula: (h: SessionFormulaHit) => void
+  /** 「用方知识库」里的条目不是命中项，没有「定位到格子」这一步 */
+  onFocusFormula?: (h: SessionFormulaHit) => void
+  /** 出处行后面的补充说明（「用方知识库」里写「全量条目」，命中区写命中记录） */
+  srcNote?: string
 }) {
   const { sessionLabel, hit } = item
   const attr = RULE_OR_DRUG_ATTRIB[hit.id]
   return (
-    <div className={`pr-formula is-${hit.kind}`} onClick={() => onFocusFormula(item)}>
+    <div className={`pr-formula is-${hit.kind}`} onClick={() => onFocusFormula?.(item)}>
       <div className="pr-formula-head">
         <span className="pr-formula-kind">{hit.kind}</span>
         <strong>{hit.condition}</strong>
@@ -277,11 +281,13 @@ function FormulaItem({
       )}
       <p className="pr-finding-src">
         〔{hit.source}〕
-        {sessions && sessions.length > 0
-          ? sessions[0] === STANDING_LABEL
-            ? ' · 常驻条目（不依脉象）'
-            : ` · 命中记录 ${sessions.join('、')}`
-          : ` · 记录 ${sessionLabel}`}
+        {srcNote !== undefined
+          ? srcNote
+          : sessions && sessions.length > 0
+            ? sessions[0] === STANDING_LABEL
+              ? ' · 常驻条目（不依脉象）'
+              : ` · 命中记录 ${sessions.join('、')}`
+            : ` · 记录 ${sessionLabel}`}
       </p>
     </div>
   )

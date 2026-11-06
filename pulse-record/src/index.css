@@ -3333,3 +3333,80 @@ button:disabled {
 .pr-user-name {
   color: var(--ink);
 }
+
+/* ---------- 用方知识库（③ 开方药档里的可折叠全量视图） ---------- */
+
+.pr-flib {
+  margin: 4px 0 14px;
+  border: 1px solid var(--divider);
+  border-radius: 6px;
+  background: var(--card);
+}
+
+.pr-flib-head {
+  padding: 8px 12px 6px;
+}
+
+.pr-flib-toggle {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 2px 0;
+  cursor: pointer;
+  text-align: left;
+  color: var(--ink);
+}
+
+.pr-flib-caret {
+  color: var(--sage);
+  font-size: 12px;
+}
+
+.pr-flib-title {
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.pr-flib-count {
+  font-size: 11px;
+  color: var(--sage);
+}
+
+.pr-flib-hint {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--sage);
+}
+
+.pr-flib-body {
+  padding: 4px 12px 14px;
+  border-top: 1px solid var(--divider);
+}
+
+.pr-flib-group {
+  margin-bottom: 14px;
+}
+
+.pr-flib-anchor {
+  scroll-margin-top: 80px;
+  border-radius: 6px;
+  transition: background-color 0.4s ease;
+}
+
+/* 定位到的那一条：高亮一下，让人一眼看见落在哪 */
+.pr-flib-anchor.is-focus {
+  background: rgba(180, 132, 100, 0.14);
+  box-shadow: inset 3px 0 0 var(--clay);
+  padding-left: 8px;
+}
+
+/* 方名对不上知识库条目时，明说「用方页未载」 */
+.pr-triad-rx-unknown {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--sage);
+}
