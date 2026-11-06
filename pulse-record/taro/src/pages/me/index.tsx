@@ -10,6 +10,7 @@ import {
   unbindWechat as unbindWechatApi,
 } from '../../utils/auth'
 import {
+  API_BASE,
   normalizeBase,
   resetApiBase as resetApiBaseConfig,
   resolveApiBase,
@@ -172,10 +173,14 @@ export default function Me() {
     const res = await probe(base)
     if (res.ok) return res
     const msg = res.error || '连不上'
-    const hint = /url not in domain list/i.test(msg)
-      ? '（域名校验没关：开发工具 → 详情 → 本地设置 → 勾「不校验合法域名…」）'
-      : /timeout|fail/i.test(msg)
-        ? '（手机与电脑要连同一个 Wi-Fi；电脑防火墙要放行 5178 端口）'
+    // 本机地址与云端地址的排查方向完全不同，不能混着提示
+    const isLocal = /\/\/(127\.0\.0\.1|localhost|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(base)
+    const hint = /url not in domain list|合法域名/.test(msg)
+      ? '（域名校验没开：开发工具 → 详情 → 本地设置 → 勾「不校验合法域名…」；真机 → 右上「…」→ 打开调试）'
+      : /timeout|fail|ERR_|超时/i.test(msg)
+        ? isLocal
+          ? '（手机与电脑要连同一个 Wi-Fi；电脑防火墙放行该端口；后端要监听 0.0.0.0 而不是 127.0.0.1）'
+          : '（云端地址连不上：先确认网关是否还在、手机网络是否正常）'
         : ''
     return { ok: false, error: msg + hint }
   }, [])
@@ -236,7 +241,7 @@ export default function Me() {
     const res = resetApiBaseConfig()
     setApiBase(res.base)
     setApiBaseInput(res.base)
-    setApiHint('已恢复默认地址。')
+    setApiHint('已恢复默认地址：' + res.base)
   }, [])
 
   /* ------------------------------ 账号操作 ------------------------------ */
@@ -365,8 +370,9 @@ export default function Me() {
       <View className="pr-card">
         <View className="pr-card-title">服务器</View>
         <View className="pr-note">
-          小程序连的是哪台机器。本机联调填电脑的局域网 IP（如 http://192.168.1.20:5178），
-          开发工具里填 http://127.0.0.1:5178。改这里不用改代码、不用重新编译。
+          小程序连的是哪台服务。默认是打包时写进去的地址（下方「恢复默认」就是回到它）；
+          本机联调时改成电脑的局域网地址（如 http://192.168.1.20:5178）。
+          改这里不用改代码、不用重新编译。
         </View>
         <View className="pr-me-row">
           <Text className="pr-me-key">当前连接</Text>
@@ -376,7 +382,7 @@ export default function Me() {
         <Input
           className="pr-input"
           value={apiBaseInput}
-          placeholder="http://127.0.0.1:5178"
+          placeholder={API_BASE}
           onInput={handleApiBaseInput}
         />
         <View className="pr-me-actions">
