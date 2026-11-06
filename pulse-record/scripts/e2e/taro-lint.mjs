@@ -312,7 +312,25 @@ if (existsSync(caseDetail)) {
  * ======================================================================== */
 if (existsSync(visitPage)) {
   const src = read(visitPage)
-  ok('就诊工作台有 4 个页内 tab（脉象/判读/用药/寸关尺图）', /脉象/.test(src) && /判读/.test(src) && /用药/.test(src) && /寸关尺图/.test(src))
+  // 页内 tab 的档位**按 TABS 数组解析**，不全文搜词 ——
+  // 否则注释里写一句「这里没有寸关尺图」就被当成「有这一档」。
+  const tabsBlock = (src.match(/const TABS = \[[\s\S]*?\]/) || [''])[0]
+  const tabLabels = [...tabsBlock.matchAll(/label: '([^']+)'/g)].map((m) => m[1])
+  ok('就诊工作台有 3 个页内 tab（脉象/判读/用药）', tabLabels.length === 3 && tabLabels.join('/') === '脉象/判读/用药', tabLabels.join('/'))
+  // 2026-11-06：原来这里还有第 4 档「寸关尺图」（外加底部一个「出图」按钮）。
+  // 原生回退工程的录入页 `miniprogram/pages/record/record` 里**一个图示入口都没有** ——
+  // 关系图属于「看」的页面（病例详情页），不进「录」的页面；而且两处摆着是重复的。
+  ok(
+    '就诊工作台**没有**「寸关尺图」这一档（录入页不放关系图）',
+    !tabLabels.some((l) => l.includes('寸关尺')) && !/DiagramView/.test(src),
+    tabLabels.join('/'),
+  )
+  const actionBarBlock = (src.match(/<ActionBar>[\s\S]*?<\/ActionBar>/) || [''])[0]
+  ok(
+    '就诊工作台底部没有「出图」按钮',
+    !/出图/.test(actionBarBlock),
+    actionBarBlock.replace(/\s+/g, ' ').slice(0, 120),
+  )
   ok('就诊工作台用了吸顶上下文条', /context-bar/.test(src))
   ok('就诊工作台有底部固定操作条', /action-bar/.test(src))
   ok('就诊工作台切体例立刻落库（updatePatientLayout）', /updatePatientLayout/.test(src))
@@ -617,10 +635,16 @@ ok(
   existsSync(diagramViewPath) && read(diagramViewPath).includes('renderDiagramImage'),
 )
 
-for (const p of ['pages/case-detail/index.tsx', 'pages/visit/index.tsx']) {
-  const src = read(join(SRC, p))
-  ok(`${p} 用了 diagram-view（图直接显示，不是按钮弹窗）`, src.includes('diagram-view'))
-}
+// 关系图**只在病例详情页**（「看」的页面）摆着 —— 就诊工作台（「录」的页面）不放。
+// 原生回退工程的规矩：`miniprogram/pages/record/record` 里一个图示入口都没有。
+ok(
+  'pages/case-detail/index.tsx 用了 diagram-view（图直接显示，不是按钮弹窗）',
+  read(join(SRC, 'pages/case-detail/index.tsx')).includes('diagram-view'),
+)
+ok(
+  'pages/visit/index.tsx **不用** diagram-view（录入页不放关系图）',
+  !read(join(SRC, 'pages/visit/index.tsx')).includes('diagram-view'),
+)
 
 /* ========================================================================
  * 22. 出图底图必须真进包（2026-11-05）

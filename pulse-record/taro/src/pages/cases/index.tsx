@@ -18,12 +18,12 @@ import './index.scss'
  * ## 与原生版的差别（这就是 IA 重构的一部分）
  *
  * 原生版点「录入编辑」会跳到 `/pages/record/record`（又是一个页），
- * 点「看表/出图」跳到 `/pages/case-detail/case-detail`（又一个页），
+ * 点「看表/看图」跳到 `/pages/case-detail/case-detail`（又一个页），
  * 一趟下来 6~8 次跳页。
  *
  * 现在：
  *   · 点患者 → **切到「就诊」tab**（`switchTab`，不是跳页），上下文已选好
- *   · 「看表/出图」→ 仍去病例详情页（那里要出图、存相册，确实需要一个独立页面）
+ *   · 「看表/看图」→ 仍去病例详情页（那里摆记录表 ＋ 寸关尺关系图，确实需要一个独立页面）
  *   · 「新建记录」→ 弹层问名字 → 建好患者直接切到就诊 tab 的「新建一次」状态
  *
  * 上下文用 `store/context.ts` 传递 —— `switchTab` 不能带 query，所以状态得先写进 store。
@@ -207,7 +207,7 @@ export default function Cases() {
     Taro.switchTab({ url: '/pages/visit/index' })
   }
 
-  /** 看表 / 出图 —— 需要独立页面（出图、存相册） */
+  /** 看表 / 看图 —— 需要独立页面（记录表 ＋ 寸关尺关系图） */
   const goDetail = (id: string) => {
     Taro.navigateTo({ url: `/pages/case-detail/index?patientId=${encodeURIComponent(id)}` })
   }
@@ -297,7 +297,7 @@ export default function Cases() {
               去就诊
             </Text>
             <Text className='pr-link' onClick={() => goDetail(item.id)}>
-              看表 / 出图
+              看表 / 看图
             </Text>
             <Text className='pr-link' onClick={() => startRename(item.id, item.name)}>
               重命名

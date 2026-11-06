@@ -117,12 +117,3 @@
 .pr-err {
   color: #b03a2e;
 }
-
-/* 离屏画布：不显示，只用来出图 */
-.pr-off-canvas {
-  position: absolute;
-  left: -9999rpx;
-  top: -9999rpx;
-  width: 1px;
-  height: 1px;
-}

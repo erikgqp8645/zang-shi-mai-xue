@@ -17,7 +17,6 @@ import ActionBar from '../../components/action-bar'
 import VisitPulse from '../../components/visit-pulse'
 import VisitJudge from '../../components/visit-judge'
 import MedicationPanel from '../../components/medication-panel'
-import DiagramView from '../../components/diagram-view'
 import type { SheetSession } from '../../components/record-sheet'
 
 import './index.scss'
@@ -34,9 +33,14 @@ import './index.scss'
  *   脉象 → 录入这一次的左右手脉象（宽表 ／ 一次一屏）
  *   判读 → 开方三部曲的 ①②③（体质／疗法落库到这次就诊）
  *   用药 → 这一次的用药记录
- *   出图 → **寸关尺关系图直接显示**（2026-11-05 维护者定：原来的「存相册／
- *         复制 Markdown／复制 CSV」三个导出选项，连同相册、剪切板两个隐私接口
- *         一并去掉了 —— 小程序不再提供任何导出）
+ *
+ * ## 这里**没有**「寸关尺关系图」（2026-11-06 改回原生版的规矩）
+ *
+ * 原生回退工程 `miniprogram/pages/record/record` 里**一个图示入口都没有**，
+ * 底部也只有「保存」一个按钮 —— **关系图属于「看」的页面，不进「录」的页面**。
+ * Taro 版一度把它做成这里的第 4 档页内 tab（外加底部一个「出图」按钮），
+ * 既破了这条规矩，又和**病例详情页**（那里才摆着关系图）重复。
+ * → 现在这一页只有三档；关系图仍然在病例详情页，跟记录表并排。
  *
  * ## 落库语义
  *
@@ -48,7 +52,6 @@ const TABS = [
   { key: 'pulse', label: '脉象' },
   { key: 'judge', label: '判读' },
   { key: 'med', label: '用药' },
-  { key: 'export', label: '寸关尺图' },
 ]
 
 /** 录入视图偏好（本地，不落库 —— 落库的只有体例） */
@@ -248,19 +251,6 @@ export default function Visit() {
     }
   }
 
-  /* ---------------- 出图 ---------------- */
-
-  /** 组一份绘制用的 RecordSet（与网站同一形状） */
-  const buildSet = () => ({
-    name,
-    layout,
-    sessions: sessions.map((s) => ({
-      id: s.id,
-      label: s.label || '',
-      values: s.values || {},
-    })),
-  })
-
   /* ---------------- 渲染 ---------------- */
 
   return (
@@ -319,20 +309,6 @@ export default function Visit() {
         />
       ) : null}
 
-      {/* ---------- 寸关尺关系图 ---------- */}
-      {tab === 'export' ? (
-        <View className='pr-card'>
-          <View className='pr-card-title'>寸关尺关系图</View>
-          <Text className='pr-note'>
-            图上标的是
-            {activeSessionId ? '你点的那一次' : '最近一次'}
-            的脉象 —— 改完格子图会跟着变。点图可放大。
-          </Text>
-
-          <DiagramView set={buildSet()} sessionId={activeSessionId} />
-        </View>
-      ) : null}
-
       {/* ---------- 底部固定操作条 ---------- */}
       <View className='pr-disclaimer pr-visit-disclaimer'>
         本工具只做记录，不构成诊断。体质与疗法由使用者自己判断后手工选，工具不代判、不自动开方。
@@ -344,9 +320,6 @@ export default function Visit() {
         </View>
         <View className='pr-btn' onClick={() => Taro.switchTab({ url: '/pages/cases/index' })}>
           病例
-        </View>
-        <View className='pr-btn' onClick={() => setTab('export')}>
-          出图
         </View>
       </ActionBar>
     </View>
