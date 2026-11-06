@@ -1,6 +1,6 @@
 # 项目进度 —— 臧氏脉学 · 脉象记录表生成器
 
-> **更新于** 2026-11-06 ｜ **仓库** `erikgqp8645/zang-shi-mai-xue` ｜ **当前分支** `feat/wechat-miniprogram`（基点 `c1814f3`）
+> **更新于** 2026-11-06 ｜ **仓库** `erikgqp8645/zang-shi-mai-xue` ｜ **当前分支** `feat/web-site`（网站端线；基点 `6ebc881`，与小程序线同源）｜ 小程序线见 `feat/wechat-miniprogram`
 >
 > 本文是**进度台账**：记每条工作线做到哪了、卡在哪、下一手做什么。
 > 桌面应用的**实施方案**另见 [`desktop-plan.md`](./desktop-plan.md)；上线手册见 [`deploy.md`](./deploy.md)；迁 CloudBase 见 [`cloudbase-migration.md`](./cloudbase-migration.md)；小程序 Taro 迁移约定见 [`taro-migration.md`](./taro-migration.md)。
@@ -1400,8 +1400,9 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 
 | 项 | 值 |
 |---|---|
-| 当前分支 | `feat/wechat-miniprogram`（基点 `c1814f3`） |
-| 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`feat/wechat-miniprogram` = 小程序 Taro 迁移实施中 |
+| 当前分支 | `feat/web-site`（**网站端线**，基点 `6ebc881`） |
+| 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`chore/desktop-electron` = `8bc151f`；`feat/wechat-miniprogram` = `623aca8`（小程序／鸿蒙／桌面端／CloudBase 线，**历史原样保留**）；**`feat/web-site` = `845b339`（网站端线，2026-11-06 从 `6ebc881` 切出）** |
+| 分支纪律 | **两条长期开发线**（2026-11-06 起）：网站端新改动走 `feat/web-site`，小程序／鸿蒙／桌面端走 `feat/wechat-miniprogram`；同源于 `6ebc881`，都**不开 PR**、都不**改写已推送的历史**。详见 `AGENTS.md`「Git 约定」 |
 | PR | #6 `chore/multi-user → main`，**OPEN**；#7 `chore/desktop-electron → chore/multi-user`，**OPEN**；`feat/wechat-miniprogram` **永不开 PR**（2026-11-06 拍板：**永不合并进 `main`**） |
 | 全量回归 | **515/515 全绿**（core 26 ＋ taro-lint 202 ＋ taro-api 51 ＋ migration 53 ＋ auth 53 ＋ **app 28** ＋ 桌面端 33 ＋ 鸿蒙 69） |
 | 小程序工程 | `pulse-record/taro/`（Taro 4.3.2 ＋ React 18）；**原生 `miniprogram/` 原样保留作回退** |
@@ -1448,7 +1449,7 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 
 - **什么时候更新本文**：① 某条工作线状态变化（完成／被阻塞／方案变更）② 关键决策拍板 ③ 阻塞项清单变动 → 改完连同相关代码/文档一起提交。
 - **提交前缀**：沿用 `AGENTS.md`「Git 约定」—— `docs:` 资料整理／笔记 ｜ `data:` 新增或更新原始资料 ｜ `chore:` 工具与配置 ｜ `ocr:` 识别文本落盘；**代码与文档分开提交**。
-- **分支纪律**：**所有开发集中在 `feat/wechat-miniprogram` 一条分支上做**（2026-11-04 起）—— 该分支已包含账号与数据隔离、小程序端、Windows 桌面应用的全部内容。仍然**不直推 `main`**。详见 `AGENTS.md`「Git 约定」。
+- **分支纪律**：**两条长期开发线**（2026-11-06 起）—— `feat/wechat-miniprogram`（小程序／鸿蒙／Windows 桌面端、多用户与 CloudBase 迁移）与 **`feat/web-site`（网站端 `pulse-record/src/`）**，两者同源于 `6ebc881`。**网站端的新改动一律走 `feat/web-site`**；小程序分支上已有的内容**原样保留，不改写它的历史**。仍然**不直推 `main`**、都**不开 PR**。详见 `AGENTS.md`「Git 约定」。
 - ⭐ **小程序线永不合并进 `main`（2026-11-06 维护者拍板）**：微信端、鸿蒙端、Windows 桌面端、多用户与 CloudBase 迁移**全部永久留在 `feat/wechat-miniprogram`**。**不向 `main` 合并、不向 `main` 开 PR** —— 这条比「上线之前集中开发」更强，不是「上线前不合」而是**不合**。`main` 保持为原始资料库 ＋ 已合入的稳定工具。
 - **PR 状态**：#6（`chore/multi-user → main`）、#7（`chore/desktop-electron → chore/multi-user`）**保持 OPEN、既不合也不关**；它们都已是 `feat/wechat-miniprogram` 的祖先，合进去就等于把小程序线合进 `main`。**「以后要不要并回 `main`」这个问题已关闭**，不必再问、也不必准备合并方案。日常推远端就在 `feat/wechat-miniprogram` 上提交并 `git push` 到同名远端分支，**不需要开 PR**。
 - **表格优先**：状态一律用表格写，行尾标注实测日期，别写「大概」「应该」。
