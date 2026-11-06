@@ -335,6 +335,62 @@ ok(
   buildScript.includes('PULSE_HARMONY_HOME') && buildScript.includes('rsync'),
 )
 
+/* ========== 11. 用 devecocli 而不是手工调 hvigorw ========== */
+section('11. 构建走 devecocli（自己解析 SDK/hvigor/JBR）')
+
+// 手工调 hvigorw 要自己拼 hvigor 软链 + DEVECO_SDK_HOME + JAVA_HOME，
+// 缺一样就是一次编译失败。devecocli build 三样都自己解析好了。
+ok('harmony-build.mjs 用 devecocli build', buildScript.includes("['build']"))
+
+// ⚠️ 断言必须查**可执行代码**，不能全文搜词 ——
+// 头注释里就写着「为什么要用 devecocli 而不是 hvigorw」，里面全是
+// `hvigorw` / `DEVECO_SDK_HOME` / `JAVA_HOME` 这些字样。
+// 全文搜词会被自己的注释骗过（这个坑四档 tab 那轮就踩过一次）。
+ok(
+  'harmony-build.mjs 不再手工调 hvigorw（查调用与常量定义，不查全文）',
+  !/\brun\(\s*['"]?HVIGORW/.test(buildScript) && !/\bHVIGORW\s*=/.test(buildScript),
+)
+
+ok(
+  'harmony-build.mjs 不再挂 hvigor 软链（@ohos/hvigor 不在 npmjs 上，是死路）',
+  !/\bsymlinkSync\s*\(/.test(buildScript) && !/node_modules\/@ohos/.test(buildScript),
+)
+
+ok(
+  'harmony-build.mjs 不再手工设 DEVECO_SDK_HOME / JAVA_HOME（查 env 传参）',
+  !/DEVECO_SDK_HOME\s*:/.test(buildScript) && !/JAVA_HOME\s*:/.test(buildScript),
+)
+
+ok(
+  'harmony-build.mjs 检查 devecocli 能不能跑（而不是检查文件路径）',
+  buildScript.includes('DEVECOCLI') && buildScript.includes("--version"),
+)
+
+/* ========== 12. 部署脚本 ========== */
+section('12. 部署脚本（scripts/harmony-run.mjs）')
+
+const runScript = readOrNull(join(ROOT, 'scripts/harmony-run.mjs')) || ''
+ok('scripts/harmony-run.mjs 存在', !!runScript)
+
+for (const mode of ['doctor', 'emulator', 'deploy']) {
+  ok(`harmony-run.mjs 支持 ${mode} 子命令`, runScript.includes(`'${mode}'`))
+}
+
+ok(
+  'harmony-run.mjs 检查登录状态（签名与 SN 都要登录）',
+  runScript.includes('auth') && runScript.includes('status'),
+)
+
+ok(
+  'harmony-run.mjs 的在线设备检测只认 serial（不比「两个词以上」—— 那种会匹配到提示文字）',
+  runScript.includes('onlineSerials') && !/online = \/\^\\S\+\\s\\S\+\//.test(runScript),
+)
+
+ok(
+  'harmony-run.mjs 能在登录缺失时给出明确的操作指令',
+  runScript.includes('devecocli auth login'),
+)
+
 /* ========== 汇总 ========== */
 console.log(`\n${'─'.repeat(50)}`)
 console.log(`鸿蒙工程检查：${pass} 通过，${fail} 失败`)

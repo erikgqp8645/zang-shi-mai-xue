@@ -24,12 +24,23 @@
  *
  *   1. rsync 仓库的 `harmony/` → 镜像目录（**不删**镜像里多出来的文件）
  *   2. 写 `local.properties`（`sdk.dir` 指向 DevEco 自带的 SDK）
- *   3. 把 DevEco 自带的 hvigor 挂进镜像的 `node_modules/@ohos/`
- *      （`@ohos/hvigor` 不在 npmjs 上，只能用 IDE 自带那份）
- *   4. Taro 构建：`TARO_HARMONY_PROJECT=镜像` → `.ets` 产物写进镜像
- *   5. `ohpm install`（工程根 ＋ `entry` 模块 —— 依赖在 entry 的 oh-package 里）
- *   6. `hvigorw assembleHap`
- *   7. 打印 HAP 路径
+ *   3. Taro 构建：`TARO_HARMONY_PROJECT=镜像` → `.ets` 产物写进镜像
+ *   4. ArkTS 严格模式补丁（上游模板的坑，见「工具函数」一节）
+ *   5. rawfile 资源对齐（tabBar 图标，见「工具函数」一节）
+ *   6. `ohpm install`（工程根 ＋ `entry` 模块 —— 依赖在 entry 的 oh-package 里）
+ *   7. `devecocli build` —— 官方命令行工具，自己解析 DevEco 的 SDK/hvigor/JBR
+ *   8. 打印 HAP 路径
+ *
+ * ## 为什么用 `devecocli` 而不是自己调 hvigorw
+ *
+ * 自己调 `hvigorw` 要手工拼三样东西：**hvigor 软链**（`@ohos/hvigor` 不在 npmjs 上）、
+ * **`DEVECO_SDK_HOME`**（SDK 根目录，不是版本目录）、**`JAVA_HOME`**（打包要 Java，
+ * 本机只有 DevEco 自带的 JBR）。三样缺一样就是一次编译失败。
+ *
+ * `devecocli build` 自己把这三样都解析好了 —— 实测**把软链移走也能构建成功**。
+ * 所以这里只留一条路径，不做「两套都支持」。
+ *
+ * 前置条件：`npm i -g @deveco/deveco-cli@stable`（外加装了 DevEco Studio）。
  *
  * ## 用法
  *
@@ -39,10 +50,10 @@
  * ```
  *
  * 环境变量：
- *   · `DEVECO_HOME`     DevEco Studio 路径（默认 `/Applications/DevEco-Studio.app`）
  *   · `PULSE_HARMONY_HOME` 镜像目录（默认 `~/AiCoding/harmony-pulse-record`）
+ *   · `DEVECOCLI_PATH`     devecocli 可执行文件（默认 `devecocli`，走 PATH）
  */
-import { execFileSync, spawnSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import {
   existsSync,
   mkdirSync,
@@ -50,7 +61,6 @@ import {
   readFileSync,
   readdirSync,
   writeFileSync,
-  symlinkSync,
   rmSync,
 } from 'node:fs'
 import { homedir } from 'node:os'
@@ -67,11 +77,11 @@ const MIRROR = resolve(
 const SKIP_TARO = process.argv.includes('--skip-taro')
 
 const OHPM = join(DEVECO, 'Contents/tools/ohpm/bin/ohpm')
-const HVIGORW = join(DEVECO, 'Contents/tools/hvigor/bin/hvigorw')
-const NODE_HOME = join(DEVECO, 'Contents/tools/node')
-const JAVA_HOME = join(DEVECO, 'Contents/jbr/Contents/Home')
 const SDK_ROOT = join(DEVECO, 'Contents/sdk')
 const SDK_DIR = join(SDK_ROOT, 'default')
+
+/** 官方命令行工具（自己解析 DevEco 的 SDK / hvigor / JBR） */
+const DEVECOCLI = process.env.DEVECOCLI_PATH || 'devecocli'
 
 function fail(msg) {
   console.error(`\n✗ ${msg}`)
@@ -88,12 +98,12 @@ function run(cmd, args, opts = {}) {
   if (r.status !== 0) fail(`${cmd} ${args.join(' ')} 退出码 ${r.status}`)
 }
 
-/* ---------- 0.9 ArkTS 严格模式补丁 ---------- */
+/* ---------- 工具函数：ArkTS 严格模式补丁 ---------- */
 
 /**
  * 给 Taro 生成的 `app.ets` 打 ArkTS 严格模式补丁。
  *
- * 补丁逻辑（连同上面的出处说明）在 `scripts/lib/harmony-arkts-patch.mjs`，
+ * 补丁逻辑（连同出处说明）在 `scripts/lib/harmony-arkts-patch.mjs`，
  * 那里是**纯函数**，可以被 `scripts/e2e/harmony-lint.mjs` 直接测。
  * 这里只负责读文件 → 调纯函数 → 写回去。
  */
@@ -117,91 +127,7 @@ function patchArkTsStrictMode(mirror) {
   console.log('· app.ets：已修补 ArkTS 严格模式（levelRes 补初值 0）')
 }
 
-/* ---------- 0. 前提检查 ---------- */
-for (const [label, p] of [
-  ['DevEco Studio', DEVECO],
-  ['ohpm', OHPM],
-  ['hvigor', HVIGORW],
-  ['SDK', SDK_DIR],
-  ['Java（JBR，PackageHap 要用）', JAVA_HOME],
-  ['仓库里的鸿蒙工程', SRC],
-]) {
-  if (!existsSync(p)) fail(`找不到${label}：${p}`)
-}
-console.log(`DevEco   ${DEVECO}`)
-console.log(`SDK      ${SDK_DIR}`)
-console.log(`工程真源 ${SRC}`)
-console.log(`镜像目录 ${MIRROR}\n`)
-
-/* ---------- 1. 同步到 ASCII 路径 ---------- */
-mkdirSync(MIRROR, { recursive: true })
-// 不加 --delete：镜像里手工加的文件保留（仓库那份才是要改的）
-const excludes = [
-  '--exclude', 'node_modules/',
-  '--exclude', 'oh_modules/',
-  '--exclude', 'entry/oh_modules/',
-  '--exclude', 'entry/node_modules/',
-  '--exclude', 'local.properties',
-  '--exclude', '.hvigor/',
-  '--exclude', 'build/',
-  '--exclude', 'entry/build/',
-  '--exclude', '.idea/',
-]
-run('rsync', ['-a', ...excludes, `${SRC}/`, `${MIRROR}/`])
-
-// 工程级的 module.json5 实测**不生效**（编译后的 module.json 里 deviceConfig 为 null），
-// 留着只会让人以为「明文 HTTP 已经配了」—— 删掉，防止它在镜像里长期躺着。
-rmSync(join(MIRROR, 'module.json5'), { force: true })
-
-console.log('· 已同步工程配置到镜像\n')
-
-/* ---------- 2. local.properties（SDK 路径） ---------- */
-writeFileSync(
-  join(MIRROR, 'local.properties'),
-  `# 由 scripts/harmony-build.mjs 生成（不入版本库）\nsdk.dir=${SDK_DIR}\n`,
-  'utf8',
-)
-
-/* ---------- 3. 自带 hvigor 挂进 node_modules ---------- */
-const nm = join(MIRROR, 'node_modules/@ohos')
-mkdirSync(nm, { recursive: true })
-for (const pkg of ['hvigor', 'hvigor-ohos-plugin']) {
-  const link = join(nm, pkg)
-  const target = join(DEVECO, 'Contents/tools/hvigor', pkg)
-  if (!existsSync(target)) fail(`DevEco 里没有 ${pkg}：${target}`)
-  try {
-    rmSync(link, { force: true, recursive: true })
-  } catch {
-    /* 原来没有就算了 */
-  }
-  symlinkSync(target, link)
-}
-console.log('· 已挂 DevEco 自带的 hvigor\n')
-
-/* ---------- 4. Taro 构建（.ets 产物写进镜像） ---------- */
-if (!SKIP_TARO) {
-  // 把 ohpm 放进 PATH —— Taro 的鸿蒙插件构建时自己会调一次 `ohpm install`，
-  // 找不到它就退回 `~/Library/Huawei/ohpm/bin/ohpm` 然后报错（那只是噪音，
-  // 下面第 5 步还会正经装一次；但让它自己装成功更干净）。
-  run('npm', ['--prefix', join(ROOT, 'taro'), 'run', 'build:harmony'], {
-    cwd: ROOT,
-    env: {
-      TARO_HARMONY_PROJECT: MIRROR,
-      PATH: `${join(DEVECO, 'Contents/tools/ohpm/bin')}:${process.env.PATH}`,
-    },
-  })
-  console.log('\n· Taro 鸿蒙产物已写进镜像\n')
-} else {
-  console.log('· 跳过 Taro 构建（--skip-taro）\n')
-}
-
-/* ---------- 4.5 ArkTS 严格模式补丁 ---------- */
-patchArkTsStrictMode(MIRROR)
-
-/* ---------- 4.6 rawfile 资源对齐 ---------- */
-syncRawfileAssets(MIRROR)
-
-/* ---------- 4.6 rawfile 资源对齐 ---------- */
+/* ---------- 工具函数：rawfile 资源对齐 ---------- */
 
 /**
  * Taro 鸿蒙编译链把 tabBar 图标发射到 **`ets/assets/`**（vite 的产物根），
@@ -246,26 +172,89 @@ function syncRawfileAssets(mirror) {
   console.log(`· rawfile 资源已对齐（${n} 个 png）`)
 }
 
-/* ---------- 5. ohpm install ---------- */
+/* ---------- 0. 前提检查 ---------- */
+for (const [label, p] of [
+  ['DevEco Studio', DEVECO],
+  ['ohpm', OHPM],
+  ['SDK', SDK_DIR],
+  ['仓库里的鸿蒙工程', SRC],
+]) {
+  if (!existsSync(p)) fail(`找不到${label}：${p}`)
+}
+// devecocli 是 npm 全局装的，不在文件系统固定位置 → 用「能不能跑」来查
+if (spawnSync(DEVECOCLI, ['--version'], { stdio: 'ignore' }).status !== 0) {
+  fail(
+    `跑不了 \`${DEVECOCLI}\` —— 先装官方命令行工具：\n` +
+      '  npm install -g @deveco/deveco-cli@stable\n' +
+      '（它自己解析 DevEco 的 SDK/hvigor/JBR，比手工调 hvigorw 稳）',
+  )
+}
+console.log(`DevEco   ${DEVECO}`)
+console.log(`SDK      ${SDK_DIR}`)
+console.log(`工程真源 ${SRC}`)
+console.log(`镜像目录 ${MIRROR}\n`)
+
+/* ---------- 1. 同步到 ASCII 路径 ---------- */
+mkdirSync(MIRROR, { recursive: true })
+// 不加 --delete：镜像里手工加的文件保留（仓库那份才是要改的）
+const excludes = [
+  '--exclude', 'node_modules/',
+  '--exclude', 'oh_modules/',
+  '--exclude', 'entry/oh_modules/',
+  '--exclude', 'entry/node_modules/',
+  '--exclude', 'local.properties',
+  '--exclude', '.hvigor/',
+  '--exclude', 'build/',
+  '--exclude', 'entry/build/',
+  '--exclude', '.idea/',
+]
+run('rsync', ['-a', ...excludes, `${SRC}/`, `${MIRROR}/`])
+
+// 工程级的 module.json5 实测**不生效**（编译后的 module.json 里 deviceConfig 为 null），
+// 留着只会让人以为「明文 HTTP 已经配了」—— 删掉，防止它在镜像里长期躺着。
+rmSync(join(MIRROR, 'module.json5'), { force: true })
+
+console.log('· 已同步工程配置到镜像\n')
+
+/* ---------- 2. local.properties（SDK 路径） ---------- */
+writeFileSync(
+  join(MIRROR, 'local.properties'),
+  `# 由 scripts/harmony-build.mjs 生成（不入版本库）\nsdk.dir=${SDK_DIR}\n`,
+  'utf8',
+)
+
+/* ---------- 3. Taro 构建（.ets 产物写进镜像） ---------- */
+if (!SKIP_TARO) {
+  // 把 ohpm 放进 PATH —— Taro 的鸿蒙插件构建时自己会调一次 `ohpm install`，
+  // 找不到它就退回 `~/Library/Huawei/ohpm/bin/ohpm` 然后报错（那只是噪音，
+  // 下面第 6 步还会正经装一次；但让它自己装成功更干净）。
+  run('npm', ['--prefix', join(ROOT, 'taro'), 'run', 'build:harmony'], {
+    cwd: ROOT,
+    env: {
+      TARO_HARMONY_PROJECT: MIRROR,
+      PATH: `${join(DEVECO, 'Contents/tools/ohpm/bin')}:${process.env.PATH}`,
+    },
+  })
+  console.log('\n· Taro 鸿蒙产物已写进镜像\n')
+} else {
+  console.log('· 跳过 Taro 构建（--skip-taro）\n')
+}
+
+/* ---------- 4. ArkTS 严格模式补丁 ---------- */
+patchArkTsStrictMode(MIRROR)
+
+/* ---------- 5. rawfile 资源对齐 ---------- */
+syncRawfileAssets(MIRROR)
+
+/* ---------- 6. ohpm install ---------- */
 run(OHPM, ['install'], { cwd: MIRROR })
 run(OHPM, ['install'], { cwd: join(MIRROR, 'entry') })
 console.log('\n· ohpm 依赖装好\n')
 
-/* ---------- 6. hvigor 出 HAP ---------- */
-run(HVIGORW, ['assembleHap', '--no-daemon'], {
-  cwd: MIRROR,
-  env: {
-    NODE_HOME,
-    // hvigor 要 DEVECO_SDK_HOME（SDK 根目录，不是某个版本目录）
-    DEVECO_SDK_HOME: SDK_ROOT,
-    // PackageHap 这一步要跑 Java（打包/签名工具），
-    // 本机系统里没有 java，只有 DevEco 自带的 JBR —— 指向它。
-    JAVA_HOME,
-    PATH: `${join(NODE_HOME, 'bin')}:${join(JAVA_HOME, 'bin')}:${process.env.PATH}`,
-  },
-})
+/* ---------- 7. 出 HAP（devecocli 内部调 hvigor） ---------- */
+run(DEVECOCLI, ['build'], { cwd: MIRROR })
 
-/* ---------- 7. 报 HAP 位置 ---------- */
+/* ---------- 8. 报 HAP 位置 ---------- */
 const outDir = join(MIRROR, 'entry/build/default/outputs/default')
 let haps = []
 try {
