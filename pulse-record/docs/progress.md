@@ -1014,6 +1014,119 @@ node scripts/harmony-run.mjs deploy
 - **签名**：`signingConfigs` 为空 → 出的是 unsigned 包；`devecocli signature generate` 会自动生成（要登录）
 - **关系图（寸关尺）在鸿蒙上的渲染**还没验证
 
+### 3.16 三部曲 ③ 的方名 ↔「用方」知识库：点得进去、落得到位（2026-11-06）
+
+**用户**：打通三部曲 ③ 与「用方」知识库。
+
+#### 原来断在哪
+
+③ 里看得见方名（「清挡路方」「引火归元」「上焦方」…，讲义 p47 图上照抄），
+但**点不进去** —— 「用方」tab 是一整套知识库（讲义 p44 依脉用方 ＋ 讲稿第二讲方剂 ＋ 同和堂版组成），
+两边是**同一个方在不同资料里的不同写法**，此前没有任何对照。
+
+#### 落地的文件
+
+| 文件 | 作用 |
+|---|---|
+| `src/domain/formula-links.ts`（新） | ③ 方名 → 知识库锚点的**纯函数**解析器（共享 domain 层，网站端也能用） |
+| `taro/src/store/focus.ts`（新） | 跳转意图的**内存态**（`switchTab` 不能带 query 参数） |
+| `taro/src/components/visit-triad/index.tsx` | ③ 的方名可点；点不动就明说「用方页未载」 |
+| `taro/src/pages/formulas/index.tsx` | 取意图 → 清关键词 → 切「讲稿原序」→ 滚过去 → 高亮 → 横幅写明依据 |
+| `taro/src/pages/formulas/index.scss` | 定位横幅与高亮样式 |
+| `scripts/e2e/taro-formula-link.mjs`（新） | 模拟器回归（17 项） |
+
+#### 对照规则（先精确后宽松，命中即止）
+
+1. `RULE_LINKS` —— 明确声明的规则对照（**只有「清挡路方」**）
+2. 讲稿方剂**完全同名**
+3. 讲稿方剂**方名后括号不算方名**（「引火归元」→「引火归元（肾脏疗法）」）
+4. 讲义用名走 `FORMULA_ALIAS`（「冷热水」→「一体疗法（冷热水疗法）」）
+5. 讲义 p44 规则条目的 `formulas` 里**完全相等**
+6. 查不到 → 返回 `null`，界面明说「用方页未载」，**不硬凑**
+
+**优先跳「讲稿方剂」而不是「规则条目」** —— 用户点方名的意图是「这方怎么吃」，
+讲稿第二讲的条目有组成／服法／科学中药／加减／禁忌，规则条目只有适用条件与原文引用。
+
+#### ③ 的六个方名，实测解析结果
+
+| ③ 的方名（讲义 p47） | 落到 | 锚点 | 类型 |
+|---|---|---|---|
+| 上焦方 | 上焦方（讲义 p44「挡路三（左寸）· 变脉无力」） | `rule-fx-dl3-bianmai-wuli` | rule |
+| 中焦方 | 中焦方（加味理中） | `drug-zhongjiao` | drug |
+| 清挡路方 | 清挡路 | `rule-fx-ssx-qingdanglu` | rule |
+| 下焦方 | 下焦方（天乙丹） | `drug-xiajiao` | drug |
+| 引火归元 | 引火归元（肾脏疗法） | `drug-yinhui-guiyuan` | drug |
+| 冷热水 | 一体疗法（冷热水疗法） | `drug-yiti-leng-re-shui` | drug |
+
+> 「清挡路方」与 p44 的「清挡路」**差一个「方」字**。方名照录是硬规矩，
+> 所以不能悄悄改写去匹配 —— 只能在 `RULE_LINKS` 里**明确声明这是同一个东西**，
+> 并把三处出处（讲义 p47 图／p44 上盛下虚框／讲稿第四讲「清挡路一~四」）写进 `basis`，
+> 界面上摆给读者看。
+
+#### 跳转为什么走内存态
+
+微信小程序的 `switchTab` **不支持 query 参数**（`Taro.switchTab` 同理）。
+所以跳转意图落在 `store/focus.ts` 的模块级变量里：
+
+- 一次性（取走即清空，不会「第二次进用方页又滚一遍」）
+- 不写 `pulse.*` 那些持久化键（不与用户数据混，也不留到下次启动）
+- 切 tab 不卸载页面、不重载模块 → 模块级变量在切过去之后还在
+
+#### 三个设计取舍
+
+1. **跳转时切到「讲稿原序」并清空关键词** —— 该维度不受分组筛选影响，目标条目必然可见；
+   读者正搜着别的词的话，不清关键词会把目标筛掉。
+2. **对照依据写在横幅上** —— 凭什么把「清挡路方」认成「清挡路」，让读者自己判断，不让工具替自己说话。
+3. **锚点 id 只挂在「独立条目」上** —— 同一个方既嵌在规则卡里、又在「方剂备查」里独立出现，
+   两处都挂同一个 id，选择器就撞了（**实测「中焦方」重复 6 次、「引火归元」重复 8 次**）。
+   所以嵌在规则卡里的方剂卡**不挂 id**，只有独立条目挂。
+
+#### 查实的一件事：Taro 小程序里 `id` 到底进不进 WXML
+
+Taro 的 mini 运行时在 hydrate 时**显式排除** `id` 属性（`c === ft` → `ft = 'id'`），
+WXML 模板里写死的是 `id="{{i.uid||i.sid}}"` —— 看起来用户的 `id` 会被丢掉。
+
+**实测没丢**：React 宿主配置走 `updateProps` → `setAttribute('id', v)` →
+runtime 把 `uid` 改成用户值 → hydrate 时 `node.uid !== node.sid` → `data.uid = node.uid`
+→ WXML 的 `id="{{i.uid||i.sid}}"` 渲染出用户的 id。
+模拟器里 `page.$$('#rule-fx-ssx-qingdanglu')` 查得到（1 个）。
+
+> 这条是**查出来的，不是猜出来的** —— 只读 runtime 源码会得出「id 被丢了、选择器必然查不到」的结论。
+
+#### 回归
+
+- **lint 新增第 26 节（+45 项，157 → 202）**：断言按结构切（先 `stripComments` 只留可执行代码，
+  再按**大括号配平**／**顶层声明**切出具体那一段），不全文搜词、不比下标。
+- **「故意写坏」变异验证 24 个，全部抓得到**（漏抓 0）。
+  其中一个第一版**漏抓了**：`.pr-focus` 的位置断言用了裸子串 `.pr-focus`，
+  被横幅的 `.pr-focus-bar` 骗过 → 改成看 `.pr-focus {` 这条规则本身。
+- **模拟器回归 17/17**（`npm run test:e2e:mp:link`）：③ 的方名可点 → 跳「用方」→ 横幅写明依据
+  → 目标条目高亮 → 锚点 id 唯一 → **页面确实滚过去了**（目标条目 top 贴近视口上沿）。
+- 全量回归 **498/498 全绿**（原 441 ＋ 新增 lint 45 ＋ 鸿蒙 lint 57→69 ＋ 12）。
+
+#### 包体代价（实测，不是估的）
+
+「用方」是 tabBar 页 → 知识库**本来就在主包里**（分包这条路不成立），
+所以 `visit-triad` 引 `formula-links` 不会让知识库进「不该进的地方」，但仍要量：
+
+| | 主包 `dist` | `common.js` | 就诊页 chunk |
+|---|---|---|---|
+| 不引 `formula-links` | 924 KB | 176,071 B | 43,171 B |
+| 引了 | **928 KB** | 177,772 B | 43,568 B |
+| 差 | **+4 KB（0.4%）** | +1.7 KB | +0.4 KB |
+
+另外把 `formula-links` 补进 lint 的知识库白名单机制（并让扫描**剔除纯类型引用**）——
+`store/focus.ts` 只要 `FormulaLink` 这个**类型**，编译后一行代码都不留，不该算成「拖知识库进包」。
+把那个 `import type` 改成值引用，lint 立刻报红（已实测）。
+
+#### 顺带修掉的两个真 bug
+
+1. **`rx.map` 改块体后括号没收干净** —— 上一轮把 ③ 的方名改成可点时，
+   `rx.map((r) => (` 改成 `rx.map((r) => {` 但收尾还是 `))}`，**少一个 `}`**。
+   `tsc --noEmit` 直接报 `TS1005` —— 上一轮只验了 domain 层，没编译组件。
+2. **`.pr-focus` 与 `.pr-formula` 同特异度** —— 高亮样式必须写在卡片样式**之后**才生效，
+   放前面会被卡片自身的 `background` 盖掉（不报错，只是高亮不出来）。
+
 ## 4. P3 · 后期迁 CloudBase（规划完成，待触发）
 
 
@@ -1133,10 +1246,10 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 当前分支 | `feat/wechat-miniprogram`（基点 `c1814f3`） |
 | 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`feat/wechat-miniprogram` = 小程序 Taro 迁移实施中 |
 | PR | #6 `chore/multi-user → main`，**OPEN**；#7 `chore/desktop-electron → chore/multi-user`，**OPEN**（避免依赖倒置）；`feat/wechat-miniprogram` **暂不开 PR**（上线时统一收口） |
-| 全量回归 | **441/441 全绿**（core 26 ＋ taro-lint 157 ＋ taro-api 45 ＋ migration 53 ＋ auth 52 ＋ app 18 ＋ 桌面端 33 ＋ 鸿蒙 57） |
+| 全量回归 | **498/498 全绿**（core 26 ＋ taro-lint 202 ＋ taro-api 45 ＋ migration 53 ＋ auth 52 ＋ app 18 ＋ 桌面端 33 ＋ 鸿蒙 69） |
 | 小程序工程 | `pulse-record/taro/`（Taro 4.3.2 ＋ React 18）；**原生 `miniprogram/` 原样保留作回退** |
 | 小程序包体 | 媒体资源 **119.0 KB**（底图 JPEG 116.3 KB ＋ 8 个 tabbar 图标 ≤0.4 KB）；**微信「图片和音频 > 200 K」已通过**（详见 §3.12） |
-| 模拟器回归 | `npm run test:e2e:mp:sim`（**55 项**：4 个 tab 逐页截图 ＋ **白屏判定** ＋ **包内底图运行时可读**）、`npm run test:e2e:mp:privacy`（**6 项**：隐私政策页）、`npm run test:e2e:mp:canvas`（**8 项**：**真微信 canvas 2d 出图端到端**）；三个都会**自己先重启小程序**（bundle 是缓存的，不重启跑的是旧产物）。**2026-11-06 在 macOS 上实测三套全绿：55/55 ＋ 6/6 ＋ 8/8 ＝ 69 项** |
+| 模拟器回归 | `npm run test:e2e:mp:sim`（**55 项**：4 个 tab 逐页截图 ＋ **白屏判定** ＋ **包内底图运行时可读**）、`npm run test:e2e:mp:privacy`（**6 项**：隐私政策页）、`npm run test:e2e:mp:canvas`（**8 项**：**真微信 canvas 2d 出图端到端**）、`npm run test:e2e:mp:link`（**17 项**：③ 的方名 →「用方」页定位 ＋ 高亮 ＋ 锚点唯一 ＋ 真的滚过去了，详见 §3.16）；四个都会**自己先重启小程序**（bundle 是缓存的，不重启跑的是旧产物）。**2026-11-06 在 macOS 上实测四套全绿：55/55 ＋ 6/6 ＋ 8/8 ＋ 17/17 ＝ 86 项** |
 | 上线前清单 | `pulse-record/docs/miniprogram-release-checklist.md`（隐私指引勾选项＋可复制文案、服务器域名、类目截图、审核退路对照表） |
 | 本机库 | `pulse-record/local-data/history.sqlite`（已迁移到多用户结构：15 患者／57 就诊／1 自定义符号，归属归到 `local`；迁移前快照 `history.sqlite.bak-20261104102030`） |
 | 桌面版产物 | `pulse-record/release/`（安装包 ＋ 免安装版，已 gitignore） |

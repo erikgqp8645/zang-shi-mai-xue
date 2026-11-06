@@ -155,14 +155,21 @@ useEffect(() => {
 
 ## 8. 包体
 
-- 微信主包上限 **2 MB**；`dist/` 现状 **0.99 MB**（Taro runtime 214 KB ＋ 知识库 237 KB ＋ 页面 96 KB ＋ 图片 398 KB）。
+- 微信主包上限 **2 MB**；`dist/` 现状 **928 KB**（2026-11-06 实测：
+  Taro runtime 212 KB ＋ 公共 chunk 176 KB ＋ 页面 chunk 180 KB ＋ base.wxml 60 KB ＋ wxss 52 KB ＋ 图片 160 KB）。
 - **知识库的入口要收得住**，别散落到各处随手引。现在允许引的地方只有三处：
   - `pages/formulas` —— 「用方」tab，知识库的主入口；
   - `components/medication-panel` —— 就诊工作台「方药」档里的用药记录块，
     要选方、要看讲稿比例制与同和堂版克数两套组成（原生 medication 页的核心功能）；
-  - `components/visit-triad` —— 体质／疗法／方药三档要查方剂组成。
+  - `components/visit-triad` —— 体质／疗法／方药三档要查方剂组成（`dose-lookup`），
+    以及 ③ 的方名可点进「用方」看完整条目（`formula-links`，见 §3.16）。
 
   `taro-lint.mjs` 第 6 条盯着这条（白名单按路径**包含**匹配，不是全等）。
+- **纯类型引用不算「引用」**：`import type { X } from '@domain/…'` 编译后一行代码都不留
+  （`store/focus.ts` 只要 `FormulaLink` 这个类型），扫描时要剔掉，
+  否则会把没拖代码进来的文件误判成违规。
+- `visit-triad` 引 `formula-links` 的包体代价**实测 +4 KB（主包 924 → 928 KB，0.4%）** ——
+  知识库本来就在主包里（「用方」是 tabBar 页），这次只是多拖进 `formulas.ts`。
 
 > 注：这条纪律原本是「省包体」，但**微信 tabBar 页必须在主包**，
 > 而「用方」就是 tab 页 —— 知识库本来就一定在主包里，分包这条路已经不成立。
@@ -362,8 +369,9 @@ Image(this.tabBarCurrentIndex === index && item.selectedIconPath || item.iconPat
 | `npm run test:e2e:mp:api` | `taro-api.mjs` —— mock `Taro.request`，查数据层契约 |
 | `npm run test:e2e:mp:sim` | `taro-sim.mjs` —— 纯函数断言 ＋ 编译产物断言 ＋ 模拟器截图冒烟 |
 | `npm run test:e2e:mp:tabs` | `taro-tabs.mjs` —— 就诊工作台四档页内 tab 的模拟器回归 |
+| `npm run test:e2e:mp:link` | `taro-formula-link.mjs` —— ③ 的方名点进「用方」页：定位 ＋ 高亮 ＋ 锚点唯一 ＋ 真的滚过去了（§3.16） |
 | `npm run test:e2e:harmony` | `harmony-lint.mjs` —— 鸿蒙工程配置静态检查（§9.8） |
-| `npm test` | 全部（网站端 core / migration / auth / app / desktop ＋ 小程序三套 ＋ 鸿蒙） |
+| `npm test` | 全部（网站端 core / migration / auth / app / desktop ＋ 小程序静态四套 ＋ 鸿蒙） |
 
 **新增断言必须先用「故意写坏」验证能抓到**，否则不算数。
 
