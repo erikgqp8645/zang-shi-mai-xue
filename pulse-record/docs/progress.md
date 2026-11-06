@@ -1311,8 +1311,8 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 桌面版数据 | 安装版 `%APPDATA%\臧氏脉学\`；**免安装版 exe 旁边的 `data\`** |
 | CloudBase 环境 | `ambitious-parrot-d7ehh7x0fd9d680`（ap-shanghai，**体验版 `baas_trial`，到期 2027-05-04**）；PG `postgres-l00fh7pm`（17.11）7 表 ＋ **35 个 `pulse_*` 函数**；云函数 `pulse-api`（Event）；静态托管已上线 |
 | CloudBase 上的数据 | **3 账号**（`local` / `guoguo` / `mptest01`）＋ **29 患者／113 就诊／1 用药／0 自定义符号**（从本机 SQLite 搬的）；**三条 owner 不变量全 0** |
-| 云端环境变量 | `PULSE_STORE=pg`、`PULSE_CB_ENV=…`、`PULSE_API_PREFIX=/pulse-api`、`PULSE_CORS_ORIGINS=https://…-1257312696.tcloudbaseapp.com` |
-| 本地 PG 工具 | `scripts/pg-admin.mjs`（`tcb/ExecutePGSql` CAPI，绕开 MCP 的 PG 缓存缺陷）、`scripts/migrate-sqlite-to-pg.mjs`（搬数据）、`scripts/build-cloudfunction.mjs`（打包云函数）、`scripts/e2e/pg-store.mjs`（对真库回归 49 项） |
+| 云端环境变量 | `PULSE_STORE=pg`、`PULSE_CB_ENV=…`、`PULSE_API_PREFIX=/pulse-api`、`PULSE_CORS_ORIGINS=https://…-1257312696.tcloudbaseapp.com`、`PULSE_WX_APPID=wx3a21eb903a16cbc4`、`PULSE_WX_APPSECRET=…`（**必须用 `PULSE_WX_*`，`WX_` 前缀会被平台盖掉**） |
+| 本地 PG/云端工具 | `scripts/pg-admin.mjs`（`tcb/ExecutePGSql` CAPI，绕开 MCP 的 PG 缓存缺陷）、`scripts/cf-admin.mjs`（云函数环境变量，**密钥不进对话**）、`scripts/lib/tcb-capi.mjs`（TC3 签名，两者共用）、`scripts/migrate-sqlite-to-pg.mjs`（搬数据）、`scripts/build-cloudfunction.mjs`（打包云函数）、`scripts/e2e/pg-store.mjs`（对真库回归 49 项） |
 | 鸿蒙工程 | `pulse-record/harmony/`（DevEco 工程真源，27 个文件）；镜像目录 `~/AiCoding/harmony-pulse-record`（纯 ASCII，不入库）；HAP `entry/build/default/outputs/default/default-default-unsigned.hap`（9.1 MB） |
 
 > ✅ 本机库**已完成迁移**（幂等，迁移前自动留 `.bak-<ts>` 备份）：补上 `owner_id`、
@@ -1326,7 +1326,7 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 优先级 | 事项 | 为什么急 |
 |---|---|---|
 | 🔴 1 | **域名注册 → 个人实名 → 提交 ICP 备案** | 7~20 工作日，是整条时间线最长的一段；不今天提交，后面小程序、CloudBase 全在等。**且自定义域名是 CloudBase 默认域名的唯一出路**（默认域名只许开发测试，有「风险提醒中间页」，流量异常还可能被风控关停） |
-| 🔴 1b | **微信公众平台把 CloudBase 环境关联到小程序 appid** | 环境 `ambitious-parrot-d7ehh7x0fd9d680` 的 `WxAppId` **还是空** → 小程序的 `wx.cloud.callFunction` 走不通（代码已兜底退回 `wx.request`，不会白屏，但等于没迁） |
+| 🔴 1b | **微信侧把 CloudBase 环境关联到小程序 appid** | 环境 `ambitious-parrot-d7ehh7x0fd9d680` 的 `WxAppId` **还是空** → 小程序的 `wx.cloud.callFunction` 走不通（代码已兜底退回 `wx.request`，不会白屏，但等于没迁）。**公开 API 做不到**（已逐个查过 `tcb` 服务的环境类接口，没有关联 appid 的 Action）→ 只能在**微信开发者工具「云开发」面板**或 **CloudBase 控制台「环境配置 → 安全配置 → 小程序关联」**里填 `wx3a21eb903a16cbc4`。详见 `docs/cloudbase-migration.md` §5.2 |
 | 🔴 2 | ~~**后台声明《用户隐私保护指引》两项隐私类型**~~ | ✅ **2026-11-05 已不需要** —— 小程序不提供导出，隐私接口降到 **0 个**，后台**一项都不用勾**（详见 §3.11）。剩下要填的只有「用户信息收集」那一栏（用户输入内容／账号信息，见上线清单 §1.3） |
 | 🔴 2c | **填运营者主体与联系邮箱** | 隐私政策**第八**节现在是占位文字（`运营者：（待填写）`），审核会看 |
 | 🟡 2b | 注册微信小程序（个人主体）→ 填真实 AppID | ✅ 已完成（`wx3a21eb903a16cbc4`）；开发者工具需登录对应管理员微信号才能预览／上传 |

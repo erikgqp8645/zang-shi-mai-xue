@@ -413,7 +413,7 @@ EOF
 | 5 | `values` / `symbols` 在 PG 里存 **JSON 字符串**，规整（把 `{"0":"X"}` 还原成数组）在 **JS 侧**做，用 `server/values.mjs` 那一份 |
 | 6 | **一次性迁移函数**（`server/pg-migrate-functions.sql` 的 `pulse_migrate_import`）能绕过 owner 校验批量写表 → **搬完就 `node scripts/migrate-sqlite-to-pg.mjs --drop-fn` 撤掉** |
 
-### 本地 PG 工具（MCP 的 PG 模块在本机不可用）
+### 本地 PG / 云端工具（MCP 的 PG 模块在本机不可用）
 
 MCP 的 `queryPgDatabase` / `managePgDatabase` 把**首次**的 PG 就绪探测结果缓存成**模块级 Promise**，
 首次失败后被**永久缓存**，之后所有调用直接抛同一个错、**不会重新探测**。
@@ -421,10 +421,23 @@ MCP 的 `queryPgDatabase` / `managePgDatabase` 把**首次**的 PG 就绪探测�
 
 | 脚本 | 干什么 |
 |---|---|
+| `scripts/lib/tcb-capi.mjs` | 腾讯云 `tcb` 服务的 CAPI 客户端（TC3-HMAC-SHA256 签名）—— **签名只有一份**，下面两个脚本共用 |
 | `scripts/pg-admin.mjs` | 临时凭证签名调 `ExecutePGSql`（`run`/`file` 切文件、`exec` 单条）；凭证只从环境变量读 |
+| `scripts/cf-admin.mjs` | 云函数环境变量（`show`／`set-wx`／`set`）；**密钥从 `.secrets/server.env` 读进进程内存，全程不进对话** |
 | `scripts/migrate-sqlite-to-pg.mjs` | 搬数据（`--dry-run` 只看计划、`--no-sessions` 跳过会话、`--drop-fn` 撤迁移函数）；自动重映射同登录名账号的 `owner_id` |
 | `scripts/build-cloudfunction.mjs` | 组装云函数部署包到 `.cloudfn/pulse-api/`（真源仍在 `server/`；**不生成 `scf_bootstrap`** —— Event 函数不需要） |
 | `scripts/e2e/pg-store.mjs` | 对真库跑存储层回归（49 项）；**跑完自清理测试账号** |
+
+### 云函数环境变量（CloudBase 侧的硬规矩）
+
+| # | 规矩 |
+|---|---|
+| 1 | **一律用 `PULSE_` 前缀**。`WX_` 前缀会被 CloudBase 运行时**用平台自己的值盖掉**（留给微信云开发的小程序关联信息）—— 写进 `WX_APPID`／`WX_APPSECRET` 的值，`GetFunction` 读得到、**运行时 `process.env` 里是空的**。微信那两味用 `PULSE_WX_APPID`／`PULSE_WX_APPSECRET`（`server/wechat.mjs` 仍兜底读 `WX_*`，本地自建服务用老名字） |
+| 2 | **`Environment.Variables` 是整组替换语义** —— 只写新变量会把 `PULSE_STORE` 一起冲掉。必须**读-改-写**（`scripts/cf-admin.mjs` 就是这么做的） |
+| 3 | **不传的字段会被重置成默认值**：`Timeout` 默认 3 秒、`MemorySize` 默认 128M、`Role` 丢了就没 PG 访问权 → 写的时候一并回填 |
+| 4 | **密钥不进对话**：不要用 MCP 的 `manageFunctions(updateFunctionConfig)` 设密钥（要作为工具参数传进去）；也**不要用 `GetFunction` 回读验证**（会把明文打进上下文）。用脚本写、用 `invokeFunction` 看行为验证 |
+| 5 | `tcb fn env` **只有 `pull` 没有 `set`**；`tcb fn code update` 是**交互式**的 —— 非交互用 MCP 的 `updateFunctionCode`（它自己打包上传） |
+
 
 **不再使用浏览器 localStorage** —— 清缓存、换浏览器即丢数据，不满足「永久存储」。
 （登录令牌例外：它存在 `localStorage['pulse.token']`，只用于鉴权，不是病例数据。）

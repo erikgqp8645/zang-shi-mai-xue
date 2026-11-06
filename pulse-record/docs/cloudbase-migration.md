@@ -169,17 +169,33 @@ PULSE_CORS_ORIGINS=https://ambitious-parrot-d7ehh7x0fd9d680-1257312696.tcloudbas
 
 ### 2.3 云函数环境变量
 
-用 `manageFunctions(action="updateFunctionConfig")` 设（`updateFunctionCode` 不带环境变量）：
-
 ```
 PULSE_STORE=pg
 PULSE_CB_ENV=ambitious-parrot-d7ehh7x0fd9d680
 PULSE_API_PREFIX=/pulse-api
 PULSE_CORS_ORIGINS=https://ambitious-parrot-d7ehh7x0fd9d680-1257312696.tcloudbaseapp.com
+PULSE_WX_APPID=wx3a21eb903a16cbc4
+PULSE_WX_APPSECRET=……            # 只在 .secrets/server.env，不进仓库
 ```
 
 `PULSE_CB_ENV` 是给 `server/pg-client.mjs` 用的；**云函数里其实不用配**（平台会注入 `TCB_ENV` / `SCF_NAMESPACE`），
 配上只是让本地与线上取值一致。
+
+> ⚠️ **微信那两味要用 `PULSE_WX_*`，不能用 `WX_*`** —— `WX_` 前缀会被 CloudBase 运行时用平台的值盖掉，
+> 详见 [4.4](#44-云函数环境变量这一块2026-11-06-实测三个坑)。
+
+**怎么设进去**：`scripts/cf-admin.mjs`（密钥全程不经过模型）：
+
+```bash
+export TCLOUD_SECRET_ID=... TCLOUD_SECRET_KEY=... TCLOUD_SESSION_TOKEN=...
+node scripts/cf-admin.mjs show     # 只列键名（值打码）
+node scripts/cf-admin.mjs set-wx   # 从 .secrets/server.env 读 → 合并写进云函数
+```
+
+它做的是**读-改-写**（`Environment.Variables` 是整组替换语义，盲写会把 `PULSE_STORE` 一起冲掉），
+并且把 `Timeout` / `MemorySize` / `Role` 一并回填（不传就可能被重置成默认值 —— 超时 3 秒、内存 128M，函数当场挂）。
+
+**为什么不用 MCP 的 `manageFunctions(updateFunctionConfig)`**：密钥要作为工具参数传进去，**必然进对话上下文**。
 
 ### 2.4 凭证从哪来
 
@@ -340,6 +356,18 @@ VITE_API_BASE="https://ambitious-parrot-d7ehh7x0fd9d680-1257312696.ap-shanghai.a
 | 28 | `Object.fromEntries` 是 ES2019 内建，老机型 JSCore 没有 | 自写 `toRecord()`（`src/domain/to-record.ts`） |
 | 29 | TS 7 移除了 `moduleResolution=node10` | `tsconfig.core.json` 里**不覆盖** `moduleResolution`，让 `bundler` 继承下去 |
 
+### 4.4 云函数环境变量这一块（2026-11-06 实测，三个坑）
+
+| # | 坑 | 结论 |
+|---|---|---|
+| 30 | **`WX_` 前缀的环境变量在运行时读不到** | **平台会用它自己的值盖掉 `WX_` 前缀**（留给微信云开发的小程序关联信息）。写进 `WX_APPID`／`WX_APPSECRET` 的值：`GetFunction` 读得到、API 也存着，**但函数运行时 `process.env` 里是空的** → 服务端永远以为「没配 AppID」。<br>判定实验（可复现）：新增 `PULSE_SINGLE_USER` → 立刻生效；更新 `PULSE_CORS_ORIGINS` → 立刻生效；新增 `WX_APPID`／`WX_APPSECRET` → **不生效**。<br>修法：一律用 **`PULSE_` 前缀**（`PULSE_WX_APPID`／`PULSE_WX_APPSECRET`），`WX_*` 只在 `server/wechat.mjs` 里当**兜底**（本地自建服务还用老名字）。 |
+| 31 | `UpdateFunctionConfiguration` 的 `Environment.Variables` 是整组替换吗 | **是**。只写 `{WX_APPSECRET}` 会把 `PULSE_STORE=pg` 一起冲掉，云函数当场挂 → 必须**读-改-写**（`scripts/cf-admin.mjs` 就是这么做的） |
+| 32 | 不传的字段会被重置成默认值吗 | **会**。`Timeout` 默认 **3 秒**、`MemorySize` 默认 **128M**（我们要 20 秒／256M），`Role` 丢了就没 PG 访问权 → 写的时候**把这几个一并回填** |
+| 33 | `tcb fn env` 能设环境变量吗 | **不能** —— 只有 `pull`（拉到本地文件），没有 `set`。`tcb fn code update` 是**交互式**的（非交互要用 MCP 的 `updateFunctionCode`，它自己打包上传）。密钥只能靠脚本直发 CAPI |
+
+**验证方式**：`scripts/cf-admin.mjs` 只打印**键名＋值长＋指纹**（名字里带 `SECRET`/`TOKEN` 的连指纹都不给）。
+**不要用 `GetFunction` 回读做验证** —— 那会把密钥明文打进对话上下文。
+
 ---
 
 ## 5. 验收清单
@@ -354,13 +382,23 @@ VITE_API_BASE="https://ambitious-parrot-d7ehh7x0fd9d680-1257312696.ap-shanghai.a
 - [x] **网站**：静态托管域名打开即用（首页 200、JS/CSS 200）
 - [x] **跨域**：CORS 预检 204 ＋ 正确 `allow-origin`；**真实浏览器**里跨域 `fetch /api/health` 返回 200
 - [x] **隔离**：PG 存储层回归 49/49（含「跨用户一律 404 不是 403」）
-- [x] **SQLite 没破**：全量回归 **498/498** 全绿
+- [x] **微信登录凭据**：`PULSE_WX_APPID`／`PULSE_WX_APPSECRET` 已进云函数；
+      用假 code 打 `POST /api/auth/wechat/login` 返回 **40029「登录凭证已失效」** ——
+      说明请求**真的到了微信的 `jscode2session`**（AppID／AppSecret 被接受；密钥错会是 40125）
+- [x] **SQLite 没破**：全量回归 **499/499** 全绿
 
 ### 5.2 还差的事
 
 - [ ] **小程序与 CloudBase 环境关联** —— 环境 `WxAppId` 仍为空。
-      在微信公众平台把环境 `ambitious-parrot-d7ehh7x0fd9d680` 关联到小程序 appid `wx3a21eb903a16cbc4`。
+      **公开 API 做不到**（已逐个查过：`tcb` 服务的全部环境类接口里没有「关联小程序 appid」的 Action；
+      `BindEnv` 不存在，`ModifyEnv` 只收 `EnvId`／`Alias`／`CustomQps`，`ModifyEnvExtra` 只收 `EnableOverrun`）。
+      只能**在微信侧**做，两条路都行：
+      1. **微信开发者工具** → 打开本小程序 → 顶部「云开发」→ 「设置」→「环境设置」→ 选择腾讯云环境
+         （独立 CloudBase 环境在这里的「选择腾讯云环境进行开通」弹窗里）
+      2. **CloudBase 控制台** → 环境 `ambitious-parrot-d7ehh7x0fd9d680` → 「环境配置」→「安全配置」→「小程序关联」→ 填 `wx3a21eb903a16cbc4`
+
       **未关联前小程序会自动退回 `wx.request` 传输**（代码已做兜底，不会白屏，但走不到云函数）。
+      关联后 `wx.cloud.init({ env })` 才认这个环境（小程序基础库会拿 AppID 问云端「这个 AppID 能不能用这个 env」）。
 - [ ] **小程序真机验证**（用户已明确「不做真机验证」，改为上线前再验）
 - [ ] **自定义域名 ＋ ICP 备案** —— 默认域名**只能用于开发测试**，平台明说「严禁用于正式生产环境或分发给大规模用户」，
       且流量异常可能触发风控关停。去掉「风险提醒中间页」也只有这一条路。

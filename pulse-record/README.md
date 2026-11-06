@@ -902,6 +902,8 @@ scripts/
 ├── build-core.mjs   共享包构建第二步（补 require 后缀 + 复制图片）
 ├── gen-tabbar-icons.mjs  生成 tabBar 图标（自写 PNG 编码器，只用 Node 内置 zlib）
 ├── pg-admin.mjs        CloudBase PG 管理（tcb/ExecutePGSql CAPI，绕开 MCP 的 PG 缓存缺陷）
+├── cf-admin.mjs        云函数环境变量管理（show / set-wx / set）—— 密钥从 .secrets 读，**不进对话**
+├── lib/tcb-capi.mjs    腾讯云 tcb 服务 CAPI 客户端（TC3-HMAC-SHA256 签名，pg-admin 与 cf-admin 共用）
 ├── migrate-sqlite-to-pg.mjs  把本地 SQLite 搬进 CloudBase PG（--dry-run / --no-sessions / --drop-fn）
 ├── build-cloudfunction.mjs   组装云函数部署包到 .cloudfn/pulse-api/
 ├── deploy/          服务器部署脚本（install / deploy / backup / restore / systemd / Caddyfile）
