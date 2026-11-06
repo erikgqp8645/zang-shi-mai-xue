@@ -14,60 +14,30 @@
  * 密码哈希用 Node 内置 crypto.scrypt —— 不引第三方依赖（沿用仓库零依赖原则）。
  */
 
-import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
-
-/** 单机模式：所有请求都视为内置单机账号，不要求登录 */
-export const SINGLE_USER = process.env.PULSE_SINGLE_USER === '1'
-
-/** 会话有效期：30 天 */
-export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000
-
-/** scrypt 参数 */
-const SCRYPT = { N: 16384, r: 8, p: 1, keylen: 64 }
-
-/** 内置保留登录名 —— 注册时拒绝 */
-export const RESERVED_LOGIN_NAMES = ['local']
-
-/* ------------------------------ 密码 ------------------------------ */
-
-/** 生成密码哈希与盐 */
-export function hashPassword(password) {
-  const salt = randomBytes(16).toString('hex')
-  const hash = scryptSync(String(password), salt, SCRYPT.keylen, SCRYPT).toString('hex')
-  return { salt, hash }
-}
-
-/** 校验密码（用定长比较，避免时序侧信道） */
-export function verifyPassword(password, salt, expectedHash) {
-  if (!salt || !expectedHash) return false
-  let actual
-  try {
-    actual = scryptSync(String(password), salt, SCRYPT.keylen, SCRYPT).toString('hex')
-  } catch {
-    return false
-  }
-  const a = Buffer.from(actual, 'hex')
-  const b = Buffer.from(expectedHash, 'hex')
-  if (a.length !== b.length) return false
-  return timingSafeEqual(a, b)
-}
-
-/* ---------------------------- 登录名规则 ---------------------------- */
+import { randomBytes } from 'node:crypto'
 
 /**
- * 登录名规则：11 位手机号，或 4~20 位字母／数字／下划线（字母开头）。
- * 手机号本期**不发验证码**，只作登录名用。
+ * 纯逻辑（密码哈希、登录名规则、会话有效期）来自共享模块 ——
+ * PostgreSQL 实现（server/auth-pg.mjs）用的是**同一份**，不会漂移。
  */
-export function isValidLoginName(name) {
-  const s = String(name ?? '').trim()
-  if (RESERVED_LOGIN_NAMES.includes(s.toLowerCase())) return false
-  if (/^1\d{10}$/.test(s)) return true
-  return /^[A-Za-z][A-Za-z0-9_]{3,19}$/.test(s)
-}
+import {
+  RESERVED_LOGIN_NAMES,
+  SESSION_TTL_MS,
+  SINGLE_USER,
+  hashPassword,
+  isValidLoginName,
+  looksLikePhone,
+  verifyPassword,
+} from './auth-core.mjs'
 
-/** 登录名是否像手机号（用于预填 phone 字段） */
-export function looksLikePhone(name) {
-  return /^1\d{10}$/.test(String(name ?? '').trim())
+export {
+  RESERVED_LOGIN_NAMES,
+  SESSION_TTL_MS,
+  SINGLE_USER,
+  hashPassword,
+  isValidLoginName,
+  looksLikePhone,
+  verifyPassword,
 }
 
 /* ------------------------------ 账号 ------------------------------ */

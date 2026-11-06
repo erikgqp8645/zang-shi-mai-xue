@@ -27,6 +27,10 @@
  * | `deleteCustomSymbol(db, code, ownerId)` | 删 |
  * | `getLocalUser(db)` | 内置单机账号 |
  *
+ * **鉴权层也从这里转发**（`createUser` / `authenticate` / `createSession` …）——
+ * 它同样按 `PULSE_STORE` 分发（server/auth.mjs ↔ server/auth-pg.mjs），
+ * 路由层只认这一个入口。
+ *
  * **两条硬规则**：
  * 1. `ownerId` 必填，SQL／查询里必须带归属过滤 —— 跨用户访问当作「不存在」。
  * 2. 全部函数都是 **async**。SQLite 实现内部是同步的（await 一个非 Promise 也没问题），
@@ -49,6 +53,33 @@ if (STORE === 'pg') {
 } else {
   impl = await import('./db.mjs')
 }
+
+/**
+ * 鉴权层也按后端分发 —— 与数据层同一把尺子。
+ *
+ * 账号相关的**纯逻辑**（密码哈希、登录名规则）在 server/auth-core.mjs，
+ * 两套实现共用；只有「怎么存取」不同：
+ *   · server/auth.mjs     —— SQLite
+ *   · server/auth-pg.mjs  —— PostgreSQL（调 PG 函数）
+ */
+const authImpl = STORE === 'pg' ? await import('./auth-pg.mjs') : await import('./auth.mjs')
+
+export const {
+  createUser,
+  getUserById,
+  authenticate,
+  changePassword,
+  resetPassword,
+  createSession,
+  getSessionUser,
+  destroySession,
+  destroyUserSessions,
+  purgeExpiredSessions,
+  findUserByWechat,
+  bindWechatIdentity,
+  unbindWechatIdentity,
+  hasWechatIdentity,
+} = authImpl
 
 export const {
   openDb,
