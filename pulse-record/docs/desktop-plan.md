@@ -452,9 +452,13 @@ npm run desktop:dist:win
 
 ### 8.4 与现有发布纪律的衔接
 
-- 仓库 Git 约定：**不直推 `main`**，从 `main` 切分支 → PR（见 `AGENTS.md` 的「Git 约定」）。
+- 仓库 Git 约定：**不直推 `main`**（见 `AGENTS.md` 的「Git 约定」）。
 - **代码与文档分开提交**，前缀沿用 `chore:` / `docs:`。
-- 本方案在 **`chore/desktop-electron`** 分支上开发（基点 `b9e3b19`）。PR 目标先指 `chore/multi-user`（避免依赖倒置），待 `chore/multi-user` 合入 `main` 后再改指 `main`。
+- 本方案最初在 **`chore/desktop-electron`** 分支上开发（基点 `b9e3b19`），PR #7 的目标先指 `chore/multi-user`（避免依赖倒置）。
+- ⭐ **2026-11-06 更新**：维护者拍板 **小程序线（含 Windows 桌面端）永不合并进 `main`**。
+  - 桌面端、小程序端、多用户、CloudBase 迁移**全部永久留在 `feat/wechat-miniprogram`**（该分支已包含 `chore/multi-user` 与 `chore/desktop-electron` 的全部内容）。
+  - PR #6／#7 **保持 OPEN、既不合也不关**，**不再以它们为目标改指 `main`** —— 合进去就等于把小程序线合进 `main`。
+  - 日常推远端：在 `feat/wechat-miniprogram` 上提交并 `git push` 到同名远端分支，**不开 PR**。
 
 ---
 

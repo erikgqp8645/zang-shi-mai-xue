@@ -1090,10 +1090,13 @@ npm run test:e2e:harmony                     # 57 项：鸿蒙工程静态检查
 - 加工产物与原始资料分开提交，便于日后用新版本资料替换旧版本时不影响笔记历史。
 - **开发集中在一个分支（2026-11-04 起）**：小程序上线之前，新功能／修 bug／文档**一律在 `feat/wechat-miniprogram` 上做**，不要再切新分支。
   - 该分支已包含 `chore/multi-user`（账号与数据隔离、共享包、小程序端、部署脚本、迁 CloudBase 规划）与 `chore/desktop-electron`（Windows 桌面应用全部实现）的内容 —— 两者都已是它的祖先。
-  - 只有当小程序**上线**之后，才恢复「按工作线切分支 ＋ 独立 PR」的常规做法。
   - 桌面版与小程序共用同一份 `dist/` 与 `src/domain/` 知识库，**在同一条分支上改不会互相打架**；分开切反而容易让两边的 `package.json`／`.gitignore`／共享包编译产物分叉。
-- **这期间不开新 PR**：PR #6（`chore/multi-user → main`）与 PR #7（`chore/desktop-electron → chore/multi-user`）**保持原样、既不合也不关**；`feat/wechat-miniprogram` 也**暂时不开 PR**。等小程序上线时再统一处理。
-  - 届时要做的决定只有一件：#6／#7 是**先合掉**再把当前分支并进 `main`，还是**关掉**改开一个 `feat/wechat-miniprogram → main` 的单 PR —— 因为当前分支已经包含它们的全部内容，两条路都不会丢代码。
+- ⭐ **`feat/wechat-miniprogram` 永远不合并进 `main`（2026-11-06 维护者拍板）**：小程序这条线的全部工作 —— 微信端、鸿蒙端、Windows 桌面端、多用户与 CloudBase 迁移 —— **永久留在这条分支上**，**不向 `main` 合并、不向 `main` 开 PR**。
+  - 这条比上面「小程序上线之前」的说法**更强** —— 不是「上线前不合」，而是**不合**。
+  - `main` 保持为「原始资料库 ＋ 已合入的稳定工具」这条线；`feat/wechat-miniprogram` 是小程序/桌面端的**长期开发线**。
+  - **PR #6（`chore/multi-user → main`）与 PR #7（`chore/desktop-electron → chore/multi-user`）保持 OPEN、既不合也不关**，且**不再以它们为目标开新 PR** —— 它们的提交都已是 `feat/wechat-miniprogram` 的祖先，合进去就等于把小程序线合进 `main`。
+  - 因此「以后要不要把小程序线并回 `main`」这个问题**已关闭**，不必再问、也不必再准备合并方案。
+  - ⚠️ 推远端的正常操作仍照做：**在 `feat/wechat-miniprogram` 上提交并 `git push`** 到同名远端分支即可，不需要开 PR。
 
 ## 维护提示
 

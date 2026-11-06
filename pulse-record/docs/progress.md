@@ -11,7 +11,7 @@
 
 | 工作线 | 状态 | 关键结论 | 下一步 |
 |---|---|---|---|
-| **P0 多用户与数据隔离** | ✅ 已完成 | `users`＋`identities`＋`sessions` 三表；四张业务表下沉 `owner_id`；跨用户一律 404 | 等 PR #6 合并 |
+| **P0 多用户与数据隔离** | ✅ 已完成 | `users`＋`identities`＋`sessions` 三表；四张业务表下沉 `owner_id`；跨用户一律 404 | 随 `feat/wechat-miniprogram` 走，**不单独合进 `main`** |
 | **P1 网站上线** | ⏸ **卡在用户侧手续** | 脚本与文档已就绪，**域名／ICP 备案／服务器三样都没有** | 备案 7~20 工作日是整条时间线最长的一段 → **今天就去提交备案** |
 | **P2 微信小程序** | 🟡 **已迁 Taro ＋ 界面重排完成**；模拟器逐页截图已验，未真机验证 | 8 个平级页面 → **4 个 tab（病例／就诊／用方／我的）**，「就诊」是工作台页（吸顶上下文条 ＋ **4 个页内 tab（摸脉／体质／疗法／方药）** ＋ 底部操作条）；Taro 4.3.2 ＋ React 18，与网站**共用同一份 domain 源码**；鸿蒙 C-API 编译已通；**寸关尺关系图直接显示在页面上**（不提供导出 → 隐私接口 0 个）；微信「代码质量」两条已修（JS 压缩已开、图片 298 KB → 116.3 KB）；回归 **441 项全绿** | 真机跑一遍（备案前先用局域网 IP） |
 | **P3 后期迁 CloudBase** | 🟡 **云端已建成**（开发／试用环境） | 环境 `ambitious-parrot-d7ehh7x0fd9d680`（ap-shanghai 体验版）：PG 7 表 ＋ **35 个 `pulse_*` 函数**、云函数 `pulse-api`（**Event 类型**）、网关 `/pulse-api`、静态托管已上线；网站与小程序**同一套路由**（`handleApi`）；数据已从本机 SQLite 搬过去（29 患者／113 就诊／1 用药），**三条 owner 不变量全 0** | ① **微信后台把环境关联到小程序 appid**（`WxAppId` 还是空）② 换自定义域名（默认域名只许开发测试，有「风险提醒中间页」）③ 备案 |
@@ -1300,7 +1300,7 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 |---|---|
 | 当前分支 | `feat/wechat-miniprogram`（基点 `c1814f3`） |
 | 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`feat/wechat-miniprogram` = 小程序 Taro 迁移实施中 |
-| PR | #6 `chore/multi-user → main`，**OPEN**；#7 `chore/desktop-electron → chore/multi-user`，**OPEN**（避免依赖倒置）；`feat/wechat-miniprogram` **暂不开 PR**（上线时统一收口） |
+| PR | #6 `chore/multi-user → main`，**OPEN**；#7 `chore/desktop-electron → chore/multi-user`，**OPEN**；`feat/wechat-miniprogram` **永不开 PR**（2026-11-06 拍板：**永不合并进 `main`**） |
 | 全量回归 | **498/498 全绿**（core 26 ＋ taro-lint 202 ＋ taro-api 45 ＋ migration 53 ＋ auth 52 ＋ app 18 ＋ 桌面端 33 ＋ 鸿蒙 69） |
 | 小程序工程 | `pulse-record/taro/`（Taro 4.3.2 ＋ React 18）；**原生 `miniprogram/` 原样保留作回退** |
 | 小程序包体 | 媒体资源 **119.0 KB**（底图 JPEG 116.3 KB ＋ 8 个 tabbar 图标 ≤0.4 KB）；**微信「图片和音频 > 200 K」已通过**（详见 §3.12） |
@@ -1345,6 +1345,7 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 
 - **什么时候更新本文**：① 某条工作线状态变化（完成／被阻塞／方案变更）② 关键决策拍板 ③ 阻塞项清单变动 → 改完连同相关代码/文档一起提交。
 - **提交前缀**：沿用 `AGENTS.md`「Git 约定」—— `docs:` 资料整理／笔记 ｜ `data:` 新增或更新原始资料 ｜ `chore:` 工具与配置 ｜ `ocr:` 识别文本落盘；**代码与文档分开提交**。
-- **分支纪律**：**小程序上线之前，所有开发集中在 `feat/wechat-miniprogram` 一条分支上做**（2026-11-04 起）—— 该分支已包含账号与数据隔离、小程序端、Windows 桌面应用的全部内容；上线后再恢复按工作线切分支。仍然**不直推 `main`**。详见 `AGENTS.md`「Git 约定」。
-- **PR 状态**：#6（`chore/multi-user → main`）、#7（`chore/desktop-electron → chore/multi-user`）**保持原样，既不合也不关**；`feat/wechat-miniprogram` **暂不开 PR**。小程序上线时再统一收口（届时只需决定：先合 #6/#7，还是关掉改开一个到 `main` 的单 PR）。
+- **分支纪律**：**所有开发集中在 `feat/wechat-miniprogram` 一条分支上做**（2026-11-04 起）—— 该分支已包含账号与数据隔离、小程序端、Windows 桌面应用的全部内容。仍然**不直推 `main`**。详见 `AGENTS.md`「Git 约定」。
+- ⭐ **小程序线永不合并进 `main`（2026-11-06 维护者拍板）**：微信端、鸿蒙端、Windows 桌面端、多用户与 CloudBase 迁移**全部永久留在 `feat/wechat-miniprogram`**。**不向 `main` 合并、不向 `main` 开 PR** —— 这条比「上线之前集中开发」更强，不是「上线前不合」而是**不合**。`main` 保持为原始资料库 ＋ 已合入的稳定工具。
+- **PR 状态**：#6（`chore/multi-user → main`）、#7（`chore/desktop-electron → chore/multi-user`）**保持 OPEN、既不合也不关**；它们都已是 `feat/wechat-miniprogram` 的祖先，合进去就等于把小程序线合进 `main`。**「以后要不要并回 `main`」这个问题已关闭**，不必再问、也不必准备合并方案。日常推远端就在 `feat/wechat-miniprogram` 上提交并 `git push` 到同名远端分支，**不需要开 PR**。
 - **表格优先**：状态一律用表格写，行尾标注实测日期，别写「大概」「应该」。
