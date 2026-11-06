@@ -1,0 +1,20 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "脉象记录表生成器"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "脉象记录表生成器"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "臧氏脉学"
+    },
+    {
+      "name": "permission_internet_reason",
+      "value": "需要联网访问脉象记录服务，同步病例与就诊数据"
+    }
+  ]
+}

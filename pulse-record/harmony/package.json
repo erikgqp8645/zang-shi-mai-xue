@@ -1,0 +1,16 @@
+{
+  "name": "pulse-record",
+  "version": "1.0.0",
+  "ohos": {
+    "org": "huawei",
+    "buildTool": "hvigor",
+    "directoryLevel": "project"
+  },
+  "description": "脉象记录表生成器（臧氏脉学）",
+  "repository": {},
+  "license": "ISC",
+  "dependencies": {
+    "@ohos/hvigor": "6.26.9",
+    "@ohos/hvigor-ohos-plugin": "6.26.9"
+  }
+}

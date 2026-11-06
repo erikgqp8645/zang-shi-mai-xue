@@ -1,0 +1,13 @@
+{
+  "name": "entry",
+  "version": "1.0.0",
+  "ohos": {
+    "org": "huawei",
+    "buildTool": "hvigor",
+    "directoryLevel": "module"
+  },
+  "description": "脉象记录表生成器 · entry 模块",
+  "repository": {},
+  "license": "ISC",
+  "dependencies": {}
+}

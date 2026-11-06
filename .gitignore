@@ -27,9 +27,12 @@ local-data/
 pulse-record/miniprogram/utils/core/
 pulse-record/miniprogram/assets/
 
-# Taro 鸿蒙编译产物（npm run mp:taro:harmony 生成，不进版本库）
-# 真正的鸿蒙工程（build-profile.json5 / oh-package.json5 / module.json5）
-# 在 DevEco Studio 那边建，用 TARO_HARMONY_PROJECT 指过去，不放仓库里。
+# 鸿蒙工程（pulse-record/harmony/）
+#   · 工程配置本身**入库** —— 它是这条链路的唯一真源
+#   · 生成物（Taro 的 .ets 产物 / oh_modules / SDK 路径 / hvigor 缓存）不入库，
+#     由 pulse-record/harmony/.gitignore 自己管
+# 正式构建走 scripts/harmony-build.mjs（镜像到纯 ASCII 路径再编，
+# 因为 hvigor 不接受含中文的工程路径）。
 pulse-record/taro/harmony/
 
 # Taro/SWC 的本机编译缓存（平台专属二进制，2.6 MB，进库对别的机器没用）

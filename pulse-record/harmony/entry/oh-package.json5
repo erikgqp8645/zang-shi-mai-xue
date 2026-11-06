@@ -1,0 +1,12 @@
+{
+  "name": "entry",
+  "version": "1.0.0",
+  "description": "脉象记录表生成器 · entry 模块",
+  "main": "",
+  "author": "",
+  "license": "",
+  "dependencies": {
+    "@taro-oh/library": "file:../static/@taro-oh/library-4.3.2.har"
+  },
+  "devDependencies": {}
+}

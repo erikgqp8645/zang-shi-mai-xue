@@ -1,0 +1,25 @@
+# DevEco / hvigor
+/node_modules
+/oh_modules
+/local.properties
+/.idea
+**/build
+/.hvigor
+.cxx
+/.clangd
+/.clang-format
+/.clang-tidy
+**/.test
+/.appanalyzer
+
+# Taro 鸿蒙构建产物（由 `npm run mp:taro:harmony` 生成）
+/entry/src/main/ets
+/entry/src/main/cpp
+/static
+
+# ohpm / npm 依赖与构建缓存（本机的东西）
+/entry/oh_modules
+/entry/node_modules
+/entry/build
+/build
+/.hvigor

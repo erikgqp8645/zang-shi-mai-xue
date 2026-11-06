@@ -227,19 +227,29 @@ export default defineConfig(async (merge) => {
      * 鸿蒙（C-API）专用配置。
      *
      * `projectPath` 是 **DevEco Studio 工程根目录**（含 `entry/` 那个模块）。
-     * 本机没装 DevEco，所以走环境变量传进来：
+     *
+     * ## 仓库里那份 `pulse-record/harmony/` 是工程的**唯一真源**
+     *
+     * 但 **hvigor 不接受含中文的工程路径**（错误码 00306003），
+     * 而本仓库就躺在 `~/AiCoding/臧氏脉学/` 下面 —— 仓库路径本身带中文。
+     * → 正式构建走 `scripts/harmony-build.mjs`：它把仓库那份镜像到一条
+     * **纯 ASCII 路径**再编译，并用 `TARO_HARMONY_PROJECT` 指过去。
+     *
+     * 这里保底给的默认值（仓库内那份）只为了让
+     * `npm run mp:taro:harmony` 单独跑时也有个落点、好检查产物 ——
+     * **但那个路径过不了 hvigor 的路径校验**，只适合看 `.ets` 产物。
      *
      * ```bash
-     * TARO_HARMONY_PROJECT=/path/to/DevEcoProject npm run build:harmony
+     * node scripts/harmony-build.mjs   # ← 正式出 HAP 走这条
      * ```
      *
-     * 产出的 `.ets` 会落在 `<projectPath>/<hapName>/src/main/ets/`，
-     * 再用 DevEco Studio 出 HAP。**只编微信时这段配置完全不生效。**
+     * 产出的 `.ets` 会落在 `<projectPath>/<hapName>/src/main/ets/`。
+     * **只编微信时这段配置完全不生效。**
      */
     ...(isHarmony
       ? {
           harmony: {
-            projectPath: process.env.TARO_HARMONY_PROJECT || path.resolve(ROOT, 'harmony'),
+            projectPath: process.env.TARO_HARMONY_PROJECT || path.resolve(ROOT, '..', 'harmony'),
             hapName: 'entry',
           },
         }

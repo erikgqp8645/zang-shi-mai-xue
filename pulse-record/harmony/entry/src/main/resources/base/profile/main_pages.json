@@ -1,0 +1,12 @@
+{
+  "src": [
+    "taro_tabbar",
+    "pages/case-detail/index",
+    "pages/login/index",
+    "pages/privacy/index"
+  ],
+  "window": {
+    "designWidth": 750,
+    "autoDesignWidth": false
+  }
+}

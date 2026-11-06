@@ -1,0 +1,4 @@
+# 鸿蒙混淆规则 —— 本工程 release 不开混淆（build-profile 里 obfuscation.enable = false），
+# 这份文件留着是为了插件按固定路径引用它（Taro 的 C-API 插件会把
+# ./src/main/cpp/types/taro-native-node/obfuscation-rules.txt 一并加进来）。
+-keep-property-name
