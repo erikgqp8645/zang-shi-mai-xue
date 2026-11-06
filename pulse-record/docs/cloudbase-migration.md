@@ -392,16 +392,36 @@ VITE_API_BASE="https://ambitious-parrot-d7ehh7x0fd9d680-1257312696.ap-shanghai.a
 - [ ] **小程序与 CloudBase 环境关联** —— 环境 `WxAppId` 仍为空。
       **公开 API 做不到**（已逐个查过：`tcb` 服务的全部环境类接口里没有「关联小程序 appid」的 Action；
       `BindEnv` 不存在，`ModifyEnv` 只收 `EnvId`／`Alias`／`CustomQps`，`ModifyEnvExtra` 只收 `EnableOverrun`）。
-      只能**在微信侧**做，两条路都行：
-      1. **微信开发者工具** → 打开本小程序 → 顶部「云开发」→ 「设置」→「环境设置」→ 选择腾讯云环境
-         （独立 CloudBase 环境在这里的「选择腾讯云环境进行开通」弹窗里）
-      2. **CloudBase 控制台** → 环境 `ambitious-parrot-d7ehh7x0fd9d680` → 「环境配置」→「安全配置」→「小程序关联」→ 填 `wx3a21eb903a16cbc4`
+      只能**在微信侧**做，官方路径是**两步**（2026-11-06 已查证官方文档与社区工单）：
+      1. **账号绑定**：CloudBase 控制台 → 用户名下拉 → 账号信息 → 账号中心 →「登录方式」→「微信公众平台」→ 关联 → 扫码 →「去授权」
+      2. **环境转换**：微信开发者工具 → 云开发 → 设置 → 环境名称下拉 → 管理我的环境 → 侧边栏「**使用已有腾讯云环境**」→ 选本环境 → 确认「环境转换」→ 扫码
 
-      **未关联前小程序会自动退回 `wx.request` 传输**（代码已做兜底，不会白屏，但走不到云函数）。
+      ⚠️ **第 2 步的入口在部分开发者工具版本上缺失** —— 官方社区工单
+      [#1154](https://cnb.cool/tencent/cloud/cloudbase/community/-/issues/1154) 记录的就是本项目这个场景，
+      最终结论是「需后台人工介入」，且该工单被 stale-bot 自动关闭。
+      本机开发者工具 **36.6.0**（远新于工单里的 2.x），
+      入口大概率在 —— 先试，不行就按工单模板提 issue（要填：主账号 `100006925378`、
+      环境 `ambitious-parrot-d7ehh7x0fd9d680`、AppID `wx3a21eb903a16cbc4`、工具版本）。
+
+      **控制台显示「所属应用」只代表账号层级授权**，不代表小程序侧 `wx.cloud` 能识别该环境 ——
+      必须走完「账号关联 → 环境转换」两步。
       关联后 `wx.cloud.init({ env })` 才认这个环境（小程序基础库会拿 AppID 问云端「这个 AppID 能不能用这个 env」）。
+- [x] **开发期绕开关联：改走 `TRANSPORT='request'` ＋ 网关地址**（2026-11-06 实测）
+      ```bash
+      PULSE_TRANSPORT=request \
+      PULSE_API_BASE="https://ambitious-parrot-d7ehh7x0fd9d680-1257312696.ap-shanghai.app.tcloudbase.com/pulse-api" \
+      npm --prefix taro run build:weapp
+      ```
+      产物已验：无 `process.env` 残留、无 `127.0.0.1`、网关地址已注入、云调用代码被 tree-shake 掉。
+      网关 curl 实测：`/api/health` → 200（`db: CloudBase PostgreSQL`）、`/api/patients` → 401（路由通）。
+      → **现在就能连上云端 PG 真数据继续开发**，不用等关联、不用备案。
+      ⚠️ **但只能开发调试**：云开发默认域名未备案，进不了 request 合法域名白名单
+      （官方工单 [#1219](https://cnb.cool/tencent/cloud/cloudbase/community/-/issues/1219)），
+      体验版／正式版会被微信拦 —— **上线仍必须走 cloud 路线，即仍要做上面的关联**。
 - [ ] **小程序真机验证**（用户已明确「不做真机验证」，改为上线前再验）
 - [ ] **自定义域名 ＋ ICP 备案** —— 默认域名**只能用于开发测试**，平台明说「严禁用于正式生产环境或分发给大规模用户」，
       且流量异常可能触发风控关停。去掉「风险提醒中间页」也只有这一条路。
+      （**走 cloud 路线时这一项不阻塞小程序上线** —— 云函数走微信内部通道，不受域名白名单约束。）
 - [ ] **PG 侧备份策略**（CloudBase 自带快照）确认
 - [ ] **回滚预案**：旧 SQLite 服务端仍能起（留一台观察期）
 
