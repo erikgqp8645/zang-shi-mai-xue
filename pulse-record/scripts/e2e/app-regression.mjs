@@ -195,6 +195,72 @@ try {
     c.check('体例已经落库（重新读还是 seven）', layout === 'seven', `库里是 ${layout}`)
   }
 
+  /* ---- ⑧ ③ 的方名 → 点进「用方知识库」（对齐小程序端 §3.16） ---- */
+  console.log('\n【⑧】③ 的方名点得进「用方知识库」')
+  // 视口在 ④ 收窄成 500px 了 —— 定位要滚，先把视口放回常规宽度
+  await chrome.setViewport(1500, 1200)
+  await sleep(400)
+
+  const rxLinks = await chrome.ev(
+    `[...document.querySelectorAll('.pr-triad-rx .pr-link')].map(b=>b.textContent.trim())`,
+  )
+  console.log(`  可点的方名：${JSON.stringify(rxLinks)}`)
+  c.check(
+    '③ 的方名变成可点的（上焦方／中焦方／清挡路方／下焦方都能对上知识库）',
+    Array.isArray(rxLinks) && rxLinks.length === 4 && rxLinks.includes('上焦方') && rxLinks.includes('中焦方'),
+    JSON.stringify(rxLinks),
+  )
+
+  const uncovered = await chrome.ev(
+    `[...document.querySelectorAll('.pr-triad-rx')].filter(li=>{const n=li.querySelector('.pr-triad-rx-name');return !n?.querySelector('.pr-link') && !n?.querySelector('.pr-triad-rx-unknown')}).length`,
+  )
+  c.check(
+    '③ 的每个方名要么可点、要么明说「用方页未载」（不硬凑）',
+    uncovered === 0,
+    `有 ${uncovered} 条既不可点也没说明`,
+  )
+
+  // 点「上焦方」→ 它对照的是讲义 p44 的**规则条目**（rule 锚点）
+  await chrome.ev(
+    `(()=>{const b=[...document.querySelectorAll('.pr-triad-rx .pr-link')].find(b=>b.textContent.trim()==='上焦方');b&&b.click();return 1})()`,
+  )
+  await sleep(800)
+  const ruleHit = await chrome.ev(
+    `(()=>{const el=document.getElementById('rule-fx-dl3-bianmai-wuli');return {open:!!document.querySelector('#pr-flib.is-open'),found:!!el,focus:!!(el&&el.classList.contains('is-focus')),dup:document.querySelectorAll('[id="rule-fx-dl3-bianmai-wuli"]').length}})()`,
+  )
+  console.log(`  ${JSON.stringify(ruleHit)}`)
+  c.check('点方名后「用方知识库」自动展开', ruleHit.open === true)
+  c.check('定位到了讲义 p44 的规则条目（rule 锚点）', ruleHit.found === true)
+  c.check('定位到的那一条高亮了', ruleHit.focus === true)
+  c.check('锚点 id 全页唯一（不与别处抢同一个 id）', ruleHit.dup === 1, `实际 ${ruleHit.dup} 个`)
+
+  // 点「中焦方」→ 它对照的是讲稿第二讲的**方剂条目**（drug 锚点）
+  await chrome.ev(
+    `(()=>{const b=[...document.querySelectorAll('.pr-triad-rx .pr-link')].find(b=>b.textContent.trim()==='中焦方');b&&b.click();return 1})()`,
+  )
+  await sleep(800)
+  const drugHit = await chrome.ev(
+    `(()=>{const el=document.getElementById('drug-zhongjiao');return {found:!!el,focus:!!(el&&el.classList.contains('is-focus')),dup:document.querySelectorAll('[id="drug-zhongjiao"]').length,text:(el?el.innerText.replace(/\\n+/g,' ⏎ ').slice(0,60):'')}})()`,
+  )
+  console.log(`  ${JSON.stringify(drugHit)}`)
+  c.check('定位到了讲稿方剂条目（drug 锚点）', drugHit.found === true)
+  c.check('讲稿方剂那一条也高亮了', drugHit.focus === true)
+  c.check('方剂锚点 id 也唯一', drugHit.dup === 1, `实际 ${drugHit.dup} 个`)
+
+  // 换个分组维度（按五行）后，锚点仍得在 —— 全量视图不因换维度丢条目
+  await chrome.ev(
+    `(()=>{const b=[...document.querySelectorAll('#pr-flib .pr-dim-btn')].find(b=>b.textContent.trim()==='按五行');b&&b.click();return 1})()`,
+  )
+  await sleep(600)
+  const afterDim = await chrome.ev(
+    `(()=>({rule:!!document.getElementById('rule-fx-dl3-bianmai-wuli'),drug:!!document.getElementById('drug-zhongjiao')}))()`,
+  )
+  c.check(
+    '换成「按五行」维度后，锚点仍在（换维度不丢条目）',
+    afterDim.rule === true && afterDim.drug === true,
+    JSON.stringify(afterDim),
+  )
+
   /* ---- ⑤ 控制台 ---- */
   console.log('\n【⑤】控制台异常')
   console.log('  ', chrome.errors.length ? chrome.errors : '（无）')
