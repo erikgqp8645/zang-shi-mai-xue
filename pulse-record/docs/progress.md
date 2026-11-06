@@ -490,14 +490,32 @@ defineConstants 没了
 
 #### 顺带的坑
 
+- **`rearm()` 在 macOS 上一直是空转（2026-11-06 修）**：`lib-devtools.mjs` 原来硬编码
+  `C:/Program Files (x86)/.../cli.bat` → `existsSync` 在 macOS 恒为 false → **每次都「跳过重启」**。
+  而「小程序 JS bundle 在服务上下文里是缓存的，回归必须先重启」这条纪律**正是靠 `rearm()` 落实的** ——
+  所以在 macOS 上它**静默失效**：故意写坏的代码进了产物，回归照样全绿（测的是旧 bundle）。
+  现在按平台各给一条路径（macOS `/Applications/wechatwebdevtools.app/Contents/MacOS/cli`），
+  Windows 仍走 `cmd.exe /d /c`（`.bat` 不能直接执行）。`MP_SIM_CLI` 仍可覆盖。
 - **自动化端口每次用完都会掉**：`mp.disconnect()` 之后开发者工具把 9421 收了 →
   跑模拟器回归前必须先 `cli auto --auto-port 9421` 重新拉起。
 - **automator 的元素查询在这套 Taro 产物上不通**：`$$` / `$` / `data()` 给 40 秒超时也是挂死，
+  `wx.createSelectorQuery().in(page).exec(cb)` 的**回调永远不触发**，
   而导航与截图正常 → 所以隐私政策页的**文案正确性**交给静态回归（`taro-lint` 第 21 节），
   模拟器只管「能打开、能渲染、不是白屏」。
+- **但出图那张 PNG 还是拿得到 —— 走 Taro 的虚拟 DOM**（2026-11-06 实测）：
+  `getCurrentPages()[last].data.root` 是一棵 vdom 树，节点的 `cl` 是 className、
+  props 存在 `p<n>` 字段里。走一遍树找到 `cl === 'pr-diagram-img'` 的节点，
+  再找那个长得像临时文件路径的 prop（`http://tmp/xxx.png` / `wxfile://…`），
+  就能用 `wx.getFileSystemManager().readFile` 把 PNG 原样读回来 ——
+  **尺寸 1070×876 与「不是白图」两条断言因此保住了**。
+  ⚠️ 拿元素查询当唯一手段时，那个 25 轮 × 43 秒的轮询会**空转到 18 分钟**才失败。
 - **截图目录要先建**：`mkdirSync(OUT, { recursive: true })`，否则 automator 写文件直接 ENOENT。
 - **`switchTab` / `navigateTo` 的路径要带前导斜杠**（`/pages/me/index`），不带会抛
   「Uncaught [object Object]」。
+- **`switchTab` / `reLaunch` 偶发抛 `getPageMetaByWebviewId(...)` 为 null**：
+  实测**页是切过去了**，只是这次调用报错 → 重试一次，再用 `currentPage()` 复核，不当失败处理。
+- **重启后首帧可能还没画完**（只画出原生外壳：标题栏 ＋ tabBar，正文还是白的）：
+  这时截图会被「白屏检查」判成**假失败** → 截图段改成**判到空白就重截重试**（最多 4 次）。
 - **PowerShell 的 `| Select-Object -Last N` 会全缓冲**：脚本跑到一半看不到任何输出，
   看上去像卡死。诊断脚本改写成**每步带超时 ＋ 进度写日志文件**。
 
@@ -614,9 +632,9 @@ Failed to execute 'roundRect' on 'CanvasRenderingContext2D': The provided value 
 
 | 坑 | 现象 | 处置 |
 |---|---|---|
-| **bundle 在服务上下文里是缓存的** | 改完代码重新构建，模拟器里跑的**还是旧产物**（`reLaunch` 只换页面，不重新 require） | 三个模拟器回归现在都**先重启小程序**（`scripts/e2e/lib-devtools.mjs` 的 `rearm()`）。写坏验证时正是靠这一步才看到红色 |
+| **bundle 在服务上下文里是缓存的** | 改完代码重新构建，模拟器里跑的**还是旧产物**（`reLaunch` 只换页面，不重新 require） | 三个模拟器回归现在都**先重启小程序**（`scripts/e2e/lib-devtools.mjs` 的 `rearm()`）。写坏验证时正是靠这一步才看到红色。⚠️ **2026-11-06 才修**：`rearm()` 原来只认 Windows 的 CLI 路径，macOS 上**恒为空转** → 这条纪律在 macOS 上是**静默失效**的 |
 | **开发者工具 IDE 服务端口会变** | 实测 45820 → 23211，`cli auto --port 45820` 报「must be restarted on port 45820 first」 | `rearm()` 调 CLI 时**不带 `--port`**，让它自己找当前端口 |
-| `<Image>` 的 `src` 取不到 | `fields({properties:['src']})` 返回空 | 要写成 `fields({properties:['src'], attributes:true})` |
+| `<Image>` 的 `src` 取不到 | `fields({properties:['src']})` 返回空 | 要写成 `fields({properties:['src'], attributes:true})` —— 但**在 automator 上下文里这条路整体不通**（`exec` 回调不触发）；改走 **Taro 虚拟 DOM**（见上面的「顺带的坑」） |
 
 ### 3.12 微信「代码质量」两条未通过修掉 —— 外加一个把断言全骗过的坑（2026-11-05 晚）
 
@@ -880,7 +898,7 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 全量回归 | **365/365 全绿**（core 26 ＋ taro-lint 138 ＋ taro-api 45 ＋ migration 53 ＋ auth 52 ＋ app 18 ＋ 桌面端 33） |
 | 小程序工程 | `pulse-record/taro/`（Taro 4.3.2 ＋ React 18）；**原生 `miniprogram/` 原样保留作回退** |
 | 小程序包体 | 媒体资源 **119.0 KB**（底图 JPEG 116.3 KB ＋ 8 个 tabbar 图标 ≤0.4 KB）；**微信「图片和音频 > 200 K」已通过**（详见 §3.12） |
-| 模拟器回归 | `npm run test:e2e:mp:sim`（**55 项**：4 个 tab 逐页截图 ＋ **白屏判定** ＋ **包内底图运行时可读**）、`npm run test:e2e:mp:privacy`（**6 项**：隐私政策页）、`npm run test:e2e:mp:canvas`（**8 项**：**真微信 canvas 2d 出图端到端**）；三个都会**自己先重启小程序**（bundle 是缓存的，不重启跑的是旧产物） |
+| 模拟器回归 | `npm run test:e2e:mp:sim`（**55 项**：4 个 tab 逐页截图 ＋ **白屏判定** ＋ **包内底图运行时可读**）、`npm run test:e2e:mp:privacy`（**6 项**：隐私政策页）、`npm run test:e2e:mp:canvas`（**8 项**：**真微信 canvas 2d 出图端到端**）；三个都会**自己先重启小程序**（bundle 是缓存的，不重启跑的是旧产物）。**2026-11-06 在 macOS 上实测三套全绿：55/55 ＋ 6/6 ＋ 8/8 ＝ 69 项** |
 | 上线前清单 | `pulse-record/docs/miniprogram-release-checklist.md`（隐私指引勾选项＋可复制文案、服务器域名、类目截图、审核退路对照表） |
 | 本机库 | `pulse-record/local-data/history.sqlite`（已迁移到多用户结构：15 患者／57 就诊／1 自定义符号，归属归到 `local`；迁移前快照 `history.sqlite.bak-20261104102030`） |
 | 桌面版产物 | `pulse-record/release/`（安装包 ＋ 免安装版，已 gitignore） |
