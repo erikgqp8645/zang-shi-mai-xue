@@ -17,6 +17,7 @@
 
 declare const wx: {
   cloud?: {
+    init(options: { env: string; traceUser?: boolean }): void
     callFunction(options: {
       name: string
       data: Record<string, unknown>
@@ -31,9 +32,52 @@ export interface CloudCallOptions {
   data: Record<string, unknown>
 }
 
-/** 本平台有没有云开发能力 */
-export function hasCloud(): boolean {
-  return typeof wx !== 'undefined' && !!wx?.cloud
+/** 云开发是否可用（微信端且已 init 成功） */
+let cloudReady = false
+
+/** 云初始化失败的原因（用于给使用者看明白） */
+let cloudError = ''
+
+/**
+ * 初始化云开发。
+ *
+ * **必须在第一次 callFunction 之前调** —— `wx.cloud.callFunction` 依赖 init 过的云上下文。
+ *
+ * 失败不抛异常：调用方（api.ts）会**自动退回 request 传输**，
+ * 这样「环境还没关联」时小程序仍然能用（连本地服务器），而不是整屏报错。
+ *
+ * @param env CloudBase 环境 id
+ * @returns 是否可用
+ */
+export function initCloud(env: string): boolean {
+  if (typeof wx === 'undefined' || !wx?.cloud) {
+    cloudError = '当前平台没有云开发能力（微信端以外）'
+    return false
+  }
+  if (!env) {
+    cloudError = '没有配置 CloudBase 环境 id'
+    return false
+  }
+  try {
+    wx.cloud.init({ env, traceUser: true })
+    cloudReady = true
+    cloudError = ''
+    return true
+  } catch (e) {
+    cloudReady = false
+    cloudError = (e as Error)?.message || '云开发初始化失败'
+    return false
+  }
+}
+
+/** 云开发能不能用 */
+export function cloudAvailable(): boolean {
+  return cloudReady
+}
+
+/** 云初始化失败的原因（没有失败则空串） */
+export function cloudErrorMessage(): string {
+  return cloudError
 }
 
 /**
@@ -63,4 +107,11 @@ export function callFunction(options: CloudCallOptions): Promise<unknown> {
       },
     })
   })
+}
+
+/**
+ * 本平台有没有云开发能力（**未 init 也算没有** —— callFunction 依赖 init 过的上下文）
+ */
+export function hasCloud(): boolean {
+  return cloudReady
 }

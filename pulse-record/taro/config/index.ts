@@ -169,6 +169,17 @@ export default defineConfig(async (merge) => {
      */
     defineConstants: {
       'process.env.PULSE_API_BASE': JSON.stringify(process.env.PULSE_API_BASE || ''),
+      /**
+       * 传输方式：'cloud'（走 wx.cloud.callFunction，不受 request 合法域名约束）
+       * 或 'request'。默认微信端 'cloud'、鸿蒙端 'request'（鸿蒙没有 wx.cloud）。
+       */
+      'process.env.PULSE_TRANSPORT': JSON.stringify(
+        process.env.PULSE_TRANSPORT || (isHarmony ? 'request' : 'cloud'),
+      ),
+      /** CloudBase 环境 id（wx.cloud.init 用） */
+      'process.env.PULSE_CLOUD_ENV': JSON.stringify(
+        process.env.PULSE_CLOUD_ENV || 'ambitious-parrot-d7ehh7x0fd9d680',
+      ),
     },
 
     /**

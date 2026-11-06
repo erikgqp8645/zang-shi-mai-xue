@@ -1,6 +1,6 @@
 import Taro from '@tarojs/taro'
 
-import { callFunction } from '../platform/cloud'
+import { callFunction, cloudAvailable } from '../platform/cloud'
 import { request as platformRequest } from '../platform/request'
 import { CLOUD_FUNCTION_NAME, TRANSPORT, resolveApiBase } from './config'
 import { clearAuth, getToken } from './storage'
@@ -96,9 +96,24 @@ async function viaCloud(options: RequestOptions): Promise<unknown> {
     throw new ApiError((err as Error)?.message || '云调用失败', 0)
   }
 
-  const res = (r || {}) as { statusCode?: number; body?: { error?: string } }
+  const res = (r || {}) as { statusCode?: number; body?: unknown }
   const status = res.statusCode || 500
-  const data = res.body || {}
+
+  // 云函数返回的 body 是**JSON 字符串**（HTTP 语义），这里解出来当对象用 ——
+  // 与 request 传输下 `res.data` 已经是对象的形状保持一致，页面不用区分两种传输。
+  let data: { error?: string } = {}
+  const raw = res.body
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw)
+      data = parsed && typeof parsed === 'object' ? parsed : { error: raw }
+    } catch {
+      data = { error: raw }
+    }
+  } else if (raw && typeof raw === 'object') {
+    data = raw as { error?: string }
+  }
+
   if (status === 401) {
     onUnauthorized()
     throw new ApiError(data.error || '请先登录', 401)
@@ -111,8 +126,16 @@ async function viaCloud(options: RequestOptions): Promise<unknown> {
 
 /* --------------------------------- 对外 --------------------------------- */
 
-/** 发一个请求 */
+/**
+ * 发一个请求
+ *
+ * **传输方式在运行时还有一层兜底**：TRANSPORT='cloud' 但云开发没初始化成功时
+ * （最常见的原因是「微信后台还没关联 CloudBase 环境」），自动退回 'request'。
+ *
+ * 为什么不直接报错：那样整个小程序会连「打开即白屏」——
+ * 而退回 request 至少还能连本机/服务器上的服务（开发时）、或已备案域名（上线后）。
+ */
 export function request(options: RequestOptions): Promise<unknown> {
-  if (TRANSPORT === 'cloud') return viaCloud(options)
+  if (TRANSPORT === 'cloud' && cloudAvailable()) return viaCloud(options)
   return viaRequest(options)
 }
