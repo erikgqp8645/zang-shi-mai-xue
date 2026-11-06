@@ -3,6 +3,7 @@ import { Button, Input, Text, View } from '@tarojs/components'
 import Taro, { useDidShow } from '@tarojs/taro'
 
 import { request as platformRequest } from '../../platform/request'
+import { cloudAvailable, cloudErrorMessage } from '../../platform/cloud'
 import {
   changePassword as changePasswordApi,
   logout as authLogout,
@@ -11,6 +12,7 @@ import {
 } from '../../utils/auth'
 import {
   API_BASE,
+  TRANSPORT,
   normalizeBase,
   resetApiBase as resetApiBaseConfig,
   resolveApiBase,
@@ -131,6 +133,20 @@ export default function Me() {
     setApiBase(base)
     setApiBaseInput(base)
   }, [])
+
+  /**
+   * 实际在走哪条传输。
+   *
+   * **必须显示出来** —— 云通道失败时 api.ts 会静默退回直连（这是有意设计，
+   * 为了避免整屏报错），代价是「转换到底生效没有」从界面上完全看不出来。
+   * 这一行是判断「环境转换是否成功」的唯一直接依据：
+   * 显示「云函数」= 通了；显示「直连（云通道不可用：…）」= 没通，括号里就是原因。
+   */
+  const transportText = (): string => {
+    if (TRANSPORT !== 'cloud') return '直连（request，编译期固定）'
+    if (cloudAvailable()) return '云函数（callFunction）'
+    return '直连（云通道不可用：' + (cloudErrorMessage() || '未初始化') + '）'
+  }
 
   /** 拉一次当前登录者 */
   const refresh = useCallback(async () => {
@@ -373,6 +389,10 @@ export default function Me() {
           小程序连的是哪台服务。默认是打包时写进去的地址（下方「恢复默认」就是回到它）；
           本机联调时改成电脑的局域网地址（如 http://192.168.1.20:5178）。
           改这里不用改代码、不用重新编译。
+        </View>
+        <View className="pr-me-row">
+          <Text className="pr-me-key">传输方式</Text>
+          <Text className="pr-me-val">{transportText()}</Text>
         </View>
         <View className="pr-me-row">
           <Text className="pr-me-key">当前连接</Text>
