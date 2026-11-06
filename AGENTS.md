@@ -959,6 +959,7 @@ npm run test:e2e:mp:legacy   # 原生回退工程的三套（mp-lint / mp-api / 
 | **静态图片进包** | 走 Taro 的 `copy`（`taro/config/index.ts`）。**两条硬规矩**：① `from` 必须用**正斜杠**（copy 底层是 fast-glob，反斜杠是转义符 → Windows 下**静默匹配 0 个**，图没进包还不报错）② `to` 必须**带扩展名**（`to` 写成 `assets/` 会让 `rename` 被塞成 `'/'`，所有图撞到同一路径只剩最后一张）。所以**一图一 pattern**。违反的后果：真机点「看寸关尺图示」提示**「底图没载入」** |
 | **编译期注入** | 线上包的默认 API 地址走 `config/index.ts` 的 `defineConstants`（`PULSE_API_BASE`）。⚠️ **这段一旦失效，产物里会留下 `process.env.PULSE_API_BASE` → 小程序运行时没有 `process` 这个全局量 → 启动即抛「process is not defined」→ 整屏白**（2026-11-05 真出过，构建不报错、静态回归全绿）。回归第 23 节专门盯：产物里不许残留无守卫的 `process.xxx` |
 | 迁 CloudBase 后 | 改用 `wx.cloud.callFunction` → **不走合法域名校验**，备案没下来也能先跑通；但**必须补声明「腾讯云 CloudBase」这个第三方 SDK** |
+| **云调用的兜底** | `wx.cloud.init()` 在「appid 没被授权用这个环境」时**不报错** —— 它照样初始化成功，错误要到**第一次 `callFunction`** 才抛（`-501000 Environment not found`）。所以**不能只看 init 的返回值**判断云通道可用（曾经的 bug：兜底因此从来没生效，每个请求都去撞同一堵墙，用户只看到一屏原始报错）。现在的规矩：云调用**传输层**失败（`ApiError.status === 0`）→ `disableCloud()` 把云通道关掉 → 本次请求改走 `request` 传输。**只对传输层失败兜底** —— 云函数自己返回的 401 等业务错误不能退回（否则同一个错误处理两遍：令牌清两次、reLaunch 两次） |
 
 ### 录入口径
 
