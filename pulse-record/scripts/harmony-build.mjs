@@ -148,6 +148,11 @@ const excludes = [
   '--exclude', '.idea/',
 ]
 run('rsync', ['-a', ...excludes, `${SRC}/`, `${MIRROR}/`])
+
+// 工程级的 module.json5 实测**不生效**（编译后的 module.json 里 deviceConfig 为 null），
+// 留着只会让人以为「明文 HTTP 已经配了」—— 删掉，防止它在镜像里长期躺着。
+rmSync(join(MIRROR, 'module.json5'), { force: true })
+
 console.log('· 已同步工程配置到镜像\n')
 
 /* ---------- 2. local.properties（SDK 路径） ---------- */
