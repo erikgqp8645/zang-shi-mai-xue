@@ -26,107 +26,25 @@
  * **凭证只从环境变量读**，绝不写进仓库。
  */
 
-import { createHash, createHmac } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { callTcb } from './lib/tcb-capi.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(HERE, '..')
 
-const HOST = 'tcb.tencentcloudapi.com'
-const SERVICE = 'tcb'
-const VERSION = '2018-06-08'
 const ACTION = 'ExecutePGSql'
 
 const ENV_ID = process.env.PULSE_ENV_ID || 'ambitious-parrot-d7ehh7x0fd9d680'
 const ROLE = process.env.PULSE_PG_ROLE || 'cloudbase_postgres'
 const REGION = process.env.TCLOUD_REGION || 'ap-shanghai'
 
-/* ------------------------------ 签名 ------------------------------ */
-
-function sha256Hex(s) {
-  return createHash('sha256').update(s, 'utf8').digest('hex')
-}
-
-function hmac(key, s) {
-  return createHmac('sha256', key).update(s, 'utf8').digest()
-}
-
-/** 腾讯云 API 3.0（TC3-HMAC-SHA256）签名 */
-function sign({ secretId, secretKey, token, payload, action, timestamp }) {
-  const date = new Date(timestamp * 1000).toISOString().slice(0, 10)
-
-  const canonicalHeaders =
-    `content-type:application/json; charset=utf-8\n` +
-    `host:${HOST}\n` +
-    `x-tc-action:${action.toLowerCase()}\n`
-  const signedHeaders = 'content-type;host;x-tc-action'
-  const canonicalRequest =
-    `POST\n/\n\n${canonicalHeaders}\n${signedHeaders}\n${sha256Hex(payload)}`
-
-  const credentialScope = `${date}/${SERVICE}/tc3_request`
-  const stringToSign =
-    `TC3-HMAC-SHA256\n${timestamp}\n${credentialScope}\n${sha256Hex(canonicalRequest)}`
-
-  const secretDate = hmac(`TC3${secretKey}`, date)
-  const secretService = hmac(secretDate, SERVICE)
-  const secretSigning = hmac(secretService, 'tc3_request')
-  const signature = createHmac('sha256', secretSigning).update(stringToSign, 'utf8').digest('hex')
-
-  const authorization =
-    `TC3-HMAC-SHA256 Credential=${secretId}/${credentialScope}, ` +
-    `SignedHeaders=${signedHeaders}, Signature=${signature}`
-
-  const headers = {
-    Authorization: authorization,
-    'Content-Type': 'application/json; charset=utf-8',
-    Host: HOST,
-    'X-TC-Action': action,
-    'X-TC-Version': VERSION,
-    'X-TC-Timestamp': String(timestamp),
-  }
-  if (token) headers['X-TC-Token'] = token
-  return headers
-}
-
 /* ------------------------------ 调用 ------------------------------ */
 
 /** 调一次 ExecutePGSql，返回解析后的结果 */
 export async function execSql(sql, { role = ROLE, envId = ENV_ID } = {}) {
-  // 凭证名三套都认（值一样，只是变量名不同）：
-  //   TCLOUD_*      —— 本地临时凭证（scripts/migrate-sqlite-to-pg.mjs 等用）
-  //   PULSE_CB_*   —— pg-client.mjs 那套（同一份凭证换个名）
-  //   TENCENTCLOUD_* —— 平台注入（云函数里）
-  const secretId = process.env.TCLOUD_SECRET_ID || process.env.PULSE_CB_SECRET_ID || process.env.TENCENTCLOUD_SECRETID
-  const secretKey = process.env.TCLOUD_SECRET_KEY || process.env.PULSE_CB_SECRET_KEY || process.env.TENCENTCLOUD_SECRETKEY
-  const token =
-    process.env.TCLOUD_SESSION_TOKEN || process.env.PULSE_CB_SESSION_TOKEN || process.env.TENCENTCLOUD_SESSIONTOKEN || ''
-  if (!secretId || !secretKey) {
-    throw new Error('缺少凭证环境变量：TCLOUD_SECRET_ID / PULSE_CB_SECRET_ID（或 TENCENTCLOUD_SECRETID）')
-  }
-
-  const payload = JSON.stringify({ EnvId: envId, Role: role, Sql: sql })
-  const timestamp = Math.floor(Date.now() / 1000)
-  const headers = sign({ secretId, secretKey, token, payload, action: ACTION, timestamp })
-
-  const res = await fetch(`https://${HOST}/`, {
-    method: 'POST',
-    headers,
-    body: payload,
-  })
-  const text = await res.text()
-  let json
-  try {
-    json = JSON.parse(text)
-  } catch {
-    throw new Error(`响应不是 JSON（HTTP ${res.status}）：${text.slice(0, 400)}`)
-  }
-  if (json.Response?.Error) {
-    const e = json.Response.Error
-    throw new Error(`[${e.Code}] ${e.Message}`)
-  }
-  const r = json.Response
+  const r = await callTcb(ACTION, { EnvId: envId, Role: role, Sql: sql })
   // Rows 是「JSON 字符串的数组」—— 每行本身还是一个 JSON 字符串，要再 parse 一次
   let rows = r?.Rows ?? []
   if (typeof rows === 'string') {
@@ -144,7 +62,7 @@ export async function execSql(sql, { role = ROLE, envId = ENV_ID } = {}) {
       return row
     }
   })
-  return { columns: r?.Columns ?? [], rows, affected: r?.AffectedRows ?? 0, raw: json }
+  return { columns: r?.Columns ?? [], rows, affected: r?.AffectedRows ?? 0, raw: { Response: r } }
 }
 
 /* --------------------------- 语句切分 --------------------------- */
