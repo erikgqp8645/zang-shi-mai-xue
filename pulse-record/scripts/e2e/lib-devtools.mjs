@@ -24,9 +24,35 @@ import { join, resolve } from 'node:path'
 
 const ROOT = resolve(join(import.meta.dirname, '../..'))
 
-/** 微信开发者工具的 CLI（Windows 默认路径） */
-export const CLI =
-  process.env.MP_SIM_CLI ?? 'C:/Program Files (x86)/Tencent/微信web开发者工具/cli.bat'
+/**
+ * 找微信开发者工具的 CLI —— **按平台找**。
+ *
+ * ## 为什么不能只写 Windows 路径
+ *
+ * 原来这里硬编码 `C:/Program Files (x86)/.../cli.bat`，在 macOS 上
+ * `existsSync` 恒为 false → `rearm()` **直接跳过重启** → 模拟器回归
+ * 测的是**旧 bundle**（小程序 JS bundle 在服务上下文里是缓存的，`reLaunch` 不重新 require）。
+ * 而这个文件自己的注释写着「所有模拟器回归都**必须先重启小程序**，否则测的是一个不存在的产物」——
+ * 在 macOS 上那条纪律**根本没生效**，而且是**静默**失效：
+ * 故意写坏的代码进了产物，回归照样全绿。
+ *
+ * → 现在按平台各给一条路径；`MP_SIM_CLI` 环境变量仍可覆盖。
+ */
+function findCli() {
+  if (process.env.MP_SIM_CLI) return process.env.MP_SIM_CLI
+  if (process.platform === 'win32') return 'C:/Program Files (x86)/Tencent/微信web开发者工具/cli.bat'
+  if (process.platform === 'darwin') {
+    const candidates = [
+      '/Applications/wechatwebdevtools.app/Contents/MacOS/cli',
+      '/Applications/微信开发者工具.app/Contents/MacOS/cli',
+    ]
+    return candidates.find((c) => existsSync(c)) ?? candidates[0]
+  }
+  return 'cli'
+}
+
+/** 微信开发者工具的 CLI */
+export const CLI = findCli()
 
 /** 小程序工程目录（Taro 的 dist 由它当小程序根目录） */
 export const TARO = join(ROOT, 'taro')
@@ -42,13 +68,15 @@ export function rearm() {
     return false
   }
   const port = Number((process.env.MP_SIM_WS ?? 'ws://127.0.0.1:9420').split(':').pop()) || 9420
-  const r = spawnSync(
-    process.env.ComSpec || 'cmd.exe',
-    ['/d', '/c', CLI, 'auto', '--project', TARO, '--auto-port', String(port), '--trust-project'],
-    { encoding: 'utf8', timeout: 180000 },
-  )
+  const args = ['auto', '--project', TARO, '--auto-port', String(port), '--trust-project']
+  // Windows 的 CLI 是 .bat，必须经 cmd.exe 跑；macOS/Linux 上那个是可执行文件，直接跑
+  const cmd = process.platform === 'win32' ? process.env.ComSpec || 'cmd.exe' : CLI
+  const argv =
+    process.platform === 'win32' ? ['/d', '/c', CLI, ...args] : args
+  const r = spawnSync(cmd, argv, { encoding: 'utf8', timeout: 180000 })
   const good = r.status === 0
   console.log(good ? '  · 已重启小程序（确保跑的是当前产物）' : '  · 重启失败，继续用现有实例')
+  if (!good && r.stderr) console.log(String(r.stderr).trim().split('\n').slice(-3).join('\n'))
   return good
 }
 

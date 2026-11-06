@@ -177,13 +177,38 @@ if (!automator) {
         console.log(`  · API（${API}）没起或没有带记录的患者 —— 端到端那段跳过（不是测试失败）`)
         console.log('    先跑：PULSE_SINGLE_USER=1 npm start')
       } else {
-        await withTimeout(mp.reLaunch(`/pages/case-detail/index?patientId=${patientId}`), 30000, 'reLaunch').catch(
-          () => {},
-        )
+        // `reLaunch` 在这套 Taro 产物上**偶发**抛 automator 的
+        // `getPageMetaByWebviewId(...)` 为 null（webview 还没注册）。
+        // 实测**页是切过去了**，只是这次调用报错 —— 所以重试一次，
+        // 再不行就用 `currentPage()` 复核。
+        let opened = false
+        for (let attempt = 1; attempt <= 2 && !opened; attempt++) {
+          try {
+            await withTimeout(mp.reLaunch(`/pages/case-detail/index?patientId=${patientId}`), 30000, 'reLaunch')
+            opened = true
+          } catch {
+            await new Promise((r) => setTimeout(r, 1500))
+          }
+        }
+        if (!opened) {
+          try {
+            const cur = await mp.currentPage()
+            console.log(`  · reLaunch 报错但当前页 = ${cur && cur.path}（继续）`)
+          } catch {
+            /* 拿不到就算了 */
+          }
+        }
 
         // 图是页面**自己**画的（组件里 400ms 防抖后开画）—— 等它出现
+        //
+        // ⚠️ 这里**不能**用 `wx.createSelectorQuery()`：在这套 Taro 产物上，
+        // automator 上下文里它的 `exec` 回调**永远不触发**（实测），
+        // 页面 `data()`／`$$()` 也一样超时 —— 40 秒也等不到。
+        // → 改成直接读 **Taro 的虚拟 DOM**：`getCurrentPages()[last].data.root`
+        //   是一棵 vdom 树，节点的 `cl` 是 className、props 存在 `p<n>` 字段里。
+        //   找到 `cl === 'pr-diagram-img'` 的节点，取那个长得像临时文件路径的 prop。
         let picked = null
-        for (let i = 0; i < 25 && !picked; i++) {
+        for (let i = 0; i < 30 && !picked; i++) {
           await new Promise((r) => setTimeout(r, 1000))
           picked = await evaluateRetry(
             mp,
@@ -191,24 +216,33 @@ if (!automator) {
               const pages = typeof getCurrentPages === 'function' ? getCurrentPages() : []
               const page = pages[pages.length - 1]
               if (!page) return null
-              return new Promise((resolve) => {
-                wx.createSelectorQuery()
-                  .in(page)
-                  .select('.pr-diagram-img')
-                  // ⚠️ 只写 properties 取不到 src —— 实测要带上 attributes
-                  .fields({ properties: ['src'], attributes: true })
-                  .exec((r) => {
-                    const info = r && r[0]
-                    resolve(info && info.src ? { src: info.src } : null)
-                  })
-              })
+              let target = null
+              const walk = (n) => {
+                if (!n || typeof n !== 'object') return
+                if (Array.isArray(n)) {
+                  n.forEach(walk)
+                  return
+                }
+                if (n.cl === 'pr-diagram-img') target = n
+                if (n.cn) walk(n.cn)
+              }
+              walk(page.data && page.data.root)
+              if (!target) return null
+              for (const k of Object.keys(target)) {
+                const val = target[k]
+                // 临时文件路径长这样：http://tmp/xxx.png 或 wxfile://xxx
+                if (typeof val === 'string' && /^(http:\/\/tmp\/|wxfile:\/\/)/.test(val)) {
+                  return { src: val }
+                }
+              }
+              return null
             },
             [],
             2,
           ).catch(() => null)
         }
 
-        ok('页面上直接显示出了寸关尺关系图（不是按钮弹窗）', !!picked, picked ? '' : '等 25 秒也没等到 .pr-diagram-img')
+        ok('页面上直接显示出了寸关尺关系图（不是按钮弹窗）', !!picked, picked ? '' : '等 30 秒也没等到 .pr-diagram-img')
 
         if (picked) {
           const png = await evaluateRetry(mp, (src) => {

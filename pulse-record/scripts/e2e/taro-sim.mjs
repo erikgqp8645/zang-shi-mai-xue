@@ -317,18 +317,53 @@ if (automator) {
         { path: '/pages/me/index', name: '我的' },
       ]
       for (const p of pages) {
-        await mp.switchTab(p.path)
-        // 多等一会儿：Taro 首屏渲染比原生慢，截太早会拍到还没画完的帧
-        await new Promise((r) => setTimeout(r, 1500))
+        // `switchTab` 在这套 Taro 产物上**偶发**抛 automator 的
+        // `getPageMetaByWebviewId(...)` 为 null（webview 还没注册）——
+        // 实测**切是切过去了**，只是这次调用报错。所以失败不致命，
+        // 下面用 `currentPage()` 复核，并重试一次。
+        let switched = true
+        try {
+          await mp.switchTab(p.path)
+        } catch (e) {
+          switched = false
+          console.log(`  · ${p.name} 第一次 switchTab 报错（${String(e).slice(0, 60)}）—— 重试`)
+          await new Promise((r) => setTimeout(r, 1500))
+          try {
+            await mp.switchTab(p.path)
+            switched = true
+          } catch {
+            /* 下面用 currentPage 复核 */
+          }
+        }
+        if (!switched) {
+          try {
+            const cur = await mp.currentPage()
+            console.log(`  · ${p.name} 当前页 = ${cur && cur.path}`)
+          } catch {
+            /* 拿不到就算了 */
+          }
+        }
+
         const file = join(OUT, `${p.name}.png`)
-        await mp.screenshot({ path: file })
+        // 多等一会儿：Taro 首屏渲染比原生慢，截太早会拍到还没画完的帧。
+        //
+        // ⚠️ `rearm()` 重启小程序后，**首帧可能还没画完**（只画出了原生外壳：
+        // 标题栏 ＋ tabBar，正文还是白的）。这时截图会被「白屏检查」判成假失败。
+        // → 所以这里**重截重试**：判到空白就再等一会儿再截，最多 4 次。
+        let shot = null
+        for (let attempt = 1; attempt <= 4; attempt++) {
+          await new Promise((r) => setTimeout(r, attempt === 1 ? 1500 : 2500))
+          await mp.screenshot({ path: file })
+          shot = isBlankShot(file)
+          if (!shot.blank) break
+          console.log(`  · ${p.name} 第 ${attempt} 次截图还是空白（${shot.nonWhiteRatio * 100}% 非白）—— 重试`)
+        }
         shots.push({ name: p.name, file })
         ok(`${p.name} 页能打开并截图`, existsSync(file), file)
 
         // **白屏检查** —— 小程序启动崩溃时截图是纯白一张。
         // 这类错构建不报错、静态回归全绿（查的是文件在不在，不是运行时），
         // 只有这条能抓到（真出过：产物里残留 process.env.xxx → 运行时没有 process → 整屏白）。
-        const shot = isBlankShot(file)
         ok(
           `${p.name} 页不是白屏（${shot.distinctColors} 种颜色 / 非白像素 ${(shot.nonWhiteRatio * 100).toFixed(1)}%）`,
           !shot.blank,
