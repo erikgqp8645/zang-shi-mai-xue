@@ -177,30 +177,142 @@ useEffect(() => {
 鸿蒙走 **`harmony_cpp`**（不是 `harmony`）—— 见 §2 的版本事实。
 **只支持 Vite**，所以 `compiler: 'vite'` 不能改。
 
+### 9.1 一条命令出 HAP
+
 ```bash
-cd pulse-record/taro
-TARO_HARMONY_PROJECT=/path/to/DevEcoProject npm run build:harmony
+cd pulse-record
+node scripts/harmony-build.mjs              # 全流程
+node scripts/harmony-build.mjs --skip-taro  # 只重编（.ets 没变时快很多）
 ```
 
-产物落在 `<TARO_HARMONY_PROJECT>/<hapName>/src/main/ets/`：
-`app.ets`、`render.ets`、`taro_tabbar.ets`、`pages/*/index.ets`、`pages/*/index_style.json`。
+出包位置：`~/AiCoding/harmony-pulse-record/entry/build/default/outputs/default/default-default-unsigned.hap`（约 9 MB）。
 
-**出 HAP 还需要 DevEco Studio 与 ohpm**（本机没有），
-编译阶段会提示 `ohpm install` 失败 —— 那一步在 DevEco 里点 Sync Now 即可。
+流程（`scripts/harmony-build.mjs`）：
 
-### 三个必须踩过才知道的坑
+1. rsync 仓库的 `harmony/` → 镜像目录（**不删**镜像里多出来的文件）
+2. 写 `local.properties`（`sdk.dir` 指向 DevEco 自带的 SDK）
+3. 把 DevEco 自带的 hvigor 挂进镜像的 `node_modules/@ohos/`
+   （`@ohos/hvigor` 不在 npmjs 上，只能用 IDE 自带那份）
+4. Taro 构建：`TARO_HARMONY_PROJECT=镜像` → `.ets` 产物写进镜像
+5. **ArkTS 严格模式补丁**（§9.4）
+6. **rawfile 资源对齐**（§9.5）
+7. `ohpm install`（工程根 ＋ `entry` 模块 —— 依赖在 entry 的 oh-package 里）
+8. `hvigorw assembleHap`
+9. 打印 HAP 路径
+
+环境变量：`DEVECO_HOME`（默认 `/Applications/DevEco-Studio.app`）、`PULSE_HARMONY_HOME`（默认 `~/AiCoding/harmony-pulse-record`）。
+
+### 9.2 为什么必须镜像到 ASCII 路径
+
+hvigor / DevEco **不接受含中文的工程路径**：
+
+```
+ERROR: 00306003 Specification Limit Violation
+Error Message: Invalid project path. Current path does not match: …/臧氏脉学/…
+```
+
+而本仓库就躺在 `~/AiCoding/臧氏脉学/` 下面 —— **仓库路径本身带中文**。
+符号链接也绕不过：`node` 的 `process.cwd()` 会把软链解析成**真实路径**，报错里仍然是带中文的那条（实测）。
+
+→ 所以定成：**仓库里的 `harmony/` 是工程的唯一真源**（配置与资源入库），
+**编译时镜像到一条纯 ASCII 路径**再编。
+
+### 9.3 Taro 产物与 DevEco 模板的接管关系
+
+这不是「未确定」，是**已查实**的：
+
+- Taro 生成的 `entry/src/main/ets/app.ets` **本身就是一个完整的 `export default class EntryAbility extends UIAbility`**，
+  它 `stage.loadContent('taro_tabbar', ...)`。
+- `taro_tabbar.ets` 是 `@Entry @Component struct Index`（＝ 模板里的 `pages/Index.ets`）。
+- **所以模板自带的 `entryability/EntryAbility.ets` ＋ `pages/Index.ets` 不能作为 srcEntry**；
+  `module.json5` 的 `srcEntry` 要指向 `./ets/app.ets`，
+  `main_pages.json` 要列 `"taro_tabbar"` ＋ 非 tab 页路由。
+- 插件的 `updateModulePackage()` 在 4.3.2 里**会跑**（合并 `opts.ohPackage.dependencies` 进 `entry/oh-package.json5` 并自己调一次 ohpm install），依赖仍需自己声明。
+
+### 9.4 踩过的坑（全部已定位并修掉）
 
 | 坑 | 现象 | 处理 |
 |---|---|---|
 | **平台没注册** | `Error: 不存在编译平台 harmony_cpp` | CLI 4.3.2 的内置平台清单里**没有** `harmony_cpp`，得在 `config/index.ts` 的 `plugins` 里自己挂 `@tarojs/plugin-platform-harmony-cpp` |
 | **插件漏声明依赖** | `Cannot find module '@babel/preset-typescript'` | `@tarojs/plugin-platform-harmony-cpp` 自己 require 了它却没写进 dependencies —— 本工程显式装上 |
 | **babel 解析不了 TSX** | `SyntaxError: src/app.tsx: Unexpected token, expected "from"` | 上游 `@tarojs/vite-runner` 那个 `enforce: 'pre'` 的 babel 插件**没给 preset**，却跑在 vite 的 esbuild 之前 → 拿到原始 TSX。绕行见 `config/harmony-workaround.ts` |
+| **工程路径含中文** | `00306003 Specification Limit Violation` | 镜像到纯 ASCII 路径（§9.2） |
+| **`@ohos/hvigor` 装不上** | `npm install` 404 | `@ohos/hvigor` **不在 npmjs 上**，只能用 DevEco 自带那份，软链进 `node_modules/@ohos/` |
+| **hvigor 找不到 SDK** | 找不到 SDK | 要 `DEVECO_SDK_HOME` 指向 SDK **根**目录（`Contents/sdk`），不是版本目录 |
+| **插件自己调 ohpm 失败** | 退回 `~/Library/Huawei/ohpm/bin/ohpm` 报错 | 把 `Contents/tools/ohpm/bin` 放进 `PATH` |
+| **SDK 版本太低** | `00306004 Specification Limit Violation`：`compatibleSdkVersion: 12 cannot be lower than the minimum compatible version 14 required by the dependencies: @taro-oh/library` | taro 的 har 声明了 `compatibleSdkVersion: 14` → 提到 `"6.0.0(20)"` |
+| **ArkTS 严格模式** | `1 ERROR: 10605999 ArkTS Compiler Error`：`Variable 'levelRes' is used before being assigned`（`app.ets:77`） | 上游模板的 `switch` 没有 `default` 分支 → 补初值 `0`（语义不变）。见 §9.4.1 |
+| **打包要 Java** | `00308018 Unknown Error` / `Unable to locate a Java Runtime` | 本机系统里没有 java，只有 DevEco 自带的 JBR → `JAVA_HOME` 指向 `Contents/jbr/Contents/Home` |
+| **权限字段名** | schema 校验失败 | **模块级** `module.json5` 用 `requestPermissions`（写 `reqPermissions` 会被 schema 拦下） |
 
-绕行补丁的四个坑（都写在 `config/harmony-workaround.ts` 的注释里）：
-① 钩子不能写成插件对象的方法；② 不能写在 `config/index.ts` 的配置字段里；
-③ 默认导出必须是工厂函数；④ `config.plugins` 只收字符串。
+#### 9.4.1 ArkTS 严格模式补丁
 
-**微信端完全不受影响** —— 补丁只在 `TARO_ENV=harmony_cpp` 时注册。
+上游 `@tarojs/vite-runner@4.3.2` 的鸿蒙 app 模板（`dist/harmony/template/app.js`，硬编码字符串）：
+
+```ts
+onMemoryLevel(level: AbilityConstant.MemoryLevel) {
+  let levelRes: number          // ← 没有初值
+  switch (level) {
+    case MEMORY_LEVEL_MODERATE: levelRes = 5;  break
+    // …没有 default 分支
+  }
+  if (levelRes) { … }           // ← 编译器无法证明 switch 一定命中某个分支
+}
+```
+
+ArkTS（ArkTS 1.2 严格模式）要求「使用前必须赋值」→ 编译直接失败。
+**最小修正：给个初值 `0`。语义完全不变** —— 原来没命中分支时是 `undefined`（falsy），
+修正后是 `0`（同样 falsy），`if (levelRes)` 的判断结果一模一样。
+
+为什么不改 Taro 侧：那份模板是 `node_modules` 里的硬编码字符串，改不了也不该改（升级即丢）。
+所以放构建脚本里做后处理，**补丁本体是纯函数**：`scripts/lib/harmony-arkts-patch.mjs`。
+它**幂等**（打过就原样返回），**模板变了就抛错**（不静默放过），
+并由 `scripts/e2e/harmony-lint.mjs` 直接测。
+
+### 9.5 tabBar 图标要在 rawfile，不在 ets/assets
+
+Taro 的鸿蒙编译链把 tabBar 图标发射到 **vite 产物根**（`entry/src/main/ets/assets/tabbar/*.png`）：
+
+- `dist/harmony/entry.js:51` —— rawfile 目录＝`resolve(outputRoot, '..')/resources/rawfile`
+- `dist/harmony/entry.js:91-113` —— tabbar 图标 `emitFile({type:'asset'})`
+
+但 ArkUI 的 `Image('相对路径')` 找的是 **rawfile**，不是 ets 目录：
+
+```ts
+Image(this.tabBarCurrentIndex === index && item.selectedIconPath || item.iconPath)
+```
+
+`iconPath` 就是 `app.config.ts` 里写的 `assets/tabbar/cases.png` → 按 rawfile 解析。
+
+所以构建脚本里有一步 **rawfile 资源对齐**：把 `ets/assets/` 整份拷到 `resources/rawfile/assets/`，
+路径结构原样保留。少了这步，**编译照过、四个 tab 就是没图标**。
+
+### 9.6 权限与明文 HTTP
+
+- **网络权限**：鸿蒙应用默认**没有**网络能力，必须在 `entry/src/main/module.json5` 里声明
+  `requestPermissions: [{ name: 'ohos.permission.INTERNET', reason: '…', usedScene: {…} }]`。
+  不声明的话编译照过、装得上，但**一个请求都发不出去**。
+- **明文 HTTP**：后端是局域网 `http://`，所以在 module 级开
+  `metadata: [{ name: 'ohos.net.http.cleartextTraffic', value: 'true' }]`。
+  （工程级的 `deviceConfig.default.network.cleartextTraffic` 在本工程**不生效** ——
+  实测编译后的 `module.json` 里 `deviceConfig` 为 `null`。）
+- 鸿蒙 runtime 的请求走 **`rcp`（RemoteCommunicationKit）**，不是 `@ohos.net.http`，
+  两者是不同实现；rcp 不继承 `@ohos.net.http` 的明文限制。
+
+### 9.7 还没做的
+
+- **模拟器/真机实测**：DevEco 的模拟器需要**先在 IDE 的 Device Manager 下载设备镜像**（本机没有镜像，也没有 hdc）。
+  出了 HAP 之后，在 IDE 里打开镜像目录 → Run 即可（工程路径已是纯 ASCII）。
+- **签名**：`build-profile.json5` 里 `signingConfigs` 为空 → 出的是 **unsigned** 包。
+  模拟器能跑，真机要签名。
+- **关系图（寸关尺）在鸿蒙上的渲染**还没验证 —— 小程序侧是自绘 canvas，鸿蒙侧走 C-API 的 canvas，还没确认。
+
+### 9.8 回归
+
+`npm run test:e2e:harmony`（`scripts/e2e/harmony-lint.mjs`，57 项）——
+静态守住「能出 HAP」这件事：工程骨架、SDK 版本下限、权限、明文开关、
+入口与路由、har 依赖、tabBar 图标与 rawfile、ArkTS 补丁（纯函数直接测）、
+产物不入库、ASCII 路径约束。
 
 ## 10. 回归
 
@@ -209,7 +321,9 @@ TARO_HARMONY_PROJECT=/path/to/DevEcoProject npm run build:harmony
 | `npm run test:e2e:mp` | `taro-lint.mjs` —— 扫 TSX 源码（禁止 `wx.` 直调、禁止 `.wxml/.wxss` 残留、组件同源…） |
 | `npm run test:e2e:mp:api` | `taro-api.mjs` —— mock `Taro.request`，查数据层契约 |
 | `npm run test:e2e:mp:sim` | `taro-sim.mjs` —— 纯函数断言 ＋ 编译产物断言 ＋ 模拟器截图冒烟 |
-| `npm test` | 全部（网站端 core / migration / auth / app / desktop ＋ 小程序三套） |
+| `npm run test:e2e:mp:tabs` | `taro-tabs.mjs` —— 就诊工作台四档页内 tab 的模拟器回归 |
+| `npm run test:e2e:harmony` | `harmony-lint.mjs` —— 鸿蒙工程配置静态检查（§9.8） |
+| `npm test` | 全部（网站端 core / migration / auth / app / desktop ＋ 小程序三套 ＋ 鸿蒙） |
 
 **新增断言必须先用「故意写坏」验证能抓到**，否则不算数。
 

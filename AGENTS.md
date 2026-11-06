@@ -766,7 +766,7 @@ Windows 桌面程序：Electron 壳 + **原封不动**的 `dist/` 与 `server/`�
 | **禁 `copyFileSync` 拷库** | 备份／导出只能用 `VACUUM INTO` | 库里开着 WAL，活跃数据不在主文件里，直接拷会拿到半截事务 |
 | **数据落点** | 病例库：安装版 `%APPDATA%\臧氏脉学\history.sqlite`；**免安装版 exe 旁边的 `data\history.sqlite`**（靠 electron-builder 设的 `PORTABLE_EXECUTABLE_DIR` 认出来）。Electron 自己的缓存（Cache/GPUCache）**始终留在本机 %APPDATA%**，不往 U 盘上写。SQLite **不能放进 asar**（只读、且要写 WAL/SHM），也不能放进 Program Files |
 | **owner 归属** | 桌面版是单机免登录 → 所有请求归内置 `local` 账号。**别的账号名下的数据原样拷过去是一条也看不到** | `owner_id` 是归属列，读写一律按它过滤。导入时必须改挂（`desktop/db-transfer.mjs`） |
-| **后端只许拆不许改** | `server/index.mjs` 只拆出一个 `startServer()`，业务路由一行不改 | 桌面版与网页版共用同一份后端；回归 384 项必须全绿 |
+| **后端只许拆不许改** | `server/index.mjs` 只拆出一个 `startServer()`，业务路由一行不改 | 桌面版与网页版共用同一份后端；回归 441 项必须全绿 |
 | **同源** | 窗口加载 `http://127.0.0.1:<端口>/`（端口 0 → OS 分配） | 同源 → 页面里 `/api/…` 相对路径直接可用，**绕开 Electron 沙箱的 CORS 限制** |
 | **渲染进程权限** | `nodeIntegration:false` ＋ `contextIsolation:true`；preload 只暴露「另存为」一个写文件能力 | 渲染进程拿不到 db 路径／SQL／连接，也拿不到任意写盘的口子 |
 
@@ -929,6 +929,34 @@ npm run test:e2e:mp:legacy   # 原生回退工程的三套（mp-lint / mp-api / 
   `components/diagram-view` 里，画哪一次跟着当前选中的那一列。
 - 页面必须声明「**本工具只做记录，不构成诊断**」。
 
+### 鸿蒙端（2026-11-06 起）
+
+同一套 Taro 源码，鸿蒙走 **`harmony_cpp`**（C-API 路线；ArkTS 那条 `plugin-platform-harmony-ets` 是 webpack＋ArkUI-X，路线不兼容）。
+**C++ 库不用编** —— taro 的 har 里已带预编译 `libs/arm64-v8a/libTaroHarmonyLibrary.so`。
+
+```bash
+cd pulse-record
+node scripts/harmony-build.mjs              # 一条命令出 HAP
+node scripts/harmony-build.mjs --skip-taro  # 只重编
+npm run test:e2e:harmony                     # 57 项：鸿蒙工程静态检查
+```
+
+- **`pulse-record/harmony/` 是 DevEco 工程的唯一真源**（配置与资源入库）；
+  **编译时镜像到纯 ASCII 路径**（默认 `~/AiCoding/harmony-pulse-record`）——
+  hvigor 拒绝含中文的工程路径（`00306003`），**符号链接也绕不过**（node 的 `process.cwd()` 解析成真实路径）。
+- **Taro 的 `app.ets` 就是 EntryAbility**（`srcEntry: "./ets/app.ets"`），`taro_tabbar.ets` 才是首页；
+  DevEco 模板自带的 `EntryAbility.ets`／`Index.ets` **不能作入口**。
+- **tabBar 图标要在 rawfile**：Taro 把它发射到 `ets/assets/tabbar/`，
+  但 ArkUI 的 `Image('相对路径')` 取 **rawfile** → 构建脚本里有一步「ets/assets → resources/rawfile/assets」对齐。
+  少了这步，**编译照过、四个 tab 就是没图标**。
+- **必须声明 `ohos.permission.INTERNET`** —— 鸿蒙应用默认没有网络能力，
+  不声明的话编译照过、装得上，但**一个请求都发不出去**。
+  明文 HTTP（后端是局域网 `http://`）靠 module 级 `metadata` 的 `ohos.net.http.cleartextTraffic=true`。
+- **两处上游缺陷，本地绕行**（细节见 `docs/taro-migration.md` §9）：
+  ① `@tarojs/vite-runner` 的 `enforce:'pre'` babel 插件没给 preset → `config/harmony-workaround.ts`；
+  ② 生成的 `app.ets` 里 `let levelRes: number` 在 ArkTS 严格模式下「使用前未赋值」→
+  `scripts/lib/harmony-arkts-patch.mjs`（**纯函数、幂等、模板变了就抛错**）。
+
 ---
 
 ## 产出与命名约定
@@ -1004,7 +1032,7 @@ npm run test:e2e:mp:legacy   # 原生回退工程的三套（mp-lint / mp-api / 
 - [ ] 小程序：**往界面上加东西之前，先去原生回退工程对一遍** —— 老版本不是「旧」，它是**已经踩过坑的规矩**。原生版当初不给录入页放图示，正是因为它属于「看」的页面。
 - [ ] 小程序：改过 `taro/config/index.ts` 的 **copy 规则**或 `taro/src/platform/canvas.ts` 的**底图路径**后，`npm run mp:taro:build` 的日志里有没有 `[vite-plugin-static-copy] Copied N items.`，`dist/assets/` 下的图是不是与 `pulse-record/src/assets/` **逐字节一致**（`taro-lint` 第 22 节会查，但只在编过之后）？`from` 是不是正斜杠、`to` 是不是带扩展名？
 - [ ] 小程序：上线包的**默认 API 地址**是不是正式 https 域名（`PULSE_API_BASE` 编译期注入，不注入就是 `http://127.0.0.1:5178`）？「我的」页里的服务器地址是不是仍可改（联调包与正式包要能并存）？
-- [ ] 桌面版：改过 `server/index.mjs` 后，`node server/index.mjs` 的行为是否**完全不变**（`isMain` 判定）？`npm test` 是否仍 **384 项全绿**（core 26 ＋ taro-lint 157 ＋ taro-api 45 ＋ migration 53 ＋ auth 52 ＋ app 18 ＋ desktop 33）？
+- [ ] 桌面版：改过 `server/index.mjs` 后，`node server/index.mjs` 的行为是否**完全不变**（`isMain` 判定）？`npm test` 是否仍 **441 项全绿**（core 26 ＋ taro-lint 157 ＋ taro-api 45 ＋ migration 53 ＋ auth 52 ＋ app 18 ＋ desktop 33 ＋ harmony 57）？
 - [ ] 桌面版：数据是否落在 `%APPDATA%\臧氏脉学\`（安装版）／ exe 旁边的 `data\`（免安装版）？有没有把库放进 asar 或 Program Files（SQLite 写不了）？**Electron 缓存有没有被误放到 exe 旁边**（缓存留本机 %APPDATA%）？
 - [ ] 桌面版：改过落点判定后，`desktop/data-dir.mjs` 的规则与 `desktop/main.mjs` 的实际用法是否一致（主进程必须调用那套纯函数，不要内联另写一份）？便携版与安装版的 userData 是否仍分开（否则单实例锁互相吞）？
 - [ ] 桌面版：导入老数据后，**别的账号名下那些病例在桌面端看得见吗**（owner 归属有没有改挂）？重复导入会不会翻倍？

@@ -177,6 +177,27 @@ Taro 版一度把它做成就诊页的第 4 档页内 tab，又和病例详情�
 个人主体的硬约束：`code2Session` 可用；**`web-view` 不可用**（不支持业务域名）→ 必须原生开发；
 **`getPhoneNumber` 不可用** → 账号绑定只走「网站账号＋密码」。
 
+## 鸿蒙端
+
+同一套 Taro 源码，鸿蒙走 **`harmony_cpp`**（C-API 路线）。**C++ 库不用编** ——
+taro 的 har 里已带预编译 `libTaroHarmonyLibrary.so`。
+
+```bash
+node scripts/harmony-build.mjs              # 一条命令出 HAP（默认镜像到 ~/AiCoding/harmony-pulse-record）
+node scripts/harmony-build.mjs --skip-taro  # 只重编
+npm run test:e2e:harmony                     # 57 项：鸿蒙工程静态检查
+```
+
+- **`harmony/` 是 DevEco 工程的唯一真源**（配置与资源入库），
+  **编译时镜像到纯 ASCII 路径** —— hvigor 拒绝含中文的工程路径，符号链接也绕不过。
+- 出了 HAP 之后，在 DevEco Studio 里打开**镜像目录** → Run 即可（工程路径已是纯 ASCII）。
+  ⚠️ 本机还没有模拟器镜像（需在 IDE 的 Device Manager 里下载），也还没配签名（出的是 unsigned 包）。
+- 三处容易踩的地方（细节见 **[`docs/taro-migration.md`](./docs/taro-migration.md) §9**）：
+  ① Taro 的 `app.ets` 就是 EntryAbility，模板自带的 `EntryAbility.ets` 不能作入口；
+  ② tabBar 图标要在 **rawfile**（Taro 默认放到 `ets/assets/`，ArkUI 不认）；
+  ③ **必须声明 `ohos.permission.INTERNET`** —— 不声明编译照过，但一个请求都发不出去。
+
+
 ## 桌面应用（规划中 · 尚未实现）
 
 计划把本工具打成 **Windows 桌面应用**（`.exe` 安装包 ＋ 免安装版），数据模型是

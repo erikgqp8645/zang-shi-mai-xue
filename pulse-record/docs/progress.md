@@ -13,9 +13,10 @@
 |---|---|---|---|
 | **P0 多用户与数据隔离** | ✅ 已完成 | `users`＋`identities`＋`sessions` 三表；四张业务表下沉 `owner_id`；跨用户一律 404 | 等 PR #6 合并 |
 | **P1 网站上线** | ⏸ **卡在用户侧手续** | 脚本与文档已就绪，**域名／ICP 备案／服务器三样都没有** | 备案 7~20 工作日是整条时间线最长的一段 → **今天就去提交备案** |
-| **P2 微信小程序** | 🟡 **已迁 Taro ＋ 界面重排完成**；模拟器逐页截图已验，未真机验证 | 8 个平级页面 → **4 个 tab（病例／就诊／用方／我的）**，「就诊」是工作台页（吸顶上下文条 ＋ **4 个页内 tab（摸脉／体质／疗法／方药）** ＋ 底部操作条）；Taro 4.3.2 ＋ React 18，与网站**共用同一份 domain 源码**；鸿蒙 C-API 编译已通；**寸关尺关系图直接显示在页面上**（不提供导出 → 隐私接口 0 个）；微信「代码质量」两条已修（JS 压缩已开、图片 298 KB → 116.3 KB）；回归 **384 项全绿** | 真机跑一遍（备案前先用局域网 IP） |
+| **P2 微信小程序** | 🟡 **已迁 Taro ＋ 界面重排完成**；模拟器逐页截图已验，未真机验证 | 8 个平级页面 → **4 个 tab（病例／就诊／用方／我的）**，「就诊」是工作台页（吸顶上下文条 ＋ **4 个页内 tab（摸脉／体质／疗法／方药）** ＋ 底部操作条）；Taro 4.3.2 ＋ React 18，与网站**共用同一份 domain 源码**；鸿蒙 C-API 编译已通；**寸关尺关系图直接显示在页面上**（不提供导出 → 隐私接口 0 个）；微信「代码质量」两条已修（JS 压缩已开、图片 298 KB → 116.3 KB）；回归 **441 项全绿** | 真机跑一遍（备案前先用局域网 IP） |
 | **P3 后期迁 CloudBase** | ⏸ 规划完成，待触发 | 存储已收敛成 `server/store.mjs` 一层；db/auth 全 async | 真正迁的时候只改一处 |
 | **P4 Windows 桌面应用** | ✅ **已实现**，本机出包并实测 | Electron 44.10.2；复用现有 `server/`＋`dist/`，业务逻辑不重写 | 交给使用者安装使用；macOS 包另找 Mac 机器补 |
+| **P5 鸿蒙端** | 🟡 **已出 HAP**，未实测 | 同一套 Taro 源码走 `harmony_cpp`（C-API）；`pulse-record/harmony/` 是工程真源，编译时镜像到纯 ASCII 路径；9.1 MB unsigned 包 | DevEco 里下模拟器镜像 → 打开镜像目录 Run → 验四个 tab |
 
 ---
 
@@ -910,7 +911,62 @@ taro-lint 140 → **157**（新增／改写 17 条）。**故意写坏五连验*
 全量回归 **384/384 全绿**（core 26 ＋ taro-lint 157 ＋ taro-api 45 ＋ migration 53 ＋ auth 52 ＋ app 18 ＋ desktop 33）；
 模拟器四套全绿（sim 55 ＋ privacy 6 ＋ canvas 8 ＋ **tabs 20** ＝ 89）。
 
+### 3.15 鸿蒙 app：出包了（2026-11-06）
+
+**用户**：DevEco Studio 装好了，先做一个鸿蒙 app，方便测试。
+
+#### 路线
+
+鸿蒙走 **`harmony_cpp`**（ArkTS 那条 `plugin-platform-harmony-ets` 是 webpack＋ArkUI-X，编译器路线不兼容）。
+**C++ 库不用编** —— `library-4.3.2.har` 里已带预编译 `libs/arm64-v8a/libTaroHarmonyLibrary.so`，
+插件默认 `useChoreLibrary='local'` 时不会 clone cpp 源码库（cpp 源码路线要 FetchContent 拉
+folly＋boost＋quickjs＋jsi＋yoga 交叉编译 arm64，代价 1~2 小时，已确认可绕过）。
+
+#### 落地的文件
+
+- **`pulse-record/harmony/`（27 个文件）—— DevEco 工程的唯一真源**，配置与资源入库
+- **`pulse-record/scripts/harmony-build.mjs`** —— 一条命令出 HAP
+- **`pulse-record/scripts/lib/harmony-arkts-patch.mjs`** —— ArkTS 补丁（纯函数，可测）
+- **`pulse-record/scripts/e2e/harmony-lint.mjs`** —— 鸿蒙工程回归（57 项）
+
+#### 查实的三件事
+
+1. **Taro 产物接管 EntryAbility**：Taro 生成的 `app.ets` **本身就是** `export default class EntryAbility extends UIAbility`，
+   `taro_tabbar.ets` 才是首页。所以 DevEco 模板自带的 `EntryAbility.ets`／`Index.ets` **不能作 srcEntry**，
+   `srcEntry` 要指向 `./ets/app.ets`，`main_pages.json` 列 `"taro_tabbar"` ＋ 非 tab 页路由。
+2. **路径不能有中文**：hvigor 拒绝含中文的工程路径（`00306003`），符号链接也绕不过
+   （node 的 `process.cwd()` 解析成真实路径）→ **仓库里的 `harmony/` 是真源，编译时镜像到纯 ASCII 路径**
+   （默认 `~/AiCoding/harmony-pulse-record`）。
+3. **tabBar 图标要在 rawfile**：Taro 把它发射到 `ets/assets/tabbar/`，但 ArkUI 的 `Image('相对路径')` 取 rawfile
+   → 构建脚本里有一步「ets/assets → resources/rawfile/assets」对齐。少了这步，**编译照过、四个 tab 就是没图标**。
+
+#### 踩掉的新坑
+
+| 坑 | 现象 |
+|---|---|
+| SDK 版本太低 | `00306004`：`compatibleSdkVersion: 12 cannot be lower than the minimum 14 required by @taro-oh/library` → 提到 `"6.0.0(20)"` |
+| ArkTS 严格模式 | `10605999`：`Variable 'levelRes' is used before being assigned`（上游模板的 `switch` 没有 `default` 分支）→ 补初值 `0`，语义不变 |
+| 打包要 Java | `00308018`：`Unable to locate a Java Runtime` → `JAVA_HOME` 指向 DevEco 自带的 JBR 25 |
+| 权限字段名 | schema 校验失败 → **模块级**用 `requestPermissions`（不是 `reqPermissions`） |
+| 没声明网络权限 | 编译照过、装得上，但**一个请求都发不出去** → 补 `ohos.permission.INTERNET` |
+
+#### 产物
+
+`~/AiCoding/harmony-pulse-record/entry/build/default/outputs/default/default-default-unsigned.hap`
+（9.1 MB / 36 个文件，含 `libTaroHarmonyLibrary.so` 5 MB ＋ `ets/modules.abc` 2.5 MB）。
+
+**实测**：全流程构建（`node scripts/harmony-build.mjs`，含 Taro 构建）出包成功；
+全量回归 **441/441 全绿**（原 384 ＋ 新增鸿蒙 57）。
+
+#### 还没做的
+
+- **模拟器/真机实测**：本机没有模拟器镜像、也没有 hdc —— 需先在 DevEco 的 Device Manager 里下载设备镜像。
+  出了 HAP 之后，在 IDE 里打开镜像目录 → Run 即可（工程路径已是纯 ASCII）。
+- **签名**：`signingConfigs` 为空 → 出的是 unsigned 包。模拟器能跑，真机要签名。
+- **关系图（寸关尺）在鸿蒙上的渲染**还没验证。
+
 ## 4. P3 · 后期迁 CloudBase（规划完成，待触发）
+
 
 **目标**：网站跑静态托管、API 跑云函数、数据存 **PostgreSQL**、小程序走 `wx.cloud.callFunction`（不走合法域名校验）。
 
@@ -1021,14 +1077,14 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 
 ---
 
-## 6. 当前仓库状态（2026-11-05 实测）
+## 6. 当前仓库状态（2026-11-06 实测）
 
 | 项 | 值 |
 |---|---|
 | 当前分支 | `feat/wechat-miniprogram`（基点 `c1814f3`） |
 | 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`feat/wechat-miniprogram` = 小程序 Taro 迁移实施中 |
 | PR | #6 `chore/multi-user → main`，**OPEN**；#7 `chore/desktop-electron → chore/multi-user`，**OPEN**（避免依赖倒置）；`feat/wechat-miniprogram` **暂不开 PR**（上线时统一收口） |
-| 全量回归 | **384/384 全绿**（core 26 ＋ taro-lint 157 ＋ taro-api 45 ＋ migration 53 ＋ auth 52 ＋ app 18 ＋ 桌面端 33） |
+| 全量回归 | **441/441 全绿**（core 26 ＋ taro-lint 157 ＋ taro-api 45 ＋ migration 53 ＋ auth 52 ＋ app 18 ＋ 桌面端 33 ＋ 鸿蒙 57） |
 | 小程序工程 | `pulse-record/taro/`（Taro 4.3.2 ＋ React 18）；**原生 `miniprogram/` 原样保留作回退** |
 | 小程序包体 | 媒体资源 **119.0 KB**（底图 JPEG 116.3 KB ＋ 8 个 tabbar 图标 ≤0.4 KB）；**微信「图片和音频 > 200 K」已通过**（详见 §3.12） |
 | 模拟器回归 | `npm run test:e2e:mp:sim`（**55 项**：4 个 tab 逐页截图 ＋ **白屏判定** ＋ **包内底图运行时可读**）、`npm run test:e2e:mp:privacy`（**6 项**：隐私政策页）、`npm run test:e2e:mp:canvas`（**8 项**：**真微信 canvas 2d 出图端到端**）；三个都会**自己先重启小程序**（bundle 是缓存的，不重启跑的是旧产物）。**2026-11-06 在 macOS 上实测三套全绿：55/55 ＋ 6/6 ＋ 8/8 ＝ 69 项** |
@@ -1036,6 +1092,7 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 本机库 | `pulse-record/local-data/history.sqlite`（已迁移到多用户结构：15 患者／57 就诊／1 自定义符号，归属归到 `local`；迁移前快照 `history.sqlite.bak-20261104102030`） |
 | 桌面版产物 | `pulse-record/release/`（安装包 ＋ 免安装版，已 gitignore） |
 | 桌面版数据 | 安装版 `%APPDATA%\臧氏脉学\`；**免安装版 exe 旁边的 `data\`** |
+| 鸿蒙工程 | `pulse-record/harmony/`（DevEco 工程真源，27 个文件）；镜像目录 `~/AiCoding/harmony-pulse-record`（纯 ASCII，不入库）；HAP `entry/build/default/outputs/default/default-default-unsigned.hap`（9.1 MB） |
 
 > ✅ 本机库**已完成迁移**（幂等，迁移前自动留 `.bak-<ts>` 备份）：补上 `owner_id`、
 > 回填归属到 `local`、建立 `local` 账号 —— 15 患者／57 就诊／1 自定义符号一个没丢。
@@ -1055,6 +1112,7 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 🟡 3b | **真机跑一遍新界面**（备案前先用局域网 IP） | 寸关尺关系图「直接显示在页面上、点图可放大」—— 模拟器已验，**真机还没验**（详见 §3.11） |
 | 🟡 3c | **上传前在开发者工具里重扫一次「代码质量」** | 两条已修（`minified` 已开 ＋ 底图 298 KB → 116.3 KB），但**以工具实际扫描结果为准** —— 扫完确认这两条变成「通过」再传（详见 §3.12） |
 | 🟡 4 | **桌面版装到自己的电脑上试一遍** | 已出包（`release/*.exe`），试过再决定要不要换签名证书 |
+| 🟡 4b | **鸿蒙：DevEco 里下模拟器镜像 → 打开镜像目录 Run** | HAP 已出（9.1 MB unsigned），但**没跑起来过** —— 本机没有模拟器镜像、也没有 hdc。镜像下好后工程路径已是纯 ASCII，直接 Run 就能验四个 tab（详见 §3.15） |
 | ⚪ 5 | AGENTS.md「下游用途」空位 | 由维护者自行填写一行 |
 | ⚪ 6 | 代码签名证书（可选） | 只影响安装时的 SmartScreen 提示，不影响功能 |
 
