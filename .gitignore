@@ -53,6 +53,9 @@ pulse-record/release-new/
 # 微信开发者工具的本地配置（含个人 AppID 等，不进版本库）
 pulse-record/miniprogram/project.private.config.json
 
+# CloudBase 云函数部署包（scripts/build-cloudfunction.mjs 组装，真源在 server/）
+pulse-record/.cloudfn/
+
 # 微信小程序凭据（AppSecret、代码上传私钥）—— 绝不进版本库
 pulse-record/.secrets/
 *.key

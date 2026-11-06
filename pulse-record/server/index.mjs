@@ -68,10 +68,7 @@ import {
   DB_PATH,
   RESERVED_SYMBOL_CODES,
   getLocalUser,
-} from './store.mjs'
-import {
-  SINGLE_USER,
-  SESSION_TTL_MS,
+  // 鉴权层也走 store —— 它按 PULSE_STORE 分发（SQLite ↔ PostgreSQL）
   authenticate,
   bindWechatIdentity,
   changePassword,
@@ -81,10 +78,11 @@ import {
   findUserByWechat,
   getSessionUser,
   hasWechatIdentity,
-  isValidLoginName,
   purgeExpiredSessions,
   unbindWechatIdentity,
-} from './auth.mjs'
+} from './store.mjs'
+// 与存储无关的纯逻辑（单机模式开关、会话有效期、登录名规则）
+import { SINGLE_USER, SESSION_TTL_MS, isValidLoginName } from './auth-core.mjs'
 import { code2Session } from './wechat.mjs'
 
 const PORT = Number(process.env.PORT ?? 5178)
@@ -314,6 +312,18 @@ async function handleWechatBind(res, body) {
 /* -------------------------------- 主路由 -------------------------------- */
 
 /**
+ * 初始化存储（开库 ＋ 清过期会话）
+ *
+ * 自建服务与**云函数**都要用 —— 云函数是「冷启动时初始化一次，之后复用」。
+ * openDb 可能是 async（PG 版要连库、建内置单机账号）—— await 一个非 Promise 也没问题。
+ */
+export async function initDb() {
+  db = await openDb()
+  await purgeExpiredSessions(db)
+  return db
+}
+
+/**
  * 起服务：开库 → 清过期会话 → 监听。
  *
  * 两种用法：
@@ -324,8 +334,7 @@ async function handleWechatBind(res, body) {
  * @param {string} host  只监听本机
  */
 export async function startServer({ port = 0, host = '127.0.0.1' } = {}) {
-  db = openDb()
-  await purgeExpiredSessions(db)
+  await initDb()
   await new Promise((resolve, reject) => {
     server.once('error', reject)
     server.listen(port, host, () => {
@@ -336,7 +345,20 @@ export async function startServer({ port = 0, host = '127.0.0.1' } = {}) {
   return { server, db, port: server.address().port }
 }
 
-const server = createServer(async (req, res) => {
+/**
+ * 路由主体 —— **与传输方式无关**。
+ *
+ * 自建 Node 服务与 CloudBase HTTP 云函数**共用这一份**：
+ *   · 自建服务：createServer((req, res) => handleApi(req, res))
+ *   · 云函数：把云函数的 event 转成「像 req/res 的东西」，调用同一个 handleApi
+ *
+ * 这样迁到 CloudBase 时，路由与鉴权逻辑**一行都不用改** ——
+ * 改的只有「怎么把请求送进来」。
+ *
+ * @param {import('node:http').IncomingMessage} req
+ * @param {import('node:http').ServerResponse} res
+ */
+export async function handleApi(req, res) {
   const started = Date.now()
   const url = new URL(req.url ?? '/', 'http://localhost')
   const path = url.pathname
@@ -675,6 +697,14 @@ const server = createServer(async (req, res) => {
       )
     }
   }
+}
+
+/** 自建 Node 服务：把请求交给同一个 handleApi */
+const server = createServer((req, res) => {
+  handleApi(req, res).catch((err) => {
+    console.error('[臧氏脉学] 请求处理出错：', err)
+    if (!res.headersSent) sendJson(res, 500, { error: '服务器内部错误' })
+  })
 })
 
 /**
