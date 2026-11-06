@@ -766,7 +766,7 @@ Windows 桌面程序：Electron 壳 + **原封不动**的 `dist/` 与 `server/`�
 | **禁 `copyFileSync` 拷库** | 备份／导出只能用 `VACUUM INTO` | 库里开着 WAL，活跃数据不在主文件里，直接拷会拿到半截事务 |
 | **数据落点** | 病例库：安装版 `%APPDATA%\臧氏脉学\history.sqlite`；**免安装版 exe 旁边的 `data\history.sqlite`**（靠 electron-builder 设的 `PORTABLE_EXECUTABLE_DIR` 认出来）。Electron 自己的缓存（Cache/GPUCache）**始终留在本机 %APPDATA%**，不往 U 盘上写。SQLite **不能放进 asar**（只读、且要写 WAL/SHM），也不能放进 Program Files |
 | **owner 归属** | 桌面版是单机免登录 → 所有请求归内置 `local` 账号。**别的账号名下的数据原样拷过去是一条也看不到** | `owner_id` 是归属列，读写一律按它过滤。导入时必须改挂（`desktop/db-transfer.mjs`） |
-| **后端只许拆不许改** | `server/index.mjs` 只拆出一个 `startServer()`，业务路由一行不改 | 桌面版与网页版共用同一份后端；回归 365 项必须全绿 |
+| **后端只许拆不许改** | `server/index.mjs` 只拆出一个 `startServer()`，业务路由一行不改 | 桌面版与网页版共用同一份后端；回归 367 项必须全绿 |
 | **同源** | 窗口加载 `http://127.0.0.1:<端口>/`（端口 0 → OS 分配） | 同源 → 页面里 `/api/…` 相对路径直接可用，**绕开 Electron 沙箱的 CORS 限制** |
 | **渲染进程权限** | `nodeIntegration:false` ＋ `contextIsolation:true`；preload 只暴露「另存为」一个写文件能力 | 渲染进程拿不到 db 路径／SQL／连接，也拿不到任意写盘的口子 |
 
@@ -797,7 +797,7 @@ Windows 桌面程序：Electron 壳 + **原封不动**的 `dist/` 与 `server/`�
 
 > **2026-11-05 起小程序已从原生迁到 Taro 4.3.2 ＋ React 18**：
 > 界面重排成 4 个 tab（**病例／就诊／用方／我的**），
-> 「就诊」是工作台页（吸顶上下文条 ＋ 4 个页内 tab ＋ 底部操作条），
+> 「就诊」是工作台页（吸顶上下文条 ＋ 3 个页内 tab ＋ 底部操作条），
 > 录入支持「宽表」与「一次一屏」两种视图（同一组件两个分支、同一份 `values`）。
 > 原生工程 `pulse-record/miniprogram/` **原样保留作回退**，功能对齐后退役。
 > 迁移约定全文见 `pulse-record/docs/taro-migration.md`。
@@ -999,9 +999,11 @@ npm run test:e2e:mp:legacy   # 原生回退工程的三套（mp-lint / mp-api / 
 - [ ] 小程序：跑过模拟器回归后，**截图是不是白屏**？小程序启动崩溃时截图就是纯白一张，`npm run test:e2e:mp:sim` 与 `npm run test:e2e:mp:privacy` 现在会解 PNG 判「有没有内容」（`scripts/e2e/lib-png.mjs`）。⚠️ 自动化端口**每次用完都会掉**（`disconnect()` 之后开发者工具把 9421 收了），跑之前先 `cli auto --auto-port 9421` 重新拉起。
 - [ ] 小程序：模拟器回归**真的重启小程序了吗**？`rearm()`（`scripts/e2e/lib-devtools.mjs`）靠 `lib-devtools.mjs` 里的 `CLI` 找开发者工具 —— **路径不对就静默跳过**，于是跑的是**旧 bundle**（bundle 在服务上下文里是缓存的），写坏的代码进了产物回归照样全绿。日志里必须看到「**已重启小程序（确保跑的是当前产物）**」这一行；macOS 路径是 `/Applications/wechatwebdevtools.app/Contents/MacOS/cli`，可用 `MP_SIM_CLI` 覆盖。
 - [ ] 小程序：想在 automator 里**拿到页面元素**，别用 `$$`／`$`／`data()`／`createSelectorQuery` —— 在这套 Taro 产物上它们**一律超时或回调不触发**。改走 **Taro 虚拟 DOM**：`getCurrentPages()[last].data.root` 是 vdom 树，节点的 `cl` 是 className、props 在 `p<n>` 字段里（`taro-canvas.mjs` 就是这么把出图那张 PNG 原样读回来的）。
+- [ ] 小程序：**寸关尺关系图只在「看」的页面**（病例详情页），**不进「录」的页面**（就诊工作台）。这是原生回退工程定下的规矩 —— `miniprogram/pages/record/record` 里一个图示入口都没有，底部也只有「保存」。Taro 版一度把图做成就诊页的第 4 档页内 tab（外加底部一个「出图」按钮），既破了这条规矩，又和病例详情页**重复**（2026-11-06 改回）。`taro-lint` 有断言：就诊页 `TABS` **必须**是 3 档（脉象／判读／用药）、**不许**引 `diagram-view`、底部 `ActionBar` 里**不许**有「出图」。
+- [ ] 小程序：**往界面上加东西之前，先去原生回退工程对一遍** —— 老版本不是「旧」，它是**已经踩过坑的规矩**。原生版当初不给录入页放图示，正是因为它属于「看」的页面。
 - [ ] 小程序：改过 `taro/config/index.ts` 的 **copy 规则**或 `taro/src/platform/canvas.ts` 的**底图路径**后，`npm run mp:taro:build` 的日志里有没有 `[vite-plugin-static-copy] Copied N items.`，`dist/assets/` 下的图是不是与 `pulse-record/src/assets/` **逐字节一致**（`taro-lint` 第 22 节会查，但只在编过之后）？`from` 是不是正斜杠、`to` 是不是带扩展名？
 - [ ] 小程序：上线包的**默认 API 地址**是不是正式 https 域名（`PULSE_API_BASE` 编译期注入，不注入就是 `http://127.0.0.1:5178`）？「我的」页里的服务器地址是不是仍可改（联调包与正式包要能并存）？
-- [ ] 桌面版：改过 `server/index.mjs` 后，`node server/index.mjs` 的行为是否**完全不变**（`isMain` 判定）？`npm test` 是否仍 **365 项全绿**（core 26 ＋ taro-lint 138 ＋ taro-api 45 ＋ migration 53 ＋ auth 52 ＋ app 18 ＋ desktop 33）？
+- [ ] 桌面版：改过 `server/index.mjs` 后，`node server/index.mjs` 的行为是否**完全不变**（`isMain` 判定）？`npm test` 是否仍 **367 项全绿**（core 26 ＋ taro-lint 140 ＋ taro-api 45 ＋ migration 53 ＋ auth 52 ＋ app 18 ＋ desktop 33）？
 - [ ] 桌面版：数据是否落在 `%APPDATA%\臧氏脉学\`（安装版）／ exe 旁边的 `data\`（免安装版）？有没有把库放进 asar 或 Program Files（SQLite 写不了）？**Electron 缓存有没有被误放到 exe 旁边**（缓存留本机 %APPDATA%）？
 - [ ] 桌面版：改过落点判定后，`desktop/data-dir.mjs` 的规则与 `desktop/main.mjs` 的实际用法是否一致（主进程必须调用那套纯函数，不要内联另写一份）？便携版与安装版的 userData 是否仍分开（否则单实例锁互相吞）？
 - [ ] 桌面版：导入老数据后，**别的账号名下那些病例在桌面端看得见吗**（owner 归属有没有改挂）？重复导入会不会翻倍？

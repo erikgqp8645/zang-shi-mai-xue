@@ -108,7 +108,7 @@ npm run desktop:dist    # 出安装包 + 免安装版（release/*.exe）
 两端共用同一个后端、同一套账号、同一份数据。
 
 > **2026-11-05 起小程序已从原生迁到 Taro**：界面重排成 4 个 tab
-> （**病例／就诊／用方／我的**），「就诊」是工作台页（吸顶上下文条 ＋ 4 个页内 tab ＋ 底部操作条），
+> （**病例／就诊／用方／我的**），「就诊」是工作台页（吸顶上下文条 ＋ 3 个页内 tab ＋ 底部操作条），
 > 录入支持「宽表」与「一次一屏」两种视图（同一组件两个分支、同一份数据）。
 > 原生工程 `miniprogram/` **原样保留作回退**，功能对齐后退役。
 > 迁移约定见 **[`docs/taro-migration.md`](./docs/taro-migration.md)**。
@@ -138,9 +138,11 @@ npm run mp:icons           # 重生成 tabBar 图标（自写 PNG 编码器，�
 **不用开发者工具也能验证**（数据层是真的跑）：
 
 ```bash
-npm run test:e2e:mp       # 静态检查：扫 TSX（禁 wx. 直调、禁 WXML/WXSS 残留、组件同源…）（94 项）
+npm run test:e2e:mp       # 静态检查：扫 TSX（禁 wx. 直调、禁 WXML/WXSS 残留、组件同源…）（140 项）
 npm run test:e2e:mp:api   # 数据层端到端：垫一个 Taro，连真后端跑全链路（45 项）
-npm run test:e2e:mp:sim   # 纯函数 ＋ 编译产物 ＋ 模拟器截图（39 项）
+npm run test:e2e:mp:sim   # 纯函数 ＋ 编译产物 ＋ 模拟器截图（55 项）
+npm run test:e2e:mp:privacy # 隐私政策页模拟器验证（6 项）
+npm run test:e2e:mp:canvas  # 真微信 canvas 2d 出图端到端（8 项）
 ```
 
 `test:e2e:mp:api` 覆盖「改服务器地址立刻生效 → 未登录 401 回登录页 → 注册 → 建患者（脉象/体质/疗法）
@@ -154,11 +156,17 @@ npm run test:e2e:mp:sim   # 纯函数 ＋ 编译产物 ＋ 模拟器截图（39 
 小程序侧通过 alias（`@domain/*` → `pulse-record/src/domain/*`）**直接引同一份源码**；
 `src/export/png.ts` 拆成**纯绘制器**
 （`table-painter.ts` ＋ `diagram.ts` ＋ `canvas.ts`）与 DOM 驱动两部分，
-小程序用**同一份绘制代码**（canvas 2d），所以**小程序存到相册的图与网站导出的图版式完全一致**。
+小程序用**同一份绘制代码**（canvas 2d）—— 所以小程序画出来的图与网站导出的图版式完全一致。
 
-小程序病例详情页**默认只显示表格**，手部寸关尺示意图**不放页面上**（塞进表格宽的画布里会被放大，
-出来是一张糊掉的大手）—— 要看时点「寸关尺图示」，单独弹一个系统图片预览窗体，
-按原图 1:1 显示，可双指缩放。**导出仍然带图示**，与网站导出一致。
+小程序**不提供任何导出**（存相册／复制都去掉了 → 隐私接口降到 **0 个**，
+后台《用户隐私保护指引》一项隐私类型都不用勾，只填「用户输入内容」＋「账号信息」）。
+**寸关尺关系图直接显示在病例详情页**（记录表下面，点图可放大）——
+图是真的画出来的：离屏 canvas → 共享绘制器 → 临时文件 → `<Image>`，所以图上的符号**跟着当前记录走**。
+
+⚠️ **关系图只在「看」的页面**（病例详情页），**不进「录」的页面**（就诊工作台）——
+这是原生回退工程定下的规矩（`miniprogram/pages/record/record` 里一个图示入口都没有）。
+Taro 版一度把它做成就诊页的第 4 档页内 tab，又和病例详情页重复，2026-11-06 改回。
+`test:e2e:mp` 有断言盯着（就诊页 3 档 tab／不引 diagram-view／底部无「出图」）。
 
 个人主体的硬约束：`code2Session` 可用；**`web-view` 不可用**（不支持业务域名）→ 必须原生开发；
 **`getPhoneNumber` 不可用** → 账号绑定只走「网站账号＋密码」。
@@ -830,10 +838,11 @@ taro/                微信小程序 ＋ 鸿蒙（Taro 4.3.2 ＋ React 18，与�
 ├── config/          Taro 配置（index.ts）＋ 鸿蒙绕行补丁（harmony-workaround.ts）
 ├── project.config.json  微信开发者工具打开的是这个（miniprogramRoot=dist/）
 └── src/
-    ├── app.config.ts    6 个页面 ＋ 4 个 tab（病例／就诊／用方／我的）
-    ├── pages/           cases visit formulas me case-detail login
+    ├── app.config.ts    7 个页面 ＋ 4 个 tab（病例／就诊／用方／我的）
+    ├── pages/           cases visit formulas me case-detail login privacy
     ├── components/      record-sheet（记录表，录入与详情共用）/ context-bar / sheet
     │                    sub-tabs / action-bar / visit-pulse / visit-judge / medication-panel
+    │                    diagram-view（寸关尺关系图，**只在病例详情页**）
     ├── platform/        平台适配层（wx. 只允许出现在这一层）
     ├── store/           全局上下文（患者 × 就诊，四个 tab 共用）
     └── utils/           api / auth / storage / config / data
