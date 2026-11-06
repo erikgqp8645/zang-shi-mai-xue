@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import Taro from '@tarojs/taro'
 import { Text, View } from '@tarojs/components'
 
 import type { Constitution, Depth, Hand, LayoutMode, Organ, Therapy } from '@domain/types'
@@ -13,6 +14,8 @@ import {
   therapyOf,
 } from '@domain/triad'
 import { draftDoseView, thDoseView } from '@domain/dose-lookup'
+import { resolveFormulaLink, type FormulaLink } from '@domain/formula-links'
+import { setFormulaFocus } from '../../store/focus'
 
 import './index.scss'
 
@@ -157,6 +160,17 @@ export default function VisitTriad({
     }))
   }, [therapy])
 
+  /**
+   * ③ 的方名 → 跳到「用方」tab 并定位到那一条。
+   *
+   * `switchTab` **不能带 query 参数**（微信小程序限制），
+   * 所以先把意图记在内存态（`store/focus.ts`），用方页 `useDidShow` 时取走。
+   */
+  const openFormula = (link: FormulaLink) => {
+    setFormulaFocus(link)
+    Taro.switchTab({ url: '/pages/formulas/index' })
+  }
+
   const pickConstitution = (id: Constitution) => {
     const carried = therapyOf(id)
     onPersist({ constitution: id, therapy: therapy || carried })
@@ -290,31 +304,50 @@ export default function VisitTriad({
           {!rx.length ? (
             <Text className='pr-note'>在 ② 选定疗法后，按讲义 p47 图列出那一支的方。</Text>
           ) : null}
-          {rx.map((r) => (
-            <View key={r.no} className='pr-triad-rx'>
-              <View className='pr-triad-rx-name'>
-                {r.no}. {r.name}
-              </View>
-              <Text className='pr-note'>〔{r.source}〕</Text>
-              {r.doses.map((d) => (
-                <View key={d.label}>
-                  <View className='pr-dose-label'>{d.label}</View>
-                  {d.missing ? <Text className='pr-note'>未载</Text> : null}
-                  {!d.missing && d.note ? <Text className='pr-note'>{d.note}</Text> : null}
-                  {d.entries.map((e) => (
-                    <View key={e.name} className='pr-dose-line'>
-                      {d.showName ? <Text>{e.name}：</Text> : null}
-                      <Text>{e.composition}</Text>
-                      {e.science ? <Text>　科中：{e.science}</Text> : null}
-                      {e.usage ? <Text>　服法：{e.usage}</Text> : null}
-                      <Text className='pr-dose-src'>〔{e.source}〕</Text>
-                      {e.basis ? <Text>　对照：{e.basis}</Text> : null}
-                    </View>
-                  ))}
+          {rx.map((r) => {
+            /* ③ 的方名 → 「用方」知识库条目。
+               对得上的**可点**（跳过去看组成／服法／禁忌），
+               对不上的明说「用方页未载」—— 不硬凑（依据见 @domain/formula-links）。 */
+            const link = resolveFormulaLink(r.name)
+            return (
+              <View key={r.no} className='pr-triad-rx'>
+                <View className='pr-triad-rx-name'>
+                  {r.no}.{' '}
+                  {link ? (
+                    <Text className='pr-link' onClick={() => openFormula(link)}>
+                      {r.name}
+                    </Text>
+                  ) : (
+                    <Text>{r.name}</Text>
+                  )}
+                  {link ? null : <Text className='pr-note'>　用方页未载</Text>}
                 </View>
-              ))}
-            </View>
-          ))}
+                {link ? (
+                  <Text className='pr-note' onClick={() => openFormula(link)}>
+                    〔点方名看「用方」里的完整条目：{link.label}〕
+                  </Text>
+                ) : null}
+                <Text className='pr-note'>〔{r.source}〕</Text>
+                {r.doses.map((d) => (
+                  <View key={d.label}>
+                    <View className='pr-dose-label'>{d.label}</View>
+                    {d.missing ? <Text className='pr-note'>未载</Text> : null}
+                    {!d.missing && d.note ? <Text className='pr-note'>{d.note}</Text> : null}
+                    {d.entries.map((e) => (
+                      <View key={e.name} className='pr-dose-line'>
+                        {d.showName ? <Text>{e.name}：</Text> : null}
+                        <Text>{e.composition}</Text>
+                        {e.science ? <Text>　科中：{e.science}</Text> : null}
+                        {e.usage ? <Text>　服法：{e.usage}</Text> : null}
+                        <Text className='pr-dose-src'>〔{e.source}〕</Text>
+                        {e.basis ? <Text>　对照：{e.basis}</Text> : null}
+                      </View>
+                    ))}
+                  </View>
+                ))}
+              </View>
+            )
+          })}
         </View>
       ) : null}
 

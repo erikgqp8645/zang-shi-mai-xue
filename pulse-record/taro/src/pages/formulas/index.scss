@@ -369,3 +369,43 @@
   color: #5c574f;
   line-height: 1.7;
 }
+
+/* ---------- 定位横幅与高亮（从「就诊」的三部曲 ③ 点方名跳来） ----------
+   放在文件**末尾**：`.pr-focus` 与 `.pr-formula` / `.pr-drug` 特异度相同
+   （都是两个类），靠后写的才生效 —— 放前面会被卡片自身的 background 盖掉。 */
+
+.pr-yf .pr-focus-bar {
+  border: 1rpx solid #b48464;
+  border-left: 6rpx solid #b48464;
+  border-radius: 10rpx;
+  padding: 14rpx 18rpx;
+  margin-bottom: 16rpx;
+  background: #fdf6ee;
+}
+
+.pr-yf .pr-focus-bar-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.pr-yf .pr-focus-bar-title {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #2c2925;
+}
+
+.pr-yf .pr-focus-bar-clear {
+  flex-shrink: 0;
+  margin-left: 18rpx;
+  font-size: 22rpx;
+  color: #7c8974;
+  text-decoration: underline;
+}
+
+/* 目标条目高亮 —— 用 box-shadow 描边，不改内边距，免得整张卡往下错一格 */
+.pr-yf .pr-focus {
+  background: #fdf6ee;
+  border-radius: 6rpx;
+  box-shadow: 0 0 0 3rpx rgba(180, 132, 100, 0.45);
+}

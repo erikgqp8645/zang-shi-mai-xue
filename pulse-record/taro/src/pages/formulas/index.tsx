@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Input, Text, View } from '@tarojs/components'
+import Taro, { useDidShow } from '@tarojs/taro'
 
 import {
   CONSTITUTION_TABLE,
@@ -30,6 +31,9 @@ import { draftDoseView, thDoseView } from '@domain/dose-lookup'
 import type { DoseSourceView } from '@domain/dose-lookup'
 import { RULES } from '@domain/rules'
 import type { Severity } from '@domain/rules'
+import { formulaAnchor, formulaAnchorId } from '@domain/formula-links'
+import type { FormulaLink } from '@domain/formula-links'
+import { takeFormulaFocus } from '../../store/focus'
 
 import './index.scss'
 
@@ -64,6 +68,19 @@ import './index.scss'
  * - 不替读者加减方、不下诊断。
  *
  * 知识库 domain **只在本页 import**（见 `docs/taro-migration.md` §8 包体）。
+ *
+ * ## 从「就诊」跳进来（③ ↔ 用方）
+ *
+ * 「就诊」页的三部曲 ③ 里，方名**可点** —— 点一下跳到本页并定位到那一条，
+ * 去看清挡路／引火归元／上焦方这些方到底怎么组成、怎么吃、有什么禁忌。
+ *
+ * - `switchTab` **不能带 query 参数**（微信小程序限制）→ 定位意图走**内存态**
+ *   （`store/focus.ts`），本页 `useDidShow` 时取走，取走即清空。
+ * - 跳转时**清关键词、切到「讲稿原序」** —— 该维度不受分组筛选影响，目标条目必然可见。
+ * - 卡片根节点带 `id`（`rule-<id>` ／ `drug-<id>`，与 `@domain/formula-links`
+ *   的 `formulaAnchor` 同一个函数），跳转后滚过去并高亮。
+ * - **对照依据写在横幅上** —— 凭什么把「清挡路方」认成「清挡路」，让读者自己判断。
+ * - 对不上的方**明说「用方页未载」**，不硬凑。
  */
 
 /* -------------------------------------------------------------------------- */
@@ -664,9 +681,21 @@ function DoseBlock({ block }: { block: DoseBlockView }) {
 }
 
 /** 一条依脉用方条目 */
-function FormulaCard({ item }: { item: FormulaView }) {
+function FormulaCard({
+  item,
+  focusAnchor,
+  anchorId,
+}: {
+  item: FormulaView
+  focusAnchor?: string
+  /** 锚点 id —— 只挂在「独立条目」上（见下面 anchorId 的说明） */
+  anchorId?: string
+}) {
   return (
-    <View className='pr-formula'>
+    <View
+      className={'pr-formula' + (focusAnchor === anchorId ? ' pr-focus' : '')}
+      id={anchorId}
+    >
       <View className='pr-formula-head'>
         <Text className='pr-formula-kind'>{item.kind}</Text>
         <Text className='pr-formula-cond'>{item.condition}</Text>
@@ -705,9 +734,13 @@ function FormulaCard({ item }: { item: FormulaView }) {
         </View>
       ))}
 
-      {/* 讲稿 2010 的方剂卡片（原文照录） */}
+      {/* 讲稿 2010 的方剂卡片（原文照录）
+          —— 嵌在规则卡里的方剂**不挂锚点 id**：
+             同一个方既在这里出现、又在下面的「方剂备查」里独立出现，
+             两处都挂同一个 id 就会重复（实测 `中焦方` 重复 6 次），
+             选择器一撞就不知道该滚到哪一个。 */}
       {item.drugCards.map((d) => (
-        <DrugCard key={d.id} drug={d} />
+        <DrugCard key={d.id} drug={d} focusAnchor={focusAnchor} />
       ))}
 
       <View className='pr-item-src'>{item.srcLine}</View>
@@ -716,9 +749,21 @@ function FormulaCard({ item }: { item: FormulaView }) {
 }
 
 /** 一张方剂卡（讲稿 2010 ／ 同和堂版通用） */
-function DrugCard({ drug }: { drug: DrugView }) {
+function DrugCard({
+  drug,
+  focusAnchor,
+  anchorId,
+}: {
+  drug: DrugView
+  focusAnchor?: string
+  /** 锚点 id —— 只挂在「独立条目」上（嵌在规则卡里的不挂，见上） */
+  anchorId?: string
+}) {
   return (
-    <View className='pr-drug'>
+    <View
+      className={'pr-drug' + (focusAnchor === anchorId ? ' pr-focus' : '')}
+      id={anchorId}
+    >
       <View className='pr-drug-head'>
         <Text className='pr-drug-therapy'>{drug.therapy}</Text>
         <Text className='pr-drug-name'>{drug.name}</Text>
@@ -787,6 +832,13 @@ export default function Formulas() {
     wuxing: DIM_ORDER.wuxing.slice(),
     hand: DIM_ORDER.hand.slice(),
   })
+  /**
+   * 从「就诊」页三部曲 ③ 点方名跳过来的**定位意图**。
+   *
+   * `switchTab` 不能带 query 参数，所以意图先落在内存态（`store/focus.ts`），
+   * 本页 `useDidShow` 时取走 —— 取走即清空，不会「第二次进用方页又滚一遍」。
+   */
+  const [focus, setFocus] = useState<FormulaLink | null>(null)
 
   const view = useMemo(() => {
     const m = makeMatcher(kw)
@@ -873,6 +925,58 @@ export default function Formulas() {
     }
   }, [dim, filter, kw])
 
+  /**
+   * 定位目标当前**是否真的在这一屏里**。
+   *
+   * 跳转时会把关键词清空、切到「讲稿原序」—— 该维度不受分组筛选影响，
+   * 目标条目必然在页面上。但读者随后可以改关键词／换维度，
+   * 目标就可能被筛没了；这时要说「不在页面上」，而不是让滚动默默失败。
+   */
+  const focusHit = useMemo(() => {
+    if (!focus) return false
+    const anchor = formulaAnchorId(focus)
+    if (focus.kind === 'rule') {
+      /* 规则条目：锚点挂在「讲稿原序」那一组 —— 那一组一直渲染，且不受分组筛选影响 */
+      return view.routeGroups.some((g) => g.items.some((f) => formulaAnchor('rule', f.id) === anchor))
+    }
+    /* 方剂条目：锚点挂在**当前维度**的那一组 —— 两组互斥，同一个 id 不会挂两遍 */
+    const drugGroups = dim === 'route' ? view.draftDrugGroups : view.dimDrugGroups
+    return drugGroups.some((g) => g.items.some((d) => formulaAnchor('drug', d.id) === anchor))
+  }, [focus, view, dim])
+
+  /** 当前定位目标的锚点 id（空串＝没在定位） */
+  const focusAnchor = focus ? formulaAnchorId(focus) : ''
+
+  /**
+   * 从「就诊」页跳过来时：**取走意图 → 清关键词 → 切到「讲稿原序」**。
+   *
+   * 切「讲稿原序」是因为该维度不受分组筛选控制，目标条目一定可见；
+   * 清关键词是因为读者可能正搜着别的词，那样会把目标筛掉。
+   */
+  useDidShow(() => {
+    const f = takeFormulaFocus()
+    if (!f) return
+    setKw('')
+    setDim('route')
+    setFocus(f)
+  })
+
+  /**
+   * 滚到目标条目。
+   *
+   * `Taro.pageScrollTo` 的 `selector` 走的是**渲染后的页面**，
+   * 所以要等这一轮 render 落定再滚 —— 用 `setTimeout` 让出一帧。
+   * 依赖里带上 `dim`／`kw`：换维度或改关键词都会重排页面，得重新定位一次。
+   */
+  useEffect(() => {
+    if (!focus || !focusHit) return
+    const selector = '#' + formulaAnchorId(focus)
+    const timer = setTimeout(() => {
+      Taro.pageScrollTo({ selector: selector, duration: 240 })
+    }, 60)
+    return () => clearTimeout(timer)
+  }, [focus, focusHit, dim, kw])
+
   /* 分组筛选 chip */
   const wuxingChips = useMemo(
     () => buildChips('wuxing', WUXING_RULE_GROUPS, WUXING_DRUG_GROUPS, filter.wuxing),
@@ -915,6 +1019,25 @@ export default function Formulas() {
 
   return (
     <View className='pr-page pr-yf'>
+      {/* ========== 定位横幅（从「就诊」的三部曲 ③ 点方名跳来） ========== */}
+      {focus ? (
+        <View className='pr-focus-bar'>
+          <View className='pr-focus-bar-head'>
+            <Text className='pr-focus-bar-title'>
+              {focusHit ? '已定位：' : '目标条目当前不在页面上：'}
+              {focus.label}
+            </Text>
+            <Text className='pr-focus-bar-clear' onClick={() => setFocus(null)}>
+              清除
+            </Text>
+          </View>
+          <Text className='pr-note'>对照依据：{focus.basis}</Text>
+          <Text className='pr-note'>
+            从「就诊」页的三部曲 ③ 点方名跳来。目标条目不在页面上时，清空上面的搜索词或把「分组维度」切回「讲稿原序」。
+          </Text>
+        </View>
+      ) : null}
+
       {/* ========== 顶部：说明 ＋ 搜索 ＋ 分组筛选 ========== */}
       <View className='pr-card'>
         <View className='pr-card-title'>用方 · 知识库</View>
@@ -1045,7 +1168,12 @@ export default function Formulas() {
           <View key={group.route} className='pr-formula-group'>
             <View className='pr-formula-route'>{group.route}</View>
             {group.items.map((item) => (
-              <FormulaCard key={item.id} item={item} />
+              <FormulaCard
+                key={item.id}
+                item={item}
+                focusAnchor={focusAnchor}
+                anchorId={formulaAnchor('rule', item.id)}
+              />
             ))}
           </View>
         ))}
@@ -1067,7 +1195,7 @@ export default function Formulas() {
               <View className='pr-formula-route'>{group.label}</View>
               <View className='pr-note'>{group.note}</View>
               {group.items.map((item) => (
-                <FormulaCard key={item.id} item={item} />
+                <FormulaCard key={item.id} item={item} focusAnchor={focusAnchor} />
               ))}
             </View>
           ))}
@@ -1093,7 +1221,12 @@ export default function Formulas() {
               <View key={group.title} className='pr-drug-group'>
                 <View className='pr-drug-group-title'>{group.title}</View>
                 {group.items.map((d) => (
-                  <DrugCard key={d.id} drug={d} />
+                  <DrugCard
+                    key={d.id}
+                    drug={d}
+                    focusAnchor={focusAnchor}
+                    anchorId={formulaAnchor('drug', d.id)}
+                  />
                 ))}
               </View>
             ))
@@ -1106,7 +1239,12 @@ export default function Formulas() {
                 <View className='pr-drug-group-title'>{group.label}</View>
                 <View className='pr-note'>{group.note}</View>
                 {group.items.map((d) => (
-                  <DrugCard key={d.id} drug={d} />
+                  <DrugCard
+                    key={d.id}
+                    drug={d}
+                    focusAnchor={focusAnchor}
+                    anchorId={formulaAnchor('drug', d.id)}
+                  />
                 ))}
               </View>
             ))
@@ -1123,7 +1261,7 @@ export default function Formulas() {
         <View className='pr-card-title'>用药禁忌（常驻）</View>
         <View className='pr-note'>不依赖脉象，始终列出。</View>
         {STANDING_ITEMS.map((item) => (
-          <FormulaCard key={item.id} item={item} />
+          <FormulaCard key={item.id} item={item} focusAnchor={focusAnchor} />
         ))}
       </View>
 

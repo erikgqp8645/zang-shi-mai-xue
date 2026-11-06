@@ -207,20 +207,64 @@ ok('没有 import 浏览器专用的 @export/png 或 @export/download', browserO
  * 另注：白名单按**路径包含**匹配，不是全等 —— `rel()` 给的是
  * `pulse-record/taro/src/components/.../index.tsx` 这种全路径，
  * 用全等去查永远查不到，例外项会被误判成违规。
+ *
+ * ## 纯类型引用不算「引用」
+ *
+ * `import type { X } from '@domain/...'` 编译后**一行代码都不留** ——
+ * `store/focus.ts` 就是这种（它只要 `FormulaLink` 这个类型）。
+ * 所以扫描时要把纯类型的 import 剔掉，否则会把没拖代码进来的文件也算成违规。
  * ======================================================================== */
-const KNOWLEDGE = ['formulas', 'drugs', 'formula-table', 'grouping', 'medication', 'dose-lookup', 'sequence']
+const KNOWLEDGE = [
+  'formulas',
+  'drugs',
+  'formula-table',
+  'grouping',
+  'medication',
+  'dose-lookup',
+  'sequence',
+  // 2026-11-06 新增：③ 的方名 → 知识库锚点的解析器（见 §3.16）
+  'formula-links',
+]
+
+/**
+ * 这个文件对某个知识库模块的引用是不是**纯类型**（编译后不留代码）。
+ *
+ * - `import type { X } from '...'` → 纯类型
+ * - `import { type X } from '...'` → 纯类型
+ * - `import { X } from '...'` → 值引用（拖代码进包）
+ */
+function isTypeOnly(src, mod) {
+  const re = new RegExp(`import\\s+([^;]*?)\\s+from\\s+'@domain/${mod}'`, 'g')
+  let saw = false
+  for (const m of src.matchAll(re)) {
+    saw = true
+    const clause = m[1].trim()
+    if (clause.startsWith('type ')) continue
+    const inner = clause.match(/\{([\s\S]*)\}/)
+    if (!inner) return false
+    const specs = inner[1]
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+    if (specs.length && specs.every((s) => s.startsWith('type '))) continue
+    return false
+  }
+  return saw
+}
+
 const knowledgeUsers = []
 for (const f of tsxFiles) {
   const src = read(f)
   for (const k of KNOWLEDGE) {
-    if (new RegExp(`@domain/${k}`).test(src)) {
+    if (new RegExp(`@domain/${k}`).test(src) && !isTypeOnly(src, k)) {
       knowledgeUsers.push({ file: rel(f), mod: k })
     }
   }
 }
 const ALLOWED_ELSEWHERE = {
   'components/medication-panel': ['drugs', 'dose-lookup', 'formula-table', 'medication'],
-  'components/visit-triad': ['dose-lookup'],
+  // visit-triad 查方剂组成（dose-lookup）＋ ③ 的方名可点进「用方」（formula-links）
+  'components/visit-triad': ['dose-lookup', 'formula-links'],
 }
 function allowedElsewhere(file, mod) {
   for (const [dir, mods] of Object.entries(ALLOWED_ELSEWHERE)) {
@@ -1245,6 +1289,345 @@ if (diagramMod) {
       !existsSync(join(DIST, 'assets', 'triad-p47.png')),
     )
   }
+}
+
+/* ========================================================================
+ * 26. 三部曲 ③ ↔ 「用方」知识库：方名可点 → 跳过去并定位（2026-11-06）
+ *
+ * ## 为什么要有这一节
+ *
+ * ③ 的方名（讲义 p47 图上的「清挡路方」「引火归元」「上焦方」…）与「用方」知识库里的条目
+ * **是同一个方在不同资料里的不同写法**。两边曾经是断的：③ 里看得见方名，
+ * 却点不进去看组成／服法／禁忌。这一节守住那条链路。
+ *
+ * ## 断言为什么按结构切，不全文搜词
+ *
+ * 全文搜词会被注释骗过（「这里应该跳到用方页」写在注释里就算过），
+ * 比下标也会被骗（把判断挪个位置，下标法照样绿）。所以：
+ *
+ *   ① 先 `stripComments` —— 只留**可执行代码**；
+ *   ② 再按**大括号配平**（`sliceBraces`）或**顶层声明**（`topLevelChunks`）切出具体那一段；
+ *   ③ 在**这一段里**断言 —— 段外的东西一律不算数。
+ * ======================================================================== */
+
+/**
+ * 从 `from` 下标开始，按**大括号配平**切出一段代码（含首尾大括号）。
+ *
+ * 跳过：行注释、块注释、单双引号字符串、模板字符串（含 `${}` 里的嵌套）。
+ * 配平不上返回 `{ text: '', end: -1 }`。
+ */
+function sliceBraces(src, from) {
+  let depth = 0
+  let i = from
+  const n = src.length
+  while (i < n) {
+    const c = src[i]
+    if (c === '/' && src[i + 1] === '/') {
+      while (i < n && src[i] !== '\n') i += 1
+      continue
+    }
+    if (c === '/' && src[i + 1] === '*') {
+      i += 2
+      while (i < n && !(src[i] === '*' && src[i + 1] === '/')) i += 1
+      i += 2
+      continue
+    }
+    if (c === "'" || c === '"') {
+      const q = c
+      i += 1
+      while (i < n && src[i] !== q) {
+        if (src[i] === '\\') i += 1
+        i += 1
+      }
+      i += 1
+      continue
+    }
+    if (c === '`') {
+      i += 1
+      while (i < n && src[i] !== '`') {
+        if (src[i] === '\\') {
+          i += 2
+          continue
+        }
+        if (src[i] === '$' && src[i + 1] === '{') {
+          i = sliceBraces(src, i + 1).end
+          continue
+        }
+        i += 1
+      }
+      i += 1
+      continue
+    }
+    if (c === '{') {
+      depth += 1
+      i += 1
+      continue
+    }
+    if (c === '}') {
+      depth -= 1
+      i += 1
+      if (depth === 0) return { text: src.slice(from, i), end: i }
+      continue
+    }
+    i += 1
+  }
+  return { text: '', end: -1 }
+}
+
+/** 切出 `marker` 之后**紧跟的那个大括号块**（marker 本身不含大括号，且以 `=> ` 之类结尾） */
+function blockAfter(src, marker) {
+  const at = src.indexOf(marker)
+  if (at < 0) return ''
+  const brace = src.indexOf('{', at + marker.length)
+  if (brace < 0) return ''
+  return sliceBraces(src, brace).text
+}
+
+/**
+ * 切出**包着** `marker` 的那个大括号块。
+ *
+ * 用于 `{cond ? view.xxx.map(...) : null}` 这种形状 ——
+ * `marker` 前面隔着条件表达式，`{` 不紧挨着它，得往前找。
+ */
+function blockAround(src, marker) {
+  const at = src.indexOf(marker)
+  if (at < 0) return ''
+  const brace = src.lastIndexOf('{', at)
+  if (brace < 0) return ''
+  return sliceBraces(src, brace).text
+}
+
+/**
+ * 把文件按**顶层声明**切成块 —— 每块从一个顶格的声明开始，到下一个顶格声明为止。
+ *
+ * 顶层＝第 0 列；组件内部的嵌套声明都有缩进，不会被切开。
+ */
+function topLevelChunks(src) {
+  const lines = src.split('\n')
+  const starts = []
+  lines.forEach((ln, i) => {
+    if (/^(export\s+)?(default\s+)?(function|const|let|var|interface|type|class)\s/.test(ln)) starts.push(i)
+  })
+  const chunks = []
+  for (let i = 0; i < starts.length; i += 1) {
+    const to = i + 1 < starts.length ? starts[i + 1] : lines.length
+    chunks.push({ name: lines[starts[i]].trim(), text: lines.slice(starts[i], to).join('\n') })
+  }
+  return chunks
+}
+
+/* --- 26.1 domain 层：打真源码，把 ③ 的方名逐个过解析器 --- */
+let linkMod = null
+let triadMod = null
+{
+  let esbuildBuild = null
+  try {
+    const esm = await import(pathToFileURL(join(TARO, 'node_modules', 'esbuild', 'lib', 'main.js')).href)
+    esbuildBuild = esm.build
+  } catch {
+    esbuildBuild = null
+  }
+  if (!esbuildBuild) {
+    ok('taro 子工程依赖已安装（26 节要打真 domain 源码）', false, '先跑：npm --prefix taro install')
+  } else {
+    const stubDir = mkdtempSync(join(tmpdir(), 'taro-lint-links-'))
+    try {
+      const requireCjs = createRequire(import.meta.url)
+      const buildOne = async (entry, outName) => {
+        const out = await esbuildBuild({
+          entryPoints: [entry],
+          bundle: true,
+          platform: 'node',
+          format: 'cjs',
+          write: false,
+        })
+        const f = join(stubDir, outName)
+        writeFileSync(f, out.outputFiles[0].text, 'utf8')
+        return requireCjs(f)
+      }
+      linkMod = await buildOne(join(ROOT, 'src', 'domain', 'formula-links.ts'), 'links.cjs')
+      triadMod = await buildOne(join(ROOT, 'src', 'domain', 'triad.ts'), 'triad.cjs')
+    } catch (e) {
+      ok('formula-links / triad domain 能被打包加载', false, String(e && e.message))
+    } finally {
+      try {
+        rmSync(stubDir, { recursive: true, force: true })
+      } catch {
+        /* 临时目录清不掉不影响结论 */
+      }
+    }
+    ok('formula-links domain 能被打包加载（26 节打的是真源码）', !!linkMod)
+    ok('triad domain 能被打包加载（要拿 ③ 的真实方名清单）', !!triadMod)
+
+    if (linkMod && triadMod) {
+      /** ③ 的全部方名（讲义 p47 图上三个六边形的处方清单，去重） */
+      const rxNames = [
+        ...new Set(triadMod.THERAPY_OPTIONS.flatMap((o) => o.prescriptions.map((p) => p.name))),
+      ]
+      ok('③ 的方名清单不为空', rxNames.length > 0, rxNames.join('、'))
+      const unresolved = rxNames.filter((n) => !linkMod.resolveFormulaLink(n))
+      ok(
+        '③ 的每一个方名都能在「用方」知识库里找到对应条目（方名 ↔ 条目必须对得上）',
+        unresolved.length === 0,
+        unresolved.join('、'),
+      )
+      const noBasis = rxNames.filter((n) => {
+        const l = linkMod.resolveFormulaLink(n)
+        return l && !l.basis
+      })
+      ok('每一个对照都带依据（basis）—— 凭什么认成同一个方，得写出来', noBasis.length === 0, noBasis.join('、'))
+      ok(
+        '查不到的方名返回 null（不硬凑、不猜）',
+        linkMod.resolveFormulaLink('根本不存在的一方') === null,
+      )
+      ok(
+        'formulaAnchor 与 formulaAnchorId 给出同一个锚点（滚动目标与卡片 id 必须对得上）',
+        linkMod.formulaAnchor('rule', 'x') === linkMod.formulaAnchorId({ kind: 'rule', id: 'x', label: '', basis: '' }),
+      )
+    }
+  }
+}
+
+/* --- 26.2 ③ 档：方名可点 → 记意图 → 切 tab --- */
+const triadCompFile = join(SRC, 'components', 'visit-triad', 'index.tsx')
+if (existsSync(triadCompFile)) {
+  const src = stripComments(read(triadCompFile))
+  const rxAt = src.indexOf('{rx.map((r) => {')
+  const rxBlock = rxAt >= 0 ? sliceBraces(src, rxAt).text : ''
+  ok('③ 的方名渲染块能按结构切出来', rxBlock.length > 0)
+  ok('③ 的方名先过 resolveFormulaLink（对照规则只有一处，不各写各的）', /resolveFormulaLink\(r\.name\)/.test(rxBlock))
+  ok(
+    '对得上的方名**可点**（pr-link + onClick）',
+    /className='pr-link'/.test(rxBlock) && /onClick=\{\(\) => openFormula\(link\)\}/.test(rxBlock),
+  )
+  ok('对不上的方名明说「用方页未载」', /用方页未载/.test(rxBlock))
+
+  const openBlock = blockAfter(src, 'const openFormula = (link: FormulaLink) => ')
+  ok('openFormula 能按结构切出来', openBlock.length > 0)
+  const iSet = openBlock.indexOf('setFormulaFocus(link)')
+  const iSwitch = openBlock.indexOf('Taro.switchTab')
+  ok(
+    'openFormula 先记跳转意图、再切 tab（顺序反了意图就丢了）',
+    iSet >= 0 && iSwitch > iSet,
+    `set=${iSet} switch=${iSwitch}`,
+  )
+  ok(
+    "openFormula 切到「用方」页",
+    /Taro\.switchTab\(\{\s*url: '\/pages\/formulas\/index'/.test(openBlock),
+  )
+  ok('切的目标页在 app.config.ts 里登记过', appConfigSrc.includes("'pages/formulas/index'"))
+}
+
+/* --- 26.3 跳转意图：内存态，取走即清空 --- */
+const focusStoreFile = join(SRC, 'store', 'focus.ts')
+ok('跳转意图的 store 存在', existsSync(focusStoreFile))
+if (existsSync(focusStoreFile)) {
+  const src = stripComments(read(focusStoreFile))
+  ok(
+    '跳转意图是内存态，不写 storage（不跟用户数据混、也不留到下次）',
+    !/StorageSync|setStorage|getStorage|removeStorage/.test(src),
+  )
+  const take = blockAfter(src, 'export function takeFormulaFocus()')
+  const iRead = take.indexOf('const f = pending')
+  const iClear = take.indexOf('pending = null')
+  ok('takeFormulaFocus 取走即清空（不会「第二次进用方页又滚一遍」）', iRead >= 0 && iClear > iRead)
+}
+
+/* --- 26.4 用方页：取意图 → 切维度 → 滚动定位 → 高亮 --- */
+const formulasPageFile = join(SRC, 'pages', 'formulas', 'index.tsx')
+ok('「用方」页存在', existsSync(formulasPageFile))
+if (existsSync(formulasPageFile)) {
+  const src = stripComments(read(formulasPageFile))
+
+  const show = blockAfter(src, 'useDidShow(() => ')
+  ok('用方页 useDidShow 的回调能按结构切出来', show.length > 0)
+  ok('用方页在 useDidShow 里取走跳转意图', /takeFormulaFocus\(\)/.test(show))
+  ok('跳转时清空关键词（否则目标可能被筛掉）', /setKw\(''\)/.test(show))
+  ok("跳转时切到「讲稿原序」（该维度不受分组筛选影响，目标必然可见）", /setDim\('route'\)/.test(show))
+  ok('跳转时记下焦点', /setFocus\(f\)/.test(show))
+  const iTake = show.indexOf('takeFormulaFocus()')
+  ok('先取意图、再改状态', iTake >= 0 && iTake < show.indexOf('setFocus'))
+
+  const eff = blockAfter(src, 'useEffect(() => ')
+  ok('用方页的滚动 effect 能按结构切出来', eff.length > 0)
+  ok('用方页用 pageScrollTo 滚到目标条目', /Taro\.pageScrollTo/.test(eff))
+  ok('滚动选择器由 formulaAnchorId 生成（不手拼锚点）', /formulaAnchorId\(focus\)/.test(eff))
+  ok('没有手写死的锚点前缀（手拼就与卡片 id 对不上了）', !/'#(rule|drug)-/.test(eff))
+
+  /* 卡片上的 id 与滚动目标必须来自同一个函数 */
+  const chunks = topLevelChunks(src)
+  const fCard = chunks.find((c) => /^function FormulaCard/.test(c.name))
+  const dCard = chunks.find((c) => /^function DrugCard/.test(c.name))
+  ok('FormulaCard 能按顶层声明切出来', !!fCard)
+  ok('DrugCard 能按顶层声明切出来', !!dCard)
+  ok(
+    'FormulaCard 收 anchorId 属性并挂到根节点',
+    !!fCard && /anchorId\?: string/.test(fCard.text) && /id=\{anchorId\}/.test(fCard.text),
+  )
+  ok('FormulaCard 命中时加高亮 class', !!fCard && /pr-focus/.test(fCard.text))
+  ok(
+    'DrugCard 收 anchorId 属性并挂到根节点',
+    !!dCard && /anchorId\?: string/.test(dCard.text) && /id=\{anchorId\}/.test(dCard.text),
+  )
+  ok('DrugCard 命中时加高亮 class', !!dCard && /pr-focus/.test(dCard.text))
+
+  /**
+   * **锚点 id 必须全局唯一** —— 同一个方既嵌在规则卡里、又在「方剂备查」里独立出现，
+   * 两处都挂同一个 id，选择器就撞了（实测 `中焦方` 重复 6 次、`引火归元` 重复 8 次）。
+   * 所以：嵌在规则卡里的方剂卡**不挂 id**，只有独立条目挂。
+   */
+  const nestedDrug = (fCard.text.match(/<DrugCard[^>]*?\/?>/) || [''])[0]
+  ok(
+    '嵌在规则卡里的方剂卡**不挂锚点 id**（否则同一个 id 挂两遍，选择器会撞）',
+    !/anchorId/.test(nestedDrug),
+    nestedDrug,
+  )
+
+  /* 渲染点：谁挂 id */
+  const routeBlock = blockAround(src, 'view.routeGroups.map((group) => (')
+  const dimFormulaBlock = blockAround(src, 'view.dimFormulaGroups.map((group) => (')
+  const draftBlock = blockAround(src, 'view.draftDrugGroups.map((group) => (')
+  const dimDrugBlock = blockAround(src, 'view.dimDrugGroups.map((group) => (')
+  ok('「讲稿原序」的用方条目挂 rule 锚点', /anchorId=\{formulaAnchor\('rule', item\.id\)\}/.test(routeBlock))
+  ok(
+    '「按五行／按左右手」那一组**不挂** rule 锚点（讲稿原序那一组一直渲染，挂两遍就重了）',
+    dimFormulaBlock.length > 0 && !/anchorId/.test(dimFormulaBlock),
+  )
+  ok(
+    '「方剂备查」挂 drug 锚点',
+    /anchorId=\{formulaAnchor\('drug', d\.id\)\}/.test(draftBlock) &&
+      /anchorId=\{formulaAnchor\('drug', d\.id\)\}/.test(dimDrugBlock),
+  )
+  ok(
+    '两处方剂组互斥（同一个 drug 锚点不会同时挂两遍）',
+    /dim === 'route'\s*\? view\.draftDrugGroups/.test(src) &&
+      /dim !== 'route'\s*\? view\.dimDrugGroups/.test(src),
+  )
+
+  /* 横幅：把「对照依据」摆出来 */
+  const barAt = src.indexOf('{focus ? (')
+  const bar = barAt >= 0 ? sliceBraces(src, barAt).text : ''
+  ok('定位横幅能按结构切出来', bar.length > 0)
+  ok('横幅写出对照依据（凭什么认成同一个方，让读者自己判断）', /focus\.basis/.test(bar) && /对照依据/.test(bar))
+}
+
+/* --- 26.5 样式：高亮与横幅 --- */
+const formulasScssFile = join(SRC, 'pages', 'formulas', 'index.scss')
+if (existsSync(formulasScssFile)) {
+  const css = read(formulasScssFile)
+  ok('用方页有定位高亮样式 .pr-focus', /\.pr-focus\s*\{/.test(css))
+  ok('用方页有定位横幅样式 .pr-focus-bar', /\.pr-focus-bar\s*\{/.test(css))
+  // 同特异度下后写的才生效 —— .pr-focus 必须排在 .pr-formula 之后
+  //
+  // 定位要看的是 **`.pr-focus {` 这条规则**，不是裸子串 `.pr-focus` ——
+  // 裸子串会把横幅的 `.pr-focus-bar {` 也算进来，规则挪到前面照样绿（已实测）。
+  const focusRulePos = css.lastIndexOf('.pr-focus {')
+  const formulaRulePos = css.indexOf('.pr-formula {')
+  ok(
+    '.pr-focus 写在 .pr-formula 之后（同特异度，靠后写的才生效）',
+    focusRulePos > formulaRulePos && formulaRulePos >= 0,
+    `focus=${focusRulePos} formula=${formulaRulePos}`,
+  )
 }
 
 /* ========================================================================
