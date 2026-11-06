@@ -108,7 +108,7 @@ npm run desktop:dist    # 出安装包 + 免安装版（release/*.exe）
 两端共用同一个后端、同一套账号、同一份数据。
 
 > **2026-11-05 起小程序已从原生迁到 Taro**：界面重排成 4 个 tab
-> （**病例／就诊／用方／我的**），「就诊」是工作台页（吸顶上下文条 ＋ 3 个页内 tab ＋ 底部操作条），
+> （**病例／就诊／用方／我的**），「就诊」是工作台页（吸顶上下文条 ＋ **4 个页内 tab（摸脉／体质／疗法／方药）** ＋ 底部操作条），
 > 录入支持「宽表」与「一次一屏」两种视图（同一组件两个分支、同一份数据）。
 > 原生工程 `miniprogram/` **原样保留作回退**，功能对齐后退役。
 > 迁移约定见 **[`docs/taro-migration.md`](./docs/taro-migration.md)**。
@@ -133,16 +133,22 @@ npm run mp:icons           # 重生成 tabBar 图标（自写 PNG 编码器，�
   版式与交互只有一份，两处不可能长得不一样。病例详情页的记录表**可以直接点格改**，
   改完**立即落库**（逐次就诊 `PATCH /api/visits/:id`）；那边没有「保存」按钮，
   整份编辑（加记录／改名／换体例）在标题行右侧的「录入编辑」按钮跳去录入页做。
+- **「就诊」工作台的四个页内 tab 是「摸脉／体质／疗法／方药」**（2026-11-06 定）：
+  摸脉＝录脉象；体质＝开方三部曲的 ①；疗法＝②；方药＝③（开方药清单 ＋ 用药记录）。
+  原来叫「判读」的那一档**名不副实** —— 里面全是使用者自己点选，工具不代判、不下诊断，
+  所以拆成「体质」「疗法」；「用药」并进「方药」（依据网站端 `src/components/TriadFrame.tsx`：
+  「③ 开方药 → 开方药清单 ＋ 用药记录」）。
 - **业务代码里不许出现 `wx.`** —— 一律走 `taro/src/platform/` 适配层（将来加平台只改那一个目录）。
 
 **不用开发者工具也能验证**（数据层是真的跑）：
 
 ```bash
-npm run test:e2e:mp       # 静态检查：扫 TSX（禁 wx. 直调、禁 WXML/WXSS 残留、组件同源…）（140 项）
+npm run test:e2e:mp       # 静态检查：扫 TSX（禁 wx. 直调、禁 WXML/WXSS 残留、组件同源…）（157 项）
 npm run test:e2e:mp:api   # 数据层端到端：垫一个 Taro，连真后端跑全链路（45 项）
 npm run test:e2e:mp:sim   # 纯函数 ＋ 编译产物 ＋ 模拟器截图（55 项）
 npm run test:e2e:mp:privacy # 隐私政策页模拟器验证（6 项）
 npm run test:e2e:mp:canvas  # 真微信 canvas 2d 出图端到端（8 项）
+npm run test:e2e:mp:tabs   # 就诊工作台四档页内 tab：逐档点过去、逐档截图、逐档断言（20 项）
 ```
 
 `test:e2e:mp:api` 覆盖「改服务器地址立刻生效 → 未登录 401 回登录页 → 注册 → 建患者（脉象/体质/疗法）
@@ -166,7 +172,7 @@ npm run test:e2e:mp:canvas  # 真微信 canvas 2d 出图端到端（8 项）
 ⚠️ **关系图只在「看」的页面**（病例详情页），**不进「录」的页面**（就诊工作台）——
 这是原生回退工程定下的规矩（`miniprogram/pages/record/record` 里一个图示入口都没有）。
 Taro 版一度把它做成就诊页的第 4 档页内 tab，又和病例详情页重复，2026-11-06 改回。
-`test:e2e:mp` 有断言盯着（就诊页 3 档 tab／不引 diagram-view／底部无「出图」）。
+`test:e2e:mp` 有断言盯着（就诊页 4 档 tab／不引 diagram-view／底部无「出图」）。
 
 个人主体的硬约束：`code2Session` 可用；**`web-view` 不可用**（不支持业务域名）→ 必须原生开发；
 **`getPhoneNumber` 不可用** → 账号绑定只走「网站账号＋密码」。
@@ -841,7 +847,7 @@ taro/                微信小程序 ＋ 鸿蒙（Taro 4.3.2 ＋ React 18，与�
     ├── app.config.ts    7 个页面 ＋ 4 个 tab（病例／就诊／用方／我的）
     ├── pages/           cases visit formulas me case-detail login privacy
     ├── components/      record-sheet（记录表，录入与详情共用）/ context-bar / sheet
-    │                    sub-tabs / action-bar / visit-pulse / visit-judge / medication-panel
+    │                    sub-tabs / action-bar / visit-pulse / visit-triad / medication-panel
     │                    diagram-view（寸关尺关系图，**只在病例详情页**）
     ├── platform/        平台适配层（wx. 只允许出现在这一层）
     ├── store/           全局上下文（患者 × 就诊，四个 tab 共用）
@@ -866,9 +872,14 @@ scripts/
 ├── deploy/          服务器部署脚本（install / deploy / backup / restore / systemd / Caddyfile）
 └── e2e/             回归脚本
     ├── core-smoke.mjs / migration.mjs / auth-isolation.mjs / app-regression.mjs / desktop-smoke.mjs
-    ├── taro-lint.mjs    Taro 静态检查（94 项）
+    ├── taro-lint.mjs    Taro 静态检查（157 项）
     ├── taro-api.mjs     Taro 数据层端到端（45 项）
-    ├── taro-sim.mjs     纯函数 ＋ 产物 ＋ 模拟器截图（39 项）
+    ├── taro-sim.mjs     纯函数 ＋ 产物 ＋ 模拟器截图（55 项）
+    ├── taro-tabs.mjs    就诊工作台四档页内 tab：逐档点过去、逐档截图、逐档断言（20 项）
+    ├── taro-canvas.mjs  真微信 canvas 2d 出图端到端（8 项）
+    ├── privacy-sim.mjs  隐私政策页模拟器验证（6 项）
+    ├── lib-devtools.mjs 开发者工具重启 ＋ 连接（rearm / connect，**macOS 与 Windows 路径都认**）
+    ├── lib-png.mjs      PNG 解码（判「不是白屏」）
     └── mp-lint.mjs / mp-api.mjs / mp-sim.mjs   原生回退工程的三套
 
 docs/

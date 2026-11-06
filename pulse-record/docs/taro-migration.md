@@ -158,9 +158,9 @@ useEffect(() => {
 - 微信主包上限 **2 MB**；`dist/` 现状 **0.99 MB**（Taro runtime 214 KB ＋ 知识库 237 KB ＋ 页面 96 KB ＋ 图片 398 KB）。
 - **知识库的入口要收得住**，别散落到各处随手引。现在允许引的地方只有三处：
   - `pages/formulas` —— 「用方」tab，知识库的主入口；
-  - `components/medication-panel` —— 就诊工作台的「用药」页内 tab，
+  - `components/medication-panel` —— 就诊工作台「方药」档里的用药记录块，
     要选方、要看讲稿比例制与同和堂版克数两套组成（原生 medication 页的核心功能）；
-  - `components/visit-judge` —— 「判读」分支要查方剂组成。
+  - `components/visit-triad` —— 体质／疗法／方药三档要查方剂组成。
 
   `taro-lint.mjs` 第 6 条盯着这条（白名单按路径**包含**匹配，不是全等）。
 
