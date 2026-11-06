@@ -317,6 +317,66 @@ c.check('单机模式注册被拒（409），不会误建账号', !!regErr && re
 
 await single.stop()
 
+/* --------------------- 第四段：云调用不可用 → 自动退回直连 --------------------- */
+
+console.log('\n小程序数据层端到端（Taro · 云调用兜底）\n')
+
+const fallback = await startApi({ single: true })
+Taro.setStorageSync(config.API_BASE_KEY, fallback.base)
+
+/**
+ * 模拟真实情况：**云初始化不会报错**，错误要到第一次 `callFunction` 才抛。
+ *
+ * 这正是「小程序还没关联 CloudBase 环境」时的真实表现：
+ *     errCode: -501000 | errMsg: Environment not found
+ *
+ * （曾经只按 `init` 的返回值判断云通道可用 → 兜底从来没生效过，
+ *   每个请求都去撞同一堵墙，用户只看到一屏原始报错。）
+ */
+const cloudCalls = []
+globalThis.wx = {
+  cloud: {
+    init() {
+      // 假装初始化成功 —— 真实情况就是初始化不报错
+    },
+    callFunction(opts) {
+      cloudCalls.push(opts)
+      opts.fail({
+        errMsg:
+          'cloud.callFunction:fail Error: errCode: -501000 | errMsg: Environment not found ' +
+          '更多错误信息请访问: https://docs.cloudbase.net/error-code/basic/INVALID_ENV ' +
+          '(callid: 1793943240389-0.5322720375268667) (trace: 13:34:0 start->13:34:0 system error)',
+      })
+    },
+  },
+}
+
+c.check(
+  '模拟：云初始化照样「成功」（环境没关联时就是这样）',
+  mod.cloud.initCloud('ambitious-parrot-d7ehh7x0fd9d680') === true,
+)
+c.check('一开始云通道是通的', mod.cloud.cloudAvailable() === true)
+
+const fbList = await dataApi.listPatients()
+c.check('云调用失败后自动退回直连，仍能取到病例列表', Array.isArray(fbList), JSON.stringify(fbList).slice(0, 120))
+c.check('云通道已被关掉（不再每次都去撞同一堵墙）', mod.cloud.cloudAvailable() === false)
+c.check(
+  '失败原因说人话了（说清是「没关联」，且不甩 callid/trace）',
+  mod.cloud.cloudErrorMessage().includes('关联') && !mod.cloud.cloudErrorMessage().includes('callid'),
+  mod.cloud.cloudErrorMessage(),
+)
+
+const cloudCallsBefore = cloudCalls.length
+await dataApi.listPatients()
+c.check(
+  '后续请求不再去撞云调用',
+  cloudCalls.length === cloudCallsBefore,
+  `云调用次数 ${cloudCallsBefore} → ${cloudCalls.length}`,
+)
+
+delete globalThis.wx
+await fallback.stop()
+
 /* ------------------------------ 清理 ------------------------------ */
 rmSync(outDir, { recursive: true, force: true })
 

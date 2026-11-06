@@ -1,6 +1,6 @@
 import Taro from '@tarojs/taro'
 
-import { callFunction, cloudAvailable } from '../platform/cloud'
+import { callFunction, cloudAvailable, describeCloudError, disableCloud } from '../platform/cloud'
 import { request as platformRequest } from '../platform/request'
 import { CLOUD_FUNCTION_NAME, TRANSPORT, resolveApiBase } from './config'
 import { clearAuth, getToken } from './storage'
@@ -129,13 +129,46 @@ async function viaCloud(options: RequestOptions): Promise<unknown> {
 /**
  * 发一个请求
  *
- * **传输方式在运行时还有一层兜底**：TRANSPORT='cloud' 但云开发没初始化成功时
- * （最常见的原因是「微信后台还没关联 CloudBase 环境」），自动退回 'request'。
+ * **传输方式在运行时还有一层兜底**：TRANSPORT='cloud' 但云调用不可用时，
+ * 自动退回 'request' 传输。
+ *
+ * ## 兜底为什么要放在「调用失败」这一步，不是「init 失败」那一步
+ *
+ * `wx.cloud.init()` 在「这个 appid 还没被授权用这个环境」时**不会报错** ——
+ * 它照样初始化成功，错误要到**第一次 `callFunction`** 才抛：
+ *
+ *     errCode: -501000 | errMsg: Environment not found
+ *
+ * 所以只看 `init` 的返回值是不够的 —— 会误以为云通道可用，
+ * 然后每个请求都去撞同一堵墙（每次都等一次超时），用户只看到一屏原始报错。
+ *
+ * 现在的做法：云调用**传输层**失败（status 0）→ 把云通道关掉 → 本次请求改走直连。
+ * 关掉之后，后面的请求直接走直连，不再重复试错。
  *
  * 为什么不直接报错：那样整个小程序会连「打开即白屏」——
  * 而退回 request 至少还能连本机/服务器上的服务（开发时）、或已备案域名（上线后）。
+ *
+ * **只对传输层失败兜底**：云函数自己返回的 401 等业务错误**不能**退回 ——
+ * 那会让同一个错误被处理两遍（令牌清两次、reLaunch 两次）。
  */
-export function request(options: RequestOptions): Promise<unknown> {
-  if (TRANSPORT === 'cloud' && cloudAvailable()) return viaCloud(options)
+export async function request(options: RequestOptions): Promise<unknown> {
+  if (TRANSPORT === 'cloud' && cloudAvailable()) {
+    try {
+      return await viaCloud(options)
+    } catch (err) {
+      const transportFailed = err instanceof ApiError && err.status === 0
+      if (!transportFailed) throw err
+
+      // 云调用本身不可用 —— 关掉云通道，改走直连
+      const reason = describeCloudError((err as Error)?.message ?? '')
+      disableCloud(reason)
+      try {
+        return await viaRequest(options)
+      } catch (err2) {
+        const detail = (err2 as ApiError)?.message || '未知错误'
+        throw new ApiError(`${reason}；改走直连也失败：${detail}`, 0)
+      }
+    }
+  }
   return viaRequest(options)
 }

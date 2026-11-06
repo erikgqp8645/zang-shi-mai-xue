@@ -12,3 +12,7 @@ export * as storage from './storage'
 export * as api from './api'
 export * as auth from './auth'
 export * as data from './data'
+// 云通道那一层也导出 —— 回归脚本要能**真的**把云调用模拟成失败，
+// 才能验「云调用不可用 → 自动退回直连」这条兜底（cloud.ts 的模块状态是单例，
+// 单独打一份 bundle 会变成两个实例，状态不共享，验不了）。
+export * as cloud from '../platform/cloud'
