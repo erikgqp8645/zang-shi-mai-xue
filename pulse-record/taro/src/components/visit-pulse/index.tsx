@@ -7,7 +7,10 @@ import RecordSheet, { type CustomSymbol, type SheetSession } from '../record-she
 import './index.scss'
 
 /**
- * 页内 tab「脉象」—— 录入这一次的脉象
+ * 页内 tab「摸脉」—— 录入这一次的脉象
+ *
+ * 档名从「脉象」改成「摸脉」（2026-11-06）：这一档做的动作是**摸**，
+ * 摸出来的才是「脉象」；跟后面三档（体质／疗法／方药）的说法对齐。
  *
  * 表格本体是 `record-sheet` 组件 —— 与病例详情页的「记录表」**同一个组件**，
  * 版式与交互只有一份，不可能再走偏。

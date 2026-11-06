@@ -29,8 +29,10 @@ import './index.scss'
  *
  * ## 它是什么
  *
- * 原生版是一整页；IA 重构后「就诊」成了工作台，用药是其中的一个**页内 tab**，
+ * 原生版是一整页；IA 重构后「就诊」成了工作台，用药是其中的一个**页内块**，
  * 所以这里做成了**组件**（不是页面）—— 由工作台嵌进去，不跳页。
+ * 2026-11-06 起它并进「方药」那一档（＝开方三部曲的 ③），
+ * 依据网站端 `src/components/TriadFrame.tsx`：「③ 开方药 → 开方药清单 ＋ 用药记录」。
  *
  * ## 与原生版的差别（只有这三处，其余逐条照搬）
  *
@@ -89,7 +91,7 @@ export interface MedicationPanelProps {
    * 「录入编辑脉象」的回调 —— 可选。
    *
    * 原生页这里是跳转到录入页；新 IA 里脉象是**同一个工作台的页内 tab**，
-   * 组件自己跳不过去，所以交给父组件接（父组件接到就切到「脉象」tab）。
+   * 组件自己跳不过去，所以交给父组件接（父组件接到就切到「摸脉」tab）。
    * 不传就不显示这个入口，只留一句指引。
    */
   onGoRecord?: () => void
@@ -722,7 +724,7 @@ export default function MedicationPanel(props: MedicationPanelProps) {
                 录入编辑脉象
               </Text>
             ) : (
-              <Text className='pr-note'>脉象在同一个工作台的「脉象」页内 tab 录入。</Text>
+              <Text className='pr-note'>脉象在同一个工作台的「摸脉」页内 tab 录入。</Text>
             )}
           </View>
           {visits.length ? null : (
@@ -832,7 +834,7 @@ export default function MedicationPanel(props: MedicationPanelProps) {
             ))}
           </View>
           {visits.length ? null : (
-            <View className='pr-note'>这位患者还没有就诊记录，先到「脉象」页内 tab 建一次。</View>
+            <View className='pr-note'>这位患者还没有就诊记录，先到「摸脉」页内 tab 建一次。</View>
           )}
           {form.visitId ? null : (
             <View className='pr-note'>
@@ -863,7 +865,7 @@ export default function MedicationPanel(props: MedicationPanelProps) {
 
           <View className='pr-label'>对应脉象（符号，从该次记录里挑格子）</View>
           {visitPoints.length ? null : (
-            <View className='pr-note'>这次就诊还没有录到符号 —— 先到「脉象」页内 tab 录入。</View>
+            <View className='pr-note'>这次就诊还没有录到符号 —— 先到「摸脉」页内 tab 录入。</View>
           )}
           {visitPoints.length ? (
             <View className='pr-chips'>

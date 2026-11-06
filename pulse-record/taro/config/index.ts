@@ -87,7 +87,7 @@ const SHARED = path.resolve(ROOT, '..', 'src')
  * ## 为什么只有这一张（`triad-p47.png` 不进包）
  *
  * `triad-p47.png`（91.6 KB，讲义 p47 三部曲原图）在小程序端**没有任何地方引用**
- * —— 小程序的三部曲是 `components/visit-judge` 用 `pr-triad-*` 样式**画**出来的，
+ * —— 小程序的三部曲是 `components/visit-triad` 用 `pr-triad-*` 样式**画**出来的，
  * 不是贴图。它只被网站端的 `src/components/TriadImage.tsx` 用。
  * 所以小程序包**不带它**（省 91.6 KB）；网站端那份照旧。
  */

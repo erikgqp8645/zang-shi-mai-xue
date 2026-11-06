@@ -15,7 +15,7 @@ import ContextBar from '../../components/context-bar'
 import SubTabs from '../../components/sub-tabs'
 import ActionBar from '../../components/action-bar'
 import VisitPulse from '../../components/visit-pulse'
-import VisitJudge from '../../components/visit-judge'
+import VisitTriad from '../../components/visit-triad'
 import MedicationPanel from '../../components/medication-panel'
 import type { SheetSession } from '../../components/record-sheet'
 
@@ -30,9 +30,24 @@ import './index.scss'
  * 现在：一个 tab 页里装下**吸顶上下文条 ＋ 4 个页内 tab ＋ 底部操作条**，
  * 上下文只选一次（吸顶条），全程不跳页。
  *
- *   脉象 → 录入这一次的左右手脉象（宽表 ／ 一次一屏）
- *   判读 → 开方三部曲的 ①②③（体质／疗法落库到这次就诊）
- *   用药 → 这一次的用药记录
+ *   摸脉 → 录这一次的左右手脉象（宽表 ／ 一次一屏）
+ *   体质 → 开方三部曲的 ①（自己判断后点选，工具不代判）
+ *   疗法 → 开方三部曲的 ②
+ *   方药 → 开方三部曲的 ③（照讲义 p47 列出那一支的方）＋ 用药记录
+ *
+ * ## 四档怎么来的（2026-11-06）
+ *
+ * 原来只有三档：脉象／判读／用药。
+ * **「判读」那一档名不副实** —— 里面做的全是「使用者自己判断、自己点选」，
+ * 工具只负责记下来，根本不「判读」。于是按实际动作拆开：
+ *
+ *   判读 → 体质 ＋ 疗法   （= 三部曲的 ①②）
+ *   用药 → 并进「方药」   （= 三部曲的 ③ 的「开方药清单 ＋ 用药记录」）
+ *   脉象 → 摸脉           （录的是「摸出来的脉象」，说法跟三部曲对齐）
+ *
+ * 依据是**网站端**（`src/components/TriadFrame.tsx`）：
+ *   「③ 开方药 → 开方药清单 ＋ 用药记录」—— 用药记录本来就属于 ③，
+ * 小程序原来把「用药」单列一档，等于把 ③ 劈成两半；现在合回去。
  *
  * ## 这里**没有**「寸关尺关系图」（2026-11-06 改回原生版的规矩）
  *
@@ -40,7 +55,7 @@ import './index.scss'
  * 底部也只有「保存」一个按钮 —— **关系图属于「看」的页面，不进「录」的页面**。
  * Taro 版一度把它做成这里的第 4 档页内 tab（外加底部一个「出图」按钮），
  * 既破了这条规矩，又和**病例详情页**（那里才摆着关系图）重复。
- * → 现在这一页只有三档；关系图仍然在病例详情页，跟记录表并排。
+ * → 现在这一页只有四档；关系图仍然在病例详情页，跟记录表并排。
  *
  * ## 落库语义
  *
@@ -49,9 +64,10 @@ import './index.scss'
  * · 体例：**立刻落库**（体例是患者级属性，唯一真源在库里）
  */
 const TABS = [
-  { key: 'pulse', label: '脉象' },
-  { key: 'judge', label: '判读' },
-  { key: 'med', label: '用药' },
+  { key: 'pulse', label: '摸脉' },
+  { key: 'constitution', label: '体质' },
+  { key: 'therapy', label: '疗法' },
+  { key: 'rx', label: '方药' },
 ]
 
 /** 录入视图偏好（本地，不落库 —— 落库的只有体例） */
@@ -194,9 +210,9 @@ export default function Visit() {
     setStorageSync(VIEW_KEY, v)
   }
 
-  /* ---------------- 判读 ---------------- */
+  /* ---------------- 体质／疗法（开方三部曲的 ①②） ---------------- */
 
-  const onPersistJudge = async (patch: { constitution?: Constitution | null; therapy?: Therapy | null }) => {
+  const onPersistTriad = async (patch: { constitution?: Constitution | null; therapy?: Therapy | null }) => {
     // 本地先更新（界面立刻反映）
     setSessions((prev) =>
       prev.map((s) =>
@@ -268,7 +284,7 @@ export default function Visit() {
         </View>
       ) : null}
 
-      {/* ---------- 脉象 ---------- */}
+      {/* ---------- 摸脉 ---------- */}
       {tab === 'pulse' && ctx.patientId ? (
         <VisitPulse
           name={name}
@@ -288,25 +304,50 @@ export default function Visit() {
         />
       ) : null}
 
-      {/* ---------- 判读 ---------- */}
-      {tab === 'judge' && ctx.patientId ? (
-        <VisitJudge
+      {/* ---------- 体质（①判体质） ---------- */}
+      {tab === 'constitution' && ctx.patientId ? (
+        <VisitTriad
+          section='constitution'
           layout={layout}
           values={activeSession?.values || {}}
           constitution={(activeSession?.constitution as Constitution) || null}
           therapy={(activeSession?.therapy as Therapy) || null}
-          onPersist={onPersistJudge}
+          onPersist={onPersistTriad}
         />
       ) : null}
 
-      {/* ---------- 用药 ---------- */}
-      {tab === 'med' && ctx.patientId ? (
-        <MedicationPanel
-          patientId={ctx.patientId}
-          visitId={activeSession?.id ?? null}
-          visitDate={ctx.visitDate}
-          onChange={setMedications}
+      {/* ---------- 疗法（②定疗法） ---------- */}
+      {tab === 'therapy' && ctx.patientId ? (
+        <VisitTriad
+          section='therapy'
+          layout={layout}
+          values={activeSession?.values || {}}
+          constitution={(activeSession?.constitution as Constitution) || null}
+          therapy={(activeSession?.therapy as Therapy) || null}
+          onPersist={onPersistTriad}
         />
+      ) : null}
+
+      {/* ---------- 方药（③开方药 ＋ 用药记录） ----------
+          用药记录并进这一档，依据网站端「③ 开方药 → 开方药清单 ＋ 用药记录」。 */}
+      {tab === 'rx' && ctx.patientId ? (
+        <>
+          <VisitTriad
+            section='rx'
+            layout={layout}
+            values={activeSession?.values || {}}
+            constitution={(activeSession?.constitution as Constitution) || null}
+            therapy={(activeSession?.therapy as Therapy) || null}
+            onPersist={onPersistTriad}
+          />
+          <MedicationPanel
+            patientId={ctx.patientId}
+            visitId={activeSession?.id ?? null}
+            visitDate={ctx.visitDate}
+            onChange={setMedications}
+            onGoRecord={() => setTab('pulse')}
+          />
+        </>
       ) : null}
 
       {/* ---------- 底部固定操作条 ---------- */}

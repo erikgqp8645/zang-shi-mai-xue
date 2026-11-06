@@ -1,3 +1,11 @@
+/* 小程序里 <Text> 是**行内**元素：几条说明会连成一片读不出层次
+   （实测「已命中 1 处按图会落到：肾虚体质」挤成一行）。
+   这三张卡里的 .pr-note 都是「一行一条」的说明，改成块级。
+   剂量行里的「科中／服法」不带 .pr-note，仍然保持行内 —— 那是同一句里的一部分。 */
+.pr-vt .pr-note {
+  display: block;
+}
+
 .pr-triad-head {
   display: flex;
   gap: 16rpx;
@@ -10,6 +18,12 @@
   border: 1rpx solid #e6e2d6;
   border-radius: 12rpx;
   padding: 16rpx 12rpx;
+}
+
+/* 当前所在的那一步（拆成三档后，三步导航框随档位高亮） */
+.pr-triad-step.is-on {
+  border-color: #2c2925;
+  background: #f6f1e6;
 }
 
 .pr-triad-no {

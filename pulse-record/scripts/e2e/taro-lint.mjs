@@ -200,9 +200,9 @@ ok('没有 import 浏览器专用的 @export/png 或 @export/download', browserO
  *
  * 所以白名单是：
  *   · `pages/formulas`      —— 「用方」tab，知识库的主入口
- *   · `components/medication-panel` —— 就诊工作台的「用药」页内 tab，
+ *   · `components/medication-panel` —— 就诊工作台的「方药」档里那一块，
  *       要选方、要看讲稿比例制与同和堂版克数两套组成（原生 medication 页的核心功能，缺了就是漏功能）
- *   · `components/visit-judge` —— 「判读」分支要查方剂组成
+ *   · `components/visit-triad` —— 体质／疗法／方药三档要查方剂组成
  *
  * 另注：白名单按**路径包含**匹配，不是全等 —— `rel()` 给的是
  * `pulse-record/taro/src/components/.../index.tsx` 这种全路径，
@@ -220,7 +220,7 @@ for (const f of tsxFiles) {
 }
 const ALLOWED_ELSEWHERE = {
   'components/medication-panel': ['drugs', 'dose-lookup', 'formula-table', 'medication'],
-  'components/visit-judge': ['dose-lookup'],
+  'components/visit-triad': ['dose-lookup'],
 }
 function allowedElsewhere(file, mod) {
   for (const [dir, mods] of Object.entries(ALLOWED_ELSEWHERE)) {
@@ -285,7 +285,7 @@ const visitPulse = join(SRC, 'components', 'visit-pulse', 'index.tsx')
 
 for (const [label, f] of [
   ['病例详情页', caseDetail],
-  ['就诊页的脉象分支', visitPulse],
+  ['就诊页的摸脉分支', visitPulse],
 ]) {
   ok(`${label} 存在`, existsSync(f))
   if (!existsSync(f)) continue
@@ -316,7 +316,51 @@ if (existsSync(visitPage)) {
   // 否则注释里写一句「这里没有寸关尺图」就被当成「有这一档」。
   const tabsBlock = (src.match(/const TABS = \[[\s\S]*?\]/) || [''])[0]
   const tabLabels = [...tabsBlock.matchAll(/label: '([^']+)'/g)].map((m) => m[1])
-  ok('就诊工作台有 3 个页内 tab（脉象/判读/用药）', tabLabels.length === 3 && tabLabels.join('/') === '脉象/判读/用药', tabLabels.join('/'))
+  ok(
+    '就诊工作台有 4 个页内 tab（摸脉/体质/疗法/方药）',
+    tabLabels.length === 4 && tabLabels.join('/') === '摸脉/体质/疗法/方药',
+    tabLabels.join('/'),
+  )
+  // 2026-11-06：原来三档是「脉象/判读/用药」。
+  // 「判读」名不副实（里面全是使用者自己点选，工具不代判）→ 拆成「体质/疗法」；
+  // 「用药」并进「方药」（依据网站端 TriadFrame：③ 开方药 → 开方药清单 ＋ 用药记录）。
+  ok(
+    '页内 tab 没有「判读」这一档（工具不代判，档名不能叫判读）',
+    !tabLabels.includes('判读'),
+    tabLabels.join('/'),
+  )
+  ok('页内 tab 没有「用药」这一档（已并进「方药」）', !tabLabels.includes('用药'), tabLabels.join('/'))
+  ok('摸脉档挂的是 visit-pulse 组件', /VisitPulse/.test(src))
+  // 体质/疗法/方药三档共用一个组件，按 section 分档。
+  //
+  // 「在不在这一档里」必须按**分支正文**判断，不能只比下标：
+  // 把 MedicationPanel 挪成独立分支，它照样在 rx 之后、ActionBar 之前 ——
+  // 下标法被骗过（已实测：这么改断言不红）。
+  // 所以用「从 `tab === 'x'` 到本分支结尾的 `) : null}`」把正文切出来。
+  const branchBody = (key) => {
+    const m = src.match(new RegExp(`tab === '${key}'[\\s\\S]*?\\)\\s*:\\s*null\\}`))
+    return m ? m[0] : ''
+  }
+  const rxBody = branchBody('rx')
+  ok('方药档挂的是 visit-triad 的 section=\'rx\'', /section='rx'/.test(rxBody), rxBody.slice(0, 80))
+  ok(
+    '用药记录拼在「方药」档里（rx 分支正文里有 <MedicationPanel>）',
+    /<MedicationPanel/.test(rxBody),
+    rxBody.slice(0, 80),
+  )
+  ok(
+    '体质档挂的是 visit-triad 的 section=\'constitution\'',
+    /section='constitution'/.test(branchBody('constitution')),
+  )
+  ok(
+    '疗法档挂的是 visit-triad 的 section=\'therapy\'',
+    /section='therapy'/.test(branchBody('therapy')),
+  )
+  ok('摸脉档挂的是 visit-pulse 组件', /<VisitPulse/.test(branchBody('pulse')))
+  ok(
+    'visit-judge 组件已经不存在了（改名成 visit-triad）',
+    !/VisitJudge/.test(src) && !existsSync(join(SRC, 'components', 'visit-judge')),
+  )
   // 2026-11-06：原来这里还有第 4 档「寸关尺图」（外加底部一个「出图」按钮）。
   // 原生回退工程的录入页 `miniprogram/pages/record/record` 里**一个图示入口都没有** ——
   // 关系图属于「看」的页面（病例详情页），不进「录」的页面；而且两处摆着是重复的。
@@ -475,10 +519,39 @@ ok('就诊页与病例详情页有「不构成诊断」声明', disclaimerMiss.l
 const sourceMiss = []
 for (const f of pageFiles) {
   const src = read(f)
-  if (!/formulas|visit-judge/.test(rel(f))) continue
+  // 这里只扫 `src/pages` —— 页面里的知识页只有「用方」一处。
+  // （原来这里还写着 `|visit-judge`，但那是**组件**，永远匹配不上 —— 是个空转的分支。）
+  if (!/formulas/.test(rel(f))) continue
   if (!/讲义|讲稿|同和堂版/.test(src)) sourceMiss.push(rel(f))
 }
 ok('知识页有出处标注（讲义／讲稿／同和堂版）', sourceMiss.length === 0, sourceMiss.join(' '))
+
+/**
+ * 组件侧同理 —— **这条以前是空转的**：
+ * 原来只扫 `pageFiles`（`src/pages` 下的 .tsx），而 `visit-judge` 是**组件**，
+ * 那个过滤条件永远匹配不上 —— 组件里的方剂组成有没有标出处，**根本没人在查**。
+ * 2026-11-06 起组件改名 `visit-triad`，这里把范围补上（`medication-panel` 一并查）。
+ *
+ * ⚠️ 查的是**渲染出来的字**（代码里的字面量），**不是全文搜「讲义」** ——
+ * 全文搜区分不出「标签还在不在」：两个文件的注释里到处都写着「讲义／讲稿／同和堂版」，
+ * 把标签全删了照样搜得到（实测：故意抹掉出处标注，这条断言照样绿）。
+ */
+const triadFile = join(SRC, 'components', 'visit-triad', 'index.tsx')
+const medFile = join(SRC, 'components', 'medication-panel', 'index.tsx')
+for (const [label, f] of [
+  ['visit-triad', triadFile],
+  ['medication-panel', medFile],
+]) {
+  if (!existsSync(f)) {
+    ok(`${label} 组件存在`, false, f)
+    continue
+  }
+  const src = read(f)
+  ok(`${label} 组件存在`, true)
+  ok(`${label} 标着「同和堂版（克）」`, /'同和堂版（克）'/.test(src))
+  ok(`${label} 标着「讲稿 2010（比例制）」`, /'讲稿 2010（比例制）'/.test(src))
+  ok(`${label} 每条都带出处方括号〔…〕`, /〔\{[^}]+\.source\}〕/.test(src))
+}
 
 /* ========================================================================
  * 21. 隐私接口清单（微信后台《用户隐私保护指引》必须同步）
