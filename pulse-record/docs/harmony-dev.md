@@ -1,6 +1,10 @@
 # 鸿蒙端上手手册
 
-**一句话**：HAP 已经出好了（9.1 MB），剩下全是「在 DevEco Studio 里点几下」的事。
+**一句话**：HAP 已经出好了（9.1 MB），装到模拟器上只剩**一件事**：登录。
+
+> **2026-11-06 更新**：DevEco 的官方命令行工具 `@deveco/deveco-cli` 装上之后，
+> **整条路都能走 CLI 了** —— 建模拟器、启动、签名、装机、截图、UI 自动化，全都能脚本化。
+> 下面的「路线 A（CLI，推荐）」就是这条。
 
 ---
 
@@ -30,12 +34,81 @@ node scripts/harmony-build.mjs --skip-taro  # 只重编（没改 .ets 时快很�
 
 产物：`~/AiCoding/harmony-pulse-record/entry/build/default/outputs/default/default-default-unsigned.hap`
 
-流程：rsync 工程配置 → 写 `local.properties` → 挂 DevEco 自带的 hvigor → Taro 构建 →
-ArkTS 补丁 → rawfile 资源对齐 → `ohpm install` → `assembleHap`。
+流程：rsync 工程配置 → 写 `local.properties` → Taro 构建 → ArkTS 补丁 →
+rawfile 资源对齐 → `ohpm install` → `devecocli build`。
+
+> **为什么最后一步用 `devecocli build` 而不是自己调 `hvigorw`**：
+> 手工调 hvigorw 要自己拼三样 —— **hvigor 软链**（`@ohos/hvigor` 不在 npmjs 上）、
+> **`DEVECO_SDK_HOME`**（SDK 根目录，不是版本目录）、**`JAVA_HOME`**（打包要 Java，本机只有 DevEco 自带的 JBR）。
+> 缺一样就一次编译失败。`devecocli build` 三样都自己解析好了 —— 实测**把软链移走也能构建成功**。
 
 ---
 
-## 2. 在 DevEco Studio 里跑起来
+## 路线 A · 全 CLI（推荐）
+
+前置两条：
+
+```bash
+npm install -g @deveco/deveco-cli@stable   # 官方命令行工具（1.3.0-stable）
+devecocli auth login                        # ★ 必须登录，见下
+```
+
+### 为什么必须登录
+
+两样东西都要向华为服务器申请，**没登录就都拿不到**：
+
+| 要什么 | 谁在要 | 没登录时的报错 |
+|---|---|---|
+| **签名材料** | `devecocli signature generate` | `Failed to automatically generate signatures.Run devecocli auth login to sign in.` |
+| **模拟器设备身份（SN）** | 模拟器启动 | 实例日志里 `can not read sn` / `can not read uuid file` → 模拟器起不来，**没有任何报错提示** |
+
+`devecocli auth login` 会提示「Press Enter to open browser for login」——
+**必须按回车**（不按就不动），然后浏览器里确认授权。
+在 IDE 里登录过华为账号的话，浏览器里可能已经是登录态，点一下就行。
+
+> ⚠️ **IDE 的登录态和 `devecocli` 的不通用** —— 两边各存各的凭证
+> （CLI 存 `~/.deveco/` 的加密 token，IDE 存自己的）。
+> 已经在 IDE 里登录了，**还是要单独跑一次 `devecocli auth login`**。
+
+### 三个脚本
+
+```bash
+node scripts/harmony-run.mjs doctor     # 体检：登录 / 镜像 / 实例 / 设备
+node scripts/harmony-run.mjs emulator   # 确保镜像与实例就位，并启动模拟器
+node scripts/harmony-run.mjs deploy     # 签名 → 构建 → 装机 → 截图
+node scripts/harmony-run.mjs --download # 全流程（顺便把模拟器镜像下了，几个 G）
+```
+
+### devecocli 还能干什么
+
+| 命令 | 用途 |
+|---|---|
+| `devecocli emulator image list/download` | 模拟器系统镜像（**不需要登录**） |
+| `devecocli emulator create/start/list/stop` | 模拟器实例 |
+| `devecocli device list` | 在线设备 |
+| `devecocli signature generate` | 生成签名并写进工程配置 |
+| `devecocli build` / `run` | 构建 / 构建并装机 |
+| `devecocli ui screenshot/layout/click/text/swipe` | **设备上的 UI 自动化**（可做回归） |
+| `devecocli log` | 设备日志 |
+| `devecocli check lint` / `compat` | ArkTS 代码检查 / 兼容性检查 |
+| `devecocli skills list` | **53 个鸿蒙开发技能**（可装给 AI agent） |
+| `devecocli docs search/read` | **本地 HarmonyOS 文档**（开发指南／API参考／最佳实践／FAQ／版本说明） |
+
+### 模拟器实例的三个坑（都踩过）
+
+1. **实例名不能有连字符** —— `pulse-phone` 会被拒：`The virtual device name can only contain letters, spaces, numbers, and underscores (_).` → 用 `pulse_phone`。
+2. **`-instancePath` 要传父目录**，不是实例目录本身 —— 传实例目录会报
+   `"pulse_phone" is not found. Please create the device(folder): …/pulse_phone/pulse_phone`。
+3. **`-bootMode cold` 不被接受** —— 报 `Command bootmode invalid! Use default.` → 别传这个参数。
+
+---
+
+---
+
+## 2. 路线 B · 在 DevEco Studio 里跑（GUI）
+
+> 适合不想用 CLI、或者 CLI 卡在登录上的情况。
+> **实测过**：IDE 登录态与 `devecocli` 不通用，但 IDE 自己能签发 SN 与签名材料。
 
 ### 2.1 打开工程
 
@@ -46,6 +119,7 @@ ArkTS 补丁 → rawfile 资源对齐 → `ohpm install` → `assembleHap`。
 ### 2.2 登录华为开发者账号
 
 **右上角头像图标 → 登录**。模拟器镜像下载和自动签名**都要账号**。
+（截图里显示已登录 ✓）
 
 ### 2.3 同步依赖
 
@@ -60,6 +134,10 @@ ArkTS 补丁 → rawfile 资源对齐 → `ohpm install` → `assembleHap`。
 - **模拟器也要签名** —— 没签名会在 Run 时报 `The signing is not configured`。
 
 ### 2.5 下载模拟器镜像
+
+> ✅ **镜像已经下好了**（用 `devecocli emulator image download` 下的）：
+> `HarmonyOS 7.0.0(26.0.0)` phone，落在 `~/Library/Huawei/Sdk/system-image/`。
+> 所以这一步**可以跳过**，直接在 Device Manager 里选它建实例即可。
 
 **顶部工具栏的设备下拉框 → Device Manager**（或 **Tools → Device Manager**）：
 

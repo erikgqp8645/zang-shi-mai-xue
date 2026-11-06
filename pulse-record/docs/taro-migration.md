@@ -191,16 +191,55 @@ node scripts/harmony-build.mjs --skip-taro  # 只重编（.ets 没变时快很�
 
 1. rsync 仓库的 `harmony/` → 镜像目录（**不删**镜像里多出来的文件）
 2. 写 `local.properties`（`sdk.dir` 指向 DevEco 自带的 SDK）
-3. 把 DevEco 自带的 hvigor 挂进镜像的 `node_modules/@ohos/`
-   （`@ohos/hvigor` 不在 npmjs 上，只能用 IDE 自带那份）
-4. Taro 构建：`TARO_HARMONY_PROJECT=镜像` → `.ets` 产物写进镜像
-5. **ArkTS 严格模式补丁**（§9.4）
-6. **rawfile 资源对齐**（§9.5）
-7. `ohpm install`（工程根 ＋ `entry` 模块 —— 依赖在 entry 的 oh-package 里）
-8. `hvigorw assembleHap`
-9. 打印 HAP 路径
+3. Taro 构建：`TARO_HARMONY_PROJECT=镜像` → `.ets` 产物写进镜像
+4. **ArkTS 严格模式补丁**（§9.4）
+5. **rawfile 资源对齐**（§9.5）
+6. `ohpm install`（工程根 ＋ `entry` 模块 —— 依赖在 entry 的 oh-package 里）
+7. `devecocli build`
+8. 打印 HAP 路径
 
-环境变量：`DEVECO_HOME`（默认 `/Applications/DevEco-Studio.app`）、`PULSE_HARMONY_HOME`（默认 `~/AiCoding/harmony-pulse-record`）。
+环境变量：`PULSE_HARMONY_HOME`（默认 `~/AiCoding/harmony-pulse-record`）、`DEVECOCLI_PATH`（默认 `devecocli`）。
+
+### 9.1.1 为什么最后一步用 `devecocli build`
+
+手工调 `hvigorw` 要自己拼三样东西：
+
+- **hvigor 软链** —— `@ohos/hvigor` **不在 npmjs 上**，只能用 DevEco 自带那份
+- **`DEVECO_SDK_HOME`** —— 要指向 SDK **根**目录（`Contents/sdk`），不是版本目录
+- **`JAVA_HOME`** —— `PackageHap` 要跑 Java，本机系统里没有 java，只有 DevEco 自带的 JBR
+
+缺一样就是一次编译失败。**`devecocli build` 自己把这三样都解析好了** ——
+实测**把软链移走也能构建成功**（release 模式 16.9s）。
+所以构建脚本只留这一条路径，不做「两套都支持」。
+
+前置：`npm i -g @deveco/deveco-cli@stable`（外加装了 DevEco Studio）。
+
+### 9.1.2 部署到设备（`scripts/harmony-run.mjs`）
+
+出包不需要账号，**部署需要** —— 签名材料和模拟器的设备身份（SN）都要向华为服务器申请。
+
+```bash
+node scripts/harmony-run.mjs doctor     # 体检：登录 / 镜像 / 实例 / 设备
+node scripts/harmony-run.mjs emulator   # 确保镜像与实例就位，并启动模拟器
+node scripts/harmony-run.mjs deploy     # 签名 → 构建 → 装机 → 截图
+node scripts/harmony-run.mjs --download # 全流程（顺便下镜像，几个 G）
+```
+
+**登录**：`devecocli auth login` —— 会提示「Press Enter to open browser for login」，
+**必须按回车**（不按就不动），然后浏览器里确认授权。
+
+> ⚠️ **DevEco Studio 的登录态和 `devecocli` 的不通用**（两边各存各的凭证，
+> CLI 存 `~/.deveco/` 的加密 token）。已经在 IDE 里登录了，**还是要单独跑一次 CLI 的登录**。
+
+`devecocli` 还有 `ui screenshot/layout/click/text/swipe` —— **设备上的 UI 自动化**，
+可以照着微信小程序那套 `taro-tabs.mjs` 的思路做鸿蒙端的四档 tab 回归。
+另有 `check lint`（ArkTS linter）、`skills`（53 个鸿蒙技能）、`docs`（本地 HarmonyOS 文档）。
+
+**模拟器实例的三个坑**（都踩过）：
+
+1. 实例名**不能有连字符** → `pulse-phone` 被拒，用 `pulse_phone`
+2. `Emulator -instancePath` 要传**父目录**（传实例目录会报 `"…" is not found. Please create the device(folder): …/pulse_phone/pulse_phone`）
+3. `-bootMode cold` **不被接受**（`Command bootmode invalid! Use default.`）→ 别传
 
 ### 9.2 为什么必须镜像到 ASCII 路径
 
@@ -237,12 +276,12 @@ Error Message: Invalid project path. Current path does not match: …/臧氏脉�
 | **插件漏声明依赖** | `Cannot find module '@babel/preset-typescript'` | `@tarojs/plugin-platform-harmony-cpp` 自己 require 了它却没写进 dependencies —— 本工程显式装上 |
 | **babel 解析不了 TSX** | `SyntaxError: src/app.tsx: Unexpected token, expected "from"` | 上游 `@tarojs/vite-runner` 那个 `enforce: 'pre'` 的 babel 插件**没给 preset**，却跑在 vite 的 esbuild 之前 → 拿到原始 TSX。绕行见 `config/harmony-workaround.ts` |
 | **工程路径含中文** | `00306003 Specification Limit Violation` | 镜像到纯 ASCII 路径（§9.2） |
-| **`@ohos/hvigor` 装不上** | `npm install` 404 | `@ohos/hvigor` **不在 npmjs 上**，只能用 DevEco 自带那份，软链进 `node_modules/@ohos/` |
-| **hvigor 找不到 SDK** | 找不到 SDK | 要 `DEVECO_SDK_HOME` 指向 SDK **根**目录（`Contents/sdk`），不是版本目录 |
+| **`@ohos/hvigor` 装不上** | `npm install` 404 | `@ohos/hvigor` **不在 npmjs 上**，只能用 DevEco 自带那份。**现在不用管了** —— 走 `devecocli build`（§9.1.1），它自己解析 |
 | **插件自己调 ohpm 失败** | 退回 `~/Library/Huawei/ohpm/bin/ohpm` 报错 | 把 `Contents/tools/ohpm/bin` 放进 `PATH` |
+| **模拟器实例缺设备身份** | 实例日志里 `can not read sn` / `can not read uuid file` → 模拟器**静默起不来**，没有任何报错提示 | SN 要向华为服务器签发 → **必须 `devecocli auth login`**（IDE 的登录态与 CLI 不通用，§9.1.2） |
 | **SDK 版本太低** | `00306004 Specification Limit Violation`：`compatibleSdkVersion: 12 cannot be lower than the minimum compatible version 14 required by the dependencies: @taro-oh/library` | taro 的 har 声明了 `compatibleSdkVersion: 14` → 提到 `"6.0.0(20)"` |
 | **ArkTS 严格模式** | `1 ERROR: 10605999 ArkTS Compiler Error`：`Variable 'levelRes' is used before being assigned`（`app.ets:77`） | 上游模板的 `switch` 没有 `default` 分支 → 补初值 `0`（语义不变）。见 §9.4.1 |
-| **打包要 Java** | `00308018 Unknown Error` / `Unable to locate a Java Runtime` | 本机系统里没有 java，只有 DevEco 自带的 JBR → `JAVA_HOME` 指向 `Contents/jbr/Contents/Home` |
+| **打包要 Java** | `00308018 Unknown Error` / `Unable to locate a Java Runtime` | 本机系统里没有 java，只有 DevEco 自带的 JBR。**现在不用管了** —— `devecocli build` 自己指 JBR（§9.1.1） |
 | **权限字段名** | schema 校验失败 | **模块级** `module.json5` 用 `requestPermissions`（写 `reqPermissions` 会被 schema 拦下） |
 
 #### 9.4.1 ArkTS 严格模式补丁
@@ -301,10 +340,11 @@ Image(this.tabBarCurrentIndex === index && item.selectedIconPath || item.iconPat
 
 ### 9.7 还没做的
 
-- **模拟器/真机实测**：DevEco 的模拟器需要**先在 IDE 的 Device Manager 下载设备镜像**（本机没有镜像，也没有 hdc）。
-  出了 HAP 之后，在 IDE 里打开镜像目录 → Run 即可（工程路径已是纯 ASCII）。
+- **模拟器实测**：镜像已下好（`HarmonyOS 7.0.0(26.0.0)` phone → `~/Library/Huawei/Sdk/system-image/`），
+  实例也建好了（`pulse_phone`）。**只差 `devecocli auth login`** —— 登录后
+  `node scripts/harmony-run.mjs deploy` 就能装机 + 截图。
 - **签名**：`build-profile.json5` 里 `signingConfigs` 为空 → 出的是 **unsigned** 包。
-  模拟器能跑，真机要签名。
+  `devecocli signature generate` 会自动生成并写进配置（要登录）。
 - **关系图（寸关尺）在鸿蒙上的渲染**还没验证 —— 小程序侧是自绘 canvas，鸿蒙侧走 C-API 的 canvas，还没确认。
 
 ### 9.8 回归

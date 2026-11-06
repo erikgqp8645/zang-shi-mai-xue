@@ -958,12 +958,61 @@ folly＋boost＋quickjs＋jsi＋yoga 交叉编译 arm64，代价 1~2 小时，�
 **实测**：全流程构建（`node scripts/harmony-build.mjs`，含 Taro 构建）出包成功；
 全量回归 **441/441 全绿**（原 384 ＋ 新增鸿蒙 57）。
 
+#### 2026-11-06 追加：装了 DevEco 官方 CLI，整条路能走脚本了
+
+用户装了 `npm i -g @deveco/deveco-code` 与 `@deveco/deveco-cli@stable`。
+`devecocli`（1.3.0-stable）能做的事比预想多得多：
+
+| 命令 | 用途 |
+|---|---|
+| `emulator image list/download` | 模拟器系统镜像（**不需要登录**） |
+| `emulator create/start/list/stop` | 模拟器实例 |
+| `signature generate` | 生成签名并写进工程配置 |
+| `build` / `run` | 构建 / 构建并装机 |
+| `ui screenshot/layout/click/text/swipe` | **设备上的 UI 自动化**（可做回归） |
+| `log` | 设备日志 |
+| `check lint` / `compat` | ArkTS 代码检查 / 兼容性检查 |
+| `skills` | **53 个鸿蒙开发技能**（可装给 AI agent） |
+| `docs` | **本地 HarmonyOS 文档**（开发指南／API参考／最佳实践／FAQ／版本说明） |
+
+**三个实质变化**：
+
+1. **构建脚本改走 `devecocli build`** —— 不用再手工拼 hvigor 软链 ＋ `DEVECO_SDK_HOME` ＋ `JAVA_HOME`
+   （三样缺一样就是一次编译失败；devecocli 三样都自己解析，**实测把软链移走也能构建成功**）。
+2. **新增 `scripts/harmony-run.mjs`** —— 部署一条命令（`doctor` / `emulator` / `deploy`）。
+3. **模拟器镜像已下好** —— `HarmonyOS 7.0.0(26.0.0)` phone → `~/Library/Huawei/Sdk/system-image/`；
+   实例 `pulse_phone` 也建好了。
+
+#### ⏸ 暂停在这里（2026-11-06）：**只差登录**
+
+装好 CLI 后卡在一个点上：**签名材料**和**模拟器设备身份（SN）**都要向华为服务器申请，
+必须 `devecocli auth login`（会提示「Press Enter to open browser」——**不按回车就不动**）。
+
+- 未登录时 `devecocli signature generate` 直接报
+  `Failed to automatically generate signatures.Run devecocli auth login to sign in.`
+- 未登录时模拟器**静默起不来** —— 实例日志里只有
+  `can not read sn` / `can not read uuid file`，**没有任何报错提示**。
+
+> ⚠️ **DevEco Studio 的登录态和 `devecocli` 的不通用**（CLI 存 `~/.deveco/` 的加密 token，
+> IDE 存自己的）。已经在 IDE 里登录了，**还是要单独跑一次 CLI 的登录**。
+
+登录后一条命令就能装机 + 截图：
+
+```bash
+node scripts/harmony-run.mjs deploy
+```
+
+#### 模拟器实例的三个坑（都踩过）
+
+1. 实例名**不能有连字符** → `pulse-phone` 被拒（`only contain letters, spaces, numbers, and underscores`），用 `pulse_phone`
+2. `Emulator -instancePath` 要传**父目录**（传实例目录会报 `Please create the device(folder): …/pulse_phone/pulse_phone`）
+3. `-bootMode cold` **不被接受**（`Command bootmode invalid! Use default.`）
+
 #### 还没做的
 
-- **模拟器/真机实测**：本机没有模拟器镜像、也没有 hdc —— 需先在 DevEco 的 Device Manager 里下载设备镜像。
-  出了 HAP 之后，在 IDE 里打开镜像目录 → Run 即可（工程路径已是纯 ASCII）。
-- **签名**：`signingConfigs` 为空 → 出的是 unsigned 包。模拟器能跑，真机要签名。
-- **关系图（寸关尺）在鸿蒙上的渲染**还没验证。
+- **模拟器实测**（等登录）
+- **签名**：`signingConfigs` 为空 → 出的是 unsigned 包；`devecocli signature generate` 会自动生成（要登录）
+- **关系图（寸关尺）在鸿蒙上的渲染**还没验证
 
 ## 4. P3 · 后期迁 CloudBase（规划完成，待触发）
 
