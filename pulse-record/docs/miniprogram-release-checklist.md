@@ -146,6 +146,21 @@ PULSE_API_BASE=https://<你的备案域名> npm run mp:taro:build
 
 ### 2.5.3 怎么确认成了
 
+### 2.5.3 怎么确认成了
+
+**办法一（不用任何凭证，推荐）—— 在小程序里看**
+
+关联成功后，在开发者工具里**重新编译**一次，然后看 Console：
+
+| 现象 | 结论 |
+|---|---|
+| 出现 `cloud.callFunction:fail ... Environment not found`（`-501000`） | ❌ 还没关联好 → 回看 §2.5.1／§2.5.2 哪一步没点到位 |
+| **没有** `-501000` 报错 | ✅ 关联成了 |
+
+再进「我的」页 → 「**测试连接**」→ 打出「连接正常（多用户模式）」就说明云函数这条路通了。
+
+**办法二（要腾讯云凭证）—— 读环境字段**
+
 ```bash
 cd pulse-record
 set -a; source /tmp/pg.env; set +a
@@ -157,8 +172,11 @@ import('./scripts/lib/tcb-capi.mjs').then(async (m)=>{
 })"
 ```
 
-`WxAppId` 打出 `wx3a21eb903a16cbc4` 就是成了；
-仍是 `undefined` 就回去看上面哪一步没点到位。
+`WxAppId` 打出 `wx3a21eb903a16cbc4` 就是成了；仍是 `undefined` 就是没关联。
+
+> ⚠️ **办法二依赖临时凭证的有效期**（`TCLOUD_SESSION_TOKEN` 会过期，
+> 报 `AuthFailure.TokenFailure` 就是过期了）——
+> **这时用办法一就够了**，不用折腾凭证。
 
 > 关联之前，小程序**仍然能跑**（2026-11-06 加的兜底：云调用传输层失败 → 自动改走直连），
 > 但直连的默认地址是 `http://127.0.0.1:5178` ——
@@ -277,7 +295,7 @@ npm test                       # 全量回归 505/505
 
 | # | 自检 | 怎么验 |
 |---|---|---|
-| 1 | 环境的 `WxAppId` 已是 `wx3a21eb903a16cbc4` | §2.5.3 那条命令 |
+| 1 | 开发者工具里**不再**出现 `-501000 Environment not found` | 重新编译一次，看 Console（§2.5.3 办法一） |
 | 2 | 隐私指引「用户信息收集」两栏已填 | §1.3 的文案可照抄 |
 | 3 | 第三方 SDK 已声明「腾讯云 CloudBase」 | §1.4（走 cloud 路线才要） |
 | 4 | 隐私政策页的运营者/邮箱不是「（待填写）」 | 改 `taro/src/pages/privacy/index.tsx` 第八节 → 重新 `build:weapp` → 再上传 |
