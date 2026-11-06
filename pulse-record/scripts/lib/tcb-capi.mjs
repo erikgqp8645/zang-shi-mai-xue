@@ -120,10 +120,20 @@ export function readCredentials() {
  *
  * @param {string} action  Action 名（如 `GetFunction`）
  * @param {object} payload 请求体
+ * @param {object} [opts]
+ * @param {string} [opts.version]  API 版本
+ * @param {string} [opts.host]     服务域名
+ * @param {string} [opts.service]  服务名（签名用）
+ * @param {string} [opts.region]   地域 —— **公共头参数**，放 `X-TC-Region`，
+ *                                  不进 body、也不进签名（部分接口必填，如 `GetProviders`）
  * @returns {Promise<object>} `Response` 部分
  * @throws  {Error} 带 `[错误码] 错误信息`
  */
-export async function callTcb(action, payload, { version = VERSION, host = HOST, service = SERVICE } = {}) {
+export async function callTcb(
+  action,
+  payload,
+  { version = VERSION, host = HOST, service = SERVICE, region = '' } = {},
+) {
   const { secretId, secretKey, token } = readCredentials()
   if (!secretId || !secretKey) {
     throw new Error('缺少凭证环境变量：TCLOUD_SECRET_ID / PULSE_CB_SECRET_ID（或 TENCENTCLOUD_SECRETID）')
@@ -133,6 +143,7 @@ export async function callTcb(action, payload, { version = VERSION, host = HOST,
   const timestamp = Math.floor(Date.now() / 1000)
   const headers = sign({ secretId, secretKey, token, payload: body, action, timestamp, host, service })
   headers['X-TC-Version'] = version
+  if (region) headers['X-TC-Region'] = region
 
   const res = await fetch(`https://${host}/`, {
     method: 'POST',
