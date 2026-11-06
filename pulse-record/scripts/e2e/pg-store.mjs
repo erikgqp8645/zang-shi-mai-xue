@@ -30,6 +30,16 @@ const hasCreds = Boolean(
 )
 
 if (!hasCreds) {
+  // 显式点名要跑 PG 证据（PULSE_STORE=pg 或 PULSE_E2E_REQUIRE=1）时，缺凭证必须**失败**。
+  // 以前这里一律 exit(0)，结果 2026-11-06 那次 `pulse_write_medication` 里
+  // `jsonb_set(jsonb, text, jsonb)` 的错误一路漏到线上才被发现 —— 回归「全绿」其实一条都没跑。
+  const required = process.env.PULSE_STORE === 'pg' || process.env.PULSE_E2E_REQUIRE === '1'
+  if (required) {
+    console.error('PG 存储回归未执行：缺少 PULSE_CB_* 凭证。')
+    console.error('  你显式要求跑 PG（PULSE_STORE=pg / PULSE_E2E_REQUIRE=1），缺凭证不能算通过。')
+    console.error('  用法见脚本头部注释；或 unset PULSE_STORE 以跳过。')
+    process.exit(1)
+  }
   console.log('跳过 PG 存储回归：没有配置 PULSE_CB_* 凭证（见脚本头部用法）')
   process.exit(0)
 }

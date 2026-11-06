@@ -368,6 +368,15 @@ VITE_API_BASE="https://ambitious-parrot-d7ehh7x0fd9d680-1257312696.ap-shanghai.a
 **验证方式**：`scripts/cf-admin.mjs` 只打印**键名＋值长＋指纹**（名字里带 `SECRET`/`TOKEN` 的连指纹都不给）。
 **不要用 `GetFunction` 回读做验证** —— 那会把密钥明文打进对话上下文。
 
+### 4.5 迁到 `pulse-1` 后踩到的（PG 引擎差异，2026-11-06）
+
+| # | 坑 | 结论 |
+|---|---|---|
+| 34 | `pulse_write_medication` 报 `function jsonb_set(jsonb, text, jsonb) does not exist` | 本引擎的 `jsonb_set` **只有 4 参签名** `(jsonb, path text[], jsonb, create_if_missing boolean)`，**没有 3 参重载**，而且第二参必须是 **`text[]`** 不是 `text`。<br>错误写法：`jsonb_set(v_map, v_key, val)`；正确写法：`jsonb_set(v_map, ARRAY[v_key]::text[], val, true)`，或直接用 `v_map \|\| jsonb_build_object(v_key, val)`（顶层键合并，语义等价、更少引擎差异，**现在代码里用的是这个**）。<br>**这是唯一一处引擎特有写法**；其余 `jsonb_array_elements … WITH ORDINALITY`、`ON CONFLICT DO UPDATE`、`array_append`、`?` 运算符都已实测可用。 |
+| 35 | 上面这个 bug 为什么回归没抓到 | `scripts/e2e/pg-store.mjs` 缺 `PULSE_CB_*` 凭证时**静默 `exit(0)`**，所以 `test:e2e:pg` 一直显示“通过”但**一条断言都没跑**。已改为：若显式 `PULSE_STORE=pg` 或 `PULSE_E2E_REQUIRE=1`，缺凭证即 **exit 1**。<br>教训：**任何“跳过”分支都必须能区分「跳过」和「通过」**，否则等于没有这个测试。 |
+
+> 复现方式（不动真实数据）：用测试账号 `mptest01` 建一个一次性患者，走 `pulse_put_patient` → 读 `medication.seq` 应为 0/1/2，再 `pulse_delete_patient` 清掉。函数级冒烟可一次覆盖 `put_patient`／`put_visit`／`put_visit_medication`／`delete_medication`／`rename_patient`／`update_patient_layout`／`search_patients`／`list_medication`／`put_symbol`／`list_symbols`／`delete_symbol`／`delete_visit`／`delete_patient`。
+
 ---
 
 ## 5. 验收清单

@@ -457,8 +457,11 @@ BEGIN
     IF v_owner_of IS NOT NULL AND v_owner_of <> p_owner THEN CONTINUE; END IF;
 
     -- 组内序号：同一次就诊内按传入顺序编号
+    -- 这里**不能**用 jsonb_set：它要求 path 是 text[]，且本引擎（CloudBase PG）没有
+    -- 3 参数重载，直接传 text 会报 `function jsonb_set(jsonb, text, jsonb) does not exist`。
+    -- `||` 做顶层键合并，语义完全等价（右侧覆盖同名键）。
     v_seq := coalesce((v_seqmap->>v_vid)::integer, 0);
-    v_seqmap := jsonb_set(v_seqmap, v_vid, to_jsonb(v_seq + 1));
+    v_seqmap := v_seqmap || jsonb_build_object(v_vid, v_seq + 1);
 
     INSERT INTO medication (id, patient_id, visit_id, owner_id, seq, name, pulse, symbols,
                             adjust, usage, note, created_at)
