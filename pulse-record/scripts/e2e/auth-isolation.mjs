@@ -27,7 +27,18 @@ const PORT = 5300 + Math.floor(Math.random() * 400)
 function startServer(env = {}) {
   const child = spawn(process.execPath, ['server/index.mjs'], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(PORT), PULSE_DB: DB, ...env },
+    env: {
+      ...process.env,
+      PORT: String(PORT),
+      PULSE_DB: DB,
+      // 这组测试的前提就是「未配微信配置」—— 显式清空四个名字，
+      // 别让本机 shell 里 export 过的凭据把前提带偏（老名字 + 云函数用的新名字）。
+      WX_APPID: '',
+      WX_APPSECRET: '',
+      PULSE_WX_APPID: '',
+      PULSE_WX_APPSECRET: '',
+      ...env,
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   child.stdout.setEncoding('utf8')
@@ -321,12 +332,15 @@ try {
     check('新密码能登录 → 200', newPw.status === 200, `实际 ${newPw.status}`)
   }
 
-  /* --- 10. 微信绑定（未配 WX_APPID 时应给出明确提示，而不是崩） --- */
+  /* --- 10. 微信绑定（未配微信配置时应给出明确提示，而不是崩） --- */
   console.log('\n【10】微信绑定')
   {
     const r = await api('/api/auth/wechat/login', { method: 'POST', body: { code: 'fake-code' } })
     check('未配微信配置时给出明确中文提示', r.status === 400 && typeof r.data?.error === 'string', `实际 ${r.status} ${r.data?.error ?? ''}`)
-    check('提示里说明了原因', String(r.data?.error ?? '').includes('WX_APPID'), r.data?.error)
+    const err = String(r.data?.error ?? '')
+    check('提示里说明了原因', err.includes('WX_APPID'), r.data?.error)
+    // 提示要**点名具体缺哪个变量** —— 两个都缺时两个都得出现（否则只说了一个，看不出还缺啥）
+    check('提示里点名了缺哪些变量', err.includes('PULSE_WX_APPID') && err.includes('PULSE_WX_APPSECRET'), r.data?.error)
     const b = await api('/api/auth/wechat/bind', {
       method: 'POST',
       body: { code: 'fake-code', loginName: nameA, password: 'secret123' },

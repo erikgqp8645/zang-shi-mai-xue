@@ -96,7 +96,7 @@ if (!distReady && !NO_BUILD) {
 
 /**
  * 本地凭据：`.secrets/server.env`（KEY=VALUE，gitignore）
- * 目前只用到 WX_APPID / WX_APPSECRET —— 微信登录要服务端拿 code 换 openid。
+ * 里面是 WX_APPID / WX_APPSECRET —— 微信登录要服务端拿 code 换 openid。
  * 没这份文件也能跑：小程序会退回「账号密码登录」，只是微信免登不能用。
  */
 function loadLocalEnv() {
@@ -115,6 +115,10 @@ const localEnv = loadLocalEnv()
 const env = {
   ...localEnv,
   ...process.env,
+  // 统一用 PULSE_WX_*（跟云函数一致 —— `WX_` 前缀在 CloudBase 运行时会被平台盖掉）。
+  // 服务端仍然兜底读 WX_*，所以老写法也不会坏。
+  PULSE_WX_APPID: process.env.PULSE_WX_APPID || localEnv.WX_APPID || '',
+  PULSE_WX_APPSECRET: process.env.PULSE_WX_APPSECRET || localEnv.WX_APPSECRET || '',
   PORT: String(PORT),
   // 真机预览时手机要连电脑的局域网 IP —— 服务必须监听 0.0.0.0，
   // 只听 127.0.0.1 的话手机一定连不上（这是最常见的「本机行、手机不行」）。
