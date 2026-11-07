@@ -398,7 +398,8 @@ Image(this.tabBarCurrentIndex === index && item.selectedIconPath || item.iconPat
 换回修好的版本 → 全绿。**探针不是摆设。**
 
 **顺便出图**（给人看的，不参与断言）：设 `PULSE_SHOT_DIR` 会在量坐标的同一次渲染里
-多截一张图 —— `sheet-wide.png`（宽表）、`sheet-single.png`（一次一屏）。
+多截一张图 —— `sheet-wide.png`（宽表）、`sheet-wide-long.png`（宽表 ＋ 长姓名）、
+`sheet-single.png`（一次一屏）。
 
 ```bash
 cd pulse-record
@@ -406,6 +407,27 @@ PULSE_SHOT_DIR=/tmp/shots node scripts/e2e/sheet-layout-probe.mjs
 ```
 
 环境变量名与 `scripts/harmony-run.mjs` 一致，**别另起一个**。
+
+### 10.2 为什么「光量几何」不够（2026-11-07 实机教训）
+
+实机（微信小程序 webview）上还错开过一次，Chromium 探针却是全绿的。
+量完实机截图才发现：**带 `border-right` 的格子，边框被算进了盒模型** ——
+正文「部位+取法」两段只有 125.8rpx（应 128rpx）、日期格 169.8rpx（应 168rpx），
+而 84rpx 的数据格是准的。Chromium 的 `border-box` 本来就把它算在**内**，所以本地永远看不到。
+
+⇒ 探针补了两类断言：
+
+| 断言 | 抓什么 | 为什么不能省 |
+|---|---|---|
+| **查计算样式**（`border-right-width` 必须 0、`box-shadow` 必须带 `inset`） | 竖线被改回 `border` | 量「外宽」抓不到 —— Chromium 改回 border 后外宽仍是 84rpx |
+| **查 `scrollWidth`**（姓名的真实字宽） | 名字被硬切半个字 | 量元素盒宽抓不到 —— `overflow: hidden` 把盒宽钉住了 |
+
+**教训一句话**：**几何探针量的是「排版结果」，而排版结果里混着引擎的脾气；
+要盯住的是「产生排版的那条规则」** —— 所以断言得查**计算样式**，
+而不是只查量出来的坐标。
+
+`npm test` 里的 `taro-lint` 也留了对应的**源码级**断言（解析 SCSS 规则块查声明），
+这样默认回归就能挡住回归，不依赖需要 Chrome 的探针。
 
 > 为什么用浏览器而不是小程序模拟器：开发者工具的登录态会过期
 > （本轮实测 `cli auto` 直接报「需要重新登录」），没法进真实运行时。
