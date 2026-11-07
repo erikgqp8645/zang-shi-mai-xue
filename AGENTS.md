@@ -1088,15 +1088,18 @@ npm run test:e2e:harmony                     # 57 项：鸿蒙工程静态检查
 - 提交信息前缀：`feat:` 新功能 ｜ `fix:` 修 bug ｜ `docs:` 资料整理/笔记 ｜ `data:` 新增或更新原始资料 ｜ `chore:` 工具与配置 ｜ `ocr:` 识别文本落盘。正文用中文。
 - `data/` 内原始资料按用户要求纳入版本管理（PDF 66 MB 会使仓库体积明显增大；若后续要加入更多大文件，改用 Git LFS）。
 - 加工产物与原始资料分开提交，便于日后用新版本资料替换旧版本时不影响笔记历史。
-- **开发集中在一个分支（2026-11-04 起）**：小程序上线之前，新功能／修 bug／文档**一律在 `feat/wechat-miniprogram` 上做**，不要再切新分支。
-  - 该分支已包含 `chore/multi-user`（账号与数据隔离、共享包、小程序端、部署脚本、迁 CloudBase 规划）与 `chore/desktop-electron`（Windows 桌面应用全部实现）的内容 —— 两者都已是它的祖先。
-  - 桌面版与小程序共用同一份 `dist/` 与 `src/domain/` 知识库，**在同一条分支上改不会互相打架**；分开切反而容易让两边的 `package.json`／`.gitignore`／共享包编译产物分叉。
+- **两条长期开发线（2026-11-06 起）**：
+  - `feat/wechat-miniprogram` —— 小程序／鸿蒙／Windows 桌面端、多用户与 CloudBase 迁移这条线。该分支已包含 `chore/multi-user`（账号与数据隔离、共享包、小程序端、部署脚本、迁 CloudBase 规划）与 `chore/desktop-electron`（Windows 桌面应用全部实现）的内容 —— 两者都已是它的祖先。
+  - `feat/web-site` —— **网站端**这条线（`pulse-record/src/`，Vite ＋ React ＋ TS）。从 `feat/wechat-miniprogram` 的 `6ebc881` 切出。**网站端的改动一律在 `feat/web-site` 上做**，不要再混回小程序分支。
+  - 两条线**同源**（都基于 `6ebc881`），共用同一份 `src/domain/` 知识库与 `dist/`；改动不重叠时合并不会打架。
+  - ⚠️ 分开切的代价要认：两条线各自演进后，`package.json`／`.gitignore`／共享包编译产物**可能分叉**，合并时先对一遍这三个再合。
+  - ⚠️ `feat/wechat-miniprogram` 上**已包含**网站端 §3.17 那两个提交 —— 那部分**原样保留，不改写它的历史**（已推送的分支不做 force 回退）。`feat/web-site` 从 `6ebc881` 切出、带上这两个提交，之后**网站端的新改动一律走 `feat/web-site`**。
 - ⭐ **`feat/wechat-miniprogram` 永远不合并进 `main`（2026-11-06 维护者拍板）**：小程序这条线的全部工作 —— 微信端、鸿蒙端、Windows 桌面端、多用户与 CloudBase 迁移 —— **永久留在这条分支上**，**不向 `main` 合并、不向 `main` 开 PR**。
   - 这条比上面「小程序上线之前」的说法**更强** —— 不是「上线前不合」，而是**不合**。
   - `main` 保持为「原始资料库 ＋ 已合入的稳定工具」这条线；`feat/wechat-miniprogram` 是小程序/桌面端的**长期开发线**。
   - **PR #6（`chore/multi-user → main`）与 PR #7（`chore/desktop-electron → chore/multi-user`）保持 OPEN、既不合也不关**，且**不再以它们为目标开新 PR** —— 它们的提交都已是 `feat/wechat-miniprogram` 的祖先，合进去就等于把小程序线合进 `main`。
   - 因此「以后要不要把小程序线并回 `main`」这个问题**已关闭**，不必再问、也不必再准备合并方案。
-  - ⚠️ 推远端的正常操作仍照做：**在 `feat/wechat-miniprogram` 上提交并 `git push`** 到同名远端分支即可，不需要开 PR。
+  - ⚠️ 推远端的正常操作仍照做：**在 `feat/wechat-miniprogram` 上提交并 `git push`** 到同名远端分支即可，不需要开 PR。**网站端那条线同理** —— 在 `feat/web-site` 上提交并推同名远端分支，不开 PR。
 
 ## 维护提示
 
