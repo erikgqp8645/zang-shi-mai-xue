@@ -15,8 +15,13 @@
  *   ③ 在真实浏览器（Chrome 无头）里量每个格子的 `getBoundingClientRect()`；
  *   ④ 比对：**表头「左/右」行的列界** 与 **正文数据格的列界** 必须是同一组坐标。
  *
- * 浏览器内核与小程序的 webview 是同一套（Chromium），
- * 同一份 CSS ＋ 同一份 DOM → 同一套 flex 布局结果 —— 所以这里量出来的就是小程序里的布局。
+ * ⚠️ **别当它等于小程序里的布局**：Android 小程序的 webview 是 Chromium，
+ *    但 **iOS 小程序跑的是 WKWebView**，而且小程序自己的样式引擎对
+ *    「盒模型 / 最小尺寸 / rpx 换算」还有另一套处理 ——
+ *    2026-11-07 的「日期行逐列错开」就**在 Chromium 和 WKWebView 里都量不出来**，
+ *    只在小程序真机上出现。
+ *    ⇒ 这个探针守住的是**结构**（列界算术），**数值必须回真机量**。
+ *    想在 iOS 同引擎里对照，跑 `npm run test:e2e:sheet:webkit`。
  *
  * 用法：node scripts/e2e/sheet-layout-probe.mjs
  */
@@ -190,68 +195,9 @@ function compiledWxss() {
 /* ③ 在无头 Chrome 里量                                               */
 /* ------------------------------------------------------------------ */
 
-const PROBE = `
-<script>
-(function () {
-  const out = {}
-  const box = (sel) => Array.from(document.querySelectorAll(sel)).map((e) => {
-    const r = e.getBoundingClientRect()
-    return { l: Math.round(r.left * 100) / 100, r: Math.round(r.right * 100) / 100 }
-  })
-  out.headHand = box('.pr-thead-hand')
-  out.headDate = box('.pr-thead-date')
-  out.bodyCell = box('.pr-cell')
-  out.footCell = box('.pr-tfoot-cell')
-  out.headTop = box('.pr-thead')
-  out.bodyRow = box('.pr-row')
-  // 2026-11-07 实机错开后补测：各段的**外宽**与姓名格本身
-  out.headLead = box('.pr-thead-lead')
-  out.nameCell = box('.pr-thead-name')
-  out.nameText = box('.pr-thead-name-text')
-  out.organ = box('.pr-organ')
-  out.depth = box('.pr-depth')
-
-  // ⭐ 竖线必须用 inset box-shadow 画，不能用 border（2026-11-07 实机错开的根因）
-  //    —— 光量「外宽」在 Chromium 里抓不到回归（border-box 本来就对），
-  //    得直接查**计算样式**：border-right-width 必须是 0，box-shadow 必须带 inset。
-  const styleOf = (sel) => {
-    const el = document.querySelector(sel)
-    if (!el) return null
-    const cs = getComputedStyle(el)
-    return {
-      borderRightWidth: cs.borderRightWidth,
-      borderLeftWidth: cs.borderLeftWidth,
-      boxShadow: cs.boxShadow,
-      fontSize: cs.fontSize,
-      // ⭐ 文字的**真实内容宽**：元素盒宽被 overflow:hidden 钉住了，
-      //    量 getBoundingClientRect() 只会量到盒子，量不到字 —— 用 scrollWidth。
-      scrollWidth: el.scrollWidth,
-      overflow: cs.overflow,
-      textOverflow: cs.textOverflow,
-    }
-  }
-  out.style = {
-    cell: styleOf('.pr-cell'),
-    hand: styleOf('.pr-thead-hand'),
-    date: styleOf('.pr-thead-date'),
-    foot: styleOf('.pr-tfoot-cell'),
-    organ: styleOf('.pr-organ'),
-    depth: styleOf('.pr-depth'),
-    name: styleOf('.pr-thead-name'),
-    nameText: styleOf('.pr-thead-name-text'),
-  }
-
-  out.singleHead = (document.querySelector('.pr-single-head') || {}).textContent || ''
-  out.singleDate = (document.querySelector('.pr-single-date') || {}).textContent || ''
-  out.singleItems = Array.from(document.querySelectorAll('.pr-single-item')).map((e) => e.textContent)
-  out.singleChips = Array.from(document.querySelectorAll('.pr-single-chip')).map((e) => e.textContent)
-  const pre = document.createElement('pre')
-  pre.id = 'probe-result'
-  pre.textContent = JSON.stringify(out)
-  document.body.appendChild(pre)
-})()
-</script>
-`
+const PROBE = `<script>
+${readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'sheet-probe-script.js'), 'utf8')}
+</script>`
 
 function measure(html, shotPath) {
   const tmp = mkdtempSync(join(tmpdir(), 'sheet-probe-'))
@@ -303,6 +249,14 @@ text { display: inline; }
 
 console.log('=== 宽表（讲义 p34 少娟实例，6 次记录）===')
 const SHOT_DIR = process.env.PULSE_SHOT_DIR || ''
+// ⭐ 把渲染出来的页面落盘 —— WebKit 探针（scripts/e2e/sheet-layout-webkit-probe.mjs）
+//    要拿**同一份页面**去 iOS 同引擎（WKWebView）里再量一遍，
+//    才能比出「Chromium 与 WKWebView 的布局差异」。
+const HTML_OUT = process.env.PULSE_SHEET_HTML_OUT || ''
+if (HTML_OUT) {
+  writeFileSync(HTML_OUT, page(wide), 'utf8')
+  console.log(`  （页面已落盘：${HTML_OUT}）`)
+}
 const w = measure(page(wide), SHOT_DIR ? `${SHOT_DIR}/sheet-wide.png` : '')
 
 console.log('=== 宽表（长姓名「演示·郭丽君」）===')
@@ -315,8 +269,9 @@ const s = measure(page(single), SHOT_DIR ? `${SHOT_DIR}/sheet-single.png` : '')
 
 console.log('')
 ok('宽表：表头「左/右」行有 12 个格（6 次 × 左右）', w.headHand.length === 12, `实际 ${w.headHand.length}`)
-ok('宽表：表头日期 6 个', w.headDate.length === 6, `实际 ${w.headDate.length}`)
-ok('宽表：表下 12 个格（6 次 × 体质/疗法）', w.footCell.length === 12, `实际 ${w.footCell.length}`)
+// ⭐ 2026-11-07：日期改成「两个 84rpx 半格」，所以日期半格数 == 手格数
+ok('宽表：表头日期 12 个半格（6 次 × 2 个半格）', w.headDate.length === 12, `实际 ${w.headDate.length}`)
+ok('宽表：表下 24 个半格（2 行 × 6 次 × 2 个半格）', w.footCell.length === 24, `实际 ${w.footCell.length}`)
 ok('宽表：正文 9 行 × 12 格 = 108', w.bodyCell.length === 108, `实际 ${w.bodyCell.length}`)
 
 // 正文按行切开：9 行，每行 12 格
@@ -346,24 +301,64 @@ ok(
   new Set(rows[0].map((b, k) => Math.round((b.l - headLefts[k]) * 100) / 100)).size === 1,
 )
 
-// 日期格：右边界 == 该次就诊最后一列的右边界
+// 日期行：**每个日期拆成两个 84rpx 半格**（2026-11-07）
+// ⇒ 日期行与「左/右」行是**逐格一一对应**的：第 i 个日期半格的右边界
+//    必须等于第 i 个手格的右边界（不再有「一个日期格跨两列」的第二套算法）。
 const dateRights = w.headDate.map((b) => b.r)
-// 旧结构（容器内塞两个子格）下 headHand 只有 6 个 —— 这里要防越界，
-// **崩掉不算「失败」，得是一条条报出来**。
-const lastOfSession = w.headHand.length >= 12 ? [1, 3, 5, 7, 9, 11].map((i) => w.headHand[i].r) : []
+const handRights = w.headHand.map((b) => b.r)
 ok(
-  '日期格的右边界 == 对应那次的最后一列（右边界）',
-  lastOfSession.length === 6 && dateRights.every((v, i) => Math.abs(v - lastOfSession[i]) < 0.5),
-  `日期 ${dateRights.join(',')} / 左/右行 ${lastOfSession.join(',')}`,
+  '日期行的半格与表头「左/右」格**逐格对齐**（同一个 84rpx 宽度声明）',
+  w.headDate.length === w.headHand.length &&
+    w.headDate.length > 0 &&
+    dateRights.every((v, i) => Math.abs(v - handRights[i]) < 0.5),
+  `日期半格 ${dateRights.join(',')} / 左/右格 ${handRights.join(',')}`,
 )
 
-// 表下：每格右边界 == 表头日期格右边界
-// （表下是两行：第 1 行 6 个体质值、第 2 行 6 个疗法值 —— 所以是 i%6，不是 i/2）
+// 日期标签：文字**横跨两个半格**居中（绝对定位，不是溢出）
+// ⇒ 标签盒宽 == 2 × 84rpx，左边界 == 该次左半格的左边界
+const dateTextW = w.dateText.length ? w.dateText[0].r - w.dateText[0].l : 0
+const wantTextW = Math.round(168 * RPX * 100) / 100
+const textPairsOk =
+  w.dateText.length === w.headDate.length / 2 &&
+  w.dateText.every((t, i) => {
+    const l = w.headDate[i * 2].l
+    const r = w.headDate[i * 2 + 1].r
+    return Math.abs(t.l - l) < 0.5 && Math.abs(t.r - r) < 0.5
+  })
 ok(
-  '表下的列界与表头日期格对齐',
-  w.footCell.length === 12 &&
-    w.footCell.every((b, i) => Math.abs(b.r - dateRights[i % 6]) < 0.5),
+  '日期标签横跨「左＋右」两个半格（居中在这一次的正上方）',
+  textPairsOk && Math.abs(dateTextW - wantTextW) < 0.5,
+  `标签宽 ${dateTextW.toFixed(2)}px（期望 ${wantTextW}px）/ 标签数 ${w.dateText.length}`,
+)
+
+// 表下：每格右边界 == 表头日期半格右边界
+// （表下是两行：第 1 行体质值、第 2 行疗法值 —— 每行 12 个半格，所以是 i%12）
+ok(
+  '表下的列界与表头日期半格对齐',
+  w.footCell.length > 0 &&
+    w.footCell.length % dateRights.length === 0 &&
+    w.footCell.every((b, i) => Math.abs(b.r - dateRights[i % dateRights.length]) < 0.5),
   `表下右沿 ${w.footCell.map((b) => b.r).join(',')} / 日期右沿 ${dateRights.join(',')}`,
+)
+
+// 表下的值文字同样横跨两个半格
+// （表下是两行：每行 6 次就诊 × 2 个半格；值文字挂在每个 is-l 半格里 ⇒ 每行 6 个）
+const footTextPerRow = w.footText.length / 2
+const footCellPerRow = w.footCell.length / 2
+const footTextOk =
+  w.footText.length > 0 &&
+  w.footCell.length > 0 &&
+  w.footText.every((t, i) => {
+    const row = Math.floor(i / footTextPerRow)
+    const j = i % footTextPerRow
+    const l = w.footCell[row * footCellPerRow + j * 2].l
+    const r = w.footCell[row * footCellPerRow + j * 2 + 1].r
+    return Math.abs(t.l - l) < 0.5 && Math.abs(t.r - r) < 0.5
+  })
+ok(
+  '表下的值文字横跨两个半格（居中在这一次的正下方）',
+  footTextOk,
+  `值文字 ${w.footText.length} 个 / 表下格 ${w.footCell.length} 个`,
 )
 
 // 左缘：表头 lead 的右边界 == 正文「部位+取法」两列的右边界 == 第一个数据格的左边界
@@ -407,8 +402,10 @@ function widthOk(boxes, rpx, label) {
 for (const [label, boxes, rpx] of [
   ['正文数据格 84rpx', w.bodyCell, 84],
   ['表头「左/右」格 84rpx', w.headHand, 84],
-  ['表头日期格 168rpx', w.headDate, 168],
-  ['表下格 168rpx', w.footCell, 168],
+  // ⭐ 2026-11-07：日期/表下从「一个 168rpx 的整格」改成「两个 84rpx 半格」——
+  //    全表只剩 84rpx 一种数据列宽，列界只由「84rpx × N」决定。
+  ['表头日期半格 84rpx', w.headDate, 84],
+  ['表下格半格 84rpx', w.footCell, 84],
   ['部位列 64rpx', w.organ, 64],
   ['取法列 64rpx', w.depth, 64],
   ['表头姓名段 128rpx', w.headLead, 128],

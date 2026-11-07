@@ -438,15 +438,24 @@ export default function RecordSheet(props: RecordSheetProps) {
               </View>
             </View>
             <View className='pr-thead-cols'>
+              {/* 表头第一行：日期 —— **每个日期拆成两个 84rpx 半格**（2026-11-07）
+                  与表头「左/右」行、正文数据格共用同一个 84rpx 宽度声明，
+                  列界只由「84rpx × N」决定 —— 真机上的错开就是这么修掉的。
+                  标签文字用绝对定位横跨两个半格居中（详见 index.scss 的说明）。 */}
               <View className='pr-thead-dates'>
                 {headSessions.map((s) => (
-                  <View
-                    key={s.id}
-                    className={`pr-thead-date ${s.on ? 'is-on' : ''}`}
-                    onClick={() => onHeadTap(s.id)}
-                  >
-                    {s.label}
-                  </View>
+                  <Fragment key={s.id}>
+                    <View
+                      className={`pr-thead-date is-l ${s.on ? 'is-on' : ''}`}
+                      onClick={() => onHeadTap(s.id)}
+                    >
+                      <Text className='pr-thead-date-text'>{s.label}</Text>
+                    </View>
+                    <View
+                      className={`pr-thead-date is-r ${s.on ? 'is-on' : ''}`}
+                      onClick={() => onHeadTap(s.id)}
+                    />
+                  </Fragment>
                 ))}
               </View>
               {/* 表头第二行：「左 / 右」。
@@ -516,26 +525,38 @@ export default function RecordSheet(props: RecordSheetProps) {
               <View className='pr-tfoot-label'>疗法</View>
             </View>
             <View className='pr-tfoot-cols'>
+              {/* 表下两行 —— 同样拆成两个 84rpx 半格（2026-11-07）
+                  值文字横跨两个半格居中；组界由右半格的 2rpx 竖线画。 */}
               <View className='pr-tfoot-row'>
                 {headSessions.map((s) => (
-                  <View
-                    key={s.id}
-                    className={`pr-tfoot-cell ${s.on ? 'is-on' : ''}`}
-                    onClick={() => onConstitutionTap(s.id)}
-                  >
-                    {s.constitution || '（未判）'}
-                  </View>
+                  <Fragment key={s.id}>
+                    <View
+                      className={`pr-tfoot-cell is-l ${s.on ? 'is-on' : ''}`}
+                      onClick={() => onConstitutionTap(s.id)}
+                    >
+                      <Text className='pr-tfoot-cell-text'>{s.constitution || '（未判）'}</Text>
+                    </View>
+                    <View
+                      className={`pr-tfoot-cell is-r ${s.on ? 'is-on' : ''}`}
+                      onClick={() => onConstitutionTap(s.id)}
+                    />
+                  </Fragment>
                 ))}
               </View>
               <View className='pr-tfoot-row'>
                 {headSessions.map((s) => (
-                  <View
-                    key={s.id}
-                    className={`pr-tfoot-cell ${s.on ? 'is-on' : ''}`}
-                    onClick={() => onTherapyTap(s.id)}
-                  >
-                    {s.therapy || '（未定）'}
-                  </View>
+                  <Fragment key={s.id}>
+                    <View
+                      className={`pr-tfoot-cell is-l ${s.on ? 'is-on' : ''}`}
+                      onClick={() => onTherapyTap(s.id)}
+                    >
+                      <Text className='pr-tfoot-cell-text'>{s.therapy || '（未定）'}</Text>
+                    </View>
+                    <View
+                      className={`pr-tfoot-cell is-r ${s.on ? 'is-on' : ''}`}
+                      onClick={() => onTherapyTap(s.id)}
+                    />
+                  </Fragment>
                 ))}
               </View>
             </View>

@@ -114,8 +114,27 @@
   display: flex;
 }
 
+/* 表头第一行：日期 —— **每个日期拆成两个 84rpx 半格**（2026-11-07 修「日期行逐列错开」）
+ *
+ * ## 为什么不再用「一个 168rpx 的整格」
+ *
+ * 实机（微信小程序 iOS 模拟器）逐行量坐标的结论：
+ *   · 表头「左/右」行 ＝ 正文数据格 —— **完全一致**（都声明 84rpx）
+ *   · **只有日期行错**：组界实测在 323 / 478 / 633，期望 321 / 474 / 628，
+ *     每格累积偏 ~2.4rpx，越往右偏得越多（用户标注的 ① ② 就是这里）。
+ *
+ * 全表里，**出错的格子恰好只有「显式 width > 84rpx 且带 padding」的那两个**
+ * （`.pr-thead-date` 168rpx+padding、`.pr-tfoot-cell` 168rpx+padding）；
+ * 而 84rpx 且不带 padding 的格子（手行、正文数据格）在真机上**一列不差**。
+ *
+ * ⇒ 修法不是调数值，是**换写法**：日期也用**平铺的 84rpx 半格**，
+ * 「一个日期 = 两个半格」这个关系由**数量**决定，而不是由「声明一个 168rpx 的宽」决定。
+ * 于是全表只剩 **84rpx 一种宽度声明**（部位/取法 64rpx、姓名段靠 stretch 不声明 width），
+ * 列界只由「84rpx × N」这一套算术决定 —— 引擎没有插手余地。
+ *
+ * ⚠️ 别改回「一个 168rpx 的整格」：那是这次错开的直接原因。 */
 .pr-thead-date {
-  width: 168rpx;
+  width: 84rpx;
   flex: none;
   height: 56rpx;
   display: flex;
@@ -123,8 +142,36 @@
   justify-content: center;
   font-size: 24rpx;
   box-shadow: inset -1rpx 0 0 #000000;
-  padding: 0 4rpx;
+  /* 不带 padding —— 半格不需要内边距；带 padding 的格子在真机上宽度会多出来 */
+}
+
+/* 一次就诊的最右一列（组界）—— 竖线加粗成 2rpx，与表头「右」格同一位置、同一粗细 */
+.pr-thead-date.is-r {
+  box-shadow: inset -2rpx 0 0 #000000;
+}
+
+/* 日期标签 —— 文字横跨「左＋右」两个半格居中。
+ *
+ * 用绝对定位而不是「让文字溢出半格」：
+ *   · 绝对定位在左半格上，`left:0 + width:168rpx` 正好覆盖这一次的两个半格；
+ *   · 不依赖 flex 的溢出行为，也不受 padding / min-width 影响；
+ *   · `overflow:hidden + ellipsis` 兜底超长日期。 */
+.pr-thead-date.is-l {
+  position: relative;
+}
+
+.pr-thead-date-text {
+  display: block;
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 168rpx;
+  text-align: center;
+  line-height: 56rpx;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 表头第二行：「左 / 右」—— **与正文的数据格同构**（平铺的 84rpx 格）。
@@ -291,17 +338,45 @@
   height: 56rpx;
 }
 
+/* 表下格 —— **同样是两个 84rpx 半格**（2026-11-07）
+ *
+ * 表下格与表头日期格是同一类格子：原来是「168rpx + padding 的整格」，
+ * 在真机上宽度会多出来（表头日期行实测每格累积偏 ~2.4rpx）。
+ * 现在跟全表一样，只用 84rpx 一种宽度声明，组界靠「右半格的 2rpx 竖线」画。 */
 .pr-tfoot-cell {
-  width: 168rpx;
+  width: 84rpx;
   flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 24rpx;
-  box-shadow: inset -2rpx 0 0 #000000;
-  padding: 0 6rpx;
+  box-shadow: inset -1rpx 0 0 #000000;
   overflow: hidden;
   white-space: nowrap;
+}
+
+/* 一次就诊的最右一列（组界）—— 竖线加粗成 2rpx，与表头「右」格同一位置 */
+.pr-tfoot-cell.is-r {
+  box-shadow: inset -2rpx 0 0 #000000;
+}
+
+/* 表下格的值 —— 文字横跨「两个半格」居中（同日期标签的做法） */
+.pr-tfoot-cell.is-l {
+  position: relative;
+}
+
+.pr-tfoot-cell-text {
+  display: block;
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 168rpx;
+  text-align: center;
+  line-height: 56rpx;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 第 2 行（疗法）上方的分隔线 —— 第 1 行不用，上头已经有表的 border-top */

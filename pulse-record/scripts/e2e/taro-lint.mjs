@@ -455,15 +455,71 @@ if (existsSync(sheetFile)) {
     headHandW !== null && bodyCellW !== null && headHandW === bodyCellW,
     `表头 ${headHandW}rpx / 正文 ${bodyCellW}rpx`,
   )
+  /* ⭐ 2026-11-07：日期行从「一个 168rpx 的整格」改成「两个 84rpx 半格」。
+   *
+   * 实机（微信小程序 iOS 模拟器）逐行量坐标：
+   *   · 表头「左/右」行 ＝ 正文数据格 —— 完全一致（都声明 84rpx）
+   *   · 只有日期行错：组界实测 323/478/633，期望 321/474/628，每格累积偏 ~2.4rpx
+   * 全表出错的格子**恰好只有「显式 width > 84rpx 且带 padding」的那两个**
+   * （日期格、表下格）；84rpx 且不带 padding 的格子在真机上一列不差。
+   *
+   * ⇒ 修法是换写法：日期/表下也用平铺的 84rpx 半格，
+   *    「一次就诊占两列」由**数量**决定，而不是由「声明一个 168rpx 的宽」决定。
+   *    全表只剩 84rpx 一种数据列宽，列界只由「84rpx × N」决定。
+   *
+   * ⚠️ 这条在 Chromium 里是「白测」（Chromium 的 168rpx 也准）——
+   *    它的作用是**锁住写法**，别让人改回「一个 168rpx 的整格」。 */
   ok(
-    '表头「左/右」两个格 = 日期格一个（一次就诊占两列，两头对得上）',
-    headHandW !== null && headDateW !== null && headHandW * 2 === headDateW,
-    `${headHandW}×2 vs ${headDateW}`,
+    '表头日期的**半格**与手格、正文数据格同一个宽度声明（全表只一种数据列宽）',
+    headDateW !== null && headDateW === headHandW && headDateW === bodyCellW,
+    `日期半格 ${headDateW}rpx / 手格 ${headHandW}rpx / 正文 ${bodyCellW}rpx`,
   )
   ok(
-    '表下每格的宽度 = 一个日期格（表下的列界也对得上）',
-    footCellW !== null && headDateW !== null && footCellW === headDateW,
-    `表下 ${footCellW}rpx / 日期 ${headDateW}rpx`,
+    '表下的**半格**与手格同一个宽度声明',
+    footCellW !== null && footCellW === headHandW,
+    `表下 ${footCellW}rpx / 手格 ${headHandW}rpx`,
+  )
+  ok(
+    '表内不再有 168rpx 的整格（日期/表下都必须拆成半格）',
+    headDateW !== 168 && footCellW !== 168,
+    `日期 ${headDateW}rpx / 表下 ${footCellW}rpx`,
+  )
+  // 带 padding 的格子在真机上宽度会多出来 —— 半格一律不许带 padding
+  const paddedCells = ['.pr-thead-date', '.pr-tfoot-cell']
+    .map((sel) => [sel, scssRule(sheetScss, sel)])
+    .filter(([, body]) => /padding\s*:/.test(body))
+    .map(([sel]) => sel)
+  ok(
+    '日期格 / 表下格不带 padding（padding 会让真机宽度多出来）',
+    paddedCells.length === 0,
+    paddedCells.join(' / '),
+  )
+  // 标签文字靠绝对定位横跨两个半格 —— 不能靠「让文字溢出半格」
+  const dateTextRule = scssRule(sheetScss, '.pr-thead-date-text')
+  const footTextRule = scssRule(sheetScss, '.pr-tfoot-cell-text')
+  ok(
+    '日期标签 / 表下值用绝对定位横跨两个半格（不靠溢出）',
+    /position\s*:\s*absolute/.test(dateTextRule) &&
+      /width\s*:\s*168rpx/.test(dateTextRule) &&
+      /position\s*:\s*absolute/.test(footTextRule) &&
+      /width\s*:\s*168rpx/.test(footTextRule),
+    `日期标签 ${dateTextRule.replace(/\s+/g, ' ').slice(0, 80)}`,
+  )
+  ok(
+    '日期 / 表下的左半格是定位基准（position:relative）',
+    /position\s*:\s*relative/.test(scssRule(sheetScss, '.pr-thead-date.is-l')) &&
+      /position\s*:\s*relative/.test(scssRule(sheetScss, '.pr-tfoot-cell.is-l')),
+  )
+  // 组件侧：日期行必须真的渲染成「两个半格 + 一个跨格标签」
+  ok(
+    '组件把日期渲染成两个半格（is-l / is-r），标签挂在 is-l 上',
+    /pr-thead-date is-l/.test(sheet) &&
+      /pr-thead-date is-r/.test(sheet) &&
+      /pr-thead-date-text/.test(sheet),
+  )
+  ok(
+    '组件把表下格也渲染成两个半格（is-l / is-r）',
+    /pr-tfoot-cell is-l/.test(sheet) && /pr-tfoot-cell is-r/.test(sheet),
   )
 
   /* --------------------------------------------------------------------
@@ -486,6 +542,7 @@ if (existsSync(sheetFile)) {
   const verticalLineCells = [
     '.pr-thead-name',
     '.pr-thead-date',
+    '.pr-thead-date.is-r',
     '.pr-thead-hand',
     '.pr-thead-hand.is-r',
     '.pr-organ',
@@ -493,6 +550,7 @@ if (existsSync(sheetFile)) {
     '.pr-cell',
     '.pr-tfoot-label',
     '.pr-tfoot-cell',
+    '.pr-tfoot-cell.is-r',
   ]
   const borderUsers = []
   const shadowUsers = []
