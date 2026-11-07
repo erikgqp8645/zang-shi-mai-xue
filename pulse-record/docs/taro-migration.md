@@ -397,6 +397,16 @@ Image(this.tabBarCurrentIndex === index && item.selectedIconPath || item.iconPat
 **探针本身也要验**：把两个文件 `git checkout` 回带 bug 的版本重跑 → 应当报出多条失败；
 换回修好的版本 → 全绿。**探针不是摆设。**
 
+**顺便出图**（给人看的，不参与断言）：设 `PULSE_SHOT_DIR` 会在量坐标的同一次渲染里
+多截一张图 —— `sheet-wide.png`（宽表）、`sheet-single.png`（一次一屏）。
+
+```bash
+cd pulse-record
+PULSE_SHOT_DIR=/tmp/shots node scripts/e2e/sheet-layout-probe.mjs
+```
+
+环境变量名与 `scripts/harmony-run.mjs` 一致，**别另起一个**。
+
 > 为什么用浏览器而不是小程序模拟器：开发者工具的登录态会过期
 > （本轮实测 `cli auto` 直接报「需要重新登录」），没法进真实运行时。
 > 而布局是纯 CSS —— 同一份 DOM ＋ 同一份样式，在 Chromium 里量出来的就是小程序里的布局
