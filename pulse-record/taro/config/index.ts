@@ -176,9 +176,15 @@ export default defineConfig(async (merge) => {
       'process.env.PULSE_TRANSPORT': JSON.stringify(
         process.env.PULSE_TRANSPORT || (isHarmony ? 'request' : 'cloud'),
       ),
-      /** CloudBase 环境 id（wx.cloud.init 用） */
+      /**
+       * CloudBase 环境 id（wx.cloud.init 用）
+       *
+       * ⚠️ 默认值必须与 `src/utils/config.ts` 里的 `CLOUD_ENV_ID` 保持一致，
+       * 且必须指向**当前在用的**环境 —— 指着一个已销毁的环境 id，
+       * 报错会延迟到第一次 `callFunction` 才出现，表现为「云通道怎么都不通」。
+       */
       'process.env.PULSE_CLOUD_ENV': JSON.stringify(
-        process.env.PULSE_CLOUD_ENV || 'ambitious-parrot-d7ehh7x0fd9d680',
+        process.env.PULSE_CLOUD_ENV || 'pulse-1-d0g880ydl8ddc57f6',
       ),
     },
 

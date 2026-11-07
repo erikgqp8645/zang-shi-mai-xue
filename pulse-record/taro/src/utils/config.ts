@@ -62,9 +62,16 @@ export const CLOUD_FUNCTION_NAME = 'pulse-api'
  * CloudBase 环境 id（`wx.cloud.init` 用）
  *
  * 编译期注入（`PULSE_CLOUD_ENV`），不注入就用下面这个默认值 ——
- * 即 `ambitious-parrot` 环境（ap-shanghai）。
+ * 即 `pulse-1` 环境（ap-shanghai，PostgreSQL 后端）。
+ *
+ * ⚠️ **默认值必须指向当前在用的环境**：
+ * 写死一个**已销毁**的环境 id，`wx.cloud.init` 照样「成功」（它不报错），
+ * 错误要到第一次 `callFunction` 才抛 `-501000 Environment not found` ——
+ * 表现是「云通道怎么都不通」，但根因只是这行字写旧了。
+ * （2026-11-07 实测踩过：默认值还指着已销毁的 `ambitious-parrot`，
+ *  于是「PG 环境小程序用不了」这个结论，一直建立在一个**从没测过 `pulse-1`** 的观测上。）
  */
-export const CLOUD_ENV_ID = process.env.PULSE_CLOUD_ENV || 'ambitious-parrot-d7ehh7x0fd9d680'
+export const CLOUD_ENV_ID = process.env.PULSE_CLOUD_ENV || 'pulse-1-d0g880ydl8ddc57f6'
 
 /**
  * 规范化一个地址：只认 http/https，去掉末尾斜杠

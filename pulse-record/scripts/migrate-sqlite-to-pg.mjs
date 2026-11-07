@@ -12,7 +12,7 @@
  *     export TCLOUD_SECRET_ID=...
  *     export TCLOUD_SECRET_KEY=...
  *     export TCLOUD_SESSION_TOKEN=...      # 用临时凭证时带上
- *     export PULSE_ENV_ID=ambitious-parrot-d7ehh7x0fd9d680
+ *     export PULSE_ENV_ID=pulse-1-d0g880ydl8ddc57f6
  *
  *     node scripts/migrate-sqlite-to-pg.mjs --dry-run     # 只看计划，不动 PG
  *     node scripts/migrate-sqlite-to-pg.mjs                # 真搬
@@ -46,7 +46,7 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(HERE, '..')
 const require = createRequire(import.meta.url)
 
-const ENV_ID = process.env.PULSE_ENV_ID || 'ambitious-parrot-d7ehh7x0fd9d680'
+const ENV_ID = process.env.PULSE_ENV_ID || 'pulse-1-d0g880ydl8ddc57f6'
 const MIGRATE_FN = 'pulse_migrate_import'
 
 /* ------------------------------ 参数 ------------------------------ */

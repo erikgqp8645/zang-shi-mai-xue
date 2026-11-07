@@ -56,7 +56,7 @@ import { callTcb } from './lib/tcb-capi.mjs'
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(HERE, '..')
 
-const ENV_ID = process.env.PULSE_ENV_ID || 'ambitious-parrot-d7ehh7x0fd9d680'
+const ENV_ID = process.env.PULSE_ENV_ID || 'pulse-1-d0g880ydl8ddc57f6'
 const FUNCTION_NAME = process.env.PULSE_FUNCTION_NAME || 'pulse-api'
 const SECRETS_FILE = resolve(ROOT, '.secrets', 'server.env')
 

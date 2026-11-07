@@ -11,7 +11,7 @@
  *
  * ## 跑法
  *
- *     export PULSE_CB_ENV=ambitious-parrot-d7ehh7x0fd9d680
+ *     export PULSE_CB_ENV=pulse-1-d0g880ydl8ddc57f6
  *     export PULSE_CB_SECRET_ID=...        # 或用平台注入的 TENCENTCLOUD_SECRETID
  *     export PULSE_CB_SECRET_KEY=...
  *     export PULSE_CB_SESSION_TOKEN=...

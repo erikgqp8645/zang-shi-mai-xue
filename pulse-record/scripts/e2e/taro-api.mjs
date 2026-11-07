@@ -353,7 +353,12 @@ globalThis.wx = {
 
 c.check(
   '模拟：云初始化照样「成功」（环境没关联时就是这样）',
-  mod.cloud.initCloud('ambitious-parrot-d7ehh7x0fd9d680') === true,
+  mod.cloud.initCloud(config.CLOUD_ENV_ID) === true,
+)
+c.check(
+  '默认云环境 id 指向当前在用的环境（写死了已销毁的环境 → 云通道怎么都不通）',
+  config.CLOUD_ENV_ID === 'pulse-1-d0g880ydl8ddc57f6',
+  config.CLOUD_ENV_ID,
 )
 c.check('一开始云通道是通的', mod.cloud.cloudAvailable() === true)
 
