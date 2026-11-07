@@ -49,7 +49,7 @@ export const API_BASE_KEY = 'pulse.apiBase'
  * —— 鸿蒙没有 `wx.cloud`（见 platform/cloud.ts）。
  *
  * **运行时还有一层兜底**：云开发没初始化成功时，api.ts 会自动退回 'request'
- * （见 `utils/api.ts` 的 request()）。这样「微信后台还没关联 CloudBase 环境」
+ * （见 `utils/api.ts` 的 request()）。这样「云通道在这个小程序里不可用」
  * 时小程序仍然能用，而不是整屏报错。
  */
 export const TRANSPORT: 'request' | 'cloud' =

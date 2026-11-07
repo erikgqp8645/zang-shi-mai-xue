@@ -44,7 +44,7 @@ let cloudError = ''
  * **必须在第一次 callFunction 之前调** —— `wx.cloud.callFunction` 依赖 init 过的云上下文。
  *
  * 失败不抛异常：调用方（api.ts）会**自动退回 request 传输**，
- * 这样「环境还没关联」时小程序仍然能用（连本地服务器），而不是整屏报错。
+ * 这样「云通道不可用」时小程序仍然能用（连本地服务器），而不是整屏报错。
  *
  * @param env CloudBase 环境 id
  * @returns 是否可用
@@ -111,7 +111,7 @@ export function describeCloudError(raw: string): string {
   const msg = String(raw ?? '')
   if (!msg) return '云调用失败'
   if (/Environment not found|INVALID_ENV|-501000/i.test(msg)) {
-    return '云环境还没关联本小程序（CloudBase 环境未授权这个 appid），暂时改走直连'
+    return '云环境在这个小程序里不可用（没关联，或环境 id 写错／已销毁），暂时改走直连'
   }
   if (/function not exist|FUNCTIONS_NOT_FOUND|-501005/i.test(msg)) {
     return '云函数不存在（还没部署或名字不对），暂时改走直连'
