@@ -14,7 +14,7 @@
 | **P0 多用户与数据隔离** | ✅ 已完成 | `users`＋`identities`＋`sessions` 三表；四张业务表下沉 `owner_id`；跨用户一律 404 | 随 `feat/wechat-miniprogram` 走，**不单独合进 `main`** |
 | **P1 网站上线** | ⏸ **卡在用户侧手续** | 脚本与文档已就绪，**域名／ICP 备案／服务器三样都没有** | 备案 7~20 工作日是整条时间线最长的一段 → **今天就去提交备案** |
 | **P2 微信小程序** | 🟡 **已迁 Taro ＋ 界面重排完成**；模拟器逐页截图已验，未真机验证 | 8 个平级页面 → **4 个 tab（病例／就诊／用方／我的）**，「就诊」是工作台页（吸顶上下文条 ＋ **4 个页内 tab（摸脉／体质／疗法／方药）** ＋ 底部操作条）；Taro 4.3.2 ＋ React 18，与网站**共用同一份 domain 源码**；鸿蒙 C-API 编译已通；**寸关尺关系图直接显示在页面上**（不提供导出 → 隐私接口 0 个）；微信「代码质量」两条已修（JS 压缩已开、图片 298 KB → 116.3 KB）；回归 **516 项全绿**（含网站端浏览器回归 28 项） | 真机跑一遍（备案前先用局域网 IP） |
-| **P3 后期迁 CloudBase** | 🟡 **云端已建成**（开发／试用环境） | 环境 `pulse-1-d0g880ydl8ddc57f6`（ap-shanghai 体验版）：PG 7 表 ＋ **35 个 `pulse_*` 函数**、云函数 `pulse-api`（**Event 类型**）、网关 `/pulse-api`、静态托管已上线；网站与小程序**同一套路由**（`handleApi`）；数据已从本机 SQLite 搬过去（29 患者／113 就诊／1 用药），**三条 owner 不变量全 0** | ① **实测云通道通不通**（账号级关联已完成，`WxAppId` 已有值；此前「PG 接不进小程序」的结论已更正，见 §3.18）② 换自定义域名（默认域名只许开发测试，有「风险提醒中间页」）③ 备案 |
+| **P3 后期迁 CloudBase** | 🟡 **云端已建成**（开发／试用环境） | 环境 `pulse-1-d0g880ydl8ddc57f6`（ap-shanghai 体验版）：PG 7 表 ＋ **35 个 `pulse_*` 函数**、云函数 `pulse-api`（**Event 类型**）、网关 `/pulse-api`、静态托管已上线；网站与小程序**同一套路由**（`handleApi`）；数据已从本机 SQLite 搬过去（29 患者／113 就诊／1 用药），**三条 owner 不变量全 0** | ① ✅ **云通道已实测跑通**（§3.19：真实微信运行时里 `callFunction` → 200，`db: CloudBase PostgreSQL`）② 换自定义域名（默认域名只许开发测试，有「风险提醒中间页」）③ 备案 —— **备案是小程序的前置吗？不是**：云通道走微信内部通道，不受 request 白名单约束；备案是**网站端**的前置 |
 | **P4 Windows 桌面应用** | ✅ **已实现**，本机出包并实测 | Electron 44.10.2；复用现有 `server/`＋`dist/`，业务逻辑不重写 | 交给使用者安装使用；macOS 包另找 Mac 机器补 |
 | **P5 鸿蒙端** | 🟡 **已出 HAP**，未实测 | 同一套 Taro 源码走 `harmony_cpp`（C-API）；`pulse-record/harmony/` 是工程真源，编译时镜像到纯 ASCII 路径；9.1 MB unsigned 包 | DevEco 里下模拟器镜像 → 打开镜像目录 Run → 验四个 tab |
 
@@ -1282,6 +1282,66 @@ runtime 把 `uid` 改成用户值 → hydrate 时 `node.uid !== node.sid` → `d
 > 任何没注入 `PULSE_CLOUD_ENV` 的 cloud 构建**必然** `-501000` ——
 > 这才是「云通道怎么都不通」的真实原因，而不是什么 PG 环境限制。
 
+### 3.19 实测：PG 在小程序里**完全可行**（2026-11-07，已用真实微信运行时验证）
+
+**§3.18 那条「待实测」的未知数已经落地。** 用**开发者工具的自动化端口**进真实运行时真调，
+不靠推断：
+
+```bash
+/Applications/wechatwebdevtools.app/Contents/MacOS/cli auto \
+  --project "pulse-record/taro/dist" --auto-port 9420 --trust-project
+# 再用 miniprogram-automator 连 ws://127.0.0.1:9420，在 app service 上下文里调
+```
+
+**① 直接调云函数：**
+
+```json
+{ "steps": ["wx.cloud 存在 ✅", "wx.cloud.init 没抛错", "callFunction 成功 ✅"],
+  "payload": { "ok": true, "result": { "statusCode": 200,
+    "body": "{\"ok\":true,\"db\":\"CloudBase PostgreSQL\",\"mode\":\"multi\",\"sessionTtlDays\":30}" } } }
+```
+
+**② 走 app 自己的代码路径读界面（「我的」页，`useDidShow` 自动发真实请求）：**
+
+| 界面行 | 读数 |
+|---|---|
+| 登录名 | `guoguo` |
+| 模式 | **多用户模式（按账号隔离）** |
+| 存储位置 | **CloudBase PostgreSQL** |
+| **传输方式** | **云函数（callFunction）** |
+| 当前连接 | `https://pulse-1-…app.tcloudbase.com/pulse-api`（**只是兜底地址**，云通道通时用不到） |
+
+**③ 旁证 —— 微信侧自己的 CLI 也认这个环境：**
+
+```bash
+cli cloud env list      --project pulse-record/taro/dist   # → * pulse-1-d0g880ydl8ddc57f6
+cli cloud functions list --project pulse-record/taro/dist --env pulse-1-d0g880ydl8ddc57f6  # → * pulse-api
+```
+
+#### 结论与影响
+
+| # | 结论 |
+|---|---|
+| 1 | ✅ **官方文档 `pg/mp` 是对的**，官方 FAQ 那句「腾讯云侧创建的环境暂时只支持开发 Web 端」在本环境上**不成立** |
+| 2 | ✅ **`wx.cloud.callFunction` 这条路就够** —— **不需要** `rdb()` 直连、**不需要**建 RLS、**不需要**重写数据层 |
+| 3 | ✅ **ICP 备案不再是小程序的前置** —— 云通道走微信内部通道，不受 request 合法域名约束。备案仍是**网站端**的前置 |
+| 4 | ✅ 现有 35 个 `pulse_*` PG 函数 ＋ 云函数 `pulse-api` 的架构**原封不动可用** |
+| 5 | ⚠️ **「我的」页的「当前连接」只是兜底地址** —— 云通道通的时候它根本不会被用到；它指向的网关域名仍未备案，所以**不能**拿它当正式版的 request 通路 |
+
+#### 两个实测踩到的坑（记下来，别再踩）
+
+| 坑 | 现象 | 正解 |
+|---|---|---|
+| 在运行时里忙等回调 | `evaluate` 直接 `timeout waiting for automator response` | 小程序运行时**单线程**，忙等把事件循环堵死 → 必须 `async/await` 等回调 |
+| H5 预览插件启动即挂 | `app.js 执行失败：global is not defined` | Taro runtime 的浏览器垫片里有 `Object.getOwnPropertyNames(global\|\|{})` —— `\|\|` 挡不住**未声明**标识符，浏览器里 `global` 未声明就抛 ReferenceError。**微信运行时有 `global`，真机不受影响**（用户自己的开发者工具截图已证）。⚠️ 且该插件**不提供云能力**，测不了 `wx.cloud` |
+
+#### 顺带查出一个真缺口（网站端，与小程序无关）
+
+云函数环境变量里**没有 `PULSE_CORS_ORIGINS`**（`server/index.mjs:162` 读它）→
+网关**不回 `Access-Control-Allow-Origin`**（curl 实测：`OPTIONS` 预检 204 但无该头）。
+→ **网站端一旦部署到静态托管（`*.tcloudbaseapp.com`）再跨域调网关（`*.app.tcloudbase.com`），会被浏览器拦。**
+网站端还没上线（静态托管是空的），所以**不紧急，但别忘了**。
+
 ## 4. P3 · 迁 CloudBase（🟡 云端已建成，开发／试用环境）
 
 **目标**：网站跑静态托管、API 跑云函数、数据存 **PostgreSQL**、小程序走 `wx.cloud.callFunction`（不走合法域名校验）。
@@ -1483,7 +1543,7 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 优先级 | 事项 | 为什么急 |
 |---|---|---|
 | 🔴 1 | **域名注册 → 个人实名 → 提交 ICP 备案** | 7~20 工作日，是整条时间线最长的一段；不今天提交，后面小程序、CloudBase 全在等。**且自定义域名是 CloudBase 默认域名的唯一出路**（默认域名只许开发测试，有「风险提醒中间页」，流量异常还可能被风控关停） |
-| 🔴 1b | ~~**微信侧把 CloudBase 环境关联到小程序 appid**~~ → 改成「**实测云通道通不通**」 | ✅ **账号级关联已完成**（`pulse-1-d0g880ydl8ddc57f6` 的 `UserInfo.WxAppId = wx3a21eb903a16cbc4`，`DescribeEnvs` 实测）。⚠️ **但账号级关联 ≠ 微信侧 `wx.cloud` 认这个环境** —— 这件事**还没实测**（此前那条「PG 接不进小程序」的结论是错的，见 §3.18）。→ **现在只需在开发者工具里点一次「编译」**，看「我的」页「传输方式」那行（步骤见 `docs/miniprogram-release-checklist.md` §2.7）。**若走通了，ICP 备案就不是小程序的前置了**（云通道不走 request 合法域名） |
+| ✅ 1b | ~~**微信侧把 CloudBase 环境关联到小程序 appid**~~ | ✅ **已完成并实测跑通** —— 账号级关联 11-06 就做完了（`UserInfo.WxAppId = wx3a21eb903a16cbc4`）；2026-11-07 在**真实微信运行时**里 `wx.cloud.callFunction` → **200**（`db: CloudBase PostgreSQL`），「我的」页「传输方式」＝**云函数（callFunction）**。详见 §3.19 |
 | 🔴 2 | ~~**后台声明《用户隐私保护指引》两项隐私类型**~~ | ✅ **2026-11-05 已不需要** —— 小程序不提供导出，隐私接口降到 **0 个**，后台**一项都不用勾**（详见 §3.11）。剩下要填的只有「用户信息收集」那一栏（用户输入内容／账号信息，见上线清单 §1.3） |
 | 🔴 2c | **填运营者主体与联系邮箱** | 隐私政策**第八**节现在是占位文字（`运营者：（待填写）`），审核会看 |
 | 🟡 2b | 注册微信小程序（个人主体）→ 填真实 AppID | ✅ 已完成（`wx3a21eb903a16cbc4`）；开发者工具需登录对应管理员微信号才能预览／上传 |

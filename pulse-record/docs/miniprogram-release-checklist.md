@@ -13,8 +13,8 @@
 | AppID | ✅ 已填：`wx3a21eb903a16cbc4`（Taro 工程与原生回退版两处一致） |
 | 默认 API 地址 | ✅ 已支持编译期注入（`PULSE_API_BASE`），上线包不用改源码 |
 | 传输方式 | ✅ 微信端默认 **`TRANSPORT='cloud'`**（`wx.cloud.callFunction`）—— **不受 request 合法域名约束**；鸿蒙端强制 `'request'`（鸿蒙没有 `wx.cloud`） |
-| **CloudBase 环境关联小程序** | 🟡 **账号级关联已完成**，**云通道通不通待实测** —— 环境 `pulse-1-d0g880ydl8ddc57f6` 的 `UserInfo.WxAppId = wx3a21eb903a16cbc4`（已关联）。**此前记的「`-501000` ⇒ PG 用不了」是错的**，已更正，见 §2.5 |
-| 服务器域名 | ☐ 走 cloud 路线**不需要**；只有改走 `TRANSPORT='request'` 才要等 ICP 备案 |
+| **CloudBase 环境关联小程序** | ✅ **已关联，且云通道实测跑通** —— 环境 `pulse-1-d0g880ydl8ddc57f6`（`UserInfo.WxAppId = wx3a21eb903a16cbc4`）。2026-11-07 在**真实微信运行时**里调 `wx.cloud.callFunction` → **200**（`db: CloudBase PostgreSQL`）；「我的」页「传输方式」＝**云函数（callFunction）**。**此前记的「`-501000` ⇒ PG 用不了」是错的**，见 §2.5／§2.7 |
+| 服务器域名 | ✅ **小程序不需要** —— 云通道走微信内部通道，不受 request 合法域名约束（§2.7 实测）。只有改走 `TRANSPORT='request'` 才要等 ICP 备案 |
 | 微信后台隐私指引 | ⬜ **不用勾任何隐私类型** —— 代码里一个隐私接口都不调（但「用户信息收集」那一栏还要如实填，见 §1.3） |
 | 第三方 SDK 声明 | ⬜ 走 cloud 路线**要**声明「腾讯云 CloudBase」（见 §1.4） |
 | 运营主体与联系方式 | ⬜ 隐私政策里是占位文字，要你填 |
@@ -122,7 +122,7 @@ PULSE_API_BASE=https://<你的备案域名> npm run mp:taro:build
 
 ---
 
-## 2.5 关联 CloudBase 环境（🟡 账号级关联已做完；⬜ **云通道通不通要实测**）
+## 2.5 关联 CloudBase 环境（✅ **已完成**；实测结果见 §2.7）
 
 > **2026-11-07 复核 —— 此前记的那条结论是错的，已更正。**
 >
@@ -143,6 +143,11 @@ PULSE_API_BASE=https://<你的备案域名> npm run mp:taro:build
 > 「在微信侧创建的环境，可支持开发小程序端和 Web 端；而在**腾讯云侧创建的环境暂时只支持开发 Web 端**」。
 > 本环境 `EnvChannel = qc_console`（腾讯云侧创建）→ 落在后半句。
 > **两处官方文档打架时，不能靠推断，只能跑一次看结果** —— 见 §2.7。
+>
+> ✅ **实测结果（2026-11-07）：我们这边是通的** —— 在真实微信运行时里，
+> `wx.cloud.callFunction` 对 `pulse-1` 返回 **200**（`db: CloudBase PostgreSQL`），
+> 「我的」页「传输方式」＝**云函数（callFunction）**。
+> **官方 FAQ 那句「腾讯云侧创建的环境暂时只支持开发 Web 端」，在本环境上不成立。**
 >
 > **没有公开 API 能代劳**（已穷举 CloudBase 管控面全部 Action：
 > `ModifyEnv` 虽然认 `WxAppId` 参数，但没做过账号级绑定时它是空操作，读回来仍是空）。
@@ -179,6 +184,10 @@ PULSE_API_BASE=https://<你的备案域名> npm run mp:taro:build
 > 「转换」是把腾讯云侧环境收编成小程序**自己的**环境，
 > 而官方文档给的 `wx.cloud.init({ env })` ＋ `rdb()` **是直接按环境 id 连**，不经过转换。
 > 两条路是不是真的互不相干，**只能实测**（§2.7）。
+>
+> ✅ **实测结论（2026-11-07）：转换这一步其实可以整个跳过** ——
+> 账号级关联做完之后，`wx.cloud.callFunction` 直接就能用 `pulse-1`，
+> **不需要转换、不需要 `rdb()` 直连**。§2.5.2 的转换入口**可以不用去点了**。
 >
 > **另一条更快的路（不依赖入口，见 §2.6）**：改走 `TRANSPORT='request'` ＋ 网关地址，
 > 当场就能连上云端的真数据 —— 但**只适用于开发调试**，正式版仍会被微信的域名白名单拦。
@@ -323,41 +332,92 @@ npm --prefix taro run build:weapp
 
 ---
 
-## 2.7 ⭐ 实测：PG 在小程序里到底通不通（**当前唯一没被实测过的未知数**）
+## 2.7 ✅ 实测结果：PG 在小程序里**完全可行**（2026-11-07）
 
-**这是还能改变整条时间线的唯一未知数。**
-官方文档说支持（`pg/mp`：微信小程序访问 CloudBase PostgreSQL），
-官方 FAQ 说不支持（腾讯云侧创建的环境「暂时只支持开发 Web 端」）——
-**两处官方文档打架，只能跑一次看结果，不能靠推断。**
+> **结论先行**：官方文档是对的，此前仓库里那条「PG 环境接不进小程序云开发」是错的。
+> **小程序 → `wx.cloud.callFunction` → 云函数 `pulse-api` → CloudBase PostgreSQL，
+> 这条路在真实微信运行时里跑通了。**
+> → **ICP 备案不再是小程序的前置**（云通道走微信内部通道，不受 request 合法域名约束）。
 
-**测法：一条命令 ＋ 点一次「编译」，约 2 分钟。**
+### 2.7.1 怎么测的（可复现）
+
+**用开发者工具的自动化端口，进真实运行时里调**，不是靠推断：
 
 ```bash
-cd pulse-record
-PULSE_TRANSPORT=cloud \
-PULSE_CLOUD_ENV=pulse-1-d0g880ydl8ddc57f6 \
-PULSE_API_BASE="https://pulse-1-d0g880ydl8ddc57f6-1257312696.ap-shanghai.app.tcloudbase.com/pulse-api" \
-npm --prefix taro run build:weapp
+# ① 开自动化端口（会复用已开着的 IDE）
+/Applications/wechatwebdevtools.app/Contents/MacOS/cli auto \
+  --project "<仓库>/pulse-record/taro/dist" --auto-port 9420 --trust-project
+
+# ② 用 miniprogram-automator 连上去，在 app service 上下文里真调一次
+node probe.cjs
 ```
 
-> ✅ **这份包已经编好了** —— `pulse-record/taro/dist` 现在就是它，
-> 在开发者工具里直接点「编译」即可（不用重编）。
+`probe.cjs` 在运行时里做的事，就是 app 自己那套：
 
-然后：
+```js
+wx.cloud.init({ env: 'pulse-1-d0g880ydl8ddc57f6', traceUser: false })
+await wx.cloud.callFunction({
+  name: 'pulse-api',
+  data: { path: '/api/health', method: 'GET', body: null, token: '' },
+})
+```
 
-1. 微信开发者工具打开 `pulse-record/taro/dist` → 点「**编译**」
-2. 看 Console 有没有 `cloud.callFunction:fail ... Environment not found`
-3. 进「我的」页 → 「**测试连接**」→ 看「**传输方式**」那一行
+> ⚠️ **在运行时里等回调必须用 `async/await`** ——
+> 小程序运行时是**单线程**的，忙等会把事件循环堵死，云调用的回调永远排不上队
+> （第一版探针就栽在这儿，`evaluate` 直接超时）。
 
-**三种结果，三种走法**：
+### 2.7.2 实测输出
 
-| 结果 | 说明 | 下一步 |
-|---|---|---|
-| 「**云函数**」＋「连接正常（多用户模式）」 | ✅ **云通道通了** | 现有架构原封不动可用（云函数 → 35 个 PG 函数）；**小程序不再需要 ICP 备案**；§3 里的域名／备案项从「小程序前置」里划掉 |
-| 「**直连（云通道不可用：…）**」，括号里是 `-501000` | ❌ 这个环境在微信侧**不可见**，`callFunction` 这条路死 | 改试官方 `rdb()` 直连（见下） |
-| 「**直连（云通道不可用：…）**」，括号里是别的错 | 云函数本身有问题 | 查 `pulse-api` 的云端日志 |
+**① 直接在运行时里调云函数：**
 
-**如果 `callFunction` 不通，再试官方 `rdb()` 直连。**
+```json
+{
+  "steps": ["wx.cloud 存在 ✅", "wx.cloud.init 没抛错", "callFunction 成功 ✅"],
+  "payload": {
+    "ok": true,
+    "result": {
+      "statusCode": 200,
+      "body": "{\"ok\":true,\"db\":\"CloudBase PostgreSQL\",\"mode\":\"multi\",\"sessionTtlDays\":30}"
+    }
+  }
+}
+```
+
+**② 走 app 自己的代码路径（`reLaunch` 到「我的」页，让它自动发真实请求），读界面上的行：**
+
+| 界面行 | 读数 |
+|---|---|
+| 登录名 | `guoguo` |
+| 身份 | 普通用户 |
+| 模式 | **多用户模式（按账号隔离）** |
+| 存储位置 | **CloudBase PostgreSQL** |
+| **传输方式** | **云函数（callFunction）** |
+| 当前连接 | `https://pulse-1-…app.tcloudbase.com/pulse-api`（**只是兜底地址**，云通道通的时候不会用到它） |
+
+### 2.7.3 旁证：微信侧自己的 CLI 也认这个环境
+
+```bash
+cli cloud env list --project "<仓库>/pulse-record/taro/dist"
+#   * pulse-1-d0g880ydl8ddc57f6        ← 在小程序的环境列表里
+
+cli cloud functions list --project "<仓库>/pulse-record/taro/dist" --env pulse-1-d0g880ydl8ddc57f6
+#   * pulse-api                        ← 微信侧也能看到这个云函数
+```
+
+### 2.7.4 为什么之前会判错（教训）
+
+| 之前记的 | 实情 |
+|---|---|
+| 「`-501000` ⇒ PG 接不进小程序」 | 那次观测的对象是**已销毁**的 `ambitious-parrot`；`pulse-1` **从没被测过** |
+| 「`UserInfo` 为空 ⇒ 没关联」 | `WxAppId = wx3a21eb903a16cbc4`，账号级关联 11-06 就做完了 |
+| 「转换入口提示『暂不支持选择 PostgreSQL 环境』⇒ PG 不能用」 | 那是**转换入口**的限制，与运行时怎么连是两回事 |
+
+**真正的阻断不是 PG，是「默认值写着一个已销毁的环境 id」** —— 修掉之后一次就通。
+
+### 2.7.5 备查：万一将来云通道又不通（`rdb()` 直连）
+
+<details>
+<summary>官方文档那条 `rdb()` 直连怎么接（**当前用不上，留作备查**）</summary>
 
 ```bash
 cd pulse-record/taro
@@ -373,15 +433,16 @@ const db = init(wx.cloud).rdb()
 const { data } = await db.from('patients').select('*').limit(1)
 ```
 
-⚠️ **但这条路对我们这套架构不是小改动，先想清楚再动手**：
+⚠️ **这条路对我们这套架构不是小改动**：
 
-| | `callFunction`（现有） | `rdb()` 直连（官方文档） |
+| | `callFunction`（现有，已验证可用） | `rdb()` 直连 |
 |---|---|---|
 | 鉴权 | 服务端 `auth-core` ＋ PG 函数内校验 | **得靠 PG 的 RLS**，否则客户端能直接读写别人的表 |
 | 写操作原子性 | 一次 RPC ＝ 一个事务（35 个 `pulse_*` 函数） | 得在客户端逐条写，**「整份覆盖」会裂** |
 | 改动量 | 0 | 大（重写数据层 ＋ 建 RLS ＋ 补事务） |
 
-→ **所以只有 `callFunction` 真的走不通时才考虑 `rdb()`**，别一上来就重写。
+→ **不要一上来就重写。**
+</details>
 
 ---
 

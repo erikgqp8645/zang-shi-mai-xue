@@ -405,17 +405,19 @@ VITE_API_BASE="https://pulse-1-d0g880ydl8ddc57f6-1257312696.ap-shanghai.app.tclo
       「登录方式」→「微信公众平台」→ 关联 → 扫码 →「去授权」。
       ⚠️ 公开 API 代劳不了（`BindEnv` 不存在；`ModifyEnv` 只收 `EnvId`／`Alias`／`CustomQps`，
       `ModifyEnvExtra` 只收 `EnableOverrun`）。
-- [ ] **「环境在微信侧可见」：还没实测** —— 账号级关联 ≠ 小程序侧 `wx.cloud` 一定认这个环境。
-      官方路径的第二步是「**环境转换**」（微信开发者工具 → 云开发 → 设置 → 环境名称下拉 →
-      管理我的环境 → 侧边栏「**使用已有腾讯云环境**」→ 选本环境 → 确认「环境转换」→ 扫码），
-      但 **2026-11-06 实测：入口在（工具版本 36.6.0），列表里能看到 `pulse-1`，
-      鼠标悬停却提示「暂不支持选择 PostgreSQL 环境」→ 选不了**（NoSQL 环境才行）。
-      官方社区工单 [#1154](https://cnb.cool/tencent/cloud/cloudbase/community/-/issues/1154)
-      记录的就是本项目这个场景，最终结论「需后台人工介入」，工单被 stale-bot 自动关闭。
-      → **但这不等于「PG 在小程序里用不了」**：官方文档
-      <https://docs.cloudbase.net/database/framework-quickstarts/pg/mp>
-      明写支持微信小程序访问 CloudBase PostgreSQL，走 `wx.cloud.init` ＋ `rdb()` **直连**，
-      **不经过转换**。两处官方文档打架 → **只能实测**（`docs/miniprogram-release-checklist.md` §2.7）。
+- [x] **「环境在微信侧可见」：已实测跑通**（2026-11-07）—— 账号级关联 ≠ 小程序侧 `wx.cloud` 认这个环境，
+      这一层**单独验过**：在**真实微信运行时**里（开发者工具自动化端口 ＋ `miniprogram-automator`）
+      `wx.cloud.callFunction` 对本环境返回 **200**（`db: CloudBase PostgreSQL`），
+      「我的」页「传输方式」＝**云函数（callFunction）**。
+      微信侧自己的 CLI 也认这个环境（`cli cloud env list` → `* pulse-1-d0g880ydl8ddc57f6`；
+      `cli cloud functions list --env pulse-1-…` → `* pulse-api`）。
+      → **不需要 `rdb()` 直连、不需要建 RLS、不需要重写数据层。**
+      细节见 `docs/progress.md` §3.19。
+- [ ] **网关的 CORS 头没开（只影响网站端）** —— `server/index.mjs:162` 读 `PULSE_CORS_ORIGINS`，
+      但云函数的环境变量里**没有它** → 网关**不回 `Access-Control-Allow-Origin`**
+      （curl 实测：`OPTIONS` 预检 204，但无该头）。
+      → 网站端部署到静态托管（`*.tcloudbaseapp.com`）后跨域调网关（`*.app.tcloudbase.com`）
+      **会被浏览器拦**。小程序不走 CORS，不受影响。**不紧急（网站端还没上线），但别忘了。**
 - [x] **开发期绕开：改走 `TRANSPORT='request'` ＋ 网关地址**（2026-11-06 实测）
       ```bash
       PULSE_TRANSPORT=request \
