@@ -44,18 +44,63 @@
   height: 56rpx;
 }
 
+/* 姓名格 —— **竖线用 inset box-shadow 画，不用 border**（2026-11-07 修「实机列错开」）
+ *
+ * 为什么不用 border：盒子一旦带 border，`width` 到底是「含边框」还是「不含边框」
+ * 就成了各引擎各行其是的事。实机（微信小程序 webview）实测：
+ *   · 正文「部位+取法」两段合计只有 125.8rpx（应为 128rpx）→ 短 2rpx
+ *   · 日期格 / 表下格有 169.8rpx（应为 168rpx）→ 长 2rpx
+ * 于是表头比正文右移 3px，日期行比表头再右移 3px，**越往右偏得越多**。
+ *
+ * 改成 `box-shadow: inset -Xrpx 0 0 #000` 之后，竖线画在**盒子内侧**，
+ * **完全不参与盒模型** —— 每个格子的外宽严格等于它的 `width`，
+ * 列界只由「84rpx × N」「168rpx = 2 × 84rpx」这一套算术决定，引擎没有插手余地。
+ *
+ * ⚠️ 别改回 border：那是这次错开的直接原因。 */
 .pr-thead-name {
   height: 56rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 28rpx;
   font-weight: 600;
   border-top: 1rpx solid #000000;
-  border-right: 1rpx solid #000000;
+  box-shadow: inset -1rpx 0 0 #000000;
   padding: 0 6rpx;
   overflow: hidden;
   white-space: nowrap;
+  min-width: 0;
+}
+
+/* 姓名文字 —— **字号按字数缩**，长名字不再被截掉半个字。
+ *
+ * 「演示·郭丽君」6 个字塞进 128rpx 的姓名格会溢出，
+ * 原来靠 `overflow: hidden` 硬切，「演」「君」两个字缺笔画（实机截图可见）。
+ * 现在：字多就自动降字号，实在放不下才省略号截断。
+ * 完整姓名在表格上方的患者栏里始终可见。 */
+.pr-thead-name-text {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+/* 四档字号 —— 由 `nameSizeClass()` 按名字长度挑，长名字不再缺笔画 */
+.pr-name-s {
+  font-size: 28rpx;
+}
+
+.pr-name-m {
+  font-size: 23rpx;
+}
+
+.pr-name-l {
+  font-size: 21rpx;
+}
+
+.pr-name-xl {
+  font-size: 17rpx;
 }
 
 .pr-thead-cols {
@@ -77,7 +122,7 @@
   align-items: center;
   justify-content: center;
   font-size: 24rpx;
-  border-right: 1rpx solid #000000;
+  box-shadow: inset -1rpx 0 0 #000000;
   padding: 0 4rpx;
   white-space: nowrap;
 }
@@ -99,7 +144,7 @@
   align-items: center;
   justify-content: center;
   font-size: 24rpx;
-  border-right: 1rpx solid #000000;
+  box-shadow: inset -1rpx 0 0 #000000;
   border-top: 1rpx solid #000000;
 }
 
@@ -107,7 +152,7 @@
    让「哪两格属于同一次」一眼能分出来（讲义 p34 里组界与组内同粗，
    这里是工具自加的强调，不动列界）。 */
 .pr-thead-hand.is-r {
-  border-right: 2rpx solid #000000;
+  box-shadow: inset -2rpx 0 0 #000000;
 }
 
 /* 选中列高亮 —— 「选中日期高亮」，宽表与一次一屏同一套。 */
@@ -139,7 +184,7 @@
   width: 64rpx;
   flex: none;
   background: #ffc000;
-  border-right: 2rpx solid #000000;
+  box-shadow: inset -2rpx 0 0 #000000;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -163,7 +208,7 @@
   align-items: center;
   justify-content: center;
   font-size: 26rpx;
-  border-right: 1rpx solid #000000;
+  box-shadow: inset -1rpx 0 0 #000000;
   border-bottom: 1rpx solid #000000;
   background: #cce8cf;
 }
@@ -184,7 +229,7 @@
   align-items: center;
   justify-content: center;
   font-size: 28rpx;
-  border-right: 1rpx solid #000000;
+  box-shadow: inset -1rpx 0 0 #000000;
   border-bottom: 1rpx solid #000000;
   overflow: hidden;
   white-space: nowrap;
@@ -229,7 +274,7 @@
   align-items: center;
   justify-content: center;
   font-size: 26rpx;
-  border-right: 1rpx solid #000000;
+  box-shadow: inset -1rpx 0 0 #000000;
 }
 
 /* 两行之间的那条分隔线 */
@@ -253,7 +298,7 @@
   align-items: center;
   justify-content: center;
   font-size: 24rpx;
-  border-right: 2rpx solid #000000;
+  box-shadow: inset -2rpx 0 0 #000000;
   padding: 0 6rpx;
   overflow: hidden;
   white-space: nowrap;
@@ -509,7 +554,7 @@
   width: 110rpx;
   flex: none;
   background: #ffc000;
-  border-right: 2rpx solid #000000;
+  box-shadow: inset -2rpx 0 0 #000000;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -532,12 +577,12 @@
   align-items: center;
   justify-content: center;
   gap: 12rpx;
-  border-right: 1rpx solid #000000;
+  box-shadow: inset -1rpx 0 0 #000000;
   background: #cce8cf;
 }
 
 .pr-single-slot:last-child {
-  border-right: none;
+  box-shadow: none;
 }
 
 .pr-single-slot:active {

@@ -125,6 +125,44 @@ function buildPalette() {
 }
 
 /* -------------------------------------------------------------------------- */
+/* 姓名格                                                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * 姓名格的字号 —— **按名字长短自适应**（2026-11-07）
+ *
+ * 姓名格只有 128rpx 宽（讲义 p34 体例：横跨「部位 + 取法」两列），
+ * 扣掉左右各 6rpx 内边距只剩 116rpx。
+ * 「演示·郭丽君」这种 5~6 个字的姓名放不下，原来靠 `overflow: hidden` 硬切，
+ * **「演」「君」两个字缺笔画**（实机截图可见）。
+ *
+ * 这里按「字宽估算」挑一档字号，让绝大多数姓名**完整显示**；
+ * 真放不下的（超长名）才交给 `text-overflow: ellipsis` 截断。
+ *
+ * ⚠️ 字号只影响**这个格子里的字**，不影响任何列位 ——
+ *    姓名格有 `min-width: 0` + `overflow: hidden`，**永远推不动别的格子**。
+ */
+
+/** 估算名字占多宽（单位＝一个全角字宽） */
+function nameWidthEm(name: string): number {
+  let em = 0
+  for (const ch of name) {
+    // 半角（含 · 这类 U+00B7）算半个字宽，全角算一个
+    em += ch.charCodeAt(0) <= 0xff ? 0.5 : 1
+  }
+  return em
+}
+
+/** 名字对应的字号档位（对应 SCSS 里的 .pr-name-s / .pr-name-m / .pr-name-l / .pr-name-xl） */
+function nameSizeClass(name: string): string {
+  const em = nameWidthEm(name || '')
+  if (em <= 4) return 'pr-name-s' // ≤4 字：28rpx，讲义 p34 的观感
+  if (em <= 5) return 'pr-name-m' // 5 字：23rpx
+  if (em <= 5.5) return 'pr-name-l' // 5.5 字（如「演示·郭丽君」）：21rpx，完整显示
+  return 'pr-name-xl' // 更长：17rpx + 省略号兜底
+}
+
+/* -------------------------------------------------------------------------- */
 /* 组件                                                                        */
 /* -------------------------------------------------------------------------- */
 
@@ -395,7 +433,9 @@ export default function RecordSheet(props: RecordSheetProps) {
           <View className='pr-thead'>
             <View className='pr-thead-lead'>
               <View className='pr-thead-blank' />
-              <View className='pr-thead-name'>{name || '姓名'}</View>
+              <View className='pr-thead-name'>
+                <Text className={`pr-thead-name-text ${nameSizeClass(name)}`}>{name || '姓名'}</Text>
+              </View>
             </View>
             <View className='pr-thead-cols'>
               <View className='pr-thead-dates'>

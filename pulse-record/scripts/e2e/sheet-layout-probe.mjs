@@ -122,12 +122,12 @@ const sessions = s.sessions.map((x) => ({
   therapy: null,
 }))
 
-export function render(view) {
+export function render(view, nameOverride) {
   return renderToStaticMarkup(
     React.createElement(RecordSheet, {
       sessions,
       layout: 'nine',
-      name: s.name,
+      name: nameOverride === undefined ? s.name : nameOverride,
       editable: false,
       view,
       activeSessionId: sessions[2].id,
@@ -162,8 +162,10 @@ export function render(view) {
   const mod = createRequire(import.meta.url)(join(tmp, 'out.cjs'))
   const wide = mod.render('wide')
   const single = mod.render('single')
+  // 长姓名版 —— 「演示·郭丽君」这种 6 字姓名（2026-11-07 实机就是这个）
+  const wideLong = mod.render('wide', '演示·郭丽君')
   rmSync(tmp, { recursive: true, force: true })
-  return { wide, single }
+  return { wide, single, wideLong }
 }
 
 /* ------------------------------------------------------------------ */
@@ -202,6 +204,43 @@ const PROBE = `
   out.footCell = box('.pr-tfoot-cell')
   out.headTop = box('.pr-thead')
   out.bodyRow = box('.pr-row')
+  // 2026-11-07 实机错开后补测：各段的**外宽**与姓名格本身
+  out.headLead = box('.pr-thead-lead')
+  out.nameCell = box('.pr-thead-name')
+  out.nameText = box('.pr-thead-name-text')
+  out.organ = box('.pr-organ')
+  out.depth = box('.pr-depth')
+
+  // ⭐ 竖线必须用 inset box-shadow 画，不能用 border（2026-11-07 实机错开的根因）
+  //    —— 光量「外宽」在 Chromium 里抓不到回归（border-box 本来就对），
+  //    得直接查**计算样式**：border-right-width 必须是 0，box-shadow 必须带 inset。
+  const styleOf = (sel) => {
+    const el = document.querySelector(sel)
+    if (!el) return null
+    const cs = getComputedStyle(el)
+    return {
+      borderRightWidth: cs.borderRightWidth,
+      borderLeftWidth: cs.borderLeftWidth,
+      boxShadow: cs.boxShadow,
+      fontSize: cs.fontSize,
+      // ⭐ 文字的**真实内容宽**：元素盒宽被 overflow:hidden 钉住了，
+      //    量 getBoundingClientRect() 只会量到盒子，量不到字 —— 用 scrollWidth。
+      scrollWidth: el.scrollWidth,
+      overflow: cs.overflow,
+      textOverflow: cs.textOverflow,
+    }
+  }
+  out.style = {
+    cell: styleOf('.pr-cell'),
+    hand: styleOf('.pr-thead-hand'),
+    date: styleOf('.pr-thead-date'),
+    foot: styleOf('.pr-tfoot-cell'),
+    organ: styleOf('.pr-organ'),
+    depth: styleOf('.pr-depth'),
+    name: styleOf('.pr-thead-name'),
+    nameText: styleOf('.pr-thead-name-text'),
+  }
+
   out.singleHead = (document.querySelector('.pr-single-head') || {}).textContent || ''
   out.singleDate = (document.querySelector('.pr-single-date') || {}).textContent || ''
   out.singleItems = Array.from(document.querySelectorAll('.pr-single-item')).map((e) => e.textContent)
@@ -251,7 +290,7 @@ function measure(html, shotPath) {
 
 /* ------------------------------------------------------------------ */
 
-const { wide, single } = await renderSheet()
+const { wide, single, wideLong } = await renderSheet()
 const css = compiledWxss()
 
 const page = (body) => `<!doctype html>
@@ -265,6 +304,9 @@ text { display: inline; }
 console.log('=== 宽表（讲义 p34 少娟实例，6 次记录）===')
 const SHOT_DIR = process.env.PULSE_SHOT_DIR || ''
 const w = measure(page(wide), SHOT_DIR ? `${SHOT_DIR}/sheet-wide.png` : '')
+
+console.log('=== 宽表（长姓名「演示·郭丽君」）===')
+const wl = measure(page(wideLong), SHOT_DIR ? `${SHOT_DIR}/sheet-wide-long.png` : '')
 
 console.log('=== 一次一屏 ===')
 const s = measure(page(single), SHOT_DIR ? `${SHOT_DIR}/sheet-single.png` : '')
@@ -330,6 +372,139 @@ ok(
   '正文第一个数据格的左边界 == 表头「左/右」第一个格的左边界',
   Math.abs(firstCellLeft - w.headHand[0].l) < 0.5,
   `${firstCellLeft} vs ${w.headHand[0].l}`,
+)
+
+/* ---- 2026-11-07 实机错开后的补测（微信小程序 webview） ----
+ *
+ * 实机截图量出来的偏差：
+ *   · 正文「部位+取法」两段合计只有 125.8rpx（应为 128rpx）→ 短 2rpx
+ *   · 日期格 / 表下格有 169.8rpx（应为 168rpx）→ 长 2rpx
+ *   · 84rpx 的数据格 / 「左/右」格是准的
+ * ⇒ **带 border-right 的格子，边框被算进了盒模型**（各引擎对
+ *    「width 含不含 border」的处理不一致）。
+ *
+ * 修法：竖线一律改用 `box-shadow: inset` 画在**盒子内侧**，完全不参与盒模型。
+ * 于是**每个格子的外宽严格等于它声明的 width**，列界只由宽度算术决定。
+ *
+ * ⚠️ Chromium 里 border-box 本来就正常，**这些断言在本地是「白测」** ——
+ *    它们的真正作用是：万一哪天有人把 inset box-shadow 改回 border，
+ *    探针要能立刻发现「外宽 ≠ 声明宽度」。 */
+
+const PX = (rpx) => Math.round(rpx * RPX * 100) / 100
+
+/** 每个格子的外宽是否严格等于声明宽度 */
+function widthOk(boxes, rpx, label) {
+  if (!boxes.length) return { ok: false, why: `${label}：没量到格子` }
+  const want = PX(rpx)
+  const bad = boxes.filter((b) => Math.abs(b.r - b.l - want) > 0.5)
+  return {
+    ok: bad.length === 0,
+    why: `${label}：期望 ${want}px，实测 ${boxes[0].r - boxes[0].l}px` +
+      (bad.length ? `，${bad.length} 个不符` : ''),
+  }
+}
+
+for (const [label, boxes, rpx] of [
+  ['正文数据格 84rpx', w.bodyCell, 84],
+  ['表头「左/右」格 84rpx', w.headHand, 84],
+  ['表头日期格 168rpx', w.headDate, 168],
+  ['表下格 168rpx', w.footCell, 168],
+  ['部位列 64rpx', w.organ, 64],
+  ['取法列 64rpx', w.depth, 64],
+  ['表头姓名段 128rpx', w.headLead, 128],
+]) {
+  const r = widthOk(boxes, rpx, label)
+  ok(`${label}：外宽严格等于声明宽度（边框不进盒模型）`, r.ok, r.why)
+}
+
+// 表头的姓名段（128rpx）必须等于正文的「部位+取法」两段（64+64）——
+// 实机就是这里差了 2rpx，把整行表头往右推了 3px。
+const bodyLead = w.organ[0].r - w.organ[0].l + (w.depth[0].r - w.depth[0].l)
+const headLead = w.headLead[0].r - w.headLead[0].l
+ok(
+  '表头姓名段的宽度 == 正文「部位+取法」两段的宽度（128rpx == 64+64）',
+  Math.abs(bodyLead - headLead) < 0.5,
+  `正文 ${bodyLead.toFixed(2)}px vs 表头 ${headLead.toFixed(2)}px`,
+)
+
+// 长姓名（6 字）**不能改变任何列位** —— 名字只在自己的格子里
+const sameGeom =
+  wl.headHand.length === w.headHand.length &&
+  wl.bodyCell.length === w.bodyCell.length &&
+  wl.headHand.every((b, i) => Math.abs(b.l - w.headHand[i].l) < 0.5 && Math.abs(b.r - w.headHand[i].r) < 0.5) &&
+  wl.bodyCell.every((b, i) => Math.abs(b.l - w.bodyCell[i].l) < 0.5 && Math.abs(b.r - w.bodyCell[i].r) < 0.5) &&
+  wl.headDate.every((b, i) => Math.abs(b.l - w.headDate[i].l) < 0.5 && Math.abs(b.r - w.headDate[i].r) < 0.5)
+ok('长姓名（演示·郭丽君）不改变任何列位', sameGeom)
+
+// 姓名段本身的宽度也不许被名字撑开
+// （几何上在 Chromium 里钉死为 128rpx，是「白测」；真正能抓的是下面那条计算样式断言）
+const longLead = wl.headLead[0].r - wl.headLead[0].l
+ok(
+  '长姓名不会把表头姓名段撑宽',
+  Math.abs(longLead - headLead) < 0.5,
+  `短名 ${headLead.toFixed(2)}px vs 长名 ${longLead.toFixed(2)}px`,
+)
+
+// 姓名段本身：必须「装不下就截、但绝不撑破布局」
+//   · overflow: hidden + min-width: 0 → 名字再长也推不动别的格子
+//   · 文字用 text-overflow: ellipsis → 宁可显示省略号，也不硬切半个字
+const nameStyle = wl.style.name
+const nameTextStyle = wl.style.nameText
+ok(
+  '姓名格 overflow:hidden（名字再长也撑不破布局）',
+  nameStyle && nameStyle.overflow === 'hidden',
+  `overflow=${nameStyle && nameStyle.overflow}`,
+)
+ok(
+  '姓名文字用 text-overflow:ellipsis（宁可省略号也不硬切半个字）',
+  nameTextStyle && nameTextStyle.overflow === 'hidden' && nameTextStyle.textOverflow === 'ellipsis',
+  `overflow=${nameTextStyle && nameTextStyle.overflow} / text-overflow=${nameTextStyle && nameTextStyle.textOverflow}`,
+)
+
+// 姓名的**真实内容宽**（scrollWidth）必须塞得进姓名格 ——
+// 这一条才抓得住「字号没降」：元素盒宽被 overflow 钉住，量 box 是量不出来的。
+const nameTextReal = nameTextStyle ? nameTextStyle.scrollWidth : 0
+const nameCellReal = wl.nameCell[0] ? wl.nameCell[0].r - wl.nameCell[0].l : 0
+ok(
+  '长姓名的**真实字宽**塞得进姓名格（不靠硬切截半个字）',
+  nameTextReal > 0 && nameTextReal <= nameCellReal + 1,
+  `字宽 ${nameTextReal}px vs 格子 ${nameCellReal}px`,
+)
+
+/* ---- ⭐ 竖线必须用 inset box-shadow，不能用 border ---- *
+ *
+ * 2026-11-07 实机（微信小程序 webview）量出来的：
+ *   · 正文「部位+取法」两段合计 125.8rpx（应 128rpx）
+ *   · 日期格 / 表下格 169.8rpx（应 168rpx）
+ *   · 84rpx 的数据格是准的
+ * ⇒ 带 border-right 的格子，**边框被算进了盒模型**。
+ * 修法：竖线一律 `box-shadow: inset` 画在盒子内侧，不参与盒模型。
+ *
+ * ⚠️ 光量外宽抓不到回归 —— Chromium 的 border-box 本来就对。
+ *    这里查**计算样式**：border-right-width 必须是 0，box-shadow 必须带 inset。
+ *    这一条在真机上也成立（同一份 CSS、同一套计算样式）。 */
+for (const [label, st] of Object.entries(w.style)) {
+  if (!label.endsWith('Text') && !st) {
+    ok(`竖线样式可测：${label}`, false, '没量到元素')
+    continue
+  }
+  if (label.endsWith('Text')) continue
+  const noBorder = st.borderRightWidth === '0px' && st.borderLeftWidth === '0px'
+  const inset = /inset/.test(st.boxShadow || '')
+  ok(
+    `${label}：竖线用 inset box-shadow 画（border-right-width 为 0）`,
+    noBorder && inset,
+    `border-right=${st.borderRightWidth} / border-left=${st.borderLeftWidth} / box-shadow=${st.boxShadow}`,
+  )
+}
+
+// 姓名字号：长名字必须自动降档，否则会被硬切截半个字
+const shortFs = parseFloat(w.style.nameText.fontSize)
+const longFs = parseFloat(wl.style.nameText.fontSize)
+ok(
+  '长姓名自动降字号（比短姓名小）',
+  longFs < shortFs,
+  `短名 ${shortFs}px / 长名 ${longFs}px`,
 )
 
 /* ---- 一次一屏 ---- */

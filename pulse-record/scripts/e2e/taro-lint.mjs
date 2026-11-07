@@ -467,6 +467,72 @@ if (existsSync(sheetFile)) {
   )
 
   /* --------------------------------------------------------------------
+   * 7b-2. 竖线不许用 border —— 必须用 inset box-shadow（2026-11-07 实机错开）
+   *
+   * 实机（微信小程序 webview）量出来的偏差：
+   *   · 正文「部位+取法」两段合计 125.8rpx（应 128rpx）→ 短 2rpx
+   *   · 日期格 / 表下格 169.8rpx（应 168rpx）→ 长 2rpx
+   *   · 84rpx 的数据格是准的
+   * ⇒ **带 border-right 的格子，边框被算进了盒模型**（各引擎对
+   *    「width 含不含 border」的处理不一致；Chromium 的 border-box 就正常，
+   *    所以本地 Chromium 探针抓不到，只能在真机上暴露）。
+   *
+   * 修法：竖线一律 `box-shadow: inset -Xrpx 0 0 #000` 画在盒子内侧，
+   * **完全不参与盒模型** —— 每个格子的外宽严格等于它声明的 width。
+   *
+   * ⚠️ 这条断言查的是**每条规则自己的声明**（按选择器解析出规则块再查属性），
+   *    不是全文搜词 —— 改个选择器名、把 border 挪到别的规则里都骗不过它。
+   * ------------------------------------------------------------------ */
+  const verticalLineCells = [
+    '.pr-thead-name',
+    '.pr-thead-date',
+    '.pr-thead-hand',
+    '.pr-thead-hand.is-r',
+    '.pr-organ',
+    '.pr-depth',
+    '.pr-cell',
+    '.pr-tfoot-label',
+    '.pr-tfoot-cell',
+  ]
+  const borderUsers = []
+  const shadowUsers = []
+  for (const sel of verticalLineCells) {
+    const body = scssRule(sheetScss, sel)
+    if (!body) {
+      borderUsers.push(`${sel}: 找不到规则`)
+      continue
+    }
+    // 只看这一条规则自己的声明（不串到别的规则）
+    if (/(^|[\s;{])border-(right|left)\s*:/.test(body)) {
+      borderUsers.push(`${sel}: ${body.match(/border-(right|left)\s*:[^;}]*/)[0]}`)
+    }
+    if (/box-shadow\s*:\s*inset/.test(body)) shadowUsers.push(sel)
+  }
+  ok(
+    '表格格子的竖线一律用 inset box-shadow，不用 border（border 会进盒模型）',
+    borderUsers.length === 0,
+    borderUsers.join(' / '),
+  )
+  ok(
+    '表格格子的竖线都改用了 inset box-shadow',
+    shadowUsers.length === verticalLineCells.length,
+    `${shadowUsers.length}/${verticalLineCells.length}：${shadowUsers.join(',')}`,
+  )
+  // 姓名格必须有「装不下就截、但绝不撑破布局」的双保险
+  const nameRule = scssRule(sheetScss, '.pr-thead-name')
+  const nameTextRule = scssRule(sheetScss, '.pr-thead-name-text')
+  ok(
+    '姓名格 overflow:hidden + min-width:0（名字再长也撑不破布局）',
+    /overflow\s*:\s*hidden/.test(nameRule) && /min-width\s*:\s*0/.test(nameRule),
+    nameRule.replace(/\s+/g, ' ').slice(0, 120),
+  )
+  ok(
+    '姓名文字用 text-overflow:ellipsis（宁可省略号也不硬切半个字）',
+    /text-overflow\s*:\s*ellipsis/.test(nameTextRule),
+    nameTextRule.replace(/\s+/g, ' ').slice(0, 120),
+  )
+
+  /* --------------------------------------------------------------------
    * 7c. 结构断言 —— 表头结构、选中高亮、一次一屏的元信息（2026-11-07）
    *
    * 这一组全部**按 AST 判**（JSX 元素 / 属性 / 调用），
