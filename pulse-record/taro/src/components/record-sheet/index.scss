@@ -82,27 +82,42 @@
   white-space: nowrap;
 }
 
+/* 表头第二行：「左 / 右」—— **与正文的数据格同构**（平铺的 84rpx 格）。
+ *
+ * 2026-11-07 修「竖线逐列错开」：
+ *   原来这里是「168rpx 容器内塞 84+84 两个子格」。容器自带 `border-right: 2rpx`，
+ *   `box-sizing: border-box` 下内容盒只剩 166rpx —— 两个 84rpx 的子格放不下，
+ *   **每组溢出 2rpx**，把后面每一组整体推右 2rpx。列数越多偏得越远
+ *   （实测 4 次就诊时表头列界比正文右偏 2→4→7→9px）。
+ *   现在改成平铺：列界由「84rpx × N」这一套算法算出，**与正文的数据格必然对齐**。
+ *   讲义 2026-10 p34 实例表实测：表头「左/右」行与正文的竖线集合**完全一致**。 */
 .pr-thead-hand {
-  width: 168rpx;
-  flex: none;
-  height: 56rpx;
-  display: flex;
-  border-right: 2rpx solid #000000;
-  border-top: 1rpx solid #000000;
-}
-
-.pr-thead-hand-l,
-.pr-thead-hand-r {
   width: 84rpx;
   flex: none;
+  height: 56rpx;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 24rpx;
+  border-right: 1rpx solid #000000;
+  border-top: 1rpx solid #000000;
 }
 
-.pr-thead-hand-r {
-  border-left: 1rpx solid #000000;
+/* 一次就诊的最右一列：右边框加粗成 2rpx —— **位置不变，只是画粗一点**，
+   让「哪两格属于同一次」一眼能分出来（讲义 p34 里组界与组内同粗，
+   这里是工具自加的强调，不动列界）。 */
+.pr-thead-hand.is-r {
+  border-right: 2rpx solid #000000;
+}
+
+/* 选中列高亮 —— 「选中日期高亮」，宽表与一次一屏同一套。 */
+.pr-thead-date.is-on,
+.pr-thead-hand.is-on {
+  background: #ffe9a8;
+}
+
+.pr-thead-date.is-on {
+  font-weight: 600;
 }
 
 /* 正文 */
@@ -183,7 +198,18 @@
   background: #ffffff;
 }
 
-/* 表下：体质行 / 疗法行 */
+/* 选中列高亮 —— 跟表头同一个色，一眼能看出「正在录的是哪一次」 */
+.pr-cell.is-on {
+  background: #ffe9a8;
+}
+
+/* 表下：体质行 / 疗法行
+ *
+ * 2026-11-07 修「标签错行」：原来 lead 是「[留白, 体质]」、cols 是「[体质值, 疗法值]」——
+ * 第 1 行的标签在第 2 行，**「体质」两个字配着疗法值**。现在改成
+ * lead = [体质, 疗法]、cols = [体质值, 疗法值]，标签与值同行。
+ *
+ * 这两行是工具自己加的（讲义原表没有，不进导出），但既然加了就得对齐。 */
 .pr-tfoot {
   display: flex;
   border-top: 2rpx solid #000000;
@@ -197,19 +223,18 @@
   flex-direction: column;
 }
 
-.pr-tfoot-blank {
-  height: 56rpx;
-  border-right: 1rpx solid #000000;
-}
-
 .pr-tfoot-label {
   height: 56rpx;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 26rpx;
-  border-top: 1rpx solid #000000;
   border-right: 1rpx solid #000000;
+}
+
+/* 两行之间的那条分隔线 */
+.pr-tfoot-label + .pr-tfoot-label {
+  border-top: 1rpx solid #000000;
 }
 
 .pr-tfoot-cols {
@@ -229,10 +254,18 @@
   justify-content: center;
   font-size: 24rpx;
   border-right: 2rpx solid #000000;
-  border-top: 1rpx solid #000000;
   padding: 0 6rpx;
   overflow: hidden;
   white-space: nowrap;
+}
+
+/* 第 2 行（疗法）上方的分隔线 —— 第 1 行不用，上头已经有表的 border-top */
+.pr-tfoot-row + .pr-tfoot-row .pr-tfoot-cell {
+  border-top: 1rpx solid #000000;
+}
+
+.pr-tfoot-cell.is-on {
+  background: #ffe9a8;
 }
 
 /* ---------- 弹层 ---------- */
@@ -365,6 +398,95 @@
 /* ---------- 「一次一屏」竖排视图 ----------
    宽表在 750rpx 屏上只放得下约 3.7 个日期列，格子小到点不准；
    竖排把一次就诊的 7（或 9）个脉点摊成行，手指能点。 */
+
+/* 「这一次」的头 —— 把选中的那次放大显示出来（2026-11-07 维护者要的）：
+   日期大字，体质／疗法并排，点一下就能就地改。 */
+.pr-single-wrap {
+  margin-bottom: 16rpx;
+}
+
+.pr-single-head {
+  background: #ffffff;
+  border: 1rpx solid #e6e2d6;
+  border-radius: 12rpx;
+  padding: 20rpx 24rpx 16rpx;
+  margin-bottom: 16rpx;
+}
+
+.pr-single-head-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12rpx;
+}
+
+.pr-single-date {
+  font-size: 40rpx;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #2c2925;
+}
+
+.pr-single-count {
+  font-size: 24rpx;
+  color: #7c8974;
+}
+
+.pr-single-meta {
+  display: flex;
+  gap: 16rpx;
+}
+
+.pr-single-item {
+  flex: 1;
+  min-width: 0;
+  background: #f6f1e6;
+  border: 1rpx solid #e6e2d6;
+  border-radius: 10rpx;
+  padding: 12rpx 16rpx;
+  display: flex;
+  flex-direction: column;
+}
+
+.pr-single-item:active {
+  background: #ffe9a8;
+}
+
+.pr-single-item-k {
+  font-size: 22rpx;
+  color: #8a6a4f;
+}
+
+.pr-single-item-v {
+  font-size: 28rpx;
+  color: #2c2925;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 换一次：日期一排，选中的高亮 —— 与宽表同一套「选中日期」 */
+.pr-single-dates {
+  white-space: nowrap;
+  margin-bottom: 16rpx;
+}
+
+.pr-single-chip {
+  display: inline-block;
+  padding: 8rpx 20rpx;
+  margin-right: 12rpx;
+  border-radius: 999rpx;
+  border: 1rpx solid #e6e2d6;
+  background: #ffffff;
+  color: #7c8974;
+  font-size: 24rpx;
+}
+
+.pr-single-chip.is-on {
+  background: #2c2925;
+  border-color: #2c2925;
+  color: #fdfbf7;
+}
 
 .pr-single {
   background: #cce8cf;

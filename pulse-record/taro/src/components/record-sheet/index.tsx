@@ -36,7 +36,17 @@ import './index.scss'
  *
  *   props:  sessions / layout / customSymbols / name / editable
  *   events: onChange(sessions)      —— 格值／体质／疗法有改动时抛出
- *           onSessionTap(id)        —— 点了表头日期
+ *           onSessionTap(id)        —— 点了表头日期（宽表高亮那一次／一次一屏换那一次）
+ *
+ * ## 「当前那一次」与高亮（2026-11-07）
+ *
+ * 维护者要的交互：**选中日期高亮 → 点「一次一屏」→ 单独编辑那一次**。
+ * 于是：
+ *   · 宽表里点某个日期 → `onSessionTap` → 那一列**整列高亮**（表头日期、左右格、数据格同色）
+ *   · 一次一屏顶上**放大显示**这一次：日期大字 + 体质 + 疗法（点一下就地改）
+ *   · 一次一屏里也有一排日期 chip，随时换到别的一次
+ *
+ * 组件内部只有一处推导「当前那一次」（`activeSession`），高亮、竖排、元信息全都认它。
  *
  * 组件**只管显示与交互**，落库由页面决定：
  *   · 录入页：拿到 onChange 更新本地 state，点「保存」才落库
@@ -157,6 +167,26 @@ export default function RecordSheet(props: RecordSheetProps) {
 
   /* --------------------------- 渲染结构（按部位分组） --------------------------- */
 
+  /**
+   * 当前那一次 —— **表格里选中的那次**；没选就落最后一次。
+   *
+   * 「选中列高亮」「一次一屏只摊开这一次」「体质/疗法记在哪一次」全都认它，
+   * 一处推导，几处用，不会各说各话。
+   */
+  const activeSession = useMemo(
+    () => sessions.find((s) => s.id === activeSessionId) || sessions[sessions.length - 1] || null,
+    [sessions, activeSessionId],
+  )
+
+  /** 当前那次的序号（第几次 / 共几次） */
+  const activeIndex = useMemo(
+    () => (activeSession ? sessions.findIndex((s) => s.id === activeSession.id) : -1),
+    [sessions, activeSession],
+  )
+
+  /** 选中的那次 id —— 高亮与「这一次」都以它为准 */
+  const activeId = activeSession ? activeSession.id : ''
+
   const groups = useMemo(
     () =>
       groupRows(layout).map((g) => ({
@@ -166,12 +196,13 @@ export default function RecordSheet(props: RecordSheetProps) {
           depth: row.depth,
           cells: sessions.map((s) => ({
             sessionId: s.id,
+            on: s.id === activeId,
             L: formatCodes(codesOf(s, 'L', row.organ, row.depth)),
             R: formatCodes(codesOf(s, 'R', row.organ, row.depth)),
           })),
         })),
       })),
-    [sessions, layout],
+    [sessions, layout, activeId],
   )
 
   const headSessions = useMemo(
@@ -181,8 +212,9 @@ export default function RecordSheet(props: RecordSheetProps) {
         label: s.label || '',
         constitution: s.constitution || '',
         therapy: s.therapy || '',
+        on: s.id === activeId,
       })),
-    [sessions],
+    [sessions, activeId],
   )
 
   /**
@@ -193,8 +225,7 @@ export default function RecordSheet(props: RecordSheetProps) {
    * 数据仍然是同一份 `values` —— 改哪一格都是同一格。
    */
   const singleRows = useMemo(() => {
-    const active =
-      sessions.find((s) => s.id === activeSessionId) || sessions[sessions.length - 1] || null
+    const active = activeSession
     return groupRows(layout).flatMap((g) =>
       g.rows.map((row) => ({
         organ: row.organ,
@@ -204,7 +235,7 @@ export default function RecordSheet(props: RecordSheetProps) {
         R: active ? formatCodes(codesOf(active, 'R', row.organ, row.depth)) : '',
       })),
     )
-  }, [sessions, layout, activeSessionId])
+  }, [activeSession, layout])
 
   /* --------------------------- 表格交互 --------------------------- */
 
@@ -369,17 +400,34 @@ export default function RecordSheet(props: RecordSheetProps) {
             <View className='pr-thead-cols'>
               <View className='pr-thead-dates'>
                 {headSessions.map((s) => (
-                  <View key={s.id} className='pr-thead-date' onClick={() => onHeadTap(s.id)}>
+                  <View
+                    key={s.id}
+                    className={`pr-thead-date ${s.on ? 'is-on' : ''}`}
+                    onClick={() => onHeadTap(s.id)}
+                  >
                     {s.label}
                   </View>
                 ))}
               </View>
+              {/* 表头第二行：「左 / 右」。
+                  **平铺的 84rpx 格，不套容器** —— 与正文的数据格同构，列界必然对齐
+                  （2026-11-07 修「竖线逐列错开」，详见 index.scss 的说明）。 */}
               <View className='pr-thead-hands'>
                 {headSessions.map((s) => (
-                  <View key={s.id} className='pr-thead-hand'>
-                    <View className='pr-thead-hand-l'>左</View>
-                    <View className='pr-thead-hand-r'>右</View>
-                  </View>
+                  <Fragment key={s.id}>
+                    <View
+                      className={`pr-thead-hand is-l ${s.on ? 'is-on' : ''}`}
+                      onClick={() => onHeadTap(s.id)}
+                    >
+                      左
+                    </View>
+                    <View
+                      className={`pr-thead-hand is-r ${s.on ? 'is-on' : ''}`}
+                      onClick={() => onHeadTap(s.id)}
+                    >
+                      右
+                    </View>
+                  </Fragment>
                 ))}
               </View>
             </View>
@@ -398,13 +446,13 @@ export default function RecordSheet(props: RecordSheetProps) {
                         {row.cells.map((c) => (
                           <Fragment key={`${c.sessionId}-${row.organ}-${row.depth}`}>
                             <View
-                              className='pr-cell'
+                              className={`pr-cell ${c.on ? 'is-on' : ''}`}
                               onClick={() => onCellTap(c.sessionId, 'L', row.organ, row.depth)}
                             >
                               {c.L}
                             </View>
                             <View
-                              className='pr-cell'
+                              className={`pr-cell ${c.on ? 'is-on' : ''}`}
                               onClick={() => onCellTap(c.sessionId, 'R', row.organ, row.depth)}
                             >
                               {c.R}
@@ -419,18 +467,20 @@ export default function RecordSheet(props: RecordSheetProps) {
             ))}
           </View>
 
-          {/* 表下：体质行 / 疗法行（每个记录日期各记各的；讲义原表没有这两行，不进导出） */}
+          {/* 表下：体质行 / 疗法行（每个记录日期各记各的；讲义原表没有这两行，不进导出）
+              标签与值同行 —— lead 第 1 行是「体质」、第 2 行是「疗法」，
+              值那边第 1 行是体质值、第 2 行是疗法值（2026-11-07 修「标签错行」）。 */}
           <View className='pr-tfoot'>
             <View className='pr-tfoot-lead'>
-              <View className='pr-tfoot-blank' />
               <View className='pr-tfoot-label'>体质</View>
+              <View className='pr-tfoot-label'>疗法</View>
             </View>
             <View className='pr-tfoot-cols'>
               <View className='pr-tfoot-row'>
                 {headSessions.map((s) => (
                   <View
                     key={s.id}
-                    className='pr-tfoot-cell'
+                    className={`pr-tfoot-cell ${s.on ? 'is-on' : ''}`}
                     onClick={() => onConstitutionTap(s.id)}
                   >
                     {s.constitution || '（未判）'}
@@ -439,7 +489,11 @@ export default function RecordSheet(props: RecordSheetProps) {
               </View>
               <View className='pr-tfoot-row'>
                 {headSessions.map((s) => (
-                  <View key={s.id} className='pr-tfoot-cell' onClick={() => onTherapyTap(s.id)}>
+                  <View
+                    key={s.id}
+                    className={`pr-tfoot-cell ${s.on ? 'is-on' : ''}`}
+                    onClick={() => onTherapyTap(s.id)}
+                  >
                     {s.therapy || '（未定）'}
                   </View>
                 ))}
@@ -450,32 +504,77 @@ export default function RecordSheet(props: RecordSheetProps) {
         </ScrollView>
       ) : (
         /* ---------- 一次一屏：竖排摊开这一次就诊的每个脉点 ---------- */
-        <View className='pr-single'>
-          {singleRows.map((row) => (
-            <View key={`${row.organ}-${row.depth}`} className='pr-single-row'>
-              <View className='pr-single-label'>
-                <Text className='pr-single-organ'>{row.organ}</Text>
-                <Text className='pr-single-depth'>{row.depth}</Text>
-              </View>
-              <View
-                className='pr-single-slot'
-                onClick={() => onCellTap(row.sessionId, 'L', row.organ, row.depth)}
-              >
-                <Text className='pr-single-hand'>左</Text>
-                <Text className='pr-single-val'>{row.L}</Text>
-              </View>
-              <View
-                className='pr-single-slot'
-                onClick={() => onCellTap(row.sessionId, 'R', row.organ, row.depth)}
-              >
-                <Text className='pr-single-hand'>右</Text>
-                <Text className='pr-single-val'>{row.R}</Text>
+        <View className='pr-single-wrap'>
+          {/* ---------- 「这一次」的头 —— 把选中的那次放大显示出来 ----------
+              2026-11-07 维护者要的：一次一屏编辑时要看得见**日期、体质**，
+              目的是「把选中的日期拿出来放大显示，方便编辑」。
+              体质／疗法直接点一下就能改 —— 复用的是宽表那两个弹层，改的还是同一次。 */}
+          <View className='pr-single-head'>
+            <View className='pr-single-head-top'>
+              <View className='pr-single-date'>{activeSession?.label || '（还没选日期）'}</View>
+              <View className='pr-single-count'>
+                {activeIndex >= 0 ? `第 ${activeIndex + 1} 次／共 ${sessions.length} 次` : ''}
               </View>
             </View>
-          ))}
-          {!singleRows.length ? (
-            <View className='pr-empty'>还没有记录 —— 先在下面「＋ 记录」加一次就诊。</View>
-          ) : null}
+            <View className='pr-single-meta'>
+              <View
+                className='pr-single-item'
+                onClick={() => activeSession && onConstitutionTap(activeSession.id)}
+              >
+                <Text className='pr-single-item-k'>体质</Text>
+                <Text className='pr-single-item-v'>{activeSession?.constitution || '（未判）'}</Text>
+              </View>
+              <View
+                className='pr-single-item'
+                onClick={() => activeSession && onTherapyTap(activeSession.id)}
+              >
+                <Text className='pr-single-item-k'>疗法</Text>
+                <Text className='pr-single-item-v'>{activeSession?.therapy || '（未定）'}</Text>
+              </View>
+            </View>
+            <Text className='pr-note'>上面「体质」「疗法」点一下就能改 —— 只改这一次。</Text>
+          </View>
+
+          {/* 换一次：日期一排，选中的高亮 —— 与宽表同一套「选中日期」的心智 */}
+          <ScrollView scrollX className='pr-single-dates' showScrollbar={false}>
+            {headSessions.map((s) => (
+              <View
+                key={s.id}
+                className={`pr-single-chip ${s.on ? 'is-on' : ''}`}
+                onClick={() => onHeadTap(s.id)}
+              >
+                {s.label}
+              </View>
+            ))}
+          </ScrollView>
+
+          <View className='pr-single'>
+            {singleRows.map((row) => (
+              <View key={`${row.organ}-${row.depth}`} className='pr-single-row'>
+                <View className='pr-single-label'>
+                  <Text className='pr-single-organ'>{row.organ}</Text>
+                  <Text className='pr-single-depth'>{row.depth}</Text>
+                </View>
+                <View
+                  className='pr-single-slot'
+                  onClick={() => onCellTap(row.sessionId, 'L', row.organ, row.depth)}
+                >
+                  <Text className='pr-single-hand'>左</Text>
+                  <Text className='pr-single-val'>{row.L}</Text>
+                </View>
+                <View
+                  className='pr-single-slot'
+                  onClick={() => onCellTap(row.sessionId, 'R', row.organ, row.depth)}
+                >
+                  <Text className='pr-single-hand'>右</Text>
+                  <Text className='pr-single-val'>{row.R}</Text>
+                </View>
+              </View>
+            ))}
+            {!singleRows.length ? (
+              <View className='pr-empty'>还没有记录 —— 先在下面「＋ 记录」加一次就诊。</View>
+            ) : null}
+          </View>
         </View>
       )}
 

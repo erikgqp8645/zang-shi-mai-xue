@@ -29,6 +29,14 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const TARO = join(ROOT, 'taro')
 const SRC = join(TARO, 'src')
 
+// 查 TSX 的**结构**（JSX 元素 / 属性 / 调用 / 表达式）—— 全文搜词会被改名的写法骗过。
+//
+// 用的是 **Taro 工作区里的 TypeScript 5.9**（`taro/package.json` 的 devDependency 之一，
+// 经典 AST API：`createSourceFile` / `isJsxElement` / `SyntaxKind`）。
+// 根目录那个 `typescript@7` 是新的原生版，AST API 换成了 `unstable/ast`，没有解析入口 —— 用不了。
+const requireTaro = createRequire(join(TARO, 'package.json'))
+const ts = requireTaro('typescript')
+
 let pass = 0
 let fail = 0
 const failures = []
@@ -42,6 +50,98 @@ function ok(name, cond, detail = '') {
     failures.push(`${name}${detail ? ' —— ' + detail : ''}`)
     console.log(`  ✗ ${name}${detail ? ` —— ${detail}` : ''}`)
   }
+}
+
+/* ========================================================================
+ * TSX 结构工具 —— **按 AST 看，不全文搜词**
+ *
+ * 为什么不能全文搜词（这是被「故意写坏」验过的）：
+ *   · 把 `className='pr-single-head'` 改成 `'pr-single-head-off'`
+ *     → 搜「pr-single-head」照样搜得到，断言照样过；
+ *   · 把 `selectVisit(...)` 改成 `void s`
+ *     → 搜「selectVisit」也照样搜得到（import 里还有这个名字）。
+ * 这两种「改坏了但搜得到」的写法都会蒙混过关 —— 所以改用编译器 API 看结构。
+ * ======================================================================== */
+
+/** 解析 TSX 成 AST */
+function parseTsx(file) {
+  const src = readFileSync(file, 'utf8')
+  const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  return { src, sf }
+}
+
+/** 深度遍历 AST
+ *
+ * ⚠️ 回调**不能返回值**：`ts.forEachChild` 拿到真值就**中断遍历**。
+ *    （写成 `(c) => walkAst(c, out)` 会返回数组 → 只走到第一个子节点就停。） */
+function walkAst(node, out = []) {
+  out.push(node)
+  ts.forEachChild(node, (c) => {
+    walkAst(c, out)
+  })
+  return out
+}
+
+/** 一个 JSX 元素的 className 属性拆成的类名 token */
+function classTokens(el, sf) {
+  const opening = ts.isJsxElement(el) ? el.openingElement : el
+  const attr = opening?.attributes?.properties?.find((a) => a.name && a.name.text === 'className')
+  if (!attr) return []
+  // 把 `${…}` 里的**字面量**也留下（'is-on' 就在那里面），再按空白切开
+  const raw = attr.initializer.getText(sf).replace(/[${}`"'?:]/g, ' ')
+  return raw.split(/\s+/).filter(Boolean)
+}
+
+/** JSX 元素的文字内容 */
+function textOf(el) {
+  let out = ''
+  const visit = (n) => {
+    if (ts.isJsxText(n)) out += n.text
+    ts.forEachChild(n, visit)
+  }
+  if (ts.isJsxElement(el)) el.children.forEach(visit)
+  return out.replace(/\s+/g, '').trim()
+}
+
+/** 全部 JSX 元素（自闭合 + 带子节点的） */
+function jsxElements(nodes) {
+  return nodes.filter((n) => ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n))
+}
+
+/** className 里带某个类名的 JSX 元素 */
+function elementsByClass(els, sf, cls) {
+  return els.filter((el) => classTokens(el, sf).includes(cls))
+}
+
+/** 某个元素**里面**的 JSX 元素 */
+function insideOf(el) {
+  return jsxElements(walkAst(el))
+}
+
+/** `a || b || c` 摊平成从左到右的运算数 */
+function flattenOr(node, out = []) {
+  if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.BarBarToken) {
+    flattenOr(node.left, out)
+    flattenOr(node.right, out)
+    return out
+  }
+  out.push(node)
+  return out
+}
+
+/** 变量声明（按名字找） */
+function findVarDecl(nodes, sf, name) {
+  return nodes.find((n) => ts.isVariableDeclaration(n) && n.name.getText(sf) === name)
+}
+
+/** useMemo(() => expr, deps) 里那个箭头函数的表达式体 */
+function useMemoBody(decl) {
+  const init = decl?.initializer
+  if (!init || !ts.isCallExpression(init)) return null
+  const arg = init.arguments[0]
+  if (!arg || !(ts.isArrowFunction(arg) || ts.isFunctionExpression(arg))) return null
+  if (ts.isBlock(arg.body)) return null
+  return arg.body
 }
 
 /** 递归找文件 */
@@ -318,6 +418,155 @@ if (existsSync(sheetFile)) {
   // 版式取色：讲义 p34 实例表实测值
   ok('部位列取讲义 p34 的橙色 #ffc000', /#ffc000/i.test(sheetScss))
   ok('表底取讲义 p34 的 #cce8cf', /#cce8cf/i.test(sheetScss))
+
+  /* --------------------------------------------------------------------
+   * 7b. 列界必须对齐（2026-11-07）
+   *
+   * 病根：表头「左/右」行原来是「168rpx 容器内塞 84+84 两个子格」。
+   * 容器自带 `border-right: 2rpx`，`box-sizing: border-box` 下内容盒只剩 166rpx，
+   * 两个 84rpx 的子格**放不下 → 每组溢出 2rpx**，把后面每一组整体推右 2rpx。
+   * 列数越多偏得越远（实测 4 次就诊：表头列界比正文右偏 2→4→7→9px）。
+   *
+   * 修法：表头「左/右」行改成**平铺的 84rpx 格**，与正文的数据格同构。
+   *
+   * 这里断言的是**列宽不变量**（解析 SCSS 规则块取宽度值再比），
+   * 不是全文搜词 —— 搜「84rpx」出现与否，改坏了照样能蒙混过去。
+   * 讲义 2026-10 p34 实例表实测：表头「左/右」行与正文的竖线集合完全一致。
+   * ------------------------------------------------------------------ */
+  const scssRule = (src, selector) => {
+    const esc = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const m = src.match(new RegExp(`(^|[\\s,>])${esc}\\s*\\{([^}]*)\\}`, 'm'))
+    return m ? m[2] : ''
+  }
+  /** 从一条 SCSS 规则里取宽度（rpx） */
+  const ruleWidth = (src, selector) => {
+    const body = scssRule(src, selector)
+    const m = body.match(/width:\s*(\d+(?:\.\d+)?)rpx/)
+    return m ? Number(m[1]) : null
+  }
+
+  const headHandW = ruleWidth(sheetScss, '.pr-thead-hand')
+  const headDateW = ruleWidth(sheetScss, '.pr-thead-date')
+  const bodyCellW = ruleWidth(sheetScss, '.pr-cell')
+  const footCellW = ruleWidth(sheetScss, '.pr-tfoot-cell')
+
+  ok(
+    '表头「左/右」行的格宽与正文数据格一致（列界必然对齐）',
+    headHandW !== null && bodyCellW !== null && headHandW === bodyCellW,
+    `表头 ${headHandW}rpx / 正文 ${bodyCellW}rpx`,
+  )
+  ok(
+    '表头「左/右」两个格 = 日期格一个（一次就诊占两列，两头对得上）',
+    headHandW !== null && headDateW !== null && headHandW * 2 === headDateW,
+    `${headHandW}×2 vs ${headDateW}`,
+  )
+  ok(
+    '表下每格的宽度 = 一个日期格（表下的列界也对得上）',
+    footCellW !== null && headDateW !== null && footCellW === headDateW,
+    `表下 ${footCellW}rpx / 日期 ${headDateW}rpx`,
+  )
+
+  /* --------------------------------------------------------------------
+   * 7c. 结构断言 —— 表头结构、选中高亮、一次一屏的元信息（2026-11-07）
+   *
+   * 这一组全部**按 AST 判**（JSX 元素 / 属性 / 调用），
+   * 不用全文搜词 —— 改个类名、挪个调用都骗得过搜词，骗不过 AST。
+   * ------------------------------------------------------------------ */
+  const sheetAst = parseTsx(sheetFile)
+  const sheetSf = sheetAst.sf
+  const sheetEls = jsxElements(walkAst(sheetSf))
+  const sheetCalls = walkAst(sheetSf).filter(ts.isCallExpression)
+
+  // 旧写法（容器内塞两个子格）会留下这两个类名 —— 留着就说明还在用老结构
+  ok(
+    '表头「左/右」不再用「容器内塞两个子格」的旧结构',
+    elementsByClass(sheetEls, sheetSf, 'pr-thead-hand-l').length === 0 &&
+      elementsByClass(sheetEls, sheetSf, 'pr-thead-hand-r').length === 0,
+  )
+  const handsWrap = elementsByClass(sheetEls, sheetSf, 'pr-thead-hands')[0]
+  const handEls = handsWrap
+    ? insideOf(handsWrap).filter((el) => classTokens(el, sheetSf).includes('pr-thead-hand'))
+    : []
+  ok(
+    '表头「左/右」行平铺两个格（左 + 右）',
+    handEls.some((el) => classTokens(el, sheetSf).includes('is-l')) &&
+      handEls.some((el) => classTokens(el, sheetSf).includes('is-r')),
+  )
+
+  // 选中高亮：要绑在**表头日期 / 数据格 / 表下格**这三处，缺一就不算「整列高亮」
+  const onEls = elementsByClass(sheetEls, sheetSf, 'is-on')
+  ok(
+    '宽表：数据格绑上选中高亮',
+    onEls.some((el) => classTokens(el, sheetSf).includes('pr-cell')),
+  )
+  ok(
+    '宽表：表头日期绑上选中高亮',
+    onEls.some((el) => classTokens(el, sheetSf).includes('pr-thead-date')),
+  )
+  ok(
+    '表下：格绑上选中高亮',
+    onEls.some((el) => classTokens(el, sheetSf).includes('pr-tfoot-cell')),
+  )
+
+  // 一次一屏的元信息头
+  ok('一次一屏有「这一次」的元信息头', elementsByClass(sheetEls, sheetSf, 'pr-single-head').length === 1)
+  ok('一次一屏的元信息里有体质／疗法两项', (() => {
+    const ks = elementsByClass(sheetEls, sheetSf, 'pr-single-item-k').map((el) => textOf(el))
+    return ks.includes('体质') && ks.includes('疗法')
+  })())
+  ok('一次一屏有「换一次」的日期 chip', elementsByClass(sheetEls, sheetSf, 'pr-single-chip').length >= 1)
+  // 元信息头不许混进宽表的表头分支里
+  ok(
+    '「这一次」的头只出现在一次一屏分支（不在宽表表头里）',
+    (() => {
+      const thead = elementsByClass(sheetEls, sheetSf, 'pr-thead')[0]
+      if (!thead) return true
+      return insideOf(thead).every((el) => !classTokens(el, sheetSf).includes('pr-single-head'))
+    })(),
+  )
+  // 体质／疗法可就地改 —— 看的是**调用点**，不是名字出现过没有
+  ok(
+    '一次一屏的体质可就地改（调用点带着 activeSession）',
+    sheetCalls.some(
+      (c) =>
+        ts.isIdentifier(c.expression) &&
+        c.expression.text === 'onConstitutionTap' &&
+        c.arguments.some((a) => a.getText(sheetSf).includes('activeSession')),
+    ),
+  )
+  ok(
+    '一次一屏的疗法可就地改（调用点带着 activeSession）',
+    sheetCalls.some(
+      (c) =>
+        ts.isIdentifier(c.expression) &&
+        c.expression.text === 'onTherapyTap' &&
+        c.arguments.some((a) => a.getText(sheetSf).includes('activeSession')),
+    ),
+  )
+
+  // 表下两行：标签跟值必须同行 —— 原来 lead 第 2 行是「体质」而值在第 1 行（标签错行）
+  ok(
+    '表下没有留白格（旧结构）',
+    elementsByClass(sheetEls, sheetSf, 'pr-tfoot-blank').length === 0,
+  )
+  ok(
+    '表下的标签是两行：体质 / 疗法',
+    (() => {
+      const lead = elementsByClass(sheetEls, sheetSf, 'pr-tfoot-lead')[0]
+      if (!lead) return false
+      const labels = insideOf(lead).filter((el) => classTokens(el, sheetSf).includes('pr-tfoot-label'))
+      const texts = labels.map((el) => textOf(el))
+      return labels.length === 2 && texts[0] === '体质' && texts[1] === '疗法'
+    })(),
+  )
+  ok(
+    '表下的值也是两行（体质值 / 疗法值）',
+    (() => {
+      const cols = elementsByClass(sheetEls, sheetSf, 'pr-tfoot-cols')[0]
+      if (!cols) return false
+      return insideOf(cols).filter((el) => classTokens(el, sheetSf).includes('pr-tfoot-row')).length === 2
+    })(),
+  )
 }
 
 /* ========================================================================
@@ -336,6 +585,58 @@ for (const [label, f] of [
   const src = read(f)
   ok(`${label} 用的是 record-sheet 组件`, /record-sheet/.test(src))
   ok(`${label} 没有自己画表格骨架`, !/pr-organ/.test(src) && !/<table\b/.test(src))
+}
+
+/* ========================================================================
+ * 8b. 「当前那一次」只有一套（2026-11-07）
+ *
+ * 病根：宽表点日期只改本地的 `activeSessionId`，
+ * 而体质／疗法档读的是 `ctx.visitId` —— **两套「当前那一次」各说各话**：
+ * 宽表高亮的那次 ≠ 体质／疗法显示的那次 ≠ 关系图标的那次。
+ * 修法：点日期时同时 `selectVisit()`，把全局上下文也切过去；
+ *      「当前那一次」的推导先认表格里选中的那次。
+ * ======================================================================== */
+if (existsSync(visitPage)) {
+  const visitAst = parseTsx(visitPage)
+  const visitSf = visitAst.sf
+  const visitNodes = walkAst(visitSf)
+  const visitCalls = visitNodes.filter(ts.isCallExpression)
+
+  // 看的是**调用点**，不是「这个名字出现过没有」——
+  // import 里就有 selectVisit，搜词会被骗过。
+  ok(
+    '就诊页点日期会同步全局上下文（selectVisit 真有调用）',
+    visitCalls.some((c) => ts.isIdentifier(c.expression) && c.expression.text === 'selectVisit'),
+  )
+
+  // 而且那个调用要落在 onSessionTap 里（不是别处）
+  const onTapDecl = findVarDecl(visitNodes, visitSf, 'onSessionTap')
+  ok(
+    '全局上下文的切换就在「点日期」这个回调里',
+    !!onTapDecl &&
+      walkAst(onTapDecl).some(
+        (c) => ts.isCallExpression(c) && ts.isIdentifier(c.expression) && c.expression.text === 'selectVisit',
+      ),
+  )
+
+  // 结构断言：「当前那一次」的推导里，**先认 activeSessionId、再退到 ctx.visitId**。
+  // 比的是 `||` 链里运算数的**先后**，不靠下标 —— 换行、加注释都不影响它。
+  const activeDecl = findVarDecl(visitNodes, visitSf, 'activeSession')
+  ok('就诊页推导得出「当前那一次」', !!activeDecl)
+  if (activeDecl) {
+    const body = useMemoBody(activeDecl)
+    const operands = body ? flattenOr(body) : []
+    const iLocal = operands.findIndex((o) => o.getText(visitSf).includes('activeSessionId'))
+    const iCtx = operands.findIndex((o) => o.getText(visitSf).includes('ctx.visitId'))
+    ok(
+      '「当前那一次」先认表格里选中的那次，再退到上下文那次',
+      iLocal >= 0 && iCtx >= 0 && iLocal < iCtx,
+      `activeSessionId@${iLocal} ctx.visitId@${iCtx}`,
+    )
+  }
+
+  // 本地新建、还没落库的那次：体质／疗法只改本地，不去 PATCH（会 404）
+  ok('就诊页认得「还没落库」的那几次（体质/疗法只改本地）', /pendingVisitIds/.test(visitAst.src))
 }
 
 /* ========================================================================

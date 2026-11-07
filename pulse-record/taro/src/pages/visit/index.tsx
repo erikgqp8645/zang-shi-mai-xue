@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Text, View } from '@tarojs/components'
 import Taro, { useDidShow } from '@tarojs/taro'
 
@@ -9,7 +9,7 @@ import { sampleShaoJuan } from '@domain/sample'
 
 import { getPatient, listCustomSymbols, savePatient, updatePatientLayout, updateVisit } from '../../utils/data'
 import { getStorageSync, setStorageSync } from '../../platform/storage'
-import { useVisitContext } from '../../store/context'
+import { selectVisit, useVisitContext } from '../../store/context'
 
 import ContextBar from '../../components/context-bar'
 import SubTabs from '../../components/sub-tabs'
@@ -60,8 +60,15 @@ import './index.scss'
  * ## 落库语义
  *
  * · 体质／疗法：**改了就写回那次就诊**（与网站一致：随记录存）
+ *   —— 但**本地新建、还没落库**的那次例外：库里没有它，只改本地，等「保存」整份写进去
  * · 脉象格值／用药：**留在本地，点「保存」整份提交**
  * · 体例：**立刻落库**（体例是患者级属性，唯一真源在库里）
+ *
+ * ## 「当前那一次」（2026-11-07 统一）
+ *
+ * 宽表点某个日期 → 那一列高亮 → 点「一次一屏」只摊开那一次 → 顶上放大显示日期／体质／疗法。
+ * 这一串动作认的都是同一个「当前那一次」：`activeSessionId`（本地选中）
+ * ＋ 全局上下文 `ctx.visitId`（落盘、吸顶条显示）—— 两者**同步**，不再各说各话。
  */
 const TABS = [
   { key: 'pulse', label: '摸脉' },
@@ -135,15 +142,45 @@ export default function Visit() {
     if (v === 'single' || v === 'wide') setView(v)
   })
 
-  /** 当前那一次就诊 */
+  /**
+   * 当前那一次就诊 —— **以「表格里选中的那次」为准**（2026-11-07 统一）。
+   *
+   * 以前这里是 `sessions.find(s => s.id === ctx.visitId)`，
+   * 而点宽表日期只改本地的 `activeSessionId` —— **两套「当前那一次」各说各话**：
+   * 宽表高亮的那次 ≠ 体质／疗法档显示的那次 ≠ 关系图标的那次。
+   * 现在一处推导：先认表格里选中的那次，再退到上下文那次，最后退到最后一次。
+   */
   const activeSession = useMemo(
-    () => sessions.find((s) => s.id === ctx.visitId) || sessions[sessions.length - 1] || null,
-    [sessions, ctx.visitId],
+    () =>
+      sessions.find((s) => s.id === activeSessionId) ||
+      sessions.find((s) => s.id === ctx.visitId) ||
+      sessions[sessions.length - 1] ||
+      null,
+    [sessions, activeSessionId, ctx.visitId],
   )
 
+  /**
+   * 上下文里的那次（全局、落盘）变了 → 表格里选中的那次跟着变。
+   *
+   * 用 ref 记住上一次见过的 `ctx.visitId`：**只有上下文真的变了**才同步。
+   * 否则「表格点日期 → 同步到上下文」这条回路会被这个 effect 反着拽回去。
+   */
+  const ctxVisitRef = useRef<string | null>(ctx.visitId)
   useEffect(() => {
-    if (activeSession) setActiveSessionId(activeSession.id)
-  }, [activeSession])
+    if (ctx.visitId === ctxVisitRef.current) return
+    ctxVisitRef.current = ctx.visitId
+    setActiveSessionId(ctx.visitId)
+  }, [ctx.visitId])
+
+  /** 载入后落到「上下文那次」；上下文没有就落最后一次 */
+  useEffect(() => {
+    setActiveSessionId((prev) => {
+      if (prev && sessions.some((s) => s.id === prev)) return prev
+      const fromCtx =
+        ctx.visitId && sessions.some((s) => s.id === ctx.visitId) ? ctx.visitId : null
+      return fromCtx || sessions[sessions.length - 1]?.id || null
+    })
+  }, [sessions])
 
   /* ---------------- 脉象 ---------------- */
 
@@ -176,6 +213,15 @@ export default function Visit() {
     Taro.showToast({ title: text, icon: 'none', duration: 2600 })
   }
 
+  /**
+   * 还没落库的几次就诊（本地新建的）。
+   *
+   * 为什么要单独记：体质／疗法是「改了就立刻写回那次就诊」的，
+   * 但本地新建的那次**库里还没有** —— 直接 PATCH 会 404。
+   * 所以这几次只改本地，等「保存」时随整份一起写进去。
+   */
+  const pendingVisitIds = useRef<Set<string>>(new Set())
+
   /** 选日期 → 加一列记录 */
   const onAddVisit = (ymd: string) => {
     const label = ymdToLabel(ymd)
@@ -187,7 +233,26 @@ export default function Visit() {
     ])
     setSessions(next)
     setActiveSessionId(id)
+    // 这一列**还没落库** —— 体质／疗法改了先只改本地，等「保存」整份写进去。
+    pendingVisitIds.current.add(id)
   }
+
+  /**
+   * 点宽表里的日期 → 选中那一次，并把**全局上下文**也切过去。
+   *
+   * 2026-11-07：以前这里只改本地的 `activeSessionId`，
+   * 吸顶条、体质／疗法档、关系图全都还指着上下文里那一次 —— 各说各话。
+   * 现在一次点选，四处一起走。
+   */
+  const onSessionTap = useCallback(
+    (id: string) => {
+      setActiveSessionId(id)
+      const s = sessions.find((x) => x.id === id)
+      if (!s) return
+      selectVisit({ id: s.id, label: s.label || '', at: s.at })
+    },
+    [sessions],
+  )
 
   /** 载入讲义 p34 的实例（少娟 6 次记录）—— 与网站同一个按钮 */
   const onLoadSample = () => {
@@ -203,6 +268,9 @@ export default function Visit() {
     setName(sample.name)
     setSessions(next)
     setMedications([])
+    // 示例的几次也**还没落库** —— 体质／疗法先只改本地，等「保存」。
+    next.forEach((s) => pendingVisitIds.current.add(s.id))
+    setActiveSessionId(next[0]?.id || null)
   }
 
   const onViewChange = (v: 'wide' | 'single') => {
@@ -221,6 +289,9 @@ export default function Visit() {
     )
     const visitId = activeSession?.id
     if (!visitId) return
+    // 本地新建、还没落库的那次：库里没有它，PATCH 会 404 ——
+    // 先只改本地，等「保存」整份写进去。（2026-11-07）
+    if (pendingVisitIds.current.has(visitId)) return
     try {
       await updateVisit(visitId, patch)
     } catch (e) {
@@ -258,6 +329,8 @@ export default function Visit() {
         medications: meds,
       }
       await savePatient(payload)
+      // 全写进去了 —— 那些「还没落库」的标记可以清掉
+      pendingVisitIds.current.clear()
       Taro.showToast({ title: '已保存', icon: 'success' })
     } catch (e) {
       setError((e as Error)?.message || '保存失败')
@@ -297,7 +370,7 @@ export default function Visit() {
           onViewChange={onViewChange}
           onNameChange={setName}
           onSessionsChange={setSessions}
-          onSessionTap={setActiveSessionId}
+          onSessionTap={onSessionTap}
           onToggleLayout={onToggleLayout}
           onAddVisit={onAddVisit}
           onLoadSample={onLoadSample}
