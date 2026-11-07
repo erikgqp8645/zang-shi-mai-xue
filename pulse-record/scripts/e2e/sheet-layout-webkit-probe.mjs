@@ -195,6 +195,45 @@ const dateTextOk =
   wk.dateText.every((t, i) => near(t.l, wk.headDate[i * 2].l) && near(t.r, wk.headDate[i * 2 + 1].r))
 ok('日期标签横跨「左 + 右」两个半格', dateTextOk, `标签 ${wk.dateText.length} 个`)
 
+// ⑤b 左半格**不许画竖线**（讲义 p34：日期横跨两列，中间不画竖线）
+// ⚠️ 量坐标量不出来 —— 格子边界还在，只是没画线；必须查**计算样式**。
+const halfShadowOk = (rows, label) => {
+  if (!rows || rows.length === 0) return { ok: false, why: `${label}：没量到半格` }
+  // ⭐ 按 **class** 判定谁是左半格（不看下标奇偶）—— 与 Chromium 探针同一套判据
+  const bad = rows.filter((x) =>
+    x.l ? x.shadow !== 'none' : x.r ? !/inset/.test(x.shadow || '') : true,
+  )
+  return {
+    ok: bad.length === 0,
+    why: `${label}：${rows.length} 个半格，${bad.length} 个不符`,
+  }
+}
+const ds = halfShadowOk(wk.dateShadows, '日期半格')
+ok('日期行的左半格不画竖线（日期中间没有多余竖线）', ds.ok, ds.why)
+const fs = halfShadowOk(wk.footShadows, '表下半格')
+ok('表下的左半格不画竖线（值格中间没有多余竖线）', fs.ok, fs.why)
+
+// ⑤c 左半格不许裁跨格文字（真机截图上「（未判）」被截成「（未」）
+const want168 = Math.round(168 * (375 / 750) * 100) / 100
+ok(
+  '日期 / 表下的左半格不裁跨格文字（overflow: visible）',
+  wk.halfStyle &&
+    wk.halfStyle.dateL &&
+    wk.halfStyle.footL &&
+    wk.halfStyle.dateL.overflow === 'visible' &&
+    wk.halfStyle.footL.overflow === 'visible',
+  `日期 ${wk.halfStyle && wk.halfStyle.dateL && wk.halfStyle.dateL.overflow} / 表下 ${wk.halfStyle && wk.halfStyle.footL && wk.halfStyle.footL.overflow}`,
+)
+ok(
+  '跨格文字的真实字宽塞得进两格（没被裁）',
+  wk.textReal &&
+    wk.textReal.date > 0 &&
+    wk.textReal.date <= want168 + 1 &&
+    wk.textReal.foot > 0 &&
+    wk.textReal.foot <= want168 + 1,
+  `日期字宽 ${wk.textReal && wk.textReal.date}px / 表下字宽 ${wk.textReal && wk.textReal.foot}px（两格 ${want168}px）`,
+)
+
 // ⑥ 竖线样式：仍然是 inset box-shadow（不是 border）
 const styles = wk.style || {}
 const badStyle = Object.entries(styles).filter(

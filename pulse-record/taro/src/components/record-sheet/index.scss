@@ -158,6 +158,14 @@
  *   · `overflow:hidden + ellipsis` 兜底超长日期。 */
 .pr-thead-date.is-l {
   position: relative;
+  /* ⭐ **左半格不画竖线** —— 讲义 p34：表头第一行每个日期横跨「左＋右」两列，
+   *    **中间不画竖线**；竖线只画在「组界」（一次就诊的右边）。
+   *    拆成两个半格是为了统一列宽算法（84rpx），
+   *    但「拆格子」不等于「画两条线」—— is-l 的右线必须去掉。
+   *    （2026-11-07 实机截图：多出来的那条线就在每个日期的正中间。） */
+  box-shadow: none;
+  /* 标签是绝对定位跨两格的 —— 父格子不许裁它（超长由文字自己的 ellipsis 兜底） */
+  overflow: visible;
 }
 
 .pr-thead-date-text {
@@ -363,6 +371,12 @@
 /* 表下格的值 —— 文字横跨「两个半格」居中（同日期标签的做法） */
 .pr-tfoot-cell.is-l {
   position: relative;
+  /* ⭐ 同日期标签：值格横跨两列，**中间不画竖线**（与日期行一致） */
+  box-shadow: none;
+  /* ⭐ 值文字是**绝对定位跨两格**的 —— 父格子不能裁它，
+   *    否则「（未判）」会被切成「（未」（2026-11-07 真机截图可见）。
+   *    超长文字由 .pr-tfoot-cell-text 自己的 overflow+ellipsis 兜底。 */
+  overflow: visible;
 }
 
 .pr-tfoot-cell-text {

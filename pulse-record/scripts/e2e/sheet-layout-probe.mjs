@@ -361,6 +361,61 @@ ok(
   `值文字 ${w.footText.length} 个 / 表下格 ${w.footCell.length} 个`,
 )
 
+/* ⭐ 左半格**不许画竖线**（2026-11-07 实机截图）
+ *
+ * 讲义 2026-10 p34：表头第一行每个日期**横跨「左＋右」两列，中间不画竖线**；
+ * 竖线只画在「组界」（一次就诊的右边）。
+ *
+ * 2026-11-07 把日期/表下拆成两个 84rpx 半格（为了统一列宽算法）时，
+ * **顺手给左半格也画了右线** —— 于是每个日期的正中间多出一条竖线，
+ * 实机截图上被标成「这里多了一个竖线」。
+ *
+ * ⚠️ 这条**量坐标量不出来**（格子边界还在，只是没画线）——
+ *    必须查**计算样式**：左半格的 box-shadow 必须是 none，右半格必须带 inset。 */
+const halfShadowOk = (rows, label) => {
+  if (!rows || rows.length === 0) return { ok: false, why: `${label}：没量到半格` }
+  // ⭐ 按 **class** 判定谁是左半格（不看下标奇偶 —— 奇偶只在格子数为偶数时恰好成立）
+  //    · is-l ⇒ 必须 `none`（**不画竖线**：讲义 p34 日期横跨两列，中间不画竖线）
+  //    · is-r ⇒ 必须带 `inset`（画组界线）
+  //    · 两者都不是 ⇒ 算坏（半格必须挂 is-l / is-r 之一）
+  const bad = rows.filter((x) =>
+    x.l ? x.shadow !== 'none' : x.r ? !/inset/.test(x.shadow || '') : true,
+  )
+  return {
+    ok: bad.length === 0,
+    why: `${label}：${rows.length} 个半格，左半格须为 none、右半格须带 inset —— ${bad.length} 个不符`,
+  }
+}
+const dateShadow = halfShadowOk(w.dateShadows, '日期半格')
+ok(
+  '日期行的**左半格不画竖线**（讲义 p34：日期横跨「左＋右」两列，中间不画竖线）',
+  dateShadow.ok,
+  dateShadow.why,
+)
+const footShadow = halfShadowOk(w.footShadows, '表下半格')
+ok('表下的**左半格不画竖线**（值格横跨两列，中间不画竖线）', footShadow.ok, footShadow.why)
+
+// ⭐ 跨格文字不许被父格子裁掉（2026-11-07 真机截图：值被截成「（未」）
+const want168 = Math.round(168 * RPX * 100) / 100
+ok(
+  '日期 / 表下的左半格**不裁**跨格文字（overflow: visible）',
+  w.halfStyle &&
+    w.halfStyle.dateL &&
+    w.halfStyle.footL &&
+    w.halfStyle.dateL.overflow === 'visible' &&
+    w.halfStyle.footL.overflow === 'visible',
+  `日期 ${w.halfStyle && w.halfStyle.dateL && w.halfStyle.dateL.overflow} / 表下 ${w.halfStyle && w.halfStyle.footL && w.halfStyle.footL.overflow}`,
+)
+ok(
+  '跨格文字的**真实字宽**塞得进两格（没被裁）',
+  w.textReal &&
+    w.textReal.date > 0 &&
+    w.textReal.date <= want168 + 1 &&
+    w.textReal.foot > 0 &&
+    w.textReal.foot <= want168 + 1,
+  `日期字宽 ${w.textReal && w.textReal.date}px / 表下字宽 ${w.textReal && w.textReal.foot}px（两格 ${want168}px）`,
+)
+
 // 左缘：表头 lead 的右边界 == 正文「部位+取法」两列的右边界 == 第一个数据格的左边界
 const firstCellLeft = w.bodyCell[0].l
 ok(

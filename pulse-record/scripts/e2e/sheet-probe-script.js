@@ -57,12 +57,43 @@
   out.style = {
     cell: styleOf('.pr-cell'),
     hand: styleOf('.pr-thead-hand'),
-    date: styleOf('.pr-thead-date'),
-    foot: styleOf('.pr-tfoot-cell'),
+    // ⭐ 日期/表下取**画线的那一半**（is-r）—— 左半格是「明确不画线」的，
+    //    它的 box-shadow 必然是 none，不能混进「竖线必须用 inset」这条断言里。
+    //    「左半格必须是 none」由下面的 dateShadows / footShadows 逐个断言。
+    date: styleOf('.pr-thead-date.is-r'),
+    foot: styleOf('.pr-tfoot-cell.is-r'),
     organ: styleOf('.pr-organ'),
     depth: styleOf('.pr-depth'),
     name: styleOf('.pr-thead-name'),
     nameText: styleOf('.pr-thead-name-text'),
+  }
+
+  // ⭐ 拆半格后：左半格**不画竖线**（讲义 p34：日期横跨「左＋右」两列，中间不画竖线）
+  //    ⇒ 逐个半格查它的 box-shadow：左半格应为 none，右半格应有 inset。
+  //    这是**计算样式级**断言 —— 量坐标量不出来（格子边界还在，只是没画线）。
+  //
+  // ⭐ 按 **class** 判定「谁是左半格」，**不按下标奇偶** ——
+  //    奇偶只在「每行格子数是偶数」时恰好成立（当前是），
+  //    一旦 DOM 顺序调整就会误判。按 class 判定与顺序无关。
+  const shadowsOf = (sel) =>
+    Array.from(document.querySelectorAll(sel)).map((e) => ({
+      l: e.classList.contains('is-l'),
+      r: e.classList.contains('is-r'),
+      shadow: getComputedStyle(e).boxShadow,
+    }))
+  out.dateShadows = shadowsOf('.pr-thead-date')
+  out.footShadows = shadowsOf('.pr-tfoot-cell')
+
+  // ⭐ 跨格文字（日期标签 / 表下值）是绝对定位在左半格上的 ——
+  //    左半格若带 overflow:hidden，会把文字裁成「（未」（2026-11-07 真机截图可见）。
+  out.halfStyle = {
+    dateL: styleOf('.pr-thead-date.is-l'),
+    footL: styleOf('.pr-tfoot-cell.is-l'),
+  }
+  // 文字的**真实字宽**（scrollWidth，不是元素盒宽）
+  out.textReal = {
+    date: (document.querySelector('.pr-thead-date-text') || {}).scrollWidth || 0,
+    foot: (document.querySelector('.pr-tfoot-cell-text') || {}).scrollWidth || 0,
   }
 
   out.singleHead = (document.querySelector('.pr-single-head') || {}).textContent || ''

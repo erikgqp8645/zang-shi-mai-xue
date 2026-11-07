@@ -43,6 +43,7 @@
     "test:e2e:mp:legacy:sim": "node scripts/e2e/mp-sim.mjs",
     "test:e2e:sheet": "npm run mp:taro:build && node scripts/e2e/sheet-layout-probe.mjs",
     "test:e2e:sheet:webkit": "npm run mp:taro:build && node scripts/e2e/sheet-layout-webkit-probe.mjs",
+    "test:e2e:sheet:break": "node scripts/e2e/sheet-break-test.mjs",
     "test:e2e:migration": "node scripts/e2e/migration.mjs",
     "test:e2e:auth": "node scripts/e2e/auth-isolation.mjs",
     "test:e2e:app": "node scripts/e2e/app-regression.mjs",

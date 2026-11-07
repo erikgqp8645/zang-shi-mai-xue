@@ -510,6 +510,39 @@ if (existsSync(sheetFile)) {
     /position\s*:\s*relative/.test(scssRule(sheetScss, '.pr-thead-date.is-l')) &&
       /position\s*:\s*relative/.test(scssRule(sheetScss, '.pr-tfoot-cell.is-l')),
   )
+  // ⭐ 左半格**不许画竖线** —— 讲义 p34：日期横跨「左＋右」两列，中间不画竖线。
+  //    拆半格是为了统一列宽算法，但「拆格子」不等于「画两条线」。
+  //    （2026-11-07 实机截图：每个日期正中间多出一条竖线，就是 is-l 的右线。）
+  const isLRules = [
+    ['.pr-thead-date.is-l', scssRule(sheetScss, '.pr-thead-date.is-l')],
+    ['.pr-tfoot-cell.is-l', scssRule(sheetScss, '.pr-tfoot-cell.is-l')],
+  ]
+  const stillLined = isLRules
+    .filter(([, body]) => !/box-shadow\s*:\s*none/.test(body))
+    .map(([sel]) => sel)
+  ok(
+    '日期 / 表下的**左半格不画竖线**（讲义 p34：横跨两列，中间不画竖线）',
+    stillLined.length === 0,
+    stillLined.join(' / '),
+  )
+  const isRRules = [
+    ['.pr-thead-date.is-r', scssRule(sheetScss, '.pr-thead-date.is-r')],
+    ['.pr-tfoot-cell.is-r', scssRule(sheetScss, '.pr-tfoot-cell.is-r')],
+  ]
+  const missingR = isRRules.filter(([, body]) => !/box-shadow\s*:\s*inset/.test(body)).map(([sel]) => sel)
+  ok('日期 / 表下的右半格画组界线（inset box-shadow）', missingR.length === 0, missingR.join(' / '))
+  // ⭐ 左半格不许裁跨格文字 —— 否则「（未判）」会被截成「（未」（真机截图可见）
+  const clipping = [
+    ['.pr-thead-date.is-l', scssRule(sheetScss, '.pr-thead-date.is-l')],
+    ['.pr-tfoot-cell.is-l', scssRule(sheetScss, '.pr-tfoot-cell.is-l')],
+  ]
+    .filter(([, body]) => !/overflow\s*:\s*visible/.test(body))
+    .map(([sel]) => sel)
+  ok(
+    '日期 / 表下的左半格**不裁**跨格文字（overflow: visible）',
+    clipping.length === 0,
+    clipping.join(' / '),
+  )
   // 组件侧：日期行必须真的渲染成「两个半格 + 一个跨格标签」
   ok(
     '组件把日期渲染成两个半格（is-l / is-r），标签挂在 is-l 上',
