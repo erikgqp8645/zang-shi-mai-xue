@@ -13,7 +13,7 @@
 | AppID | ✅ 已填：`wx3a21eb903a16cbc4`（Taro 工程与原生回退版两处一致） |
 | 默认 API 地址 | ✅ 已支持编译期注入（`PULSE_API_BASE`），上线包不用改源码 |
 | 传输方式 | ✅ 微信端默认 **`TRANSPORT='cloud'`**（`wx.cloud.callFunction`）—— **不受 request 合法域名约束**；鸿蒙端强制 `'request'`（鸿蒙没有 `wx.cloud`） |
-| **CloudBase 环境关联小程序** | ⬜ **还没关联**（环境 `ambitious-parrot-d7ehh7x0fd9d680` 的 `UserInfo` 为空）→ `wx.cloud.callFunction` 报 `-501000 Environment not found`。**这是上线的头号阻塞**，见 §2.5 |
+| **CloudBase 环境关联小程序** | 🟡 **账号级关联已完成**，**云通道通不通待实测** —— 环境 `pulse-1-d0g880ydl8ddc57f6` 的 `UserInfo.WxAppId = wx3a21eb903a16cbc4`（已关联）。**此前记的「`-501000` ⇒ PG 用不了」是错的**，已更正，见 §2.5 |
 | 服务器域名 | ☐ 走 cloud 路线**不需要**；只有改走 `TRANSPORT='request'` 才要等 ICP 备案 |
 | 微信后台隐私指引 | ⬜ **不用勾任何隐私类型** —— 代码里一个隐私接口都不调（但「用户信息收集」那一栏还要如实填，见 §1.3） |
 | 第三方 SDK 声明 | ⬜ 走 cloud 路线**要**声明「腾讯云 CloudBase」（见 §1.4） |
@@ -122,11 +122,27 @@ PULSE_API_BASE=https://<你的备案域名> npm run mp:taro:build
 
 ---
 
-## 2.5 关联 CloudBase 环境（⬜ **上线的头号阻塞**）
+## 2.5 关联 CloudBase 环境（🟡 账号级关联已做完；⬜ **云通道通不通要实测**）
 
-> **2026-11-06 实测**：环境 `ambitious-parrot-d7ehh7x0fd9d680` 的 `UserInfo` 仍是 `{}` ——
-> **还没跟小程序 appid 关联**，所以 `wx.cloud.callFunction` 会报
-> `errCode: -501000 | errMsg: Environment not found`。
+> **2026-11-07 复核 —— 此前记的那条结论是错的，已更正。**
+>
+> | 之前记的 | 实情 |
+> |---|---|
+> | 「`-501000 Environment not found` ⇒ PG 环境接不进小程序云开发」 | **那次 `-501000` 的观测对象是 `ambitious-parrot-d7ehh7x0fd9d680`** —— 它 11-06 就**被销毁**了。环境被销毁后 `wx.cloud.init` 照样「成功」（它不报错），错误要拖到第一次 `callFunction` 才抛。**那次观测只证明「那个 id 指向的环境没了」，根本没证明 `pulse-1` 不行** —— 而 `pulse-1` **从来没被测过**：11-06 那份小程序包走的是 request 直连网关，**云通道压根没编进包里** |
+> | 「`UserInfo` 为空 ⇒ 还没关联」 | 现环境 `pulse-1-d0g880ydl8ddc57f6` 的 `UserInfo.WxAppId = wx3a21eb903a16cbc4` → **账号级关联已做完**（`DescribeEnvs` 实测，`UserInfo.UpdateTime` = 2026-11-06T07:07:00Z） |
+> | 「开发者工具『使用已有腾讯云环境』提示『暂不支持选择 PostgreSQL 环境』⇒ PG 不能用」 | 那是**「转换入口」的限制**（把腾讯云侧环境转成小程序自己的环境）。**跟官方文档讲的 `wx.cloud.init` ＋ `rdb()` 直连是两套机制**，不能互相推导 |
+>
+> **官方文档是支持的**：<https://docs.cloudbase.net/database/framework-quickstarts/pg/mp>
+> 《在微信小程序中访问云开发 PostgreSQL 数据库表》——
+> 路径是 `wx.cloud.init({ env })` ＋ `init(wx.cloud).rdb()` **直连**（**不是 `callFunction`**），
+> 前置条件是「**必须使用你的微信小程序关联的腾讯云账号登录云开发平台**」→ **我们满足**；
+> 「支持地域」只标了**上海** → 本环境正在 ap-shanghai ✓。
+>
+> ⚠️ **另一处官方文档跟我们的情况相左，只能靠实测裁决**：
+> 官方 FAQ《不同客户端能否使用同一个资源环境？》写的是
+> 「在微信侧创建的环境，可支持开发小程序端和 Web 端；而在**腾讯云侧创建的环境暂时只支持开发 Web 端**」。
+> 本环境 `EnvChannel = qc_console`（腾讯云侧创建）→ 落在后半句。
+> **两处官方文档打架时，不能靠推断，只能跑一次看结果** —— 见 §2.7。
 >
 > **没有公开 API 能代劳**（已穷举 CloudBase 管控面全部 Action：
 > `ModifyEnv` 虽然认 `WxAppId` 参数，但没做过账号级绑定时它是空操作，读回来仍是空）。
@@ -142,7 +158,7 @@ PULSE_API_BASE=https://<你的备案域名> npm run mp:taro:build
 ### 2.5.2 第二步：在开发者工具里把环境转成「我的环境」
 
 4. 微信开发者工具 → 顶部「**云开发**」 → 「**设置**」 → 「环境名称」下拉 → 「**管理我的环境**」
-5. 侧边栏点「**使用已有腾讯云环境**」→ 选 `ambitious-parrot-d7ehh7x0fd9d680` → 确认「**环境转换**」→ 扫码验证
+5. 侧边栏点「**使用已有腾讯云环境**」→ 选 `pulse-1-d0g880ydl8ddc57f6` → 确认「**环境转换**」→ 扫码验证
 
 > ⚠️ **这一步在某些开发者工具版本上入口是缺失的**（2026-11-06 查证）：
 >
@@ -154,10 +170,15 @@ PULSE_API_BASE=https://<你的备案域名> npm run mp:taro:build
 >   「使用已有腾讯云环境」入口，Web 端控制台也没有「转换为小程序环境」入口；
 > - 最终结论是「**需后台人工介入**做环境类型转换」，且该工单被 stale-bot 以「7 天无活动」自动关闭。
 >
-> **本机开发者工具版本 36.6.0**（远新于工单里的版本），
-> 入口大概率是有的 —— **先按上面 4、5 试**。
-> 若确实没有「使用已有腾讯云环境」这个入口，那就是撞上了同一个已知问题，
-> 按工单里的模板提 issue（把 下面「2.5.4 提工单要准备的信息」填齐）。
+> **本机开发者工具版本 36.6.0**（远新于工单里的版本）——
+> **2026-11-06 实测：入口是有的**，列表里能看到 `pulse-1`，
+> 但**鼠标悬停提示「暂不支持选择 PostgreSQL 环境」** → **点不进去，选不了**。
+> 即：**「转换」这条路对 PG 环境是死的**（NoSQL 环境才行）。
+>
+> ⚠️ **但这不等于「PG 在小程序里用不了」** ——
+> 「转换」是把腾讯云侧环境收编成小程序**自己的**环境，
+> 而官方文档给的 `wx.cloud.init({ env })` ＋ `rdb()` **是直接按环境 id 连**，不经过转换。
+> 两条路是不是真的互不相干，**只能实测**（§2.7）。
 >
 > **另一条更快的路（不依赖入口，见 §2.6）**：改走 `TRANSPORT='request'` ＋ 网关地址，
 > 当场就能连上云端的真数据 —— 但**只适用于开发调试**，正式版仍会被微信的域名白名单拦。
@@ -169,7 +190,7 @@ PULSE_API_BASE=https://<你的备案域名> npm run mp:taro:build
 | 项 | 本项目填什么 |
 |---|---|
 | 腾讯云主账号 ID | `100006925378` |
-| 目标环境 ID | `ambitious-parrot-d7ehh7x0fd9d680` |
+| 目标环境 ID | `pulse-1-d0g880ydl8ddc57f6` |
 | 小程序 AppID | `wx3a21eb903a16cbc4` |
 | 微信开发者工具精确版本 | `36.6.0` |
 
@@ -183,8 +204,9 @@ PULSE_API_BASE=https://<你的备案域名> npm run mp:taro:build
 
 | 现象 | 结论 |
 |---|---|
-| 出现 `cloud.callFunction:fail ... Environment not found`（`-501000`） | ❌ 还没关联好 → 回看 §2.5.1／§2.5.2 哪一步没点到位 |
-| **没有** `-501000` 报错 | ✅ 关联成了 |
+| 出现 `cloud.callFunction:fail ... Environment not found`（`-501000`） | ❌ 这个环境 id 在小程序侧**不可见**（或已被销毁）→ 换 id 或走 §2.7 的 `rdb()` 直连 |
+| **没有** `-501000` 报错，「我的」页 →「**测试连接**」打出「**连接正常（多用户模式）**」 | ✅ **云函数这条路通了** → 小程序**不受 request 合法域名约束，备案不再是它的前置** |
+| 没有 `-501000`，但「测试连接」显示「**直连（云通道不可用：…）**」 | ⚠️ 云通道被判定不可用、已自动退回网关直连 —— 看括号里的真实原因 |
 
 再进「我的」页 → 「**测试连接**」→ 打出「连接正常（多用户模式）」就说明云函数这条路通了。
 
@@ -195,7 +217,7 @@ cd pulse-record
 set -a; source /tmp/pg.env; set +a
 node -e "
 import('./scripts/lib/tcb-capi.mjs').then(async (m)=>{
-  const r = await m.callTcb('DescribeEnvs', { EnvId: 'ambitious-parrot-d7ehh7x0fd9d680' });
+  const r = await m.callTcb('DescribeEnvs', { EnvId: 'pulse-1-d0g880ydl8ddc57f6' });
   const e = r.EnvList[0];
   console.log('WxAppId =', e.UserInfo?.WxAppId);
 })"
@@ -221,26 +243,58 @@ import('./scripts/lib/tcb-capi.mjs').then(async (m)=>{
 > 直接拿它当 API 地址，小程序就能连上**云端 PG 里的真数据**（29 患者／113 就诊），
 > **不用等环境关联、不用 ICP 备案**。
 
-### 2.6.1 一条命令
+### 2.6.1 一条命令（**双保险**：云优先，网关兜底）
 
 ```bash
 cd pulse-record
-PULSE_TRANSPORT=request \
-PULSE_API_BASE="https://ambitious-parrot-d7ehh7x0fd9d680-1257312696.ap-shanghai.app.tcloudbase.com/pulse-api" \
+PULSE_TRANSPORT=cloud \
+PULSE_CLOUD_ENV=pulse-1-d0g880ydl8ddc57f6 \
+PULSE_API_BASE="https://pulse-1-d0g880ydl8ddc57f6-1257312696.ap-shanghai.app.tcloudbase.com/pulse-api" \
 npm --prefix taro run build:weapp
 ```
 
 编完在开发者工具里**点一次「编译」**。
 
-**产物已实测**（2026-11-06）：
+**为什么是双保险**：这份包**先试云通道**（`wx.cloud.callFunction`），
+云通道一失败（传输层失败，status 0）就**自动改走网关直连** ——
+所以：
+
+| 云通道 | 结果 |
+|---|---|
+| 通了 | ✅ 走云函数，**不受 request 合法域名约束**（备案不再是小程序的前置） |
+| 不通 | ✅ 自动退回网关直连，**照样连上云端的真数据**（只是正式版仍受白名单拦） |
+
+**它只会比纯 request 包更好，不会更差** —— 所以这是**唯一该编的版本**。
+
+> ⚠️ **「我的」页里存的服务器地址会盖掉上面的注入值**（存在本地存储，改过就一直生效）。
+> 要测云通道，请先在「我的」页 → 服务器地址里填**上面那个网关地址**，
+> 或清掉它让它回到编译期注入的默认值。
+
+**产物已实测**（2026-11-07）：
 
 | 检查项 | 结果 |
 |---|---|
 | 残留 `process.env` | 无 |
-| 残留 `127.0.0.1:5178` | 0 次 |
-| 网关地址 | 已注入 `common.js` |
-| 云调用代码 | 被 tree-shaking 掉（`callFunction`／`wx.cloud` 均不存在）→ 不再报 `-501000` |
+| 残留已销毁的旧环境 id（`ambitious-parrot`） | 0 次 |
+| 云环境 id | 已注入 `common.js`（`L="pulse-1-d0g880ydl8ddc57f6"`） |
+| 网关地址 | 已注入 `common.js`（`v="https://…/pulse-api"`） |
+| 云调用代码 | **在**（`callFunction` 1 处、`cloud.init({env:e,traceUser:!0})` 在）→ 这次云通道**真的被编进包里了** |
+| 传输方式 | `"cloud"`（字面量被常量折叠 → request 分支被摇掉；兜底逻辑在运行时，不受影响） |
 | 网关可达性（curl 实测） | `/api/health` → **200** `{"ok":true,"db":"CloudBase PostgreSQL","mode":"multi"}`；`/api/auth/me`、`/api/patients` → **401**（未带令牌，路由通） |
+
+<details>
+<summary>只编纯 request 版（完全不用云通道）</summary>
+
+```bash
+cd pulse-record
+PULSE_TRANSPORT=request \
+PULSE_API_BASE="https://pulse-1-d0g880ydl8ddc57f6-1257312696.ap-shanghai.app.tcloudbase.com/pulse-api" \
+npm --prefix taro run build:weapp
+```
+
+这份包**云调用代码被 tree-shaking 掉**（`callFunction`／`wx.cloud` 均不存在）→ 不会报 `-501000`，
+但也**测不出云通道通不通**。只适合「先跑通再说」。
+</details>
 
 ### 2.6.2 ⚠️ 边界：这条只能开发调试，正式版会被微信拦
 
@@ -255,7 +309,8 @@ npm --prefix taro run build:weapp
 | **体验版／正式版** | ❌ **不能** —— 真机强制校验域名白名单 |
 
 → **正式版仍然只能走 cloud 路线**（`wx.cloud.callFunction` 走微信内部通道，不受域名白名单约束），
-也就是**还是得把 §2.5 的环境关联做完**。
+也就是**还是得让这个环境在微信侧可见** —— 至于是靠 `callFunction` 还是靠官方文档那条
+`rdb()` 直连，见 §2.7 的实测。
 
 > 换句话说：**§2.6 让你现在就能连上云端真数据继续开发，不解决上线。**
 
@@ -265,6 +320,68 @@ npm --prefix taro run build:weapp
 改的是这台手机本地（存 `pulse.apiBase`），**不用重新编译**。
 但那样云通道仍会先撞一次 `-501000` 再退回直连（多一次报错），
 所以**开发期推荐直接用 §2.6.1 重编**。
+
+---
+
+## 2.7 ⭐ 实测：PG 在小程序里到底通不通（**当前唯一没被实测过的未知数**）
+
+**这是还能改变整条时间线的唯一未知数。**
+官方文档说支持（`pg/mp`：微信小程序访问 CloudBase PostgreSQL），
+官方 FAQ 说不支持（腾讯云侧创建的环境「暂时只支持开发 Web 端」）——
+**两处官方文档打架，只能跑一次看结果，不能靠推断。**
+
+**测法：一条命令 ＋ 点一次「编译」，约 2 分钟。**
+
+```bash
+cd pulse-record
+PULSE_TRANSPORT=cloud \
+PULSE_CLOUD_ENV=pulse-1-d0g880ydl8ddc57f6 \
+PULSE_API_BASE="https://pulse-1-d0g880ydl8ddc57f6-1257312696.ap-shanghai.app.tcloudbase.com/pulse-api" \
+npm --prefix taro run build:weapp
+```
+
+> ✅ **这份包已经编好了** —— `pulse-record/taro/dist` 现在就是它，
+> 在开发者工具里直接点「编译」即可（不用重编）。
+
+然后：
+
+1. 微信开发者工具打开 `pulse-record/taro/dist` → 点「**编译**」
+2. 看 Console 有没有 `cloud.callFunction:fail ... Environment not found`
+3. 进「我的」页 → 「**测试连接**」→ 看「**传输方式**」那一行
+
+**三种结果，三种走法**：
+
+| 结果 | 说明 | 下一步 |
+|---|---|---|
+| 「**云函数**」＋「连接正常（多用户模式）」 | ✅ **云通道通了** | 现有架构原封不动可用（云函数 → 35 个 PG 函数）；**小程序不再需要 ICP 备案**；§3 里的域名／备案项从「小程序前置」里划掉 |
+| 「**直连（云通道不可用：…）**」，括号里是 `-501000` | ❌ 这个环境在微信侧**不可见**，`callFunction` 这条路死 | 改试官方 `rdb()` 直连（见下） |
+| 「**直连（云通道不可用：…）**」，括号里是别的错 | 云函数本身有问题 | 查 `pulse-api` 的云端日志 |
+
+**如果 `callFunction` 不通，再试官方 `rdb()` 直连。**
+
+```bash
+cd pulse-record/taro
+npm install @cloudbase/wx-cloud-client-sdk
+```
+
+开发者工具「工具 → 构建 npm」，然后：
+
+```js
+const { init } = require('@cloudbase/wx-cloud-client-sdk')
+wx.cloud.init({ env: 'pulse-1-d0g880ydl8ddc57f6' })
+const db = init(wx.cloud).rdb()
+const { data } = await db.from('patients').select('*').limit(1)
+```
+
+⚠️ **但这条路对我们这套架构不是小改动，先想清楚再动手**：
+
+| | `callFunction`（现有） | `rdb()` 直连（官方文档） |
+|---|---|---|
+| 鉴权 | 服务端 `auth-core` ＋ PG 函数内校验 | **得靠 PG 的 RLS**，否则客户端能直接读写别人的表 |
+| 写操作原子性 | 一次 RPC ＝ 一个事务（35 个 `pulse_*` 函数） | 得在客户端逐条写，**「整份覆盖」会裂** |
+| 改动量 | 0 | 大（重写数据层 ＋ 建 RLS ＋ 补事务） |
+
+→ **所以只有 `callFunction` 真的走不通时才考虑 `rdb()`**，别一上来就重写。
 
 ---
 

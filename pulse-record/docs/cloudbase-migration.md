@@ -5,15 +5,15 @@
 >
 > 本文分三部分：① **实际架构长什么样** ② **实际怎么做的（含踩过的坑）** ③ **验收清单与还差的事**。
 >
-> 环境参数（ap-shanghai 体验版 `baas_trial`，到期 2027-05-04）：
+> 环境参数（ap-shanghai 体验版 `baas_trial`，到期 2027-05-06）：
 >
 > | 项 | 值 |
 > |---|---|
-> | 环境 id | `ambitious-parrot-d7ehh7x0fd9d680` |
+> | 环境 id | `pulse-1-d0g880ydl8ddc57f6` |
 > | AppId | `1257312696` |
-> | 网站（静态托管） | `https://ambitious-parrot-d7ehh7x0fd9d680-1257312696.tcloudbaseapp.com` |
-> | API（网关） | `https://ambitious-parrot-d7ehh7x0fd9d680-1257312696.ap-shanghai.app.tcloudbase.com/pulse-api` |
-> | PG 实例 | `postgres-l00fh7pm`（PostgreSQL 17.11，`TenantType: SHARED`） |
+> | 网站（静态托管） | `https://pulse-1-d0g880ydl8ddc57f6-1257312696.tcloudbaseapp.com` |
+> | API（网关） | `https://pulse-1-d0g880ydl8ddc57f6-1257312696.ap-shanghai.app.tcloudbase.com/pulse-api` |
+> | PG 实例 | `postgres-gi7xmyo4`（PostgreSQL 17.11，`TenantType: SHARED`） |
 > | 云函数 | `pulse-api`（**Event 类型**，Nodejs20.19，`index.main`，timeout 20s，memory 256MB） |
 > | 小程序 appid | `wx3a21eb903a16cbc4` —— **尚未与本环境关联**（见 §5.2） |
 
@@ -151,7 +151,7 @@ Event 类型**不需要 `scf_bootstrap`**（HTTP 类型才要）。
 
 | 项 | 值 |
 |---|---|
-| 域名 | `ambitious-parrot-d7ehh7x0fd9d680-1257312696.ap-shanghai.app.tcloudbase.com` |
+| 域名 | `pulse-1-d0g880ydl8ddc57f6-1257312696.ap-shanghai.app.tcloudbase.com` |
 | path | `/pulse-api` |
 | upstream | `upstreamResourceType=**SCF**`、`targetName=pulse-api` |
 | 路径透传 | `enablePathTransmission=**true**` |
@@ -162,7 +162,7 @@ Event 类型**不需要 `scf_bootstrap`**（HTTP 类型才要）。
 网站与 API **不同源**，所以服务端要发 CORS 头：
 
 ```
-PULSE_CORS_ORIGINS=https://ambitious-parrot-d7ehh7x0fd9d680-1257312696.tcloudbaseapp.com
+PULSE_CORS_ORIGINS=https://pulse-1-d0g880ydl8ddc57f6-1257312696.tcloudbaseapp.com
 ```
 
 > `PULSE_CORS_ORIGINS` **不接受 `*`**：病例数据敏感，只允许明确列出的来源。
@@ -171,9 +171,9 @@ PULSE_CORS_ORIGINS=https://ambitious-parrot-d7ehh7x0fd9d680-1257312696.tcloudbas
 
 ```
 PULSE_STORE=pg
-PULSE_CB_ENV=ambitious-parrot-d7ehh7x0fd9d680
+PULSE_CB_ENV=pulse-1-d0g880ydl8ddc57f6
 PULSE_API_PREFIX=/pulse-api
-PULSE_CORS_ORIGINS=https://ambitious-parrot-d7ehh7x0fd9d680-1257312696.tcloudbaseapp.com
+PULSE_CORS_ORIGINS=https://pulse-1-d0g880ydl8ddc57f6-1257312696.tcloudbaseapp.com
 PULSE_WX_APPID=wx3a21eb903a16cbc4
 PULSE_WX_APPSECRET=……            # 只在 .secrets/server.env，不进仓库
 ```
@@ -230,7 +230,7 @@ node scripts/cf-admin.mjs set-wx   # 从 .secrets/server.env 读 → 合并写�
 
 ```bash
 export TCLOUD_SECRET_ID=… TCLOUD_SECRET_KEY=… TCLOUD_SESSION_TOKEN=…
-export PULSE_ENV_ID=ambitious-parrot-d7ehh7x0fd9d680
+export PULSE_ENV_ID=pulse-1-d0g880ydl8ddc57f6
 
 node scripts/pg-admin.mjs run server/pg-functions.sql
 ```
@@ -301,7 +301,7 @@ node scripts/build-cloudfunction.mjs     # → .cloudfn/pulse-api/（33 MB，真
 ### 3.6 静态托管与 CORS
 
 ```bash
-VITE_API_BASE="https://ambitious-parrot-d7ehh7x0fd9d680-1257312696.ap-shanghai.app.tcloudbase.com/pulse-api" npm run build
+VITE_API_BASE="https://pulse-1-d0g880ydl8ddc57f6-1257312696.ap-shanghai.app.tcloudbase.com/pulse-api" npm run build
 # 再把 dist/ 上传静态托管
 ```
 
@@ -398,27 +398,28 @@ VITE_API_BASE="https://ambitious-parrot-d7ehh7x0fd9d680-1257312696.ap-shanghai.a
 
 ### 5.2 还差的事
 
-- [ ] **小程序与 CloudBase 环境关联** —— 环境 `WxAppId` 仍为空。
-      **公开 API 做不到**（已逐个查过：`tcb` 服务的全部环境类接口里没有「关联小程序 appid」的 Action；
-      `BindEnv` 不存在，`ModifyEnv` 只收 `EnvId`／`Alias`／`CustomQps`，`ModifyEnvExtra` 只收 `EnableOverrun`）。
-      只能**在微信侧**做，官方路径是**两步**（2026-11-06 已查证官方文档与社区工单）：
-      1. **账号绑定**：CloudBase 控制台 → 用户名下拉 → 账号信息 → 账号中心 →「登录方式」→「微信公众平台」→ 关联 → 扫码 →「去授权」
-      2. **环境转换**：微信开发者工具 → 云开发 → 设置 → 环境名称下拉 → 管理我的环境 → 侧边栏「**使用已有腾讯云环境**」→ 选本环境 → 确认「环境转换」→ 扫码
-
-      ⚠️ **第 2 步的入口在部分开发者工具版本上缺失** —— 官方社区工单
-      [#1154](https://cnb.cool/tencent/cloud/cloudbase/community/-/issues/1154) 记录的就是本项目这个场景，
-      最终结论是「需后台人工介入」，且该工单被 stale-bot 自动关闭。
-      本机开发者工具 **36.6.0**（远新于工单里的 2.x），
-      入口大概率在 —— 先试，不行就按工单模板提 issue（要填：主账号 `100006925378`、
-      环境 `ambitious-parrot-d7ehh7x0fd9d680`、AppID `wx3a21eb903a16cbc4`、工具版本）。
-
-      **控制台显示「所属应用」只代表账号层级授权**，不代表小程序侧 `wx.cloud` 能识别该环境 ——
-      必须走完「账号关联 → 环境转换」两步。
-      关联后 `wx.cloud.init({ env })` 才认这个环境（小程序基础库会拿 AppID 问云端「这个 AppID 能不能用这个 env」）。
-- [x] **开发期绕开关联：改走 `TRANSPORT='request'` ＋ 网关地址**（2026-11-06 实测）
+- [x] **账号级关联：已完成** —— 环境 `pulse-1-d0g880ydl8ddc57f6` 的
+      `UserInfo.WxAppId = wx3a21eb903a16cbc4`（`DescribeEnvs` 实测，
+      `UserInfo.UpdateTime` = 2026-11-06T07:07:00Z）。
+      这一步只能在**微信侧**做：CloudBase 控制台 → 用户名下拉 → 账号信息 → 账号中心 →
+      「登录方式」→「微信公众平台」→ 关联 → 扫码 →「去授权」。
+      ⚠️ 公开 API 代劳不了（`BindEnv` 不存在；`ModifyEnv` 只收 `EnvId`／`Alias`／`CustomQps`，
+      `ModifyEnvExtra` 只收 `EnableOverrun`）。
+- [ ] **「环境在微信侧可见」：还没实测** —— 账号级关联 ≠ 小程序侧 `wx.cloud` 一定认这个环境。
+      官方路径的第二步是「**环境转换**」（微信开发者工具 → 云开发 → 设置 → 环境名称下拉 →
+      管理我的环境 → 侧边栏「**使用已有腾讯云环境**」→ 选本环境 → 确认「环境转换」→ 扫码），
+      但 **2026-11-06 实测：入口在（工具版本 36.6.0），列表里能看到 `pulse-1`，
+      鼠标悬停却提示「暂不支持选择 PostgreSQL 环境」→ 选不了**（NoSQL 环境才行）。
+      官方社区工单 [#1154](https://cnb.cool/tencent/cloud/cloudbase/community/-/issues/1154)
+      记录的就是本项目这个场景，最终结论「需后台人工介入」，工单被 stale-bot 自动关闭。
+      → **但这不等于「PG 在小程序里用不了」**：官方文档
+      <https://docs.cloudbase.net/database/framework-quickstarts/pg/mp>
+      明写支持微信小程序访问 CloudBase PostgreSQL，走 `wx.cloud.init` ＋ `rdb()` **直连**，
+      **不经过转换**。两处官方文档打架 → **只能实测**（`docs/miniprogram-release-checklist.md` §2.7）。
+- [x] **开发期绕开：改走 `TRANSPORT='request'` ＋ 网关地址**（2026-11-06 实测）
       ```bash
       PULSE_TRANSPORT=request \
-      PULSE_API_BASE="https://ambitious-parrot-d7ehh7x0fd9d680-1257312696.ap-shanghai.app.tcloudbase.com/pulse-api" \
+      PULSE_API_BASE="https://pulse-1-d0g880ydl8ddc57f6-1257312696.ap-shanghai.app.tcloudbase.com/pulse-api" \
       npm --prefix taro run build:weapp
       ```
       产物已验：无 `process.env` 残留、无 `127.0.0.1`、网关地址已注入、云调用代码被 tree-shake 掉。
@@ -426,7 +427,10 @@ VITE_API_BASE="https://ambitious-parrot-d7ehh7x0fd9d680-1257312696.ap-shanghai.a
       → **现在就能连上云端 PG 真数据继续开发**，不用等关联、不用备案。
       ⚠️ **但只能开发调试**：云开发默认域名未备案，进不了 request 合法域名白名单
       （官方工单 [#1219](https://cnb.cool/tencent/cloud/cloudbase/community/-/issues/1219)），
-      体验版／正式版会被微信拦 —— **上线仍必须走 cloud 路线，即仍要做上面的关联**。
+      体验版／正式版会被微信拦 —— **上线仍必须走 cloud 路线**。
+- [x] **双保险构建（2026-11-07 新增）** —— `TRANSPORT=cloud` ＋ 注入网关地址 ＋ 正确的 env id：
+      云通道通就走云函数，不通自动退回网关直连。**只会比纯 request 包更好，不会更差**，
+      而且**一次编译就能测出云通道通不通**（`docs/miniprogram-release-checklist.md` §2.6.1／§2.7）。
 - [ ] **小程序真机验证**（用户已明确「不做真机验证」，改为上线前再验）
 - [ ] **自定义域名 ＋ ICP 备案** —— 默认域名**只能用于开发测试**，平台明说「严禁用于正式生产环境或分发给大规模用户」，
       且流量异常可能触发风控关停。去掉「风险提醒中间页」也只有这一条路。

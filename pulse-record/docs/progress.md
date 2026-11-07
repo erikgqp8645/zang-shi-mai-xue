@@ -13,8 +13,8 @@
 |---|---|---|---|
 | **P0 多用户与数据隔离** | ✅ 已完成 | `users`＋`identities`＋`sessions` 三表；四张业务表下沉 `owner_id`；跨用户一律 404 | 随 `feat/wechat-miniprogram` 走，**不单独合进 `main`** |
 | **P1 网站上线** | ⏸ **卡在用户侧手续** | 脚本与文档已就绪，**域名／ICP 备案／服务器三样都没有** | 备案 7~20 工作日是整条时间线最长的一段 → **今天就去提交备案** |
-| **P2 微信小程序** | 🟡 **已迁 Taro ＋ 界面重排完成**；模拟器逐页截图已验，未真机验证 | 8 个平级页面 → **4 个 tab（病例／就诊／用方／我的）**，「就诊」是工作台页（吸顶上下文条 ＋ **4 个页内 tab（摸脉／体质／疗法／方药）** ＋ 底部操作条）；Taro 4.3.2 ＋ React 18，与网站**共用同一份 domain 源码**；鸿蒙 C-API 编译已通；**寸关尺关系图直接显示在页面上**（不提供导出 → 隐私接口 0 个）；微信「代码质量」两条已修（JS 压缩已开、图片 298 KB → 116.3 KB）；回归 **515 项全绿**（含网站端浏览器回归 28 项） | 真机跑一遍（备案前先用局域网 IP） |
-| **P3 后期迁 CloudBase** | 🟡 **云端已建成**（开发／试用环境） | 环境 `ambitious-parrot-d7ehh7x0fd9d680`（ap-shanghai 体验版）：PG 7 表 ＋ **35 个 `pulse_*` 函数**、云函数 `pulse-api`（**Event 类型**）、网关 `/pulse-api`、静态托管已上线；网站与小程序**同一套路由**（`handleApi`）；数据已从本机 SQLite 搬过去（29 患者／113 就诊／1 用药），**三条 owner 不变量全 0** | ① **微信后台把环境关联到小程序 appid**（`WxAppId` 还是空）② 换自定义域名（默认域名只许开发测试，有「风险提醒中间页」）③ 备案 |
+| **P2 微信小程序** | 🟡 **已迁 Taro ＋ 界面重排完成**；模拟器逐页截图已验，未真机验证 | 8 个平级页面 → **4 个 tab（病例／就诊／用方／我的）**，「就诊」是工作台页（吸顶上下文条 ＋ **4 个页内 tab（摸脉／体质／疗法／方药）** ＋ 底部操作条）；Taro 4.3.2 ＋ React 18，与网站**共用同一份 domain 源码**；鸿蒙 C-API 编译已通；**寸关尺关系图直接显示在页面上**（不提供导出 → 隐私接口 0 个）；微信「代码质量」两条已修（JS 压缩已开、图片 298 KB → 116.3 KB）；回归 **516 项全绿**（含网站端浏览器回归 28 项） | 真机跑一遍（备案前先用局域网 IP） |
+| **P3 后期迁 CloudBase** | 🟡 **云端已建成**（开发／试用环境） | 环境 `pulse-1-d0g880ydl8ddc57f6`（ap-shanghai 体验版）：PG 7 表 ＋ **35 个 `pulse_*` 函数**、云函数 `pulse-api`（**Event 类型**）、网关 `/pulse-api`、静态托管已上线；网站与小程序**同一套路由**（`handleApi`）；数据已从本机 SQLite 搬过去（29 患者／113 就诊／1 用药），**三条 owner 不变量全 0** | ① **实测云通道通不通**（账号级关联已完成，`WxAppId` 已有值；此前「PG 接不进小程序」的结论已更正，见 §3.18）② 换自定义域名（默认域名只许开发测试，有「风险提醒中间页」）③ 备案 |
 | **P4 Windows 桌面应用** | ✅ **已实现**，本机出包并实测 | Electron 44.10.2；复用现有 `server/`＋`dist/`，业务逻辑不重写 | 交给使用者安装使用；macOS 包另找 Mac 机器补 |
 | **P5 鸿蒙端** | 🟡 **已出 HAP**，未实测 | 同一套 Taro 源码走 `harmony_cpp`（C-API）；`pulse-record/harmony/` 是工程真源，编译时镜像到纯 ASCII 路径；9.1 MB unsigned 包 | DevEco 里下模拟器镜像 → 打开镜像目录 Run → 验四个 tab |
 
@@ -1229,6 +1229,59 @@ runtime 把 `uid` 改成用户值 → hydrate 时 `node.uid !== node.sid` → `d
 ③ 清单正常 → 折叠的「用方知识库」标题写着「▸ 用方知识库 · 讲义 p44 依脉用方 61 条 · 讲稿方剂 30 方」→
 点 ③ 的「上焦方」→ 知识库展开并滚到高亮条目。
 
+### 3.18 更正一条错误结论：「PG 环境接不进小程序云开发」（2026-11-07）
+
+**这条结论是错的 —— 错在「拿一个已销毁的环境 id 当成了 `pulse-1` 的观测」。**
+
+| 之前记的 | 实情（2026-11-07 复核） |
+|---|---|
+| 「`callFunction` 报 `-501000 Environment not found` ⇒ PG 环境接不进小程序云开发」 | 报错的**观测对象是 `ambitious-parrot-d7ehh7x0fd9d680`**，它 11-06 当天**已被销毁**。环境没了以后 `wx.cloud.init` 照样「成功」（它不报错），错误要拖到第一次 `callFunction` 才抛 —— 那次观测只证明「那个 id 指向的环境没了」，**根本没碰到 `pulse-1`** |
+| 「`pulse-1` 的 `UserInfo.WxAppId` 是空的 ⇒ 还没关联」 | `UserInfo.WxAppId = wx3a21eb903a16cbc4`，`UserInfo.UpdateTime` = 2026-11-06T07:07:00Z → **账号级关联早就是了** |
+| 「开发者工具『使用已有腾讯云环境』提示『暂不支持选择 PostgreSQL 环境』⇒ PG 不能用」 | 那是**「转换入口」**的限制（把腾讯云侧环境收编成小程序自己的环境）。**跟官方文档的 `rdb()` 直连是两套机制**，不能互相推导 |
+| —— | 而 **`pulse-1` 的云通道从来没被测过**：11-06 那份小程序包走的是 **request 直连网关**，**云通道压根没编进包里** |
+
+**为什么会错**：`.workbuddy/memory/2026-11-06.md` 的结论与 `miniprogram-dev.md` 的排障表，
+把「转换入口不收 PG」直接写成了「PG 在小程序里用不了」，**中间没有实测这一步**。
+
+#### 官方文档怎么说的
+
+<https://docs.cloudbase.net/database/framework-quickstarts/pg/mp>《在微信小程序中访问云开发 PostgreSQL 数据库表》：
+
+- **标题就写明支持**微信小程序访问 CloudBase PostgreSQL；
+- 路径是 `wx.cloud.init({ env })` ＋ `init(wx.cloud).rdb()` **直连**（**不是 `callFunction`**）；
+- 前置条件：「**必须使用你的微信小程序关联的腾讯云账号登录云开发平台**」→ **我们满足**；
+- 「支持地域」只标了**上海** → 本环境正在 ap-shanghai ✓。
+
+⚠️ **但另一处官方文档跟我们相左**：FAQ《不同客户端能否使用同一个资源环境？》——
+「在微信侧创建的环境，可支持开发小程序端和 Web 端；而在**腾讯云侧创建的环境暂时只支持开发 Web 端**」。
+本环境 `EnvChannel = qc_console`（腾讯云侧创建）→ 落在后半句。
+**两处官方文档打架 → 只能实测，不能靠推断。**
+
+#### 这一轮做了什么
+
+| # | 事项 | 结果 |
+|---|---|---|
+| 1 | 核实 `-501000` 的观测对象 | 是**已销毁**的 `ambitious-parrot`；`pulse-1` 从未被测过 |
+| 2 | 核实 `pulse-1` 的关联状态 | `WxAppId = wx3a21eb903a16cbc4`，**账号级关联已完成** |
+| 3 | 修掉 6 处硬编码的已销毁环境 id | 小程序端 2 处 ＋ 4 个脚本默认值 ＋ 1 条回归断言 → 全部指向 `pulse-1` |
+| 4 | 加一条守住「默认 env id 必须在用」的回归断言 | 「故意写坏」验证过：改回旧 id 即失败（51/1） |
+| 5 | 编一份**云优先 ＋ 网关兜底**的双保险包 | `pulse-record/taro/dist` 现在就是它：云通道通就走云函数，不通自动退回网关直连 |
+| 6 | 回归 | **516 项全绿**（原 515 ＋ 新增 1） |
+
+#### ⏭ 下一步（要你按一次，2 分钟）
+
+在微信开发者工具里打开 `pulse-record/taro/dist` → 点「编译」→ 进「我的」页 →「测试连接」→
+看「**传输方式**」那一行：
+
+| 结果 | 含义 | 下一步 |
+|---|---|---|
+| 「**云函数**」＋「连接正常（多用户模式）」 | ✅ 云通道通了 | 现有架构原封不动可用；**小程序不再需要 ICP 备案** |
+| 「**直连（云通道不可用：…）**」＋括号里 `-501000` | ❌ 环境在微信侧不可见，`callFunction` 这条路死 | 改试官方 `rdb()` 直连（需重写数据层 ＋ 建 RLS，见上线清单 §2.7） |
+
+> 顺手也修掉一个真 bug：小程序端 `CLOUD_ENV_ID` 的默认值一直写着一个**已销毁**的环境 id，
+> 任何没注入 `PULSE_CLOUD_ENV` 的 cloud 构建**必然** `-501000` ——
+> 这才是「云通道怎么都不通」的真实原因，而不是什么 PG 环境限制。
+
 ## 4. P3 · 迁 CloudBase（🟡 云端已建成，开发／试用环境）
 
 **目标**：网站跑静态托管、API 跑云函数、数据存 **PostgreSQL**、小程序走 `wx.cloud.callFunction`（不走合法域名校验）。
@@ -1240,9 +1293,9 @@ runtime 把 `uid` 改成用户值 → hydrate 时 `node.uid !== node.sid` → `d
 
 | 件 | 落点 |
 |---|---|
-| 网站 | CloudBase **静态托管** `https://ambitious-parrot-d7ehh7x0fd9d680-1257312696.tcloudbaseapp.com` |
+| 网站 | CloudBase **静态托管** `https://pulse-1-d0g880ydl8ddc57f6-1257312696.tcloudbaseapp.com` |
 | API | CloudBase **云函数 `pulse-api`**（**Event 类型**，Nodejs20.19，`index.main`）→ 网关 `…ap-shanghai.app.tcloudbase.com/pulse-api` |
-| 数据 | CloudBase **PostgreSQL** `postgres-l00fh7pm`（17.11）—— 7 张表 ＋ **35 个 `pulse_*` 函数** |
+| 数据 | CloudBase **PostgreSQL** `postgres-gi7xmyo4`（17.11）—— 7 张表 ＋ **35 个 `pulse_*` 函数** |
 
 ### 4.2 关键决策
 
@@ -1413,7 +1466,7 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 本机库 | `pulse-record/local-data/history.sqlite`（已迁移到多用户结构：15 患者／57 就诊／1 自定义符号，归属归到 `local`；迁移前快照 `history.sqlite.bak-20261104102030`） |
 | 桌面版产物 | `pulse-record/release/`（安装包 ＋ 免安装版，已 gitignore） |
 | 桌面版数据 | 安装版 `%APPDATA%\臧氏脉学\`；**免安装版 exe 旁边的 `data\`** |
-| CloudBase 环境 | `ambitious-parrot-d7ehh7x0fd9d680`（ap-shanghai，**体验版 `baas_trial`，到期 2027-05-04**）；PG `postgres-l00fh7pm`（17.11）7 表 ＋ **35 个 `pulse_*` 函数**；云函数 `pulse-api`（Event）；静态托管已上线 |
+| CloudBase 环境 | `pulse-1-d0g880ydl8ddc57f6`（ap-shanghai，**体验版 `baas_trial`，到期 2027-05-06**）；PG `postgres-gi7xmyo4`（17.11）7 表 ＋ **35 个 `pulse_*` 函数**；云函数 `pulse-api`（Event）；静态托管已上线 |
 | CloudBase 上的数据 | **3 账号**（`local` / `guoguo` / `mptest01`）＋ **29 患者／113 就诊／1 用药／0 自定义符号**（从本机 SQLite 搬的）；**三条 owner 不变量全 0** |
 | 云端环境变量 | `PULSE_STORE=pg`、`PULSE_CB_ENV=…`、`PULSE_API_PREFIX=/pulse-api`、`PULSE_CORS_ORIGINS=https://…-1257312696.tcloudbaseapp.com`、`PULSE_WX_APPID=wx3a21eb903a16cbc4`、`PULSE_WX_APPSECRET=…`（**必须用 `PULSE_WX_*`，`WX_` 前缀会被平台盖掉**） |
 | 本地 PG/云端工具 | `scripts/pg-admin.mjs`（`tcb/ExecutePGSql` CAPI，绕开 MCP 的 PG 缓存缺陷）、`scripts/cf-admin.mjs`（云函数环境变量，**密钥不进对话**）、`scripts/lib/tcb-capi.mjs`（TC3 签名，两者共用）、`scripts/migrate-sqlite-to-pg.mjs`（搬数据）、`scripts/build-cloudfunction.mjs`（打包云函数）、`scripts/e2e/pg-store.mjs`（对真库回归 49 项） |
@@ -1430,7 +1483,7 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 优先级 | 事项 | 为什么急 |
 |---|---|---|
 | 🔴 1 | **域名注册 → 个人实名 → 提交 ICP 备案** | 7~20 工作日，是整条时间线最长的一段；不今天提交，后面小程序、CloudBase 全在等。**且自定义域名是 CloudBase 默认域名的唯一出路**（默认域名只许开发测试，有「风险提醒中间页」，流量异常还可能被风控关停） |
-| 🔴 1b | **微信侧把 CloudBase 环境关联到小程序 appid** | 环境 `ambitious-parrot-d7ehh7x0fd9d680` 的 `WxAppId` **还是空** → 小程序的 `wx.cloud.callFunction` 走不通（代码已兜底退回 `wx.request`，不会白屏，但等于没迁）。**公开 API 做不到**（已逐个查过 `tcb` 服务的环境类接口，没有关联 appid 的 Action）→ 只能在**微信开发者工具「云开发」面板**或 **CloudBase 控制台「环境配置 → 安全配置 → 小程序关联」**里填 `wx3a21eb903a16cbc4`。详见 `docs/cloudbase-migration.md` §5.2 |
+| 🔴 1b | ~~**微信侧把 CloudBase 环境关联到小程序 appid**~~ → 改成「**实测云通道通不通**」 | ✅ **账号级关联已完成**（`pulse-1-d0g880ydl8ddc57f6` 的 `UserInfo.WxAppId = wx3a21eb903a16cbc4`，`DescribeEnvs` 实测）。⚠️ **但账号级关联 ≠ 微信侧 `wx.cloud` 认这个环境** —— 这件事**还没实测**（此前那条「PG 接不进小程序」的结论是错的，见 §3.18）。→ **现在只需在开发者工具里点一次「编译」**，看「我的」页「传输方式」那行（步骤见 `docs/miniprogram-release-checklist.md` §2.7）。**若走通了，ICP 备案就不是小程序的前置了**（云通道不走 request 合法域名） |
 | 🔴 2 | ~~**后台声明《用户隐私保护指引》两项隐私类型**~~ | ✅ **2026-11-05 已不需要** —— 小程序不提供导出，隐私接口降到 **0 个**，后台**一项都不用勾**（详见 §3.11）。剩下要填的只有「用户信息收集」那一栏（用户输入内容／账号信息，见上线清单 §1.3） |
 | 🔴 2c | **填运营者主体与联系邮箱** | 隐私政策**第八**节现在是占位文字（`运营者：（待填写）`），审核会看 |
 | 🟡 2b | 注册微信小程序（个人主体）→ 填真实 AppID | ✅ 已完成（`wx3a21eb903a16cbc4`）；开发者工具需登录对应管理员微信号才能预览／上传 |
@@ -1441,7 +1494,7 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 🟡 4b | **鸿蒙：DevEco 里下模拟器镜像 → 打开镜像目录 Run** | HAP 已出（9.1 MB unsigned），但**没跑起来过** —— 本机没有模拟器镜像、也没有 hdc。镜像下好后工程路径已是纯 ASCII，直接 Run 就能验四个 tab（详见 §3.15） |
 | ⚪ 5 | AGENTS.md「下游用途」空位 | 由维护者自行填写一行 |
 | ⚪ 6 | 代码签名证书（可选） | 只影响安装时的 SmartScreen 提示，不影响功能 |
-| ⚪ 7 | **CloudBase 套餐升级**（体验版 → 个人版） | 体验版**不能配安全域名**、到期 2027-05-04；升级后才能加安全域名白名单（当前靠服务端 CORS 头，已实测可用） |
+| ⚪ 7 | **CloudBase 套餐升级**（体验版 → 个人版） | 体验版**不能配安全域名**、到期 2027-05-06；升级后才能加安全域名白名单（当前靠服务端 CORS 头，已实测可用） |
 
 ---
 

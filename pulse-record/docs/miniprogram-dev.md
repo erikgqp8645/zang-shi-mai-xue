@@ -275,7 +275,7 @@ npm run admin -- layout <登录名> <患者id或姓名> nine|seven   # 改，并
 | 报 `api scope is not declared in the privacy agreement`（errno 112） | 后台缺对应隐私类型声明 | 按 `deploy.md` 6.3 补声明，约 5 分钟后生效 |
 | 报 `appid privacy api banned` | 提审时勾了「未采集隐私」，权限被回收 | 改回如实声明并重新提审 |
 | `npm run mp:dev` 报端口占用 | 5178 被上一个进程占着 | 关掉旧进程，或 `npm run mp:dev -- --port 6000`（记得同步改「我的」页地址） |
-| 开发者工具「使用已有腾讯云环境」里**列表能看到、鼠标悬停提示「暂不支持选择 PostgreSQL 环境」** | **微信侧明确不支持把 PG 环境转换/接入为小程序的云开发环境**（NoSQL 环境才行）。这是产品限制，不是配置错误 | **不要再试转换，也不要提工单**——提了也会被同样理由驳回。走 HTTP 网关直连（见下一条），或改用 NoSQL 环境重写数据层 |
+| 开发者工具「使用已有腾讯云环境」里**列表能看到、鼠标悬停提示「暂不支持选择 PostgreSQL 环境」** | 这是**「转换入口」的限制**（把腾讯云侧环境收编成小程序自己的环境），**不是**「PG 在小程序里用不了」的结论 | ⚠️ **别把这两件事混起来**（2026-11-07 更正）：官方文档 <https://docs.cloudbase.net/database/framework-quickstarts/pg/mp> 明写支持微信小程序访问 CloudBase PostgreSQL，走 `wx.cloud.init` ＋ `rdb()` **直连**，**不经过转换**。转换这条走不通，就去测直连（上线清单 §2.7） |
 | 开发者工具「使用已有腾讯云环境」里**列表能看到、点条目毫无反应**（无悬停提示） | 该环境的 `Source=qcloud`（在腾讯云控制台建的），不是微信云开发来源 | 先看有没有上一条的 PG 悬停提示；没有才考虑提工单。工单写明 envId + AppID + 主体，并注明「环境内数据请勿重置或新建」 |
 | 云端已部署好、但小程序连不上 | 环境未通过 `callFunction` 关联时，`api.ts` 会退回 HTTP 直连；直连要求网关路由 + 「不校验合法域名」 | ①确认网关路由在：`queryGateway listRoutes` 应看到 `path=/pulse-api` → `SCF pulse-api`；②`curl <网关>/pulse-api/api/health` 应返回 `{"ok":true,...}`；③开发者工具勾「不校验合法域名」；④真机右上「…」→ 打开调试 |
 | 报「云环境还没关联，改走直连」 | `callFunction` 抛错后 `api.ts` 自动退回 HTTP（有意设计，避免整屏报错） | 去「我的」页看「传输方式」一行：显示「直连（云通道不可用：…）」即未打通，括号里就是真实原因；显示「云函数」即已打通 |
