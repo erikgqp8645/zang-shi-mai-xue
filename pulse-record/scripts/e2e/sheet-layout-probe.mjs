@@ -214,26 +214,33 @@ const PROBE = `
 </script>
 `
 
-function measure(html) {
+function measure(html, shotPath) {
   const tmp = mkdtempSync(join(tmpdir(), 'sheet-probe-'))
   const file = join(tmp, 'page.html')
   writeFileSync(file, html, 'utf8')
   const profile = join(tmp, 'profile')
-  const dom = execFileSync(
-    CHROME,
-    [
-      '--headless=new',
-      '--disable-gpu',
-      '--no-sandbox',
-      '--no-first-run',
-      '--user-data-dir=' + profile,
-      `--window-size=${VIEWPORT_W},1400`,
-      '--virtual-time-budget=4000',
-      '--dump-dom',
-      'file://' + file,
-    ],
-    { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] },
-  )
+  const args = [
+    '--headless=new',
+    '--disable-gpu',
+    '--no-sandbox',
+    '--no-first-run',
+    '--user-data-dir=' + profile,
+    `--window-size=${VIEWPORT_W},1400`,
+    '--virtual-time-budget=4000',
+  ]
+  // ① 量坐标（要 DOM）
+  const dom = execFileSync(CHROME, [...args, '--dump-dom', 'file://' + file], {
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+    stdio: ['ignore', 'pipe', 'ignore'],
+  })
+  // ② 顺便拍一张（给人看的）
+  if (shotPath) {
+    execFileSync(CHROME, [...args, `--screenshot=${shotPath}`, 'file://' + file], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'ignore', 'ignore'],
+    })
+  }
   rmSync(tmp, { recursive: true, force: true })
   const m = dom.match(/<pre id="probe-result">([\s\S]*?)<\/pre>/)
   if (!m) throw new Error('页面里没找到探针结果（脚本没跑起来？）')
@@ -256,10 +263,11 @@ text { display: inline; }
 <body><div id="app">${body}</div>${PROBE}</body></html>`
 
 console.log('=== 宽表（讲义 p34 少娟实例，6 次记录）===')
-const w = measure(page(wide))
+const SHOT_DIR = process.env.PULSE_SHOT_DIR || ''
+const w = measure(page(wide), SHOT_DIR ? `${SHOT_DIR}/sheet-wide.png` : '')
 
 console.log('=== 一次一屏 ===')
-const s = measure(page(single))
+const s = measure(page(single), SHOT_DIR ? `${SHOT_DIR}/sheet-single.png` : '')
 
 /* ---- 断言 ---- */
 
