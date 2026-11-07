@@ -370,10 +370,37 @@ Image(this.tabBarCurrentIndex === index && item.selectedIconPath || item.iconPat
 | `npm run test:e2e:mp:sim` | `taro-sim.mjs` —— 纯函数断言 ＋ 编译产物断言 ＋ 模拟器截图冒烟 |
 | `npm run test:e2e:mp:tabs` | `taro-tabs.mjs` —— 就诊工作台四档页内 tab 的模拟器回归 |
 | `npm run test:e2e:mp:link` | `taro-formula-link.mjs` —— ③ 的方名点进「用方」页：定位 ＋ 高亮 ＋ 锚点唯一 ＋ 真的滚过去了（§3.16） |
+| `npm run test:e2e:sheet` | `sheet-layout-probe.mjs` —— **记录表的列界在真实浏览器里量坐标**（§10.1） |
 | `npm run test:e2e:harmony` | `harmony-lint.mjs` —— 鸿蒙工程配置静态检查（§9.8） |
 | `npm test` | 全部（网站端 core / migration / auth / app / desktop ＋ 小程序静态四套 ＋ 鸿蒙） |
 
 **新增断言必须先用「故意写坏」验证能抓到**，否则不算数。
+
+### 10.1 记录表的列界怎么验（`test:e2e:sheet`）
+
+「宽表竖线错开」那类毛病（2026-11-07 修的那条）**光看源码不够** ——
+宽度写对了，渲染出来仍可能偏；光看截图也不够（缩放、压缩都会挪 1~2 px）。
+
+`sheet-layout-probe.mjs` 的做法：
+
+| 步 | 做什么 |
+|---|---|
+| ① | 用 `react-dom/server` 把 **`components/record-sheet` 这个组件本身** 渲成静态 HTML（讲义 p34 少娟实例，6 次记录 ＝ 12 列） |
+| ② | 套上**编译产物里那两份 WXSS**（`dist/app-origin.wxss` ＋ `dist/common.wxss`，rpx 按 375 宽折成 px） |
+| ③ | 在无头 Chrome 里量每个格子的 `getBoundingClientRect()` |
+| ④ | 比对：**表头「左/右」行的列界** 与 **正文每一行数据格的列界** 必须是同一组坐标 |
+
+⚠️ **两份 WXSS 都要**：少 `app-origin.wxss` 就没有全局的
+`view,text{box-sizing:border-box}` —— 每个带边框的格子都会宽出边框那一份，
+表头与正文就差那么几 px（量出来是 2px）。**这个坑踩过一次。**
+
+**探针本身也要验**：把两个文件 `git checkout` 回带 bug 的版本重跑 → 应当报出多条失败；
+换回修好的版本 → 全绿。**探针不是摆设。**
+
+> 为什么用浏览器而不是小程序模拟器：开发者工具的登录态会过期
+> （本轮实测 `cli auto` 直接报「需要重新登录」），没法进真实运行时。
+> 而布局是纯 CSS —— 同一份 DOM ＋ 同一份样式，在 Chromium 里量出来的就是小程序里的布局
+> （小程序的 webview 就是 Chromium）。
 
 ## 11. 开发者工具
 
