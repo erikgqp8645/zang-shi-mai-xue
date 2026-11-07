@@ -431,8 +431,41 @@ PULSE_SHOT_DIR=/tmp/shots node scripts/e2e/sheet-layout-probe.mjs
 
 > 为什么用浏览器而不是小程序模拟器：开发者工具的登录态会过期
 > （本轮实测 `cli auto` 直接报「需要重新登录」），没法进真实运行时。
-> 而布局是纯 CSS —— 同一份 DOM ＋ 同一份样式，在 Chromium 里量出来的就是小程序里的布局
-> （小程序的 webview 就是 Chromium）。
+>
+> ⚠️ **别再假设「小程序的 webview 就是 Chromium」** —— 这句话**在 iOS 上是错的**
+> （iOS 小程序跑 WKWebView）。2026-11-07 深夜那轮就因为这个假设栽了：
+> 「日期行逐列错开」在 Chromium **和 WKWebView 里都量不出来**（两个引擎都正好 168rpx），
+> 偏差只在小程序自己的渲染层上出现。
+> ⇒ **本地量不出来 ≠ 真机没有**。见 §10.3。
+
+### 10.3 WebKit 探针：iOS 同引擎的本地对照（2026-11-07 深夜新增）
+
+```bash
+npm run test:e2e:sheet:webkit    # macOS 专用（要 swiftc / Xcode CommandLineTools）
+```
+
+**是什么**：一个 `swiftc` 编的 **WKWebView** 跑手（`scripts/e2e/webkit-probe.swift`），
+拿**与 Chromium 探针完全同一份页面**（`PULSE_SHEET_HTML_OUT` 落盘那份）
+和**同一份测量脚本**（`scripts/e2e/sheet-probe-script.js`，两个探针共用一份），
+在 **iOS 同引擎**里量一遍。
+
+**为什么值得多一个探针**：
+
+1. **iOS 小程序用的是 WKWebView，不是 Chromium** —— 只在 Chromium 里量，等于只测了一半；
+2. **两边的差异一眼可见** —— 两个引擎量同一份页面，差多少直接比出来；
+3. **它是「结构性不变量」的守门人** —— 断言「所有 84rpx 半格外宽彼此相等」
+   「日期半格与手格逐格对齐」「姓名段 == 部位+取法」。
+
+**它抓不到什么（必须诚实记着）**：**抓不到「引擎差异」本身**。
+2026-11-07 那次的偏差，Chromium 与 WKWebView **都量不出来**（都正好 168rpx）——
+所以这个探针的价值是**守住结构**，**数值仍须回真机量**。
+
+**不在默认 `npm test` 链里**：缺 `swiftc` 就**跳过并退出 0**（Windows / 没装 Xcode 的机器也能跑默认回归）。
+
+> ⚠️ 写这个脚本时踩的一个坑：`sheet-probe-script.js` 会被原样嵌进 `<script>`，
+> 而 Chromium 的 `--dump-dom` 会把脚本源码**原样吐出来** ——
+> 所以**文件里不能出现「取结果用的那个标签」的字面量**，否则 dump-dom 的正则
+> 会先匹配到注释里的它，取到一坨注释文本。
 
 ## 11. 开发者工具
 
