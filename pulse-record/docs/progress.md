@@ -1776,6 +1776,54 @@ WebKit 探针也独立抓到了「标签不再跨两格」。
 > 第 ① 轮就是第 2 条的反面教材：**证据全缺，报告全绿**。
 > 所以「加断言」之前先问一句：**这条断言在证据缺失时会红吗？**
 
+### 3.25 真机该填哪个 IP：`mp:dev` 把代理 TUN 网卡排在了第一位（2026-11-08）
+
+#### 现象
+
+本机装了 Clash / Mihomo 一类代理，会多出一块 **TUN 虚拟网卡**：
+`Meta Tunnel` → **`198.18.0.1`**（落在 fake-IP 段 `198.18.0.0/15`）。
+
+`npm run mp:dev` 打印「真机该填的地址」时，**第一个列出来的就是它**：
+
+```
+手机与电脑连同一个 Wi-Fi；「我的」页服务器地址改成：
+  http://198.18.0.1:5178      <- 手机永远连不通
+备选 192.168.3.53（以太网）
+```
+
+**根因**：原来判「虚拟网卡」只看**名字前缀**（`utun|bridge|vbox|vmnet|docker|tun|tap|awdl|llw`），
+`Meta Tunnel` 不在其中；而排序的 rank 0 又要求名字含 `en|eth|wlan` ——
+`Meta` 两边都不占，于是**掉到真实以太网网卡前面**。
+
+用户照抄第一个地址 → 手机打不开 → 开始怀疑防火墙、怀疑 WiFi、
+怀疑后端只听回环……**全是白查**。
+
+#### 修法
+
+判据扩成**三条任一**即视为「手机连不上」：
+
+1. 名字命中代理/TUN/虚拟网卡特征（`meta|tunnel|clash|mihomo|verge|wintun|tailscale|zerotier|hyper-v|vmware|virtual|veth` …）；
+2. 地址落在 `198.18.0.0/15`（代理 fake-IP 段）或 `169.254.0.0/16`（链路本地）；
+3. 保留原来的名字前缀判断。
+
+排序：先按「手机连不上」与否分档，档内**物理网卡优先**（以太网 / WLAN / Wi-Fi / Ethernet）。
+打印时把被忽略的虚拟网卡**列出来并注明「手机连不上」**——
+不说清楚，用户会以为漏了，又手工去找那个地址。
+
+#### 实测
+
+```
+手机与电脑连同一个 Wi-Fi；「我的」页服务器地址改成：
+  http://192.168.3.53:5178        <- 真实以太网网卡（Realtek），排第一
+已忽略 4 个手机连不上的虚拟/代理网卡（192.168.16.1 vEthernet (Default Switch)、
+192.168.189.1 VMware VMnet8、192.168.83.1 VMware VMnet1、198.18.0.1 Meta）
+```
+
+`http://192.168.3.53:5178/api/patients` → **HTTP 200**（1507 字节）；`/api/health` 正常。
+
+> 教训跟 §3.24 一脉相承：**「把该说的话说出来」比「把功能做对」更容易被忽略**。
+> 这类脚本的输出就是它的界面 —— 界面上排在第一的东西，用户就当第一。
+
 ## 4. P3 · 迁 CloudBase（🟡 云端已建成，开发／试用环境）
 
 **目标**：网站跑静态托管、API 跑云函数、数据存 **PostgreSQL**、小程序走 `wx.cloud.callFunction`（不走合法域名校验）。
@@ -1948,7 +1996,7 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 项 | 值 |
 |---|---|
 | 当前分支 | `feat/wechat-miniprogram`（**小程序／鸿蒙／Windows 桌面端／CloudBase 线**） |
-| 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`chore/desktop-electron` = `8bc151f`；`feat/wechat-miniprogram` = `2ead333`（本线）；**`feat/web-site` = `e59b500`（网站端线，2026-11-06 从 `6ebc881` 切出）** |
+| 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`chore/desktop-electron` = `8bc151f`；`feat/wechat-miniprogram` = `0e4ba33`（本线）；**`feat/web-site` = `e59b500`（网站端线，2026-11-06 从 `6ebc881` 切出）** |
 | 分支纪律 | **两条长期开发线**（2026-11-06 起）：网站端新改动走 `feat/web-site`，小程序／鸿蒙／桌面端走 `feat/wechat-miniprogram`；同源于 `6ebc881`，都**不开 PR**、都**不改写已推送的历史**。详见 `AGENTS.md`「Git 约定」 |
 | PR | #6 `chore/multi-user → main`，**OPEN**；#7 `chore/desktop-electron → chore/multi-user`，**OPEN**；`feat/wechat-miniprogram` **永不开 PR**（2026-11-06 拍板：**永不合并进 `main`**） |
 | 全量回归 | **551/551 全绿**（core 26 ＋ taro-lint 237 ＋ taro-api 52 ＋ migration 53 ＋ auth 53 ＋ **app 28** ＋ 桌面端 33 ＋ 鸿蒙 69）—— 2026-11-08 本机实测 |

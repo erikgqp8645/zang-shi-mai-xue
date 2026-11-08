@@ -605,13 +605,13 @@ npm run mp:dev            # 小程序本机联调（只起后端，不起网站�
 | 结果 | 说明 |
 |---|---|
 | 出一段 JSON（`{"patients":[…]}`） | 网络通 → 往下走 |
-| 打不开 | ① 电脑防火墙（macOS 会弹「node 想要接受传入连接」→ **选允许**；Windows 要在「Windows Defender 防火墙 → 允许应用通过防火墙」里放行 Node.js 的**专用网络**）② 手机与电脑不在同一 WiFi ③ 局域网 IP 变了（macOS `ipconfig getifaddr en0` ／ **Windows `ipconfig` 看「IPv4 地址」**） |
+| 打不开 | ① 电脑防火墙（macOS 会弹「node 想要接受传入连接」→ **选允许**；Windows 要在「Windows Defender 防火墙 → 允许应用通过防火墙」里放行 Node.js 的**专用网络**）② 手机与电脑不在同一 WiFi ③ 局域网 IP 变了（macOS `ipconfig getifaddr en0` ／ **Windows `ipconfig` 看「IPv4 地址」**）④ ⚠️ **填成了代理/TUN 网卡的地址** —— 装了 Clash / Mihomo 的机器上会多一块虚拟网卡，地址在 `198.18.0.0/15`（如 `Meta Tunnel` → `198.18.0.1`），手机**永远连不上**。`npm run mp:dev` 现在会把它**排在最后并标注「手机连不上」**，直接用它打印的第一个地址即可 |
 
 ### 6.3 开发者工具侧
 
 | 项 | 做法 |
 |---|---|
-| 打开哪个工程 | **`pulse-record/taro`**（不是 `miniprogram/`）—— `miniprogramRoot` 指向 `dist/` |
+| 打开哪个工程 | **`pulse-record/taro/dist`**（产物目录，AppID `wx3a21eb903a16cbc4`）—— 或打开 `pulse-record/taro` 也行（里面的 `project.config.json` 是 `miniprogramRoot: "dist/"`，指回同一个产物）。**别打开 `miniprogram/`**（那是已冻结的原生回退工程） |
 | 不校验合法域名 | 详情 → 本地设置 → 勾「不校验合法域名、web-view（业务域名）、TLS 版本以及 HTTPS 证书」（`project.config.json` 里已有 `urlCheck: false`，工具里要再确认一次） |
 | **用「真机调试」，不是「预览」** | 「不校验合法域名」**只在真机调试生效**，预览／体验版／正式版都按正常规则校验 → 预览时 `http://` + 局域网 IP 必被拦。真机调试还能看到手机上的 Console／Network 面板，排查最省事 |
 | 扫码 | 必须用**该小程序的管理员微信号**扫（个人主体，小程序 appid `wx3a21eb903a16cbc4`） |
