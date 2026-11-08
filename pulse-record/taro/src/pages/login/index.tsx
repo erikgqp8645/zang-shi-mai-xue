@@ -27,6 +27,12 @@ import './index.scss'
  *
  * 服务端没配微信时，会明确提示原因，这时可以直接用「账号密码登录」进。
  *
+ * ⚠️ **微信登录只能由用户点按钮发起**（维护者 2026-11-08 明确要求）：
+ *   进页面就自动 `wechatLogin()` 是错的 —— 那等于「用户还没点就替他登录了」，
+ *   最典型的后果是**点「退出登录」根本退不掉**（退出 → 回本页 → 又自动登录 → 又进去了）。
+ *   本页的 `useEffect` **只探 `/api/health`**（判断是不是单机模式），
+ *   绝不发起任何登录请求；`tryWechat()` 只挂在「微信一键登录」按钮的 `onClick` 上。
+ *
  * 与原生版的差别只有一处：原生版从 `getApp().globalData.mode` 读「是不是单机模式」，
  * Taro 侧没有全局 App 对象 —— 改为进页面时探一次 `/api/health`（utils/data.ts 的 health()），
  * 与「病例」页同一套写法。
@@ -88,21 +94,25 @@ export default function Login() {
     health()
       .then((h) => {
         const body = (h || {}) as HealthBody
+        // **只有单机模式自动进** —— 单机模式压根没有登录这回事。
         if (body.mode === 'single') {
           if (alive) setSingleMode(true)
           goCases()
-          return
         }
-        if (alive) tryWechat()
+        // ⚠️ 多用户模式**不自动登录**（维护者 2026-11-08 明确要求）：
+        //    进页面就发起微信登录，等于「用户还没点就替他登录了」——
+        //    最典型的后果是**点「退出登录」根本退不掉**：
+        //    退出 → 跳回本页 → 这里又自动登录 → 又进去了（等于没退）。
+        //    所以微信登录**只能由用户点「微信一键登录」发起**。
       })
       .catch(() => {
-        // 探不到服务端（默认多用户模式）—— 照旧试微信登录
-        if (alive) tryWechat()
+        // 探不到服务端（默认多用户模式）—— 也停在这一步，等用户自己点。
+        // 不猜、不自动尝试。
       })
     return () => {
       alive = false
     }
-  }, [goCases, tryWechat])
+  }, [goCases])
 
   const handleLoginName = useCallback((e: InputEvt) => {
     setLoginName(e.detail.value)
@@ -183,7 +193,14 @@ export default function Login() {
     setNotice('')
   }, [])
 
-  const retryWechat = useCallback(() => {
+  /**
+   * 「微信一键登录」按钮的点击处理 —— **微信登录唯一的入口**
+   *
+   * ⚠️ 别再把 `tryWechat()` 挂到 `useEffect` 上自动跑：
+   *    那等于「用户没点就替他登录」，点「退出登录」会退不掉
+   *    （退出 → 回本页 → 又自动登录 → 又进去了）。
+   */
+  const onWechatLogin = useCallback(() => {
     tryWechat()
   }, [tryWechat])
 
@@ -204,12 +221,15 @@ export default function Login() {
           {step === 'wechat' || step === 'bind' ? (
             <>
               <View className="pr-card-title">微信登录</View>
+              <View className="pr-note">
+                点下面的按钮才登录 —— 退出登录后不会自动再进来。
+              </View>
               {notice ? <View className="pr-note">{notice}</View> : null}
               {error ? <View className="pr-note">{error}</View> : null}
               <Button
                 className="pr-btn pr-btn-primary pr-btn-block"
                 loading={busy}
-                onClick={retryWechat}
+                onClick={onWechatLogin}
               >
                 微信一键登录
               </Button>

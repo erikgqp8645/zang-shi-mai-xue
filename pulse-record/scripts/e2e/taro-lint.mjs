@@ -2227,6 +2227,166 @@ if (existsSync(taroConfigFile)) {
 }
 
 /* ========================================================================
+ * 28. 登录页：微信登录**只能由用户点按钮发起**
+ *
+ * 维护者 2026-11-08 在真机截图上标注：「点击退出登录后这里微信一键登录会自动登录，
+ * 这个逻辑是错误的，需要用户点击才可以登录」。
+ *
+ * 病根：登录页的 `useEffect` 里直接调了 `tryWechat()` ——
+ * 进页面就发起微信登录，用户还没点。于是：
+ *   点「退出登录」→ 跳回登录页 → 又自动登录 → 又进去了（**等于退不掉**）。
+ *
+ * 所以规矩是：**登录页不许在任何生命周期钩子里发起登录**，
+ * `tryWechat()` 只能挂在按钮的 `onClick` 上。
+ *
+ * 为什么用 AST 查：正文里写一句「自动登录」是查不出来的；
+ * 也不该靠「源码里有没有 useEffect」这种粗判 —— 得查
+ * **调用点到底挂在哪个钩子回调里**。
+ * ======================================================================== */
+const loginPageFile = join(SRC, 'pages', 'login', 'index.tsx')
+if (existsSync(loginPageFile)) {
+  const { src: loginSrc, sf: loginSf } = parseTsx(loginPageFile)
+
+  /** 父链表：要往上找「这段调用挂在哪个钩子里」 */
+  const loginParents = new Map()
+  {
+    const visit = (node, parent) => {
+      if (!node || typeof node !== 'object') return
+      loginParents.set(node, parent)
+      ts.forEachChild(node, (child) => visit(child, node))
+    }
+    visit(loginSf, null)
+  }
+
+  /** 子树里有没有这个节点（按引用比） */
+  const loginContains = (root, target) => {
+    let found = false
+    const visit = (n) => {
+      if (found || !n || typeof n !== 'object') return
+      if (n === target) {
+        found = true
+        return
+      }
+      ts.forEachChild(n, visit)
+    }
+    visit(root)
+    return found
+  }
+
+  /** 会「自动执行」的钩子 */
+  const AUTO_HOOKS = ['useEffect', 'useDidShow', 'useDidMount', 'useReady', 'useLaunch', 'useWillAppear']
+  /** 发起登录的函数 */
+  const LOGIN_FNS = ['tryWechat', 'wechatLogin']
+
+  /** 所有对登录函数的调用点 */
+  const loginCalls = []
+  for (const node of loginParents.keys()) {
+    if (!ts.isCallExpression(node)) continue
+    const callee = node.expression.getText(loginSf)
+    if (LOGIN_FNS.includes(callee)) loginCalls.push({ node, callee })
+  }
+
+  /** 这个调用点落在哪个自动钩子里（不在则返回 null） */
+  const hookOf = (callNode) => {
+    let p = loginParents.get(callNode)
+    while (p) {
+      if (ts.isCallExpression(p)) {
+        const callee = p.expression.getText(loginSf)
+        if (AUTO_HOOKS.includes(callee) && p.arguments.some((a) => loginContains(a, callNode))) {
+          return callee
+        }
+      }
+      p = loginParents.get(p)
+    }
+    return null
+  }
+
+  const autoCalls = loginCalls.map((c) => ({ ...c, hook: hookOf(c.node) })).filter((c) => c.hook)
+  ok(
+    '登录页不在生命周期钩子里自动发起微信登录（必须用户点按钮）',
+    autoCalls.length === 0,
+    autoCalls.map((c) => `${c.callee}（在 ${c.hook} 里）`).join(' '),
+  )
+
+  /* 「微信一键登录」按钮必须绑 onClick，且那个处理器最终调用 tryWechat */
+  const loginEls = jsxElements(walkAst(loginSf))
+  // ⚠️ 必须**精确相等** —— 外层那张卡片（<View className="pr-card">）的文字里
+  //    也含「微信一键登录」，用 includes 会先命中它，然后报「按钮没有 onClick」。
+  const wxButton = loginEls.find((el) => textOf(el) === '微信一键登录')
+  const onClickAttr = wxButton
+    ? (wxButton.openingElement?.attributes?.properties || []).find(
+        (a) => a.name && a.name.text === 'onClick',
+      )
+    : null
+  // ⚠️ 属性值是 JSX 表达式容器 —— `getText` 会带上花括号（`{onWechatLogin}`），
+  //    得取里面的那个表达式，否则按名字找变量声明会找不到。
+  const attrInit = onClickAttr?.initializer
+  const handlerName =
+    attrInit && ts.isJsxExpression(attrInit)
+      ? attrInit.expression?.getText(loginSf) || ''
+      : attrInit?.getText(loginSf) || ''
+  ok(
+    '「微信一键登录」按钮绑了 onClick（且不是空值）',
+    // ⚠️ 光「有 onClick 这个属性」不够 —— `onClick={undefined}` 也算有属性，
+    //    但点了没反应。得看它指向的**表达式**是不是空值。
+    !!onClickAttr &&
+      !!attrInit &&
+      ts.isJsxExpression(attrInit) &&
+      !(
+        attrInit.expression &&
+        ts.isIdentifier(attrInit.expression) &&
+        attrInit.expression.text === 'undefined'
+      ),
+    wxButton ? '按钮的 onClick 是空的' : '没找到按钮',
+  )
+
+  // ⚠️ 属性值是 JSX 表达式容器 —— `getText` 会带上花括号（`{onWechatLogin}`），
+  //    得取里面的那个表达式，否则按名字找变量声明会找不到。
+  const handlerDecl = findVarDecl(walkAst(loginSf), loginSf, handlerName)
+  const handlerCallsTry =
+    !!handlerDecl &&
+    walkAst(handlerDecl.initializer).some(
+      (n) => ts.isCallExpression(n) && n.expression.getText(loginSf) === 'tryWechat',
+    )
+  ok(
+    `onClick 的处理器（${handlerName}）最终调用 tryWechat`,
+    handlerCallsTry,
+    handlerName,
+  )
+
+  /* tryWechat 只能有这一个入口 —— 免得哪天又有人塞个自动调用进来 */
+  const onWechatDecl = findVarDecl(walkAst(loginSf), loginSf, 'onWechatLogin')
+  const strayCalls = onWechatDecl
+    ? loginCalls.filter(
+        (c) => c.callee === 'tryWechat' && !loginContains(onWechatDecl.initializer, c.node),
+      )
+    : loginCalls.filter((c) => c.callee === 'tryWechat')
+  ok(
+    'tryWechat 只被 onWechatLogin（点击处理器）调用，没有别的入口',
+    strayCalls.length === 0,
+    `游离调用点 ${strayCalls.length} 处`,
+  )
+
+  /* 单机模式仍然自动进 —— 那是设计，别顺手改掉 */
+  // ⚠️ 必须查**useEffect 回调里有没有 goCases()** ——
+  //    只查全文有没有 `goCases(` 会被别处（tryWechat 里也调 goCases）蒙混过关。
+  const effectCalls = [...loginParents.keys()].filter(
+    (n) => ts.isCallExpression(n) && n.expression.getText(loginSf) === 'useEffect',
+  )
+  const effectBody = effectCalls[0]?.arguments?.[0]
+  const effectGoesCases = effectBody
+    ? walkAst(effectBody).some(
+        (n) => ts.isCallExpression(n) && n.expression.getText(loginSf) === 'goCases',
+      )
+    : false
+  ok(
+    '单机模式仍然自动进（不用登录）',
+    effectGoesCases && /body\.mode\s*===\s*'single'/.test(loginSrc),
+    effectGoesCases ? '' : 'useEffect 里没有 goCases()',
+  )
+}
+
+/* ========================================================================
  * 汇总
  * ======================================================================== */
 console.log(`\n合计：${pass + fail} 项，通过 ${pass}，失败 ${fail}`)
