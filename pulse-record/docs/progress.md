@@ -13,7 +13,7 @@
 |---|---|---|---|
 | **P0 多用户与数据隔离** | ✅ 已完成 | `users`＋`identities`＋`sessions` 三表；四张业务表下沉 `owner_id`；跨用户一律 404 | 随 `feat/wechat-miniprogram` 走，**不单独合进 `main`** |
 | **P1 网站上线** | ⏸ **卡在用户侧手续** | 脚本与文档已就绪，**域名／ICP 备案／服务器三样都没有** | 备案 7~20 工作日是整条时间线最长的一段 → **今天就去提交备案** |
-| **P2 微信小程序** | 🟡 **已迁 Taro ＋ 界面重排完成**；模拟器逐页截图已验，未真机验证 | 8 个平级页面 → **4 个 tab（病例／就诊／用方／我的）**，「就诊」是工作台页（吸顶上下文条 ＋ **4 个页内 tab（摸脉／体质／疗法／方药）** ＋ 底部操作条）；Taro 4.3.2 ＋ React 18，与网站**共用同一份 domain 源码**；鸿蒙 C-API 编译已通；**寸关尺关系图直接显示在页面上**（不提供导出 → 隐私接口 0 个）；微信「代码质量」两条已修（JS 压缩已开、图片 298 KB → 116.3 KB）；回归 **566 项全绿**（含网站端浏览器回归 28 项） | 真机跑一遍（备案前先用局域网 IP） |
+| **P2 微信小程序** | 🟡 **已迁 Taro ＋ 界面重排完成**；模拟器逐页截图已验，未真机验证 | 8 个平级页面 → **4 个 tab（病例／就诊／用方／我的）**，「就诊」是工作台页（吸顶上下文条 ＋ **4 个页内 tab（摸脉／体质／疗法／方药）** ＋ 底部操作条）；Taro 4.3.2 ＋ React 18，与网站**共用同一份 domain 源码**；鸿蒙 C-API 编译已通；**寸关尺关系图直接显示在页面上**（不提供导出 → 隐私接口 0 个）；微信「代码质量」两条已修（JS 压缩已开、图片 298 KB → 116.3 KB）；回归 **568 项全绿**（含网站端浏览器回归 28 项） | 真机跑一遍（备案前先用局域网 IP） |
 | **P3 后期迁 CloudBase** | 🟡 **云端已建成**（开发／试用环境） | 环境 `pulse-1-d0g880ydl8ddc57f6`（ap-shanghai 体验版）：PG 7 表 ＋ **35 个 `pulse_*` 函数**、云函数 `pulse-api`（**Event 类型**）、网关 `/pulse-api`、静态托管已上线；网站与小程序**同一套路由**（`handleApi`）；数据已从本机 SQLite 搬过去（29 患者／113 就诊／1 用药），**三条 owner 不变量全 0** | ① ✅ **云通道已实测跑通**（§3.19：真实微信运行时里 `callFunction` → 200，`db: CloudBase PostgreSQL`）② 换自定义域名（默认域名只许开发测试，有「风险提醒中间页」）③ 备案 —— **备案是小程序的前置吗？不是**：云通道走微信内部通道，不受 request 白名单约束；备案是**网站端**的前置 |
 | **P4 Windows 桌面应用** | ✅ **已实现**，本机出包并实测 | Electron 44.10.2；复用现有 `server/`＋`dist/`，业务逻辑不重写 | 交给使用者安装使用；macOS 包另找 Mac 机器补 |
 | **P5 鸿蒙端** | 🟡 **已出 HAP**，未实测 | 同一套 Taro 源码走 `harmony_cpp`（C-API）；`pulse-record/harmony/` 是工程真源，编译时镜像到纯 ASCII 路径；9.1 MB unsigned 包 | DevEco 里下模拟器镜像 → 打开镜像目录 Run → 验四个 tab |
@@ -1871,11 +1871,31 @@ WebKit 探针也独立抓到了「标签不再跨两格」。
 改成**严格等于 `isRelease()`** 才补上 —— 这是「故意写坏」逼出来的，
 光看代码是看不出来的。
 
-#### ⑥ 基线
+#### ⑦ 本地怎么看见「正式版长什么样」—— 编译期开关
 
-全量回归 551 → **566**（core 26 ＋ taro-lint 243 ＋ taro-api 61 ＋ migration 53 ＋ auth 53 ＋ app 28 ＋ 桌面端 33 ＋ 鸿蒙 69）。
+正式发布版要等备案＋审核才看得到那个界面，太久了。加一个编译期开关：
 
-#### ⑦ 一条要写下来的说明：本机**模拟器回归暂时跑不了**（与本次改动无关）
+```bash
+# cmd
+set "PULSE_FORCE_RELEASE=1" && npm run mp:taro:build
+# PowerShell
+$env:PULSE_FORCE_RELEASE='1'; npm run mp:taro:build
+```
+
+产物按正式版渲染：「服务器」卡片与「存储位置」不显示、地址固定用打包时写进去的。
+
+⚠️ **cmd 里那个 `set` 必须带引号、且代码里必须 `.trim()`** ——
+`set VAR=1 && 别的命令` 会把值设成 `"1 "`（**带一个尾随空格**）。
+实测踩过：构建成功、开关却不生效，白排查半天（最后是在配置里打探针才看见那个空格）。
+
+实测：强制构建后产物里版本函数被折成 `function b(){return"release"}`；
+默认构建仍走 `wx.getAccountInfoSync` 分支；**两种产物都不残留 `process.env`**。
+
+#### ⑧ 基线
+
+全量回归 551 → **568**（core 26 ＋ taro-lint 245 ＋ taro-api 61 ＋ migration 53 ＋ auth 53 ＋ app 28 ＋ 桌面端 33 ＋ 鸿蒙 69）。
+
+#### ⑨ 一条要写下来的说明：本机**模拟器回归暂时跑不了**（与本次改动无关）
 
 2026-11-08 下午重跑 `npm run test:e2e:mp:sim`，四个 tab 的截图**全部超时**（45 s），
 `switchTab` 抛 `Uncaught [object Object]`。查下来是**开发者工具这台机器的渲染坏了**，不是应用缺陷：
@@ -2064,10 +2084,10 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 项 | 值 |
 |---|---|
 | 当前分支 | `feat/wechat-miniprogram`（**小程序／鸿蒙／Windows 桌面端／CloudBase 线**） |
-| 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`chore/desktop-electron` = `8bc151f`；`feat/wechat-miniprogram` = `7510146`（本线）；**`feat/web-site` = `e59b500`（网站端线，2026-11-06 从 `6ebc881` 切出）** |
+| 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`chore/desktop-electron` = `8bc151f`；`feat/wechat-miniprogram` = `dc682fb`（本线）；**`feat/web-site` = `e59b500`（网站端线，2026-11-06 从 `6ebc881` 切出）** |
 | 分支纪律 | **两条长期开发线**（2026-11-06 起）：网站端新改动走 `feat/web-site`，小程序／鸿蒙／桌面端走 `feat/wechat-miniprogram`；同源于 `6ebc881`，都**不开 PR**、都**不改写已推送的历史**。详见 `AGENTS.md`「Git 约定」 |
 | PR | #6 `chore/multi-user → main`，**OPEN**；#7 `chore/desktop-electron → chore/multi-user`，**OPEN**；`feat/wechat-miniprogram` **永不开 PR**（2026-11-06 拍板：**永不合并进 `main`**） |
-| 全量回归 | **566/566 全绿**（core 26 ＋ taro-lint 243 ＋ taro-api 61 ＋ migration 53 ＋ auth 53 ＋ **app 28** ＋ 桌面端 33 ＋ 鸿蒙 69）—— 2026-11-08 本机实测 |
+| 全量回归 | **568/568 全绿**（core 26 ＋ taro-lint 245 ＋ taro-api 61 ＋ migration 53 ＋ auth 53 ＋ **app 28** ＋ 桌面端 33 ＋ 鸿蒙 69）—— 2026-11-08 本机实测 |
 | 小程序工程 | `pulse-record/taro/`（Taro 4.3.2 ＋ React 18）；原生 `miniprogram/` **已冻结**（2026-11-07 拍板：后面不做了，**功能改动一律只做 Taro 版**）—— 它仍带两个已知显示缺陷，**算不上可靠的回退** |
 | 包体 | 主包 **760.9 KB**（51 个文件，微信主包上限 2 MB）；媒体 **119.0 KB**（底图 JPEG 116.3 KB ＋ 8 个 tabbar 图标 ≤0.4 KB），**媒体单文件全部 < 200 KB**；⚠️ 微信「代码质量」**只有两条**（开启 JS 压缩 ＋ 图片/音频单文件 ≤ 200 K），**没有「单个 JS 文件 ≤ 200 K」这条** —— `taro.js` 209.3 KB（已是压缩产物）是 Taro runtime，不违规 |
 | 网站端 | `pulse-record/src/`（Vite ＋ React ＋ TS，单页 `App.tsx`）；③ 框内有**可折叠「用方知识库」**（p44 依脉用方全量 61 条 ＋ 讲稿方剂全量 30 方），③ 的方名**可点进去定位 ＋ 高亮**（详见 §3.17）；后端**仍跑本机 SQLite**（`local-data/history.sqlite`），**未接 CloudBase PG** |
