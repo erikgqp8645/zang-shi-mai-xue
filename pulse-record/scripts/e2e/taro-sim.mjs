@@ -323,13 +323,16 @@ if (automator) {
         // 下面用 `currentPage()` 复核，并重试一次。
         let switched = true
         try {
-          await mp.switchTab(p.path)
+          // ⚠️ **必须有超时** —— automator 的调用在环境不满足时会一直挂着
+          // （2026-11-08 实测：Windows 上 `switchTab` 挂死，整个回归**无限期等待**，
+          //  只能手动 kill。回归挂死比回归失败更糟 —— 挂死了既没有结论，也没有日志。）
+          await withTimeout(mp.switchTab(p.path), 20000, `switchTab ${p.name}`)
         } catch (e) {
           switched = false
           console.log(`  · ${p.name} 第一次 switchTab 报错（${String(e).slice(0, 60)}）—— 重试`)
           await new Promise((r) => setTimeout(r, 1500))
           try {
-            await mp.switchTab(p.path)
+            await withTimeout(mp.switchTab(p.path), 20000, `switchTab ${p.name} 重试`)
             switched = true
           } catch {
             /* 下面用 currentPage 复核 */
@@ -337,7 +340,7 @@ if (automator) {
         }
         if (!switched) {
           try {
-            const cur = await mp.currentPage()
+            const cur = await withTimeout(mp.currentPage(), 10000, `currentPage ${p.name}`)
             console.log(`  · ${p.name} 当前页 = ${cur && cur.path}`)
           } catch {
             /* 拿不到就算了 */
@@ -345,6 +348,14 @@ if (automator) {
         }
 
         const file = join(OUT, `${p.name}.png`)
+        // ⚠️ **先把上一次的旧图删掉** —— 否则「文件存在」这条断言会被**残留文件**骗过。
+        // （实测踩过：截图超时后旧图还留在目录里，`existsSync(file)` 照样为真，
+        //   「页能打开并截图」与「不是白屏」两条**全绿**，实际上一张都没截到。）
+        try {
+          rmSync(file, { force: true })
+        } catch {
+          /* ignore */
+        }
         // 多等一会儿：Taro 首屏渲染比原生慢，截太早会拍到还没画完的帧。
         //
         // ⚠️ `rearm()` 重启小程序后，**首帧可能还没画完**（只画出了原生外壳：
@@ -353,20 +364,32 @@ if (automator) {
         let shot = null
         for (let attempt = 1; attempt <= 4; attempt++) {
           await new Promise((r) => setTimeout(r, attempt === 1 ? 1500 : 2500))
-          await mp.screenshot({ path: file })
+          try {
+            // 截图同样要有超时 —— 它挂死跟 switchTab 一样会把整个回归拖死。
+            // ⚠️ 超时给 45 秒（不是 20）：`rearm()` 之后**前两页是冷启动**
+            // （Taro 首屏 ＋ 数据请求），20 秒不够；后两页热起来就秒截。
+            await withTimeout(mp.screenshot({ path: file }), 45000, `screenshot ${p.name}`)
+          } catch (e) {
+            console.log(
+              `  · ${p.name} 截图报错或超时（${String(e).slice(0, 60)}）—— 记为失败，继续下一页`,
+            )
+            break
+          }
           shot = isBlankShot(file)
           if (!shot.blank) break
           console.log(`  · ${p.name} 第 ${attempt} 次截图还是空白（${shot.nonWhiteRatio * 100}% 非白）—— 重试`)
         }
         shots.push({ name: p.name, file })
-        ok(`${p.name} 页能打开并截图`, existsSync(file), file)
+        // ⚠️ 截图失败（`shot` 为 null）时，这两条**必须判失败** ——
+        // 拿不到截图就没有「不是白屏」这回事，不能靠残留文件或 `!undefined` 蒙过去。
+        ok(`${p.name} 页能打开并截图`, shot !== null && existsSync(file), file)
 
         // **白屏检查** —— 小程序启动崩溃时截图是纯白一张。
         // 这类错构建不报错、静态回归全绿（查的是文件在不在，不是运行时），
         // 只有这条能抓到（真出过：产物里残留 process.env.xxx → 运行时没有 process → 整屏白）。
         ok(
-          `${p.name} 页不是白屏（${shot.distinctColors} 种颜色 / 非白像素 ${(shot.nonWhiteRatio * 100).toFixed(1)}%）`,
-          !shot.blank,
+          `${p.name} 页不是白屏（${shot?.distinctColors ?? 0} 种颜色 / 非白像素 ${((shot?.nonWhiteRatio ?? 0) * 100).toFixed(1)}%）`,
+          shot !== null && !shot.blank,
           JSON.stringify(shot),
         )
       }
@@ -419,7 +442,8 @@ if (automator) {
       ok('模拟器逐页截图', false, fmtErr(e))
     } finally {
       try {
-        await mp.disconnect()
+        // disconnect 也要超时 —— 连接已经挂死时，它同样可能不返回
+        await withTimeout(mp.disconnect(), 10000, 'disconnect')
       } catch {
         /* ignore */
       }
