@@ -13,7 +13,7 @@
 |---|---|---|---|
 | **P0 多用户与数据隔离** | ✅ 已完成 | `users`＋`identities`＋`sessions` 三表；四张业务表下沉 `owner_id`；跨用户一律 404 | 随 `feat/wechat-miniprogram` 走，**不单独合进 `main`** |
 | **P1 网站上线** | ⏸ **卡在用户侧手续** | 脚本与文档已就绪，**域名／ICP 备案／服务器三样都没有** | 备案 7~20 工作日是整条时间线最长的一段 → **今天就去提交备案** |
-| **P2 微信小程序** | 🟡 **已迁 Taro ＋ 界面重排完成**；模拟器逐页截图已验，未真机验证 | 8 个平级页面 → **4 个 tab（病例／就诊／用方／我的）**，「就诊」是工作台页（吸顶上下文条 ＋ **4 个页内 tab（摸脉／体质／疗法／方药）** ＋ 底部操作条）；Taro 4.3.2 ＋ React 18，与网站**共用同一份 domain 源码**；鸿蒙 C-API 编译已通；**寸关尺关系图直接显示在页面上**（不提供导出 → 隐私接口 0 个）；微信「代码质量」两条已修（JS 压缩已开、图片 298 KB → 116.3 KB）；回归 **568 项全绿**（含网站端浏览器回归 28 项） | 真机跑一遍（备案前先用局域网 IP） |
+| **P2 微信小程序** | 🟡 **已迁 Taro ＋ 界面重排完成**；模拟器逐页截图已验，未真机验证 | 8 个平级页面 → **4 个 tab（病例／就诊／用方／我的）**，「就诊」是工作台页（吸顶上下文条 ＋ **4 个页内 tab（摸脉／体质／疗法／方药）** ＋ 底部操作条）；Taro 4.3.2 ＋ React 18，与网站**共用同一份 domain 源码**；鸿蒙 C-API 编译已通；**寸关尺关系图直接显示在页面上**（不提供导出 → 隐私接口 0 个）；微信「代码质量」两条已修（JS 压缩已开、图片 298 KB → 116.3 KB）；回归 **573 项全绿**（含网站端浏览器回归 28 项） | 真机跑一遍（备案前先用局域网 IP） |
 | **P3 后期迁 CloudBase** | 🟡 **云端已建成**（开发／试用环境） | 环境 `pulse-1-d0g880ydl8ddc57f6`（ap-shanghai 体验版）：PG 7 表 ＋ **35 个 `pulse_*` 函数**、云函数 `pulse-api`（**Event 类型**）、网关 `/pulse-api`、静态托管已上线；网站与小程序**同一套路由**（`handleApi`）；数据已从本机 SQLite 搬过去（29 患者／113 就诊／1 用药），**三条 owner 不变量全 0** | ① ✅ **云通道已实测跑通**（§3.19：真实微信运行时里 `callFunction` → 200，`db: CloudBase PostgreSQL`）② 换自定义域名（默认域名只许开发测试，有「风险提醒中间页」）③ 备案 —— **备案是小程序的前置吗？不是**：云通道走微信内部通道，不受 request 白名单约束；备案是**网站端**的前置 |
 | **P4 Windows 桌面应用** | ✅ **已实现**，本机出包并实测 | Electron 44.10.2；复用现有 `server/`＋`dist/`，业务逻辑不重写 | 交给使用者安装使用；macOS 包另找 Mac 机器补 |
 | **P5 鸿蒙端** | 🟡 **已出 HAP**，未实测 | 同一套 Taro 源码走 `harmony_cpp`（C-API）；`pulse-record/harmony/` 是工程真源，编译时镜像到纯 ASCII 路径；9.1 MB unsigned 包 | DevEco 里下模拟器镜像 → 打开镜像目录 Run → 验四个 tab |
@@ -1912,6 +1912,60 @@ $env:PULSE_FORCE_RELEASE='1'; npm run mp:taro:build
 恢复办法：把开发者工具窗口点一下（或彻底重启它），再跑 `npm run test:e2e:mp:sim`。
 本条**不影响** §3.26 的验收结论。
 
+### 3.27 登录页不许自动登录 —— 「退出登录」原来根本退不掉（2026-11-08）
+
+#### ① 现象（维护者在真机截图上标注）
+
+> 点击退出登录后这里微信一键登录会自动登录，这个逻辑是错误的，需要用户点击才可以登录。
+
+截图里「微信一键登录」按钮**一直转圈**，就是那个自动登录在跑。
+
+#### ② 病根
+
+`taro/src/pages/login/index.tsx` 的 `useEffect` 里**直接调了 `tryWechat()`** ——
+进页面就发起微信登录，用户还没点。
+
+后果不止「按钮莫名转圈」，最要命的是：**点「退出登录」根本退不掉**：
+
+```
+退出登录 → authLogout() 清凭证 → reLaunch('/pages/login/index')
+        → 登录页 useEffect 自动 tryWechat() → 微信已绑定 → 直接进 → 又进去了
+```
+
+⇒ 退出登录变成了「退出 0.5 秒又自动登回来」。
+（顺带也堵掉一个潜在死循环：接口 401 → 清凭证 → 跳登录页 → 自动重登 → 再 401。）
+
+#### ③ 改法
+
+| 位置 | 改后 |
+|---|---|
+| 登录页 `useEffect` | **只探 `/api/health`**（判断是不是单机模式），**绝不发起任何登录请求**；多用户模式一律停在「微信登录」这一步 |
+| 单机模式 | **仍然自动进** —— 那没有登录这回事，是设计，别顺手改掉 |
+| `tryWechat()` | 只挂在「微信一键登录」按钮的 `onClick` 上（`onWechatLogin`）；原 `retryWechat` 改名 ——「retry」在「首次登录」场景下是误导 |
+| 界面 | 加一句提示：「点下面的按钮才登录 —— 退出登录后不会自动再进来。」 |
+
+⚠️ 原生冻结工程 `miniprogram/` 里是同一套自动登录逻辑 ——
+**按纪律不动它**（2026-11-07 拍板：功能改动一律只做 Taro 版），且它不上传。
+
+#### ④ 回归
+
+| 层 | 内容 | 数量 |
+|---|---|---|
+| `taro-lint`（源码级 AST） | ① 登录页不许在任何生命周期钩子（`useEffect`/`useDidShow`/`useDidMount`/`useReady`/`useLaunch`）回调里调 `tryWechat`/`wechatLogin` ② 「微信一键登录」按钮的 `onClick` 不能是空值 ③ `onClick` 的处理器最终调用 `tryWechat` ④ `tryWechat` 只有这一个入口 ⑤ 单机模式仍然自动进 | +5（245 → **250**） |
+| `scripts/e2e/login-break-test.mjs`（新，`npm run test:e2e:mp:login:break`） | 6 个「故意写坏」的 case **6/6 全被抓** | 新脚本（不在默认 `npm test` 链里） |
+
+「故意写坏」的 6 个 case（含**换壳**）：自动登录塞回 `useEffect` ／ 塞进 `useDidShow` ／
+`onClick={undefined}` ／ `onClick` 绕过 `onWechatLogin` 直接调 `wechatLogin` ／
+顺手把单机模式的自动进也删了 ／ 另开一个游离的 `tryWechat` 调用点。
+
+基线：全量回归 568 → **573**（core 26 ＋ taro-lint 250 ＋ taro-api 61 ＋ migration 53 ＋ auth 53 ＋ app 28 ＋ 桌面端 33 ＋ 鸿蒙 69）。
+
+> 写这批断言时踩了两个坑，都记在这儿：
+> ① 用 `textOf(el).includes('微信一键登录')` 会**先命中外层那张卡片**（它的文字里也含这六个字）
+>    → 按钮必须**精确相等**匹配；
+> ② 「有 `onClick` 这个属性」不等于「点了有反应」——`onClick={undefined}` 也算有属性
+>    → 得看它指向的**表达式**是不是空值。
+
 ## 4. P3 · 迁 CloudBase（🟡 云端已建成，开发／试用环境）
 
 **目标**：网站跑静态托管、API 跑云函数、数据存 **PostgreSQL**、小程序走 `wx.cloud.callFunction`（不走合法域名校验）。
@@ -2084,10 +2138,10 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 项 | 值 |
 |---|---|
 | 当前分支 | `feat/wechat-miniprogram`（**小程序／鸿蒙／Windows 桌面端／CloudBase 线**） |
-| 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`chore/desktop-electron` = `8bc151f`；`feat/wechat-miniprogram` = `dc682fb`（本线）；**`feat/web-site` = `e59b500`（网站端线，2026-11-06 从 `6ebc881` 切出）** |
+| 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`chore/desktop-electron` = `8bc151f`；`feat/wechat-miniprogram` = `2d48f0b`（本线）；**`feat/web-site` = `e59b500`（网站端线，2026-11-06 从 `6ebc881` 切出）** |
 | 分支纪律 | **两条长期开发线**（2026-11-06 起）：网站端新改动走 `feat/web-site`，小程序／鸿蒙／桌面端走 `feat/wechat-miniprogram`；同源于 `6ebc881`，都**不开 PR**、都**不改写已推送的历史**。详见 `AGENTS.md`「Git 约定」 |
 | PR | #6 `chore/multi-user → main`，**OPEN**；#7 `chore/desktop-electron → chore/multi-user`，**OPEN**；`feat/wechat-miniprogram` **永不开 PR**（2026-11-06 拍板：**永不合并进 `main`**） |
-| 全量回归 | **568/568 全绿**（core 26 ＋ taro-lint 245 ＋ taro-api 61 ＋ migration 53 ＋ auth 53 ＋ **app 28** ＋ 桌面端 33 ＋ 鸿蒙 69）—— 2026-11-08 本机实测 |
+| 全量回归 | **573/573 全绿**（core 26 ＋ taro-lint 250 ＋ taro-api 61 ＋ migration 53 ＋ auth 53 ＋ **app 28** ＋ 桌面端 33 ＋ 鸿蒙 69）—— 2026-11-08 本机实测 |
 | 小程序工程 | `pulse-record/taro/`（Taro 4.3.2 ＋ React 18）；原生 `miniprogram/` **已冻结**（2026-11-07 拍板：后面不做了，**功能改动一律只做 Taro 版**）—— 它仍带两个已知显示缺陷，**算不上可靠的回退** |
 | 包体 | 主包 **760.9 KB**（51 个文件，微信主包上限 2 MB）；媒体 **119.0 KB**（底图 JPEG 116.3 KB ＋ 8 个 tabbar 图标 ≤0.4 KB），**媒体单文件全部 < 200 KB**；⚠️ 微信「代码质量」**只有两条**（开启 JS 压缩 ＋ 图片/音频单文件 ≤ 200 K），**没有「单个 JS 文件 ≤ 200 K」这条** —— `taro.js` 209.3 KB（已是压缩产物）是 Taro runtime，不违规 |
 | 网站端 | `pulse-record/src/`（Vite ＋ React ＋ TS，单页 `App.tsx`）；③ 框内有**可折叠「用方知识库」**（p44 依脉用方全量 61 条 ＋ 讲稿方剂全量 30 方），③ 的方名**可点进去定位 ＋ 高亮**（详见 §3.17）；后端**仍跑本机 SQLite**（`local-data/history.sqlite`），**未接 CloudBase PG** |
