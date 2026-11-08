@@ -1,4 +1,7 @@
 import { getStorageSync, removeStorageSync, setStorageSync } from '../platform/storage'
+import { isRelease } from '../platform/version'
+
+export { isRelease }
 
 /**
  * 小程序端配置
@@ -90,8 +93,18 @@ export function savedApiBase(): string {
   return normalizeBase(getStorageSync(API_BASE_KEY))
 }
 
-/** 当前实际用的地址：本地改过的优先，否则用默认值 */
+/**
+ * 当前实际用的地址：本地改过的优先，否则用默认值
+ *
+ * ⚠️ **正式发布版例外**：固定用打包时写进去的 `API_BASE`，**忽略手机本地存的地址**。
+ *
+ * 原因：正式版里「我的」页的「服务器」界面**已经隐藏**（用户明确要求），
+ * 使用者没有入口改地址 —— 若这里还读本地存的旧地址，
+ * 手机上残留过一次旧地址的小程序就会连到一台**没人能改的服务器**，
+ * 而且没有任何自救入口（界面藏了、地址也定死了）。
+ */
 export function resolveApiBase(): string {
+  if (isRelease()) return API_BASE
   return savedApiBase() || API_BASE
 }
 

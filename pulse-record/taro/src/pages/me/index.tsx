@@ -13,6 +13,7 @@ import {
 import {
   API_BASE,
   TRANSPORT,
+  isRelease,
   normalizeBase,
   resetApiBase as resetApiBaseConfig,
   resolveApiBase,
@@ -126,6 +127,22 @@ export default function Me() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+
+  /**
+   * 是不是**正式发布版**
+   *
+   * 正式版不暴露两样东西（维护者 2026-11-08 在真机截图上标注）：
+   *
+   * ① 「存储位置」—— 那是本机数据库文件的绝对路径（正式版是 CloudBase PostgreSQL，
+   *    这行要么没意义、要么把服务器路径抖给使用者）；
+   * ② 「服务器」整张卡片 —— 那是给本机联调用的（改地址、测连接、看传输方式），
+   *    正式版里使用者看不懂、也不该让他改。
+   *
+   * 开发版与体验版**照常显示** —— 真机联调就靠它改地址。
+   * 判定用微信运行时的版本号（`platform/version.ts`），不是打包方式，
+   * 所以本地构建出来的包在开发者工具里照样能改地址。
+   */
+  const release = isRelease()
 
   /** 同步当前地址到界面（改完、恢复默认后都走这里） */
   const refreshApiBase = useCallback(() => {
@@ -349,7 +366,7 @@ export default function Me() {
             {mode === 'single' ? '单机模式（数据只在本机）' : '多用户模式（按账号隔离）'}
           </Text>
         </View>
-        {dbPath ? (
+        {dbPath && !release ? (
           <View className="pr-me-row">
             <Text className="pr-me-key">存储位置</Text>
             <Text className="pr-me-val pr-me-path">{dbPath}</Text>
@@ -383,41 +400,44 @@ export default function Me() {
         </View>
       </View>
 
-      <View className="pr-card">
-        <View className="pr-card-title">服务器</View>
-        <View className="pr-note">
-          小程序连的是哪台服务。默认是打包时写进去的地址（下方「恢复默认」就是回到它）；
-          本机联调时改成电脑的局域网地址（如 http://192.168.1.20:5178）。
-          改这里不用改代码、不用重新编译。
-        </View>
-        <View className="pr-me-row">
-          <Text className="pr-me-key">传输方式</Text>
-          <Text className="pr-me-val">{transportText()}</Text>
-        </View>
-        <View className="pr-me-row">
-          <Text className="pr-me-key">当前连接</Text>
-          <Text className="pr-me-val pr-me-path">{apiBase}</Text>
-        </View>
-        <View className="pr-label">服务器地址</View>
-        <Input
-          className="pr-input"
-          value={apiBaseInput}
-          placeholder={API_BASE}
-          onInput={handleApiBaseInput}
-        />
-        <View className="pr-me-actions">
-          <View className="pr-btn pr-btn-sm" onClick={saveApiBase}>
-            保存
+      {/* 「服务器」卡片只给本机联调用 —— 正式发布版整张隐藏（维护者 2026-11-08 标注） */}
+      {!release ? (
+        <View className="pr-card">
+          <View className="pr-card-title">服务器</View>
+          <View className="pr-note">
+            小程序连的是哪台服务。默认是打包时写进去的地址（下方「恢复默认」就是回到它）；
+            本机联调时改成电脑的局域网地址（如 http://192.168.1.20:5178）。
+            改这里不用改代码、不用重新编译。
           </View>
-          <View className="pr-btn pr-btn-sm" onClick={testApiBase}>
-            {apiTesting ? '测试中…' : '测试连接'}
+          <View className="pr-me-row">
+            <Text className="pr-me-key">传输方式</Text>
+            <Text className="pr-me-val">{transportText()}</Text>
           </View>
-          <View className="pr-btn pr-btn-sm" onClick={resetApiBase}>
-            恢复默认
+          <View className="pr-me-row">
+            <Text className="pr-me-key">当前连接</Text>
+            <Text className="pr-me-val pr-me-path">{apiBase}</Text>
           </View>
+          <View className="pr-label">服务器地址</View>
+          <Input
+            className="pr-input"
+            value={apiBaseInput}
+            placeholder={API_BASE}
+            onInput={handleApiBaseInput}
+          />
+          <View className="pr-me-actions">
+            <View className="pr-btn pr-btn-sm" onClick={saveApiBase}>
+              保存
+            </View>
+            <View className="pr-btn pr-btn-sm" onClick={testApiBase}>
+              {apiTesting ? '测试中…' : '测试连接'}
+            </View>
+            <View className="pr-btn pr-btn-sm" onClick={resetApiBase}>
+              恢复默认
+            </View>
+          </View>
+          {apiHint ? <View className="pr-note pr-me-hint">{apiHint}</View> : null}
         </View>
-        {apiHint ? <View className="pr-note pr-me-hint">{apiHint}</View> : null}
-      </View>
+      ) : null}
 
       <View className="pr-card">
         <View className="pr-card-title">改密码</View>

@@ -2089,6 +2089,130 @@ if (existsSync(formulasScssFile)) {
 }
 
 /* ========================================================================
+ * 27. 「我的」页：正式发布版不暴露服务器设置与存储位置
+ *
+ * 维护者 2026-11-08 在真机截图上标注：「服务器」界面与「存储位置」正式版不用显示。
+ *
+ * 这条规矩**容易被无意改回去**（比如哪天重构页面，把三元表达式拆了），
+ * 所以这里用 AST 盯住两件事：
+ *   ① 两块内容都在**「正式版为假时就不渲染**的三元表达式**里**；
+ *   ② 那个 `release` 变量确实来自 `isRelease()`（不是别的同名变量）。
+ *
+ * ⚠️ 光看「源码里有没有 isRelease」不够 —— 写在注释里也过；
+ *    光看「有没有三元表达式」也不够 —— 判反了就成「正式版才显示」。
+ *    所以这里查的是**结构**：元素在不在某个 `!release` 三元的**真分支**里。
+ * ======================================================================== */
+const mePageFile2 = join(SRC, 'pages', 'me', 'index.tsx')
+if (existsSync(mePageFile2)) {
+  const { src: meSrc, sf: meSf } = parseTsx(mePageFile2)
+
+  /** 带父链的 JSX 元素（要往上找「包着它的三元表达式」，没有父链就找不到） */
+  const jsxWithParents = []
+  {
+    const visit = (node, parent) => {
+      if (!node || typeof node !== 'object') return
+      if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) {
+        jsxWithParents.push({ el: node, parent })
+      }
+      ts.forEachChild(node, (child) => visit(child, node))
+    }
+    visit(meSf, null)
+  }
+
+  /** 子树里有没有这个节点（按引用比） */
+  const containsNode = (root, target) => {
+    let found = false
+    const visit = (n) => {
+      if (found || !n || typeof n !== 'object') return
+      if (n === target) {
+        found = true
+        return
+      }
+      ts.forEachChild(n, visit)
+    }
+    visit(root)
+    return found
+  }
+
+  /**
+   * 这个元素是不是「正式版就不渲染」：
+   * 它必须落在某个三元表达式的**真分支**里，且那个三元的判定含 `!release`。
+   */
+  const hiddenInRelease = (el) => {
+    if (!el) return false
+    let p = el.parent
+    while (p) {
+      if (ts.isConditionalExpression(p)) {
+        const test = p.condition.getText(meSf)
+        if (/!\s*release\b/.test(test) && containsNode(p.whenTrue, el)) return true
+      }
+      p = p.parent
+    }
+    return false
+  }
+
+  const meEls = jsxWithParents.map((x) => x.el)
+  const serverCard = meEls.find(
+    (el) => classTokens(el, meSf).includes('pr-card') && textOf(el).includes('服务器'),
+  )
+  const storageRow = meEls.find(
+    (el) => classTokens(el, meSf).includes('pr-me-row') && textOf(el).includes('存储位置'),
+  )
+
+  const releaseDecl = findVarDecl(walkAst(meSf), meSf, 'release')
+  const releaseInit = releaseDecl?.initializer?.getText(meSf) || ''
+
+  ok(
+    '「我的」页的 release 判定来自 isRelease()（不是别的同名变量）',
+    // ⚠️ **必须严格等于 `isRelease()`** —— 用正则 /\bisRelease\s*\(\s*\)/ 会连
+    //    `!isRelease()` 一起放过，而那正好是「判反了」：正式版反而会显示这两块，
+    //    而下面的结构断言照样全绿（结构只查「在不在 !release 三元的真分支里」，
+    //    查不出 release 本身被取反了）。
+    releaseInit.trim() === 'isRelease()',
+    releaseInit,
+  )
+  ok(
+    '「存储位置」这一行在正式版不渲染',
+    !!storageRow && hiddenInRelease(storageRow),
+    storageRow ? '找到了「存储位置」行，但没被正式版判定包住' : '没找到「存储位置」行',
+  )
+  ok(
+    '「服务器」整张卡片在正式版不渲染',
+    !!serverCard && hiddenInRelease(serverCard),
+    serverCard ? '找到了「服务器」卡片，但没被正式版判定包住' : '没找到「服务器」卡片',
+  )
+  ok(
+    'isRelease 从 utils/config 引入（不是各页面各写一份）',
+    /import\s*\{[^}]*\bisRelease\b[^}]*\}\s*from\s*'[^']*utils\/config'/.test(meSrc),
+  )
+}
+
+/* 正式版固定用打包时的地址 —— 界面藏了，地址也得定死 */
+const configFile2 = join(SRC, 'utils', 'config.ts')
+if (existsSync(configFile2)) {
+  const cfgSrc = read(configFile2)
+  const at = cfgSrc.indexOf('export function resolveApiBase')
+  const body = at >= 0 ? sliceBraces(cfgSrc, at).text : ''
+  ok(
+    'resolveApiBase 在正式版忽略本地存的地址（用打包时写进去的）',
+    body.length > 0 && /isRelease\s*\(\s*\)/.test(body),
+    body.slice(0, 120),
+  )
+}
+
+/* 版本判定必须用官方接口，不是内部对象 __wxConfig */
+const versionFile = join(SRC, 'platform', 'version.ts')
+if (existsSync(versionFile)) {
+  // ⚠️ 去掉注释再看 —— 这个文件里**故意**写了「为什么不用 __wxConfig」的注释，
+  //    连注释一起判会把自己判红。
+  const vCode = stripComments(read(versionFile))
+  ok(
+    '版本判定用 getAccountInfoSync（官方接口），不用内部对象 __wxConfig',
+    /getAccountInfoSync/.test(vCode) && !/__wxConfig/.test(vCode),
+  )
+}
+
+/* ========================================================================
  * 汇总
  * ======================================================================== */
 console.log(`\n合计：${pass + fail} 项，通过 ${pass}，失败 ${fail}`)

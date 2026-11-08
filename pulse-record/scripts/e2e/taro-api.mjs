@@ -382,6 +382,67 @@ c.check(
 delete globalThis.wx
 await fallback.stop()
 
+/* --------------------- 第五段：正式发布版 → 固定用打包时的地址 --------------------- */
+
+console.log('\n小程序数据层端到端（Taro · 正式发布版）\n')
+
+/**
+ * 维护者 2026-11-08 在真机截图上标注：「服务器」界面与「存储位置」正式版不用显示。
+ * 隐藏界面只是表面，真正的行为变化是**地址定死**：
+ * 界面藏了，使用者没有入口改地址 —— 若这时还读手机本地存的旧地址，
+ * 用户端就会连到一台没人能改的服务器，且没有任何自救入口。
+ *
+ * 这里验的就是这条：**开发版／体验版用本地存的地址，正式版一律用打包时写进去的**。
+ */
+const SAVED_BASE = 'http://192.168.99.99:5178'
+Taro.setStorageSync(config.API_BASE_KEY, SAVED_BASE)
+
+const setEnv = (envVersion) => {
+  globalThis.wx = { getAccountInfoSync: () => ({ miniProgram: { envVersion } }) }
+}
+
+// 开发版：真机联调就靠「我的」页改地址，所以必须照旧用本地存的
+setEnv('develop')
+c.check('开发版：判定为非正式版', config.isRelease() === false, String(config.isRelease()))
+c.check(
+  '开发版：用手机本地存的地址（真机联调靠它改地址）',
+  config.resolveApiBase() === SAVED_BASE,
+  config.resolveApiBase(),
+)
+
+// 体验版：同理 —— 审核前自测还要能改地址
+setEnv('trial')
+c.check('体验版：判定为非正式版', config.isRelease() === false, String(config.isRelease()))
+c.check(
+  '体验版：仍用手机本地存的地址',
+  config.resolveApiBase() === SAVED_BASE,
+  config.resolveApiBase(),
+)
+
+// 正式版：固定用打包时写进去的地址
+setEnv('release')
+c.check('正式版：判定为正式发布版', config.isRelease() === true, String(config.isRelease()))
+c.check(
+  '正式版：忽略本地存的地址，固定用打包时的地址',
+  config.resolveApiBase() === config.API_BASE,
+  `${config.resolveApiBase()}（应为 ${config.API_BASE}）`,
+)
+c.check(
+  '正式版：本地存的地址没被删掉，只是不再被使用（避免副作用）',
+  Taro.getStorageSync(config.API_BASE_KEY) === SAVED_BASE,
+)
+
+// 读不到版本号（老基础库／非微信环境）→ 当成非正式版，宁可多显示也不要误伤
+delete globalThis.wx
+c.check('读不到版本号时按非正式版处理', config.isRelease() === false, String(config.isRelease()))
+c.check(
+  '读不到版本号时仍用本地存的地址',
+  config.resolveApiBase() === SAVED_BASE,
+  config.resolveApiBase(),
+)
+
+Taro.removeStorageSync(config.API_BASE_KEY)
+
 /* ------------------------------ 清理 ------------------------------ */
 rmSync(outDir, { recursive: true, force: true })
 
