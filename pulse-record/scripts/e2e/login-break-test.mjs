@@ -29,6 +29,9 @@ const SRC = join(ROOT, 'taro', 'src')
 
 const LINT = join(ROOT, 'scripts', 'e2e', 'taro-lint.mjs')
 const LOGIN = join(SRC, 'pages', 'login', 'index.tsx')
+const ME = join(SRC, 'pages', 'me', 'index.tsx')
+const AUTH_FLOW = join(SRC, 'utils', 'auth-flow.ts')
+const TARO_CONFIG = join(ROOT, 'taro', 'config', 'index.ts')
 
 /** 跑一次 lint，返回 { red: [断言名…], total, pass, fail } */
 function runLint() {
@@ -94,8 +97,8 @@ step(
   mutate(
     'A useEffect 里自动登录',
     LOGIN,
-    "        if (body.mode === 'single') {\n          if (alive) setSingleMode(true)\n          goCases()\n        }",
-    "        if (body.mode === 'single') {\n          if (alive) setSingleMode(true)\n          goCases()\n          return\n        }\n        if (alive) tryWechat()",
+    '        if (shouldAutoEnter(mode, wasLoggedOut())) {\n          if (alive) goCases()\n          return\n        }',
+    '        if (shouldAutoEnter(mode, wasLoggedOut())) {\n          if (alive) goCases()\n          return\n        }\n        if (alive) tryWechat()',
     '登录页不在生命周期钩子里自动发起微信登录',
   ),
 )
@@ -138,8 +141,8 @@ step(
   mutate(
     'E 单机模式不再自动进',
     LOGIN,
-    "        if (body.mode === 'single') {\n          if (alive) setSingleMode(true)\n          goCases()\n        }",
-    "        if (body.mode === 'single') {\n          if (alive) setSingleMode(true)\n        }",
+    '        if (shouldAutoEnter(mode, wasLoggedOut())) {\n          if (alive) goCases()\n          return\n        }',
+    '        if (shouldAutoEnter(mode, wasLoggedOut())) {\n          return\n        }',
     '单机模式仍然自动进',
   ),
 )
@@ -152,6 +155,82 @@ step(
     '  const onWechatLogin = useCallback(() => {\n    tryWechat()\n  }, [tryWechat])',
     '  const onWechatLogin = useCallback(() => {\n    tryWechat()\n  }, [tryWechat])\n\n  const autoWechat = useCallback(() => {\n    tryWechat()\n  }, [tryWechat])',
     'tryWechat 只被 onWechatLogin',
+  ),
+)
+
+/* ========================================================================
+ * G~L：2026-11-08 补的「第二条自动进入路径」与「构建标识」
+ * ======================================================================== */
+
+/* G. shouldAutoEnter 不看「刚退出过」了 —— 退出登录就退不掉 */
+step(
+  mutate(
+    'G shouldAutoEnter 不看「刚退出过」',
+    AUTH_FLOW,
+    '  if (!isSingleMode(mode)) return false\n  if (justLoggedOut) return false\n  return true',
+    '  if (!isSingleMode(mode)) return false\n  void justLoggedOut\n  return true',
+    'auth-flow 的 shouldAutoEnter 真的**拿「刚退出过」当条件**判',
+  ),
+)
+
+/* H. 页面不判、自己写 if（规则又散回两处） */
+step(
+  mutate(
+    'H 登录页不调 shouldAutoEnter，自己判',
+    LOGIN,
+    '        if (shouldAutoEnter(mode, wasLoggedOut())) {',
+    "        if (mode === 'single') {",
+    '登录页的自动进入走 shouldAutoEnter',
+  ),
+)
+
+/* I. 「我的」页退出时忘了记「刚退出过」 */
+step(
+  mutate(
+    'I 退出登录不记「刚退出过」',
+    ME,
+    "    markLoggedOut()\n    await authLogout()\n    setLoginName('')",
+    "    await authLogout()\n    setLoginName('')",
+    '「我的」页的退出登录处理器会记「刚退出过」',
+  ),
+)
+
+/* J. 删掉「继续使用（单机模式）」按钮 —— 退出后没退路
+ *
+ * ⚠️ 匹配串要带上下行 —— 文件**顶部注释里也出现过这句话**
+ *    （「改成一个「继续使用（单机模式）」按钮」）。
+ *    只替换那一句的话，改到的是**注释**，按钮还在 → 断言照样绿 → 白忙一场。
+ *    （2026-11-08 实测踩过：第一次这么写，mutation「生效」了却一条红都没有。）
+ */
+step(
+  mutate(
+    'J 删掉「继续使用（单机模式）」按钮',
+    LOGIN,
+    '            继续使用（单机模式）\n          </Button>',
+    '            继续使用\n          </Button>',
+    '登录页有「继续使用（单机模式）」按钮',
+  ),
+)
+
+/* K. 删掉登录页的构建标识 —— 又分不清跑的是新包还是旧包 */
+step(
+  mutate(
+    'K 登录页不显示构建标识',
+    LOGIN,
+    '      <View className="pr-build">{buildLabel()}</View>',
+    '      <View className="pr-build" />',
+    '登录页显示构建标识',
+  ),
+)
+
+/* L. 编译期不注入 PULSE_BUILD_AT —— 产物里就没有版本号 */
+step(
+  mutate(
+    'L 编译期不注入 PULSE_BUILD_AT',
+    TARO_CONFIG,
+    "      'process.env.PULSE_BUILD_AT': JSON.stringify(\n        String(process.env.PULSE_BUILD_AT || '').trim() || buildStamp(),\n      ),",
+    "      'process.env.PULSE_BUILD_AT': JSON.stringify(''),",
+    '编译期注入 PULSE_BUILD_AT（构建时间）',
   ),
 )
 

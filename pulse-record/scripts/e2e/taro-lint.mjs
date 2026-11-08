@@ -2367,7 +2367,13 @@ if (existsSync(loginPageFile)) {
     `游离调用点 ${strayCalls.length} 处`,
   )
 
-  /* 单机模式仍然自动进 —— 那是设计，别顺手改掉 */
+  /* 单机模式仍然自动进 —— 那是设计，别顺手改掉
+   *
+   * ⚠️ 2026-11-08 改口径：**判据搬进纯函数 `shouldAutoEnter`**（utils/auth-flow.ts），
+   *    页面只管「拿到结果就照做」。所以这里查的是
+   *    「useEffect 里调了 shouldAutoEnter」＋「useEffect 里还有 goCases()」，
+   *    不再查 `body.mode === 'single'` 这个字面写法（它已经不在页面里了）。
+   */
   // ⚠️ 必须查**useEffect 回调里有没有 goCases()** ——
   //    只查全文有没有 `goCases(` 会被别处（tryWechat 里也调 goCases）蒙混过关。
   const effectCalls = [...loginParents.keys()].filter(
@@ -2379,10 +2385,232 @@ if (existsSync(loginPageFile)) {
         (n) => ts.isCallExpression(n) && n.expression.getText(loginSf) === 'goCases',
       )
     : false
+  const effectCallsShould = effectBody
+    ? walkAst(effectBody).some(
+        (n) => ts.isCallExpression(n) && n.expression.getText(loginSf) === 'shouldAutoEnter',
+      )
+    : false
+  ok(
+    '登录页的自动进入走 shouldAutoEnter（规则只有一处，页面不自己判）',
+    effectCallsShould,
+    effectCallsShould ? '' : 'useEffect 里没有调 shouldAutoEnter',
+  )
   ok(
     '单机模式仍然自动进（不用登录）',
-    effectGoesCases && /body\.mode\s*===\s*'single'/.test(loginSrc),
+    effectGoesCases,
     effectGoesCases ? '' : 'useEffect 里没有 goCases()',
+  )
+}
+
+/* ========================================================================
+ * 29. 「退出登录退得掉」的第二道闸 ＋ 构建标识看得见
+ *
+ * 维护者 2026-11-08 反馈：「点退出登录后又被自动带回病例页」，之后又说
+ * 「依然还会自动登录」。查下来有**两条**独立的自动进入路径：
+ *
+ *   ① 微信登录被自动发起 —— 第 28 节已经堵掉；
+ *   ② **单机模式自动进入** —— 它压根不登录，是 `health()` 说「我是单机模式」
+ *      → 直接 `goCases()`。只修 ① 修不掉它。
+ *
+ * 所以这节的规矩：
+ *   · 「要不要自动进去」只有**一处**判据 —— `utils/auth-flow.ts` 的
+ *     `shouldAutoEnter(mode, justLoggedOut)`；
+ *   · 用户点了「退出登录」→ 本地记一笔「刚退出过」→ 登录页**不自动进**，
+ *     改成一个「继续使用（单机模式）」按钮，由用户自己决定回不回来；
+ *   · 登录成功 / 点「继续使用」→ 清掉那笔标记。
+ *
+ * 另外加一条**构建标识**：小程序 bundle 在服务上下文里是缓存的，
+ * 跑旧包时界面和旧版一模一样 —— 光看代码判断不了「跑的到底是哪一份」。
+ * → 编译期把「构建时间 + git 短 sha」注进产物，登录页与「我的」页底部显示。
+ * ======================================================================== */
+const authFlowFile = join(SRC, 'utils', 'auth-flow.ts')
+const storageFile = join(SRC, 'utils', 'storage.ts')
+const meFile = join(SRC, 'pages', 'me', 'index.tsx')
+const taroCfgFile29 = join(SRC, '..', 'config', 'index.ts')
+
+/* ---- 规则只有一处：utils/auth-flow.ts ---- */
+ok('utils/auth-flow.ts 存在（自动进入的判据收在这里）', existsSync(authFlowFile))
+if (existsSync(authFlowFile)) {
+  const { src: flowSrc, sf: flowSf } = parseTsx(authFlowFile)
+  ok(
+    'auth-flow 导出 shouldAutoEnter',
+    /export\s+function\s+shouldAutoEnter\s*\(/.test(flowSrc),
+  )
+  // ⚠️ **必须查函数体里有没有用到 justLoggedOut** ——
+  //    光看签名不够：把 `if (justLoggedOut) return false` 删掉、参数留着，
+  //    签名照样有 justLoggedOut，函数却已经**不看**「刚退出过」了 ——
+  //    那正是「退出登录又被自动带回」的那条路。
+  //
+  // ⚠️⚠️ **光看「函数体里出现过这个名字」也不够** ——
+  //    `void justLoggedOut` 这种写法照样过（名字在，但**不起判据作用**）。
+  //    → 所以查的是：**它有没有出现在某个条件里**（if 的条件／三元表达式）。
+  const flowFn = flowSf.statements.find(
+    (s) => ts.isFunctionDeclaration(s) && s.name?.text === 'shouldAutoEnter',
+  )
+  /** 这个标识符是不是出现在某个「条件」里 */
+  const usedAsCondition = (root, name) => {
+    let hit = false
+    // ⚠️ 用 **node.forEachChild**（Node 自带的方法）而不是 `ts.forEachChild(node, cb)`：
+    //    后者在某些节点上会把 **undefined** 传给回调（实测踩过：`ts.isIdentifier(undefined)`
+    //    直接抛 TypeError，断言脚本自己崩掉）。
+    const visit = (n) => {
+      if (hit || !n || typeof n !== 'object' || typeof n.kind !== 'number') return
+      if (ts.isIfStatement(n) && n.expression && hasId(n.expression, name)) {
+        // ⚠️ **TypeScript 的 `IfStatement` 用的字段是 `expression`，不是 `condition`**
+        //    （`condition` 是 `ConditionalExpression` 的字段）。
+        //    记混了会静默扫不到 —— 断言永远红，源码却是对的。
+        hit = true
+        return
+      }
+      if (ts.isConditionalExpression(n) && n.condition && hasId(n.condition, name)) {
+        hit = true
+        return
+      }
+      n.forEachChild((c) => visit(c))
+    }
+    visit(root)
+    return hit
+  }
+  /** 这棵子树里有没有这个标识符 */
+  const hasId = (node, name) => {
+    let hit = false
+    const visit = (n) => {
+      if (hit || !n || typeof n !== 'object' || typeof n.kind !== 'number') return
+      if (ts.isIdentifier(n)) {
+        if (n.text === name) hit = true
+        return
+      }
+      n.forEachChild((c) => visit(c))
+    }
+    visit(node)
+    return hit
+  }
+  ok(
+    'auth-flow 的 shouldAutoEnter 真的**拿「刚退出过」当条件**判（不是提一嘴）',
+    !!flowFn && usedAsCondition(flowFn.body, 'justLoggedOut'),
+    flowFn ? 'justLoggedOut 没出现在任何条件里' : '没找到函数声明',
+  )
+  ok(
+    'auth-flow 的 shouldAutoEnter 拿「服务端模式」当条件判（多用户模式也不进）',
+    !!flowFn && usedAsCondition(flowFn.body, 'mode'),
+    flowFn ? 'mode 没出现在任何条件里' : '没找到函数声明',
+  )
+}
+
+/* ---- 登录页：从 auth-flow 引 shouldAutoEnter，且渲染「继续使用」按钮 ---- */
+if (existsSync(loginPageFile)) {
+  const { src: loginSrc2, sf: loginSf2 } = parseTsx(loginPageFile)
+  ok(
+    '登录页从 utils/auth-flow 引 shouldAutoEnter（不自己写一份）',
+    /import\s*\{[^}]*\bshouldAutoEnter\b[^}]*\}\s*from\s*'[^']*utils\/auth-flow'/.test(loginSrc2),
+  )
+  ok(
+    '登录页从 utils/storage 引 wasLoggedOut（判断刚退出过）',
+    /import\s*\{[^}]*\bwasLoggedOut\b[^}]*\}\s*from\s*'[^']*utils\/storage'/.test(loginSrc2),
+  )
+
+  const loginEls2 = jsxElements(walkAst(loginSf2))
+  const contBtn = loginEls2.find((el) => textOf(el) === '继续使用（单机模式）')
+  ok('登录页有「继续使用（单机模式）」按钮', !!contBtn, contBtn ? '' : '没找到这个按钮')
+  if (contBtn) {
+    const contAttr = (contBtn.openingElement?.attributes?.properties || []).find(
+      (a) => a.name && a.name.text === 'onClick',
+    )
+    const contInit = contAttr?.initializer
+    const contName =
+      contInit && ts.isJsxExpression(contInit)
+        ? contInit.expression?.getText(loginSf2) || ''
+        : contInit?.getText(loginSf2) || ''
+    const contDecl = findVarDecl(walkAst(loginSf2), loginSf2, contName)
+    const contBody = contDecl ? walkAst(contDecl.initializer) : []
+    const calls = (name) =>
+      contBody.some((n) => ts.isCallExpression(n) && n.expression.getText(loginSf2) === name)
+    ok(
+      '「继续使用」的处理器清掉「刚退出过」标记',
+      calls('clearLoggedOutMark'),
+      contName,
+    )
+    ok('「继续使用」的处理器确实进病例页', calls('goCases'), contName)
+  }
+}
+
+/* ---- 「我的」页：点退出登录要先记一笔「刚退出过」 ---- */
+if (existsSync(meFile)) {
+  const { src: meSrc2, sf: meSf2 } = parseTsx(meFile)
+  ok(
+    '「我的」页从 utils/storage 引 markLoggedOut',
+    /import\s*\{[^}]*\bmarkLoggedOut\b[^}]*\}\s*from\s*'[^']*utils\/storage'/.test(meSrc2),
+  )
+  const logoutDecl = findVarDecl(walkAst(meSf2), meSf2, 'logout')
+  const logoutMarks =
+    !!logoutDecl &&
+    walkAst(logoutDecl.initializer).some(
+      (n) => ts.isCallExpression(n) && n.expression.getText(meSf2) === 'markLoggedOut',
+    )
+  ok('「我的」页的退出登录处理器会记「刚退出过」', logoutMarks, logoutDecl ? '' : '没找到 logout')
+}
+
+/* ---- storage：标记的三件套都在 ---- */
+if (existsSync(storageFile)) {
+  const stSrc = read(storageFile)
+  for (const fn of ['markLoggedOut', 'wasLoggedOut', 'clearLoggedOutMark']) {
+    ok(`storage 导出 ${fn}`, new RegExp(`export\\s+function\\s+${fn}\\s*\\(`).test(stSrc))
+  }
+  ok(
+    'storage 里「刚退出过」用独立的键（不能被 clearAuth 清掉）',
+    /LOGGED_OUT_KEY\s*=\s*'pulse\.loggedOut'/.test(stSrc) &&
+      !/clearAuth[\s\S]{0,200}removeStorageSync\(LOGGED_OUT_KEY\)/.test(stSrc),
+  )
+}
+
+/* ---- 构建标识：编译期注入 ＋ 两个页面都显示 ---- */
+if (existsSync(taroCfgFile29)) {
+  const cfgText = read(taroCfgFile29)
+  // ⚠️ **光看「有这一行、后面是 JSON.stringify」不够** ——
+  //    写成 `JSON.stringify('')` 照样过（那等于编译期注入了一个空串，
+  //    界面上永远显示「构建时间未知」）。
+  //    → 查 **JSON.stringify 的参数里有没有真的算出值**（环境变量或默认时间戳）。
+  const constArg = (key) => {
+    const at = cfgText.indexOf(`'process.env.${key}'`)
+    if (at < 0) return ''
+    const open = cfgText.indexOf('JSON.stringify(', at)
+    if (open < 0) return ''
+    // 从 '(' 起做括号配平，取出参数那一段
+    let depth = 0
+    for (let i = open + 'JSON.stringify'.length; i < cfgText.length; i += 1) {
+      const c = cfgText[i]
+      if (c === '(') depth += 1
+      else if (c === ')') {
+        depth -= 1
+        if (depth === 0) return cfgText.slice(open + 'JSON.stringify('.length, i)
+      }
+    }
+    return ''
+  }
+  const atArg = constArg('PULSE_BUILD_AT')
+  ok(
+    '编译期注入 PULSE_BUILD_AT（构建时间）',
+    atArg.length > 0 && /buildStamp\(\)|PULSE_BUILD_AT/.test(atArg),
+    atArg.slice(0, 120),
+  )
+  const gitArg = constArg('PULSE_BUILD_GIT')
+  ok(
+    '编译期注入 PULSE_BUILD_GIT（git 短 sha）',
+    gitArg.length > 0 && /buildGit\(\)|PULSE_BUILD_GIT/.test(gitArg),
+    gitArg.slice(0, 120),
+  )
+}
+for (const [name, file] of [
+  ['登录页', loginPageFile],
+  ['「我的」页', meFile],
+]) {
+  if (!existsSync(file)) continue
+  const { src, sf } = parseTsx(file)
+  ok(
+    `${name}显示构建标识（一眼确认跑的是不是新包）`,
+    walkAst(sf).some(
+      (n) => ts.isCallExpression(n) && n.expression.getText(sf) === 'buildLabel',
+    ) && /import\s*\{[^}]*\bbuildLabel\b[^}]*\}\s*from\s*'[^']*utils\/build'/.test(src),
   )
 }
 

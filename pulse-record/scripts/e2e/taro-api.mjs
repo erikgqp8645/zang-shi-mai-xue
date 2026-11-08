@@ -443,6 +443,78 @@ c.check(
 
 Taro.removeStorageSync(config.API_BASE_KEY)
 
+/* --------------------- 第六段：退出登录退得掉 ＋ 构建标识 --------------------- */
+
+console.log('\n小程序数据层端到端（Taro · 退出登录与构建标识）\n')
+
+/**
+ * 维护者 2026-11-08 反馈：「点退出登录后又被自动带回病例页」。
+ *
+ * 根因有**两条**，这里逐条验：
+ *
+ * ① 微信登录被自动发起 —— 由 `taro-lint.mjs` 第 28 节盯源码结构；
+ * ② **单机模式自动进入** —— 它压根不登录，是 `health()` 说「我是单机模式」
+ *    → 直接进。只修 ① 修不掉它。
+ *
+ * ② 的判据收在 `utils/auth-flow.ts` 的 `shouldAutoEnter(mode, justLoggedOut)`，
+ * 是**纯函数** —— 所以这里能真的把它跑起来逐条断言。
+ */
+const flow = mod.authFlow
+
+c.check(
+  '多用户模式：一律不自动进（等用户点「微信一键登录」）',
+  flow.shouldAutoEnter('multi', false) === false,
+  String(flow.shouldAutoEnter('multi', false)),
+)
+c.check(
+  '多用户模式：刚退出过时也不自动进',
+  flow.shouldAutoEnter('multi', true) === false,
+  String(flow.shouldAutoEnter('multi', true)),
+)
+c.check(
+  '单机模式：默认自动进（不用登录，这是设计）',
+  flow.shouldAutoEnter('single', false) === true,
+  String(flow.shouldAutoEnter('single', false)),
+)
+c.check(
+  '单机模式：刚被退出过 → 不自动进（这才叫「退出登录退得掉」）',
+  flow.shouldAutoEnter('single', true) === false,
+  String(flow.shouldAutoEnter('single', true)),
+)
+c.check(
+  '探不到服务端（mode 为空）→ 不自动进',
+  flow.shouldAutoEnter('', false) === false && flow.shouldAutoEnter(undefined, false) === false,
+)
+
+/* 「刚退出过」标记：写进去 → 读得到 → 清掉 → 读不到 */
+const storageMod = mod.storage
+storageMod.clearLoggedOutMark()
+c.check('「刚退出过」标记默认是空的', storageMod.wasLoggedOut() === false)
+storageMod.markLoggedOut()
+c.check('记一笔之后读得到', storageMod.wasLoggedOut() === true)
+storageMod.clearLoggedOutMark()
+c.check('清掉之后读不到', storageMod.wasLoggedOut() === false)
+
+/* 清凭证**不能**把「刚退出过」一起清掉 —— 否则登出流程等于没写标记 */
+storageMod.markLoggedOut()
+storageMod.clearAuth()
+c.check(
+  'clearAuth 不影响「刚退出过」标记（标记归标记，凭证归凭证）',
+  storageMod.wasLoggedOut() === true,
+)
+storageMod.clearLoggedOutMark()
+
+/* 构建标识：模块能导出、标签非空 */
+c.check(
+  '构建标识模块导出 buildLabel',
+  typeof mod.build.buildLabel === 'function',
+)
+c.check(
+  'buildLabel 返回一行版本标识',
+  typeof mod.build.buildLabel() === 'string' && mod.build.buildLabel().length > 0,
+  mod.build.buildLabel(),
+)
+
 /* ------------------------------ 清理 ------------------------------ */
 rmSync(outDir, { recursive: true, force: true })
 

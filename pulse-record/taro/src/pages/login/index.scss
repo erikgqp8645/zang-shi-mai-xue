@@ -38,3 +38,12 @@
   font-size: 25rpx;
   text-decoration: underline;
 }
+
+/* 构建标识 —— 一眼确认跑的是不是刚构建的那份（2026-11-08） */
+.pr-build {
+  margin-top: 40rpx;
+  text-align: center;
+  color: #a39a8c;
+  font-size: 22rpx;
+  word-break: break-all;
+}

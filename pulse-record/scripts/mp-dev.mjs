@@ -87,8 +87,7 @@ function lanAddresses() {
     )
 }
 
-async function waitHealth(base, tries = 60) {
-  for (let i = 0; i < tries; i++) {
+async function waitHealth(base, tries = 60) {  for (let i = 0; i < tries; i++) {
     try {
       const r = await fetch(base + '/api/health')
       if (r.ok) return await r.json()
@@ -103,14 +102,50 @@ async function waitHealth(base, tries = 60) {
 /**
  * Taro 工程用 alias 直接编译 `../src/domain` 源码，**不需要** `build:core` 的 CommonJS 产物；
  * 但需要 `taro/dist/` —— 开发者工具导入的是产物目录，不是源码目录。
- * 产物缺失时自动跑一次 `taro build --type weapp`。
+ *
+ * ## 本机联调**必须**用 `PULSE_TRANSPORT=request` 构建（2026-11-08 实测）
+ *
+ * 默认构建的传输方式是 **cloud**（`wx.cloud.callFunction`）—— 那是给上线用的，
+ * 请求直接打 CloudBase，**根本不会碰本机后端**。
+ * 于是本机联调时会出现这局面：
+ *
+ *   小程序问 `/api/health` → 云通道不通 → **探不到服务端模式**
+ *   → 登录页按「多用户模式」处理 → 弹出「微信一键登录」卡片
+ *   → 用户以为「怎么又要登录」，其实是**压根没连上自己的电脑**
+ *
+ * （2026-11-08 实测：cloud 构建下 health 请求失败，登录页渲染出登录卡片；
+ *   换成 request 构建后同一个包立刻认出「单机模式」。）
+ *
+ * → 所以这里**每次都按 request 重建**（不只是「产物缺失时」）：
+ *   本机联调用的是这一份，上线包另有一条明确的构建命令（见上线清单）。
  */
 const DIST = join(MP, 'dist')
-const distReady = existsSync(join(DIST, 'app.json')) && existsSync(join(DIST, 'pages/visit/index.js'))
+const distReady = existsSync(join(DIST, 'app.json')) && existsSync(join(DIST, 'pages', 'visit', 'index.js'))
 
-if (!distReady && !NO_BUILD) {
-  console.log('小程序产物还没构建，先跑 taro build ……')
-  const r = spawn('npm', ['run', 'mp:taro:build'], { cwd: ROOT, stdio: 'inherit' })
+/**
+ * 跑一条 npm 命令
+ *
+ * ⚠️ **Windows 上必须经 cmd.exe** —— Node ≥18.20 起，不带 shell 直接 spawn
+ *    `.cmd`（npm 就是 .cmd）会抛 `EINVAL`；带 shell 又会把参数里的引号吃掉。
+ *    走 `cmd.exe /d /c npm ...` 最稳。
+ */
+function spawnNpm(args, options = {}) {
+  if (process.platform === 'win32') {
+    return spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/c', 'npm', ...args], options)
+  }
+  return spawn('npm', args, options)
+}
+
+if (!NO_BUILD) {
+  console.log('按本机联调重建小程序产物（PULSE_TRANSPORT=request）……')
+  const r = spawnNpm(['run', 'mp:taro:build'], {
+    cwd: ROOT,
+    stdio: 'inherit',
+    // ⚠️ 在**子进程的环境**里注入 —— 父进程的 process.env 改了也没用。
+    //    `set VAR=1 && 别的命令` 在 cmd 里会把值设成 `"1 "`（带尾随空格），
+    //    所以这里用对象形式传，**没有尾随空格问题**。
+    env: { ...process.env, PULSE_TRANSPORT: 'request' },
+  })
   await new Promise((res, rej) => r.on('exit', (code) => (code === 0) ? res() : rej(new Error('mp:taro:build 失败'))))
 } else if (!distReady) {
   console.log('⚠️  taro/dist 不存在且指定了 --no-build：开发者工具会白屏，先跑一次 npm run mp:taro:build')

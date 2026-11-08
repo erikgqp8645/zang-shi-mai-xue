@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import { defineConfig } from '@tarojs/cli'
 import devConfig from './dev'
@@ -118,6 +119,54 @@ function assetCopyPatterns() {
 const TARO_ENV = process.env.TARO_ENV || 'weapp'
 const isHarmony = TARO_ENV === 'harmony_cpp' || TARO_ENV === 'harmony'
 
+/* ========================================================================
+ * 构建标识 —— 编译期注入，界面上直接显示（2026-11-08）
+ * ========================================================================
+ *
+ * ## 为什么要有
+ *
+ * 小程序的 JS bundle 在**服务上下文**里是缓存的：`reLaunch` 只换页面，
+ * **不重新 require 产物**。所以「我改了代码、重新构建了」≠「跑的是新代码」。
+ *
+ * 那天维护者反馈「依然还会自动登录」—— 查下来代码早改了、提交早推了，
+ * **但跑的还是旧 bundle**，于是「依然」。改的地方压根没被执行到。
+ *
+ * → 所以把「构建时间 + git 提交号」**编译进产物、显示在界面上**：
+ *   登录页与「我的」页底部那行「版本 2026-11-08 13:52 · 6b997bc」就是它。
+ *   对不上 → 跑的是旧包；别再怀疑代码没改。
+ */
+
+/** 构建那一刻的时间戳（本地时间，形如 `2026-11-08 13:52`） */
+function buildStamp(): string {
+  const d = new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+/**
+ * 构建时的 git 短 sha；工作区有未提交改动时后面加 `*`
+ *
+ * ⚠️ 拿不到就返回空串 —— 构建**不能因为 git 不可用就失败**
+ *    （CI 上常常没有 .git 目录）。
+ */
+function buildGit(): string {
+  try {
+    const run = (args: string[]) =>
+      String(execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })).trim()
+    const sha = run(['rev-parse', '--short', 'HEAD'])
+    if (!sha) return ''
+    let dirty = ''
+    try {
+      dirty = run(['status', '--porcelain']) ? '*' : ''
+    } catch {
+      dirty = ''
+    }
+    return sha + dirty
+  } catch {
+    return ''
+  }
+}
+
 export default defineConfig(async (merge) => {
   const baseConfig = {
     projectName: 'pulse-record',
@@ -207,6 +256,31 @@ export default defineConfig(async (merge) => {
        */
       'process.env.PULSE_FORCE_RELEASE': JSON.stringify(
         String(process.env.PULSE_FORCE_RELEASE || '').trim() === '1' ? '1' : '',
+      ),
+      /**
+       * **构建标识**（2026-11-08）—— 编译期注入，界面上直接显示
+       *
+       * 用途：一眼确认「现在跑的是不是刚构建的那一份」。
+       * 小程序 bundle 在服务上下文里是缓存的，跑旧包时**界面和旧版一模一样**，
+       * 光看代码/提交记录判断不了「跑的到底是哪一份」。
+       *
+       * 可以用环境变量覆盖（发版时写死一个时间戳更省事）：
+       *
+       * ```bash
+       * PULSE_BUILD_AT=2026-11-08 20:00 npm run mp:taro:build
+       * ```
+       *
+       * 不注入就用**构建那一刻**的时间戳 ＋ 当时的 git 短 sha
+       * （带 `*` = 构建时工作区有未提交改动）。
+       *
+       * ⚠️ 同样**只是编译期替换** —— 产物里不会残留 `process.env.`，
+       *    小程序运行时没有 `process` 这个全局量，残留就是整屏白。
+       */
+      'process.env.PULSE_BUILD_AT': JSON.stringify(
+        String(process.env.PULSE_BUILD_AT || '').trim() || buildStamp(),
+      ),
+      'process.env.PULSE_BUILD_GIT': JSON.stringify(
+        String(process.env.PULSE_BUILD_GIT || '').trim() || buildGit(),
       ),
     },
 

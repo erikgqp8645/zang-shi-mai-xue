@@ -40,6 +40,8 @@
     "test:e2e:mp:link": "node scripts/e2e/taro-formula-link.mjs",
     "test:e2e:mp:break": "node scripts/e2e/me-release-break-test.mjs",
     "test:e2e:mp:login:break": "node scripts/e2e/login-break-test.mjs",
+    "test:e2e:mp:probe:bundle": "node scripts/e2e/probe-bundle.mjs",
+    "test:e2e:mp:probe:multi": "node scripts/e2e/probe-multi.mjs",
     "test:e2e:mp:legacy": "node scripts/e2e/mp-lint.mjs",
     "test:e2e:mp:legacy:api": "node scripts/e2e/mp-api.mjs",
     "test:e2e:mp:legacy:sim": "node scripts/e2e/mp-sim.mjs",

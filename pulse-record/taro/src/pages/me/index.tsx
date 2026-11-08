@@ -20,7 +20,8 @@ import {
   setApiBase as setApiBaseConfig,
 } from '../../utils/config'
 import { health } from '../../utils/data'
-import { getUser } from '../../utils/storage'
+import { buildLabel } from '../../utils/build'
+import { getUser, markLoggedOut } from '../../utils/storage'
 import type { StoredUser } from '../../utils/storage'
 
 import './index.scss'
@@ -301,6 +302,9 @@ export default function Me() {
       setNotice('密码已改。改密码后全部会话失效，需要重新登录。')
       setOldPassword('')
       setNewPassword('')
+      // ⚠️ **先标记再清凭证** —— 顺序反了，「刚退出过」就记不上，
+      //    单机模式会立刻把人自动带回病例页（等于退不掉）。
+      markLoggedOut()
       await authLogout()
       Taro.reLaunch({ url: '/pages/login/index' })
     } catch (e) {
@@ -333,6 +337,10 @@ export default function Me() {
   const logout = useCallback(async () => {
     const ok = await confirmModal('退出登录？', '数据仍存在服务器上，重新登录即可看到。')
     if (!ok) return
+    // ⚠️ **先标记再清凭证** —— 顺序反了，「刚退出过」就记不上，
+    //    单机模式会立刻把人自动带回病例页（等于退不掉）。
+    //    见 utils/storage.ts 的 markLoggedOut 与 utils/auth-flow.ts 的 shouldAutoEnter。
+    markLoggedOut()
     await authLogout()
     setLoginName('')
     setDisplayName('')
@@ -474,6 +482,9 @@ export default function Me() {
       <View className="pr-disclaimer pr-me-disclaimer">
         本工具只做记录，不构成诊断。体质的判定由使用者自己判断后手工选定，工具不代判、不开方。
       </View>
+
+      {/* 构建标识 —— 一眼确认跑的是不是刚构建的那份（2026-11-08） */}
+      <View className="pr-build">{buildLabel()}</View>
     </View>
   )
 }
