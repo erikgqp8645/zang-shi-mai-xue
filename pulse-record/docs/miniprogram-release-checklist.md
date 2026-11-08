@@ -576,11 +576,27 @@ npm test                       # 全量回归 505/505
 
 ```bash
 cd pulse-record
-npm run dev:lan          # = HOST=0.0.0.0 node scripts/dev.mjs
+npm run mp:dev            # 小程序本机联调（只起后端，不起网站前端）
 ```
+
+这条命令会把**整套联调清单一次性打出来**（后端状态／微信凭据／工程目录／
+开发者工具四步／真机该填的局域网地址／防火墙提示）—— 照着抄就行，不用翻文档。
+
+> ⚠️ **要开网站前端**（想在电脑上看网页版）另开一个：`npm run dev`。
+> `npm run dev:lan` 是**网站**那条路的局域网预览（前端＋后端都监听 `0.0.0.0`），
+> 小程序联调不用它。
 
 **后端默认只听 `127.0.0.1`，外部访问不到** —— 这是「本机能跑、手机连不上」最常见的原因。
 2026-11-06 实测：后端只听回环时 `curl http://<局域网IP>:5178/` 直接连不通（返回 000）。
+`npm run mp:dev` **默认就监听 `0.0.0.0`**，不用另外设环境变量。
+
+> ⚠️ **Windows 上的两个坑（2026-11-08 已修）**：
+> ① `HOST=0.0.0.0 npm run …` 是 **Unix shell 语法**，Windows 的 cmd 根本不认
+> （会把 `HOST=0.0.0.0` 当命令名执行，报「不是内部或外部命令」）——
+> `dev:lan`／`dev:multi` 已改成 `--lan`／`--multi` 参数式；
+> ② `HOST` 必须传进**后端子进程**的 env，只喂给 vite 的 `--host` 是不够的
+> （那样前端能开、后端仍只听回环，手机照样连不上）。
+> 实测修完：`http://<局域网IP>:5178/api/patients` → **HTTP 200**。
 
 ### 6.2 先在手机上分诊（30 秒，省掉后面所有猜测）
 
@@ -589,7 +605,7 @@ npm run dev:lan          # = HOST=0.0.0.0 node scripts/dev.mjs
 | 结果 | 说明 |
 |---|---|
 | 出一段 JSON（`{"patients":[…]}`） | 网络通 → 往下走 |
-| 打不开 | ① 电脑防火墙（macOS 会弹「node 想要接受传入连接」→ **选允许**）② 手机与电脑不在同一 WiFi ③ 局域网 IP 变了（`ipconfig getifaddr en0`） |
+| 打不开 | ① 电脑防火墙（macOS 会弹「node 想要接受传入连接」→ **选允许**；Windows 要在「Windows Defender 防火墙 → 允许应用通过防火墙」里放行 Node.js 的**专用网络**）② 手机与电脑不在同一 WiFi ③ 局域网 IP 变了（macOS `ipconfig getifaddr en0` ／ **Windows `ipconfig` 看「IPv4 地址」**） |
 
 ### 6.3 开发者工具侧
 
