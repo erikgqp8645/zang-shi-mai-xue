@@ -91,7 +91,11 @@ const PORT = Number(process.env.PORT ?? 5178)
  *
  * 真机联调时手机要连电脑的局域网 IP，必须改成 `0.0.0.0`：
  *
- *     HOST=0.0.0.0 npm run mp:dev
+ *     npm run mp:dev
+ *
+ * （`scripts/mp-dev.mjs` **默认就是 `0.0.0.0`**，不用另外设环境变量。
+ *  ⚠️ 别写成 `HOST=0.0.0.0 npm run mp:dev` —— 那是 Unix shell 的语法，
+ *  Windows 的 cmd 根本不认，会把 `HOST=0.0.0.0` 当成一个命令名去执行。）
  *
  * 不改的话，手机请求会直接超时/连不上 —— 这是「本机能跑、手机连不上」最常见的原因。
  * 只在本机开发时可以保持默认值，避免把服务暴露到公网上。
