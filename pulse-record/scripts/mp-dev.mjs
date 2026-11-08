@@ -49,7 +49,20 @@ const ok = (s) => '\x1b[32m' + s + '\x1b[0m'
 const dim = (s) => '\x1b[2m' + s + '\x1b[0m'
 const bold = (s) => '\x1b[1m' + s + '\x1b[0m'
 
-/** 本机局域网 IPv4（真机预览要填这个） */
+/**
+ * 本机局域网 IPv4（真机预览要填这个）
+ *
+ * ⚠️ **必须把「手机连不上」的网卡剔干净** —— 这不是洁癖，是真会踩的坑：
+ * 装了 Clash / Mihomo 之类代理的机器上，会多出一块 **TUN 虚拟网卡**，
+ * 地址在 `198.18.0.0/15`（fake-IP 段），比如 `Meta Tunnel` → `198.18.0.1`。
+ * 手机**永远连不上**它，但它的名字（"Meta"）不像虚拟网卡，
+ * 一旦排在第一个，用户就会照着抄一个连不通的地址，然后卡在「打不开」。
+ *
+ * 判据（三条任一即视为「手机连不上」）：
+ *   ① 网卡名命中 代理/TUN/虚拟网卡 特征；
+ *   ② 地址落在 `198.18.0.0/15`（代理 fake-IP 段）或 `169.254.0.0/16`（链路本地）；
+ *   ③ 名字以 utun/bridge/vbox/vmnet/docker/tun/tap/awdl/llw 开头。
+ */
 function lanAddresses() {
   const out = []
   for (const [name, list] of Object.entries(networkInterfaces())) {
@@ -57,10 +70,21 @@ function lanAddresses() {
       if (item.family === 'IPv4' && !item.internal) out.push({ name, address: item.address })
     }
   }
-  // 虚拟网卡（VPN / 虚拟机 / 容器）手机连不上，只作备选、不排第一
-  const isVirtual = (n) => /^(utun|bridge|vbox|vmnet|docker|tun|tap|awdl|llw)/i.test(n)
-  const rank = (n) => (isVirtual(n) ? 2 : /^(en|eth|wlan|wl|Wi-?Fi)/i.test(n) ? 0 : 1)
-  return out.map((x) => ({ ...x, virtual: isVirtual(x.name) })).sort((a, b) => rank(a.name) - rank(b.name))
+  const unreachable = (n, addr) =>
+    /^(utun|bridge|vbox|vmnet|docker|tun|tap|awdl|llw)/i.test(n) ||
+    /meta|tunnel|clash|mihomo|verge|wintun|tailscale|zerotier|hyper-?v|vmware|virtual|veth/i.test(n) ||
+    /^198\.1[89]\./.test(addr) ||
+    /^169\.254\./.test(addr)
+  // 物理网卡（有线的「以太网」、无线的 WLAN / Wi-Fi）排在最前
+  const physical = (n) => /以太网|无线|wlan|wi-?fi|ethernet/i.test(n)
+  return out
+    .map((x) => ({ ...x, virtual: unreachable(x.name, x.address) }))
+    .sort(
+      (a, b) =>
+        (a.virtual ? 1 : 0) - (b.virtual ? 1 : 0) ||
+        (physical(b.name) ? 1 : 0) - (physical(a.name) ? 1 : 0) ||
+        a.address.localeCompare(b.address),
+    )
 }
 
 async function waitHealth(base, tries = 60) {
@@ -154,8 +178,9 @@ if (!health) {
 /* ------------------------------ 3. 联调清单 ------------------------------ */
 
 const lans = lanAddresses()
-// 真机要填的是真实网卡地址；VPN/虚拟网卡的网段手机连不上
+// 真机要填的是真实网卡地址；VPN/代理 TUN、虚拟机、虚拟网卡的网段手机连不上
 const realLans = lans.filter((x) => !x.virtual)
+const skippedLans = lans.filter((x) => x.virtual)
 const lanUrl = realLans.length ? 'http://' + realLans[0].address + ':' + PORT : null
 const line = (s = '') => process.stdout.write(s + '\n')
 
@@ -173,8 +198,8 @@ line(
 line('工程   ' + MP + '   （Taro 主线；产物在 taro/dist/）')
 line()
 line(bold('微信开发者工具'))
-line('  1. 导入项目，目录选  ' + ok(join(MP, 'dist')) + '   <- 选 dist，不是 taro/ 根目录')
-line('     （project.config.json 里 miniprogramRoot=dist/，选根目录也能跑，但选 dist 更直观）')
+line('  1. 导入项目，目录选  ' + ok(join(MP, 'dist')) + '   <- 选 dist 更直观')
+line('     （选 taro/ 根目录也行：taro/project.config.json 里 miniprogramRoot=dist/，指回同一个产物）')
 line('  2. AppID 填  wx3a21eb903a16cbc4')
 line('  3. 详情 → 本地设置 → 勾选「不校验合法域名、web-view（业务域名）、TLS 版本以及 HTTPS 证书」')
 line('  4. 「我的」页 → 服务器地址填  ' + ok(base) + '  → 保存')
@@ -189,6 +214,19 @@ if (lanUrl) {
   }
   line('  电脑防火墙放行 ' + PORT + ' 端口；预览后右上「…」→ 打开调试')
   line('  ' + dim('（后端已监听 0.0.0.0，手机才能连上；只听 127.0.0.1 的话手机一定连不上）'))
+  if (skippedLans.length) {
+    // 把「为什么没列它」讲清楚 —— 不然用户会以为漏了，又去手工找那个地址
+    line(
+      '  ' +
+        dim(
+          '已忽略 ' +
+            skippedLans.length +
+            ' 个手机连不上的虚拟/代理网卡（' +
+            skippedLans.map((x) => x.address + ' ' + x.name).join('、') +
+            '）',
+        ),
+    )
+  }
 } else {
   line(bold('真机预览（手机）'))
   line('  没探测到局域网 IP —— 电脑可能没连 Wi-Fi／网线' + (lans.length ? '（只有虚拟网卡）' : ''))
