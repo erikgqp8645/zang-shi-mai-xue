@@ -8,7 +8,9 @@ import { formatCodes } from '@domain/symbols'
 
 import { deletePatient, deleteVisit, getPatient, health, listPatients, renamePatient, savePatient, searchPatients } from '../../utils/data'
 import { selectPatient } from '../../store/context'
+import type { NetFailure } from '../../utils/net-error'
 import Sheet from '../../components/sheet'
+import NetError from '../../components/net-error'
 
 import './index.scss'
 
@@ -58,7 +60,18 @@ export default function Cases() {
   const [detail, setDetail] = useState<Patient | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  /**
+   * 网络失败的**结构化诊断**（有值就渲染「网络诊断块」）
+   *
+   * ⚠️ 为什么要有它（2026-11-08）：
+   *   真机上只显示一句「网络请求失败」，使用者既不知道连的是哪台服务器，
+   *   也不知道真实原因（微信给的是 `errMsg`，旧代码读 `.message` 读不到）。
+   *   → 诊断块把「结论 + 原因 + 地址 + 怎么改」一次说清，还能一键复制。
+   */
+  const [netError, setNetError] = useState<NetFailure | null>(null)
   const [mode, setMode] = useState('multi')
+  /** 服务端探活成不成功 —— 探不到就别硬说「数据存在服务器」 */
+  const [serverOk, setServerOk] = useState<boolean | null>(null)
   const [renaming, setRenaming] = useState('')
   const [renameText, setRenameText] = useState('')
   const [newOpen, setNewOpen] = useState(false)
@@ -69,8 +82,13 @@ export default function Cases() {
       const list = await listPatients()
       setPatients(list)
       setError('')
+      setNetError(null)
     } catch (e) {
       setError((e as Error)?.message || '读取失败')
+      // ⚠️ **只有传输层失败（status 0）才有结构化诊断** ——
+      //    业务错误（401/404/500）显示的是服务端给的文字，不是网络问题。
+      const d = (e as { detail?: NetFailure })?.detail
+      setNetError(d || null)
     }
   }, [])
 
@@ -80,8 +98,15 @@ export default function Cases() {
       .then((h) => {
         const m = (h as { mode?: string })?.mode
         if (m) setMode(m)
+        setServerOk(true)
       })
-      .catch(() => undefined)
+      .catch(() => {
+        // ⚠️ **探不到服务端就别装作连上了** ——
+        //    旧代码这里 `.catch(() => undefined)`，于是 mode 停在默认的 'multi'，
+        //    界面上照样写着「数据存在服务器，按账号隔离」——
+        //    **连都没连上，却跟使用者说数据在服务器上**（2026-11-08 真机截图就是这个）。
+        setServerOk(false)
+      })
   })
 
   usePullDownRefresh(() => {
@@ -251,16 +276,23 @@ export default function Cases() {
           ) : null}
         </View>
         <View className='pr-cases-ops'>
-          <Text className='pr-note'>{mode === 'single' ? '单机模式 · 数据只在本机' : '数据存在服务器，按账号隔离'}</Text>
+          <Text className='pr-note'>
+            {serverOk === false
+              ? '连不上服务器 · 下面的红字说明了原因'
+              : mode === 'single'
+                ? '单机模式 · 数据只在本机'
+                : '数据存在服务器，按账号隔离'}
+          </Text>
           <View className='pr-btn pr-btn-sm' onClick={refresh}>
             刷新
           </View>
         </View>
       </View>
 
-      {error ? <Text className='pr-note pr-err'>{error}</Text> : null}
+      {netError ? <NetError detail={netError} extra='病例列表读取失败' /> : null}
+      {error && !netError ? <Text className='pr-note pr-err'>{error}</Text> : null}
 
-      {!patients.length && !error ? (
+      {!patients.length && !error && !netError ? (
         <View className='pr-empty'>还没有保存过病例。点下面的「新建记录」开始。</View>
       ) : null}
 

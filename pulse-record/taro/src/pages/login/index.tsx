@@ -12,7 +12,9 @@ import {
 import { entryKind } from '../../utils/auth-flow'
 import { buildLabel } from '../../utils/build'
 import { health } from '../../utils/data'
+import type { NetFailure } from '../../utils/net-error'
 import { clearLoggedOutMark, wasLoggedOut } from '../../utils/storage'
+import NetError from '../../components/net-error'
 
 import './index.scss'
 
@@ -78,6 +80,16 @@ export default function Login() {
    *    这个标记现在只负责**告知**：「你刚才退出了登录，要用请点下面的按钮」。
    */
   const [justLoggedOut, setJustLoggedOut] = useState(false)
+  /**
+   * 探不到服务端时的**网络诊断**
+   *
+   * ⚠️ 旧代码这里是 `.catch(() => undefined)` —— 静默失败。
+   *    后果：真机上没配域名 / 地址填成 127.0.0.1 时，
+   *    登录页看起来一切正常（正常显示「微信一键登录」），
+   *    等使用者点下去才在别处报错，而且看不出原因。
+   *    → 现在探活失败**当场把诊断说出来**。
+   */
+  const [netError, setNetError] = useState<NetFailure | null>(null)
 
   /** 登录成功 → 回病例 tab */
   const goCases = useCallback(() => {
@@ -124,10 +136,15 @@ export default function Login() {
         //      点「退出登录」后被自动带回病例页，就是它干的。）
         if (alive) setSingleMode(entryKind(mode) === 'single-enter')
         if (alive) setJustLoggedOut(wasLoggedOut())
+        if (alive) setNetError(null)
       })
-      .catch(() => {
+      .catch((e) => {
         // 探不到服务端（默认多用户模式）—— 也停在这一步，等用户自己点。
         // 不猜、不自动尝试。
+        // ⚠️ 但**不能静默**：把原因说出来（2026-11-08 真机「网络请求失败」的教训）。
+        if (!alive) return
+        const d = (e as { detail?: NetFailure })?.detail
+        if (d) setNetError(d)
       })
     return () => {
       alive = false
@@ -253,6 +270,9 @@ export default function Login() {
       <View className="pr-disclaimer">
         本工具只做记录，不构成诊断。体质的判定由使用者自己判断后手工选定，工具不代判、不开方。
       </View>
+
+      {/* 连不上服务端 —— 当场说清楚，不让使用者去猜 */}
+      {netError ? <NetError detail={netError} extra='登录页探活失败（连不到服务器）' /> : null}
 
       {singleMode ? null : (
         <View className="pr-card">

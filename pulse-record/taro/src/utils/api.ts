@@ -2,7 +2,9 @@ import Taro from '@tarojs/taro'
 
 import { callFunction, cloudAvailable, describeCloudError, disableCloud } from '../platform/cloud'
 import { request as platformRequest } from '../platform/request'
-import { CLOUD_FUNCTION_NAME, TRANSPORT, resolveApiBase } from './config'
+import { CLOUD_FUNCTION_NAME, TRANSPORT, isRelease, resolveApiBase } from './config'
+import { describeNetFailure, formatNetFailure } from './net-error'
+import type { NetFailure } from './net-error'
 import { clearAuth, getToken } from './storage'
 
 /**
@@ -24,11 +26,20 @@ import { clearAuth, getToken } from './storage'
 
 export class ApiError extends Error {
   status: number
+  /**
+   * 网络失败的**结构化诊断**（见 `utils/net-error.ts`）
+   *
+   * 只有传输层失败（status 0）才有；业务错误（4xx/5xx）没有。
+   * 页面用它渲染「结论 + 真实原因 + 目标地址 + 怎么改」，
+   * 而不是只显示一句 `message`。
+   */
+  detail?: NetFailure
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, detail?: NetFailure) {
     super(message)
     this.name = 'ApiError'
     this.status = status
+    this.detail = detail
   }
 }
 
@@ -55,16 +66,28 @@ async function viaRequest(options: RequestOptions): Promise<unknown> {
   const header: Record<string, string> = { 'content-type': 'application/json' }
   if (token) header.Authorization = 'Bearer ' + token
 
+  const url = resolveApiBase() + options.path
   let res: { statusCode: number; data: unknown }
   try {
     res = await platformRequest({
-      url: resolveApiBase() + options.path,
+      url,
       method: options.method || 'GET',
       data: options.body,
       header,
     })
   } catch (err) {
-    throw new ApiError((err as Error)?.message || '网络请求失败', 0)
+    // ⚠️ **这里必须把平台给的真实原因取出来**（2026-11-08 修）
+    //    微信的失败对象字段名是 `errMsg`，不是 `message` ——
+    //    只读 `.message` 永远拿到 undefined，于是每次都显示笼统的「网络请求失败」，
+    //    使用者既看不到真实原因，也看不到连的是哪台服务器。
+    const raw = String((err as { errMsg?: unknown })?.errMsg ?? (err as Error)?.message ?? '')
+    const detail = describeNetFailure({
+      raw,
+      url,
+      transport: 'request',
+      release: isRelease(),
+    })
+    throw new ApiError(formatNetFailure(detail), 0, detail)
   }
 
   const data = (res.data || {}) as { error?: string }
@@ -93,7 +116,14 @@ async function viaCloud(options: RequestOptions): Promise<unknown> {
       },
     })
   } catch (err) {
-    throw new ApiError((err as Error)?.message || '云调用失败', 0)
+    const raw = String((err as { errMsg?: unknown })?.errMsg ?? (err as Error)?.message ?? '')
+    const detail = describeNetFailure({
+      raw,
+      url: '云函数 ' + CLOUD_FUNCTION_NAME,
+      transport: 'cloud',
+      release: isRelease(),
+    })
+    throw new ApiError(formatNetFailure(detail), 0, detail)
   }
 
   const res = (r || {}) as { statusCode?: number; body?: unknown }
@@ -165,8 +195,14 @@ export async function request(options: RequestOptions): Promise<unknown> {
       try {
         return await viaRequest(options)
       } catch (err2) {
-        const detail = (err2 as ApiError)?.message || '未知错误'
-        throw new ApiError(`${reason}；改走直连也失败：${detail}`, 0)
+        const e2 = err2 as ApiError
+        // ⚠️ **两条原因都要给，但「直连」那条才是最终诊断** ——
+        //    云通道失败通常只是「这个 appid 没关联云环境」，
+        //    而直连失败才是「连的这台服务器根本不通」——使用者在手机上真正撞到的是后者。
+        const detail = e2.detail
+        const message =
+          reason + '；改走直连也失败：' + (detail ? formatNetFailure(detail) : e2.message || '未知错误')
+        throw new ApiError(message, 0, detail)
       }
     }
   }

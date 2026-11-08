@@ -512,6 +512,155 @@ c.check(
   mod.build.buildLabel(),
 )
 
+/* --------------------- 第七段：网络失败的诊断 --------------------- */
+
+console.log('\n小程序数据层端到端（Taro · 网络失败诊断）\n')
+
+/**
+ * 维护者 2026-11-08 在真机上看到病例页一片红：**「网络请求失败」**。
+ *
+ * 病根（两层）：
+ *   ① 微信的失败对象字段名是 **`errMsg`**（`request:fail url not in domain list`），
+ *      **不是 `message`** —— 旧代码只读 `.message` → 永远 undefined
+ *      → 每次都落到那句笼统的兜底上，**真实原因被吞掉**；
+ *   ② **目标地址从没出现在错误里** —— 手机上 `127.0.0.1` 指手机自己，
+ *      不把地址亮出来，使用者判断不了自己连的是哪台机器。
+ *
+ * 修法：诊断层 `utils/net-error.ts`（**纯函数** → 这里能真的跑起来逐条断言）。
+ */
+const net = mod.netError
+
+c.check('诊断层导出 describeNetFailure', typeof net.describeNetFailure === 'function')
+c.check('诊断层导出 formatNetFailure', typeof net.formatNetFailure === 'function')
+
+/* ---- ① 微信的真实原因要被认出来，而不是被吞掉 ---- */
+const domainFail = net.describeNetFailure({
+  raw: 'request:fail url not in domain list',
+  url: 'https://mai.example.com/api/patients',
+  transport: 'request',
+  release: true,
+})
+c.check(
+  '「url not in domain list」→ 结论点明是合法域名没配',
+  domainFail.summary.includes('合法域名'),
+  domainFail.summary,
+)
+c.check(
+  '「url not in domain list」→ 真实原因保留原文',
+  domainFail.reason.includes('url not in domain list'),
+  domainFail.reason,
+)
+c.check(
+  '「url not in domain list」→ 建议里给出「去哪儿配」',
+  domainFail.hints.some((h) => h.includes('request 合法域名') && h.includes('mp.weixin.qq.com')),
+  JSON.stringify(domainFail.hints),
+)
+c.check(
+  '诊断里带上了目标地址（使用者得知道连的是哪台机器）',
+  domainFail.target === 'https://mai.example.com/api/patients',
+  domainFail.target,
+)
+
+/* ---- ② 手机上 127.0.0.1 指手机自己 —— 这条最容易踩 ---- */
+const loopFail = net.describeNetFailure({
+  raw: 'request:fail url not in domain list',
+  url: 'http://127.0.0.1:5178/api/patients',
+  transport: 'request',
+  release: false,
+})
+c.check(
+  '地址是回环地址 → 结论点明「手机上指手机自己」',
+  loopFail.summary.includes('手机自己'),
+  loopFail.summary,
+)
+c.check(
+  '地址是回环地址 → 建议里给出该改成什么',
+  loopFail.hints.some((h) => h.includes('局域网 IP')),
+  JSON.stringify(loopFail.hints),
+)
+
+/* ---- ③ 其它常见失败各有各的说法 ---- */
+c.check(
+  '超时 → 结论说超时',
+  net.describeNetFailure({ raw: 'request:fail timeout', url: 'https://mai.example.com/api/health' })
+    .summary.includes('超时'),
+)
+c.check(
+  '连接被拒 → 结论说服务器没在监听',
+  net.describeNetFailure({ raw: 'ECONNREFUSED', url: 'https://mai.example.com/api/health' }).summary.includes(
+    '拒绝',
+  ),
+)
+c.check(
+  'DNS 解析失败 → 结论说解析不出来',
+  net.describeNetFailure({ raw: 'getaddrinfo ENOTFOUND mai.example.com' }).summary.includes('解析'),
+)
+c.check(
+  '云环境不可用 → 结论说云环境',
+  net.describeNetFailure({ raw: 'errCode: -501000 | errMsg: Environment not found' }).summary.includes(
+    '云环境',
+  ),
+)
+c.check(
+  '认不出来的原因 → 也得有结论（不能空着）',
+  net.describeNetFailure({ raw: 'something weird' }).summary.length > 0,
+)
+
+/* ---- ④ 微信的规矩：只收 https + 域名 + 不收 IP / 端口 ---- */
+c.check(
+  'http 地址 → 提示里说清正式版只允许 https',
+  net
+    .describeNetFailure({ raw: 'fail', url: 'http://mai.example.com/api/health', release: true })
+    .hints.some((h) => h.includes('https')),
+)
+c.check(
+  'IP 地址 → 提示里说 request 合法域名不收 IP',
+  net
+    .describeNetFailure({ raw: 'fail', url: 'https://203.0.113.9/api/health' })
+    .hints.some((h) => h.includes('不收 IP')),
+)
+c.check(
+  '带端口 → 提示里说 request 合法域名不收端口',
+  net
+    .describeNetFailure({ raw: 'fail', url: 'https://mai.example.com:8443/api/health' })
+    .hints.some((h) => h.includes('不收端口')),
+)
+c.check(
+  '局域网地址 → 提示里说手机与电脑要同一个 Wi-Fi',
+  net
+    .describeNetFailure({ raw: 'fail', url: 'http://192.168.1.20:5178/api/health' })
+    .hints.some((h) => h.includes('Wi-Fi')),
+)
+
+/* ---- ⑤ 传输方式要出现在诊断里（使用者得知道走的是哪条路） ---- */
+c.check(
+  'request 传输 → 诊断里说明受合法域名校验',
+  net
+    .describeNetFailure({ raw: 'fail', url: 'https://mai.example.com/api/health', transport: 'request' })
+    .hints.some((h) => h.includes('合法域名')),
+)
+c.check(
+  'cloud 传输 → 诊断里说明不受合法域名限制',
+  net
+    .describeNetFailure({ raw: 'fail', url: 'https://mai.example.com/api/health', transport: 'cloud' })
+    .hints.some((h) => h.includes('云函数')),
+)
+
+/* ---- ⑥ 一行版（给 ApiError 的 message 用）也要带地址 ---- */
+const oneLine = net.formatNetFailure(domainFail)
+c.check(
+  '一行版包含结论、原因与地址',
+  oneLine.includes('合法域名') && oneLine.includes('mai.example.com'),
+  oneLine,
+)
+
+/* ---- ⑦ 助手函数 ---- */
+c.check('hostOf 取 host 不带端口', net.hostOf('https://mai.example.com:8443/api/x') === 'mai.example.com')
+c.check('hostOf 认出回环地址', net.isLoopbackHost('127.0.0.1') && net.isLoopbackHost('localhost'))
+c.check('hostOf 认出局域网地址', net.isPrivateHost('192.168.1.20') && net.isPrivateHost('10.0.0.5'))
+c.check('hostOf 认出裸 IP', net.isIpHost('203.0.113.9') && !net.isIpHost('mai.example.com'))
+c.check('briefReason 截掉 callid', !net.briefReason('boom (callid: 1793943240389-abc)').includes('callid'))
+
 /* ------------------------------ 清理 ------------------------------ */
 rmSync(outDir, { recursive: true, force: true })
 

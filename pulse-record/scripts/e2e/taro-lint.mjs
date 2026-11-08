@@ -2676,6 +2676,244 @@ for (const [name, file] of [
 }
 
 /* ========================================================================
+ * 30. 网络失败要**说人话**（2026-11-08）
+ *
+ * 维护者 2026-11-08 在真机截图上标注：病例页一片红 —— **「网络请求失败」**。
+ *
+ * 病根有两层：
+ *
+ *   ① **平台给的真实原因被丢掉了。**
+ *      微信 `wx.request` 失败时给的是普通对象 `{ errMsg: 'request:fail …' }` ——
+ *      ⚠️ **字段名是 `errMsg`，不是 `message`**。
+ *      旧代码写 `(err as Error)?.message || '网络请求失败'` →
+ *      `message` 永远 undefined → 每次都落到那句笼统兜底上。
+ *
+ *   ② **目标地址从没出现在错误里。**
+ *      手机上 `127.0.0.1` 指的是**手机自己**，跟开发者工具里指电脑完全两回事。
+ *      不把地址亮出来，使用者根本判断不了自己连的是哪台机器。
+ *
+ * ⇒ 三条规矩：
+ *   · `platform/request.ts` 必须**显式接住失败**并把 `errMsg` 留下；
+ *   · `utils/api.ts` 必须**用诊断层**构造错误（不许再出现裸的「网络请求失败」）；
+ *   · 三个页面（病例／登录／我的）都必须**把诊断显示出来**，
+ *     且探活失败时**不许装作连上了**。
+ * ======================================================================== */
+const netErrFile = join(SRC, 'utils', 'net-error.ts')
+const platReqFile = join(SRC, 'platform', 'request.ts')
+const apiFile = join(SRC, 'utils', 'api.ts')
+const netErrComp = join(SRC, 'components', 'net-error', 'index.tsx')
+
+ok('utils/net-error.ts 存在（诊断层收在这里）', existsSync(netErrFile))
+if (existsSync(netErrFile)) {
+  const { src: neSrc, sf: neSf } = parseTsx(netErrFile)
+  ok('net-error 导出 describeNetFailure', /export\s+function\s+describeNetFailure\s*\(/.test(neSrc))
+  ok('net-error 导出 formatNetFailure', /export\s+function\s+formatNetFailure\s*\(/.test(neSrc))
+  // ⚠️ **诊断层必须是纯函数** —— 不碰 Taro / wx / 网络。
+  //    否则回归脚本就没法在 Node 里 import 它逐条断言了。
+  ok(
+    '诊断层是纯函数（不许 import Taro，也不许出现 wx.）',
+    !/from\s+'@tarojs\/taro'/.test(neSrc) && !/\bwx\./.test(stripComments(neSrc)),
+  )
+  // 判据要真的按 errMsg 分类，而不是无脑返回一句
+  const neFn = neSf.statements.find(
+    (s) => ts.isFunctionDeclaration(s) && s.name?.text === 'describeNetFailure',
+  )
+  ok(
+    'describeNetFailure 真的会按原始报错分类',
+    !!neFn &&
+      walkAst(neFn).some(
+        (n) => ts.isCallExpression(n) && n.expression.getText(neSf).startsWith('classify'),
+      ),
+    neFn ? '' : '没找到 describeNetFailure',
+  )
+  // ⚠️ **「调了 classify」还不够** —— mutation E 把 classify 的第一行改成
+  //    `if (false) return 'domain-list'` → 调用还在，但**再也不分类了**，
+  //    每种失败都返回同一句「连不上服务器」→ 断言照样绿。
+  // ⚠️ **「有一个正则匹配」也不够** —— 把**某一类**的判据换成占位串，
+  //    其余几类照样能匹配上 → 断言照样绿。
+  // → 查 **classify 的函数体里每一类关键字都还在**：
+  //    域名 / 超时 / 拒连 / DNS / 证书 / 云环境，一类都不能少。
+  const classifyFn = neSf.statements.find(
+    (s) => ts.isFunctionDeclaration(s) && s.name?.text === 'classify',
+  )
+  const classifyBody = classifyFn ? classifyFn.getText(neSf) : ''
+  const REQUIRED_KINDS = [
+    ['域名', 'url not in domain list'],
+    ['超时', 'timeout'],
+    ['拒连', 'ECONNREFUSED'],
+    ['DNS', 'ENOTFOUND'],
+    ['证书', 'certificate'],
+    ['云环境', 'Environment not found'],
+  ]
+  const missingKinds = REQUIRED_KINDS.filter(([, kw]) => !classifyBody.includes(kw)).map(([n]) => n)
+  ok(
+    'classify 每一类原始报错都还认得（域名/超时/拒连/DNS/证书/云环境）',
+    !!classifyFn && missingKinds.length === 0,
+    missingKinds.length ? '认不出：' + missingKinds.join('、') : '没找到 classify',
+  )
+}
+
+if (existsSync(platReqFile)) {
+  const { src: prSrc, sf: prSf } = parseTsx(platReqFile)
+  // ⚠️ 关键断言：**失败分支必须存在**。
+  //    只有 `.then(onOk)` 而没有第二个参数 → reject 的是裸对象 →
+  //    上层读 `.message` 读不到 → 真实原因又丢了。
+  const prFn = prSf.statements.find(
+    (s) => ts.isFunctionDeclaration(s) && s.name?.text === 'request',
+  )
+  const thenCall = prFn
+    ? walkAst(prFn).find(
+        (n) => ts.isCallExpression(n) && n.expression.getText(prSf).endsWith('.then'),
+      )
+    : null
+  const hasRejectHandler =
+    !!thenCall &&
+    ts.isCallExpression(thenCall) &&
+    thenCall.arguments.length >= 2 &&
+    thenCall.arguments[1] !== undefined
+  ok(
+    'platform/request 显式接住失败（then 的第二个参数不能少）',
+    hasRejectHandler,
+    hasRejectHandler ? '' : 'then 只有成功分支 —— 失败会以裸对象 reject，errMsg 就丢了',
+  )
+  ok(
+    'platform/request 把 errMsg 保留下来（微信的失败字段名不是 message）',
+    // ⚠️ **不许只查「文件里出现过 errMsg 这个词」** ——
+    //    把读取改成 `src.message ?? ''` 之后，文件里仍然有 errMsg（类型定义那行），
+    //    搜词照样绿 —— 那正是 mutation B 钻的空子。
+    // → **查属性访问**：源码里必须真的**读** `errMsg` 这个属性。
+    walkAst(prSf).some(
+      (n) =>
+        ts.isPropertyAccessExpression(n) &&
+        n.name.getText(prSf) === 'errMsg' &&
+        n.expression.getText(prSf).includes('src'),
+    ),
+    '没找到对 errMsg 的属性访问 —— 失败原因会被丢掉',
+  )
+}
+
+if (existsSync(apiFile)) {
+  const { src: apiSrc, sf: apiSf } = parseTsx(apiFile)
+  ok(
+    'api.ts 用诊断层构造错误（不许再出现裸的「网络请求失败」兜底）',
+    /describeNetFailure/.test(stripComments(apiSrc)) &&
+      !/['"]网络请求失败['"]/.test(stripComments(apiSrc)),
+  )
+  // ⚠️ **不许只读 `.message`** —— 微信给的是 `errMsg`。
+  //    这一条正是 2026-11-08 真机「网络请求失败」的病根。
+  // ⚠️ **「文件里有一处读了 errMsg」不够** ——
+  //    api.ts 里有**两个** catch（viaRequest / viaCloud），
+  //    mutation C 只改其中一个 → 另一个还在读 → 搜词照样绿。
+  // ⚠️ **也不能要求「每一个 catch 都读」** ——
+  //    `request()` 里那两个 catch 处理的是**我们自己抛的 ApiError**（已经诊断过了），
+  //    再去读原始 errMsg 是没有的（也不该有）。
+  // → **凡是要出诊断的 catch（即里面调了 describeNetFailure），必须读 errMsg**；
+  //    而且**至少要有两处**（viaRequest 与 viaCloud 各一处）。
+  const catchBlocks = walkAst(apiSf).filter((n) => ts.isCatchClause(n))
+  const readsErrMsg = (node) =>
+    walkAst(node).some(
+      (n) =>
+        ts.isPropertyAccessExpression(n) &&
+        n.name.getText(apiSf) === 'errMsg' &&
+        /err/.test(n.expression.getText(apiSf)),
+    )
+  const catchWithDiag = catchBlocks.filter((c) =>
+    walkAst(c.block).some(
+      (n) => ts.isCallExpression(n) && n.expression.getText(apiSf) === 'describeNetFailure',
+    ),
+  )
+  const diagWithoutErrMsg = catchWithDiag.filter((c) => !readsErrMsg(c.block))
+  ok(
+    'api.ts 每一个「要出诊断」的 catch 都读了 errMsg',
+    catchWithDiag.length >= 2 && diagWithoutErrMsg.length === 0,
+    diagWithoutErrMsg.length
+      ? `${diagWithoutErrMsg.length} 个要出诊断的 catch 没读 errMsg`
+      : `只有 ${catchWithDiag.length} 个 catch 出诊断（viaRequest 与 viaCloud 各一处才对）`,
+  )
+  // 错误里要带上目标地址 —— 用者得知道连的是哪台机器
+  const apiFn = apiSf.statements.find(
+    (s) => ts.isFunctionDeclaration(s) && s.name?.text === 'viaRequest',
+  )
+  ok(
+    'viaRequest 把请求地址传给了诊断层',
+    !!apiFn &&
+      walkAst(apiFn).some(
+        (n) => ts.isCallExpression(n) && n.expression.getText(apiSf) === 'describeNetFailure',
+      ),
+    apiFn ? '' : '没找到 viaRequest',
+  )
+}
+
+/* ---- 三个页面都要把诊断显示出来 ---- */
+ok('网络诊断组件存在（cases / login / me 三处共用）', existsSync(netErrComp))
+/** JSX 元素的标签名（自闭合标签也要认 —— `<NetError … />` 是 JsxSelfClosingElement） */
+function jsxTagName(node, sf) {
+  const opening = ts.isJsxElement(node)
+    ? node.openingElement
+    : ts.isJsxSelfClosingElement(node)
+      ? node
+      : null
+  return opening?.tagName?.getText(sf) || ''
+}
+for (const [name, file] of [
+  ['病例页', join(SRC, 'pages', 'cases', 'index.tsx')],
+  ['登录页', join(SRC, 'pages', 'login', 'index.tsx')],
+  ['「我的」页', join(SRC, 'pages', 'me', 'index.tsx')],
+]) {
+  if (!existsSync(file)) continue
+  const { src, sf } = parseTsx(file)
+  ok(
+    `${name}渲染网络诊断块`,
+    /import\s+NetError\s+from/.test(src) &&
+      walkAst(sf).some((n) => jsxTagName(n, sf) === 'NetError'),
+  )
+}
+
+/* ---- 探活失败不许装作连上了 ---- */
+for (const [name, file] of [
+  ['病例页', join(SRC, 'pages', 'cases', 'index.tsx')],
+  ['登录页', join(SRC, 'pages', 'login', 'index.tsx')],
+  ['「我的」页', join(SRC, 'pages', 'me', 'index.tsx')],
+]) {
+  if (!existsSync(file)) continue
+  const { src } = parseTsx(file)
+  ok(
+    `${name}的 health 失败不再被静默吞掉`,
+    // ⚠️ **不能是 `.catch(() => undefined)`** —— 那是「探不到就装作没事」。
+    //    要么 catch 里接住错误，要么至少不写成空函数体。
+    !/\.catch\(\s*\(\s*\)\s*=>\s*undefined\s*\)/.test(stripComments(src)),
+  )
+}
+
+if (existsSync(join(SRC, 'pages', 'cases', 'index.tsx'))) {
+  const { src: casesSrc, sf: casesSf } = parseTsx(join(SRC, 'pages', 'cases', 'index.tsx'))
+  // ⚠️ **查「出现过 serverOk 这个名字」不够** ——
+  //    mutation J 把初值改成 `true`（等于假装永远连得上），名字还在 → 搜词照样绿。
+  // → 查 **serverOk 真的出现在某个「条件」里**，且那个条件决定显示哪句话。
+  const serverOkUsedAsCondition = (() => {
+    let hit = false
+    const visit = (n) => {
+      if (hit) return
+      if (ts.isIfStatement(n) || ts.isConditionalExpression(n)) {
+        const cond = ts.isIfStatement(n) ? n.expression : n.condition
+        if (cond && /serverOk/.test(cond.getText(casesSf))) {
+          hit = true
+          return
+        }
+      }
+      n.forEachChild(visit)
+    }
+    casesSf.forEachChild(visit)
+    return hit
+  })()
+  ok(
+    '病例页不再无条件宣称「数据存在服务器，按账号隔离」（serverOk 要真的参与判断）',
+    serverOkUsedAsCondition,
+    serverOkUsedAsCondition ? '' : 'serverOk 没出现在任何条件里 —— 探不到服务端也会显示「按账号隔离」',
+  )
+}
+
+/* ========================================================================
  * 汇总
  * ======================================================================== */
 console.log(`\n合计：${pass + fail} 项，通过 ${pass}，失败 ${fail}`)

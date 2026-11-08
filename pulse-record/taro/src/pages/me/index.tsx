@@ -23,6 +23,9 @@ import { health } from '../../utils/data'
 import { buildLabel } from '../../utils/build'
 import { getUser, markLoggedOut } from '../../utils/storage'
 import type { StoredUser } from '../../utils/storage'
+import type { NetFailure } from '../../utils/net-error'
+import { describeNetFailure, formatNetFailure } from '../../utils/net-error'
+import NetError from '../../components/net-error'
 
 import './index.scss'
 
@@ -54,6 +57,8 @@ interface ProbeResult {
   ok: boolean
   body?: HealthBody
   error?: string
+  /** 结构化诊断（有值就能渲染「网络诊断块」） */
+  detail?: NetFailure
 }
 
 /** 弹一个确认框 */
@@ -92,11 +97,9 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
  * 得能对还没保存的地址试，所以直接用平台适配层的 request。
  */
 async function probe(base: string): Promise<ProbeResult> {
+  const url = base + '/api/health'
   try {
-    const res = await withTimeout(
-      platformRequest({ url: base + '/api/health', method: 'GET' }),
-      8000,
-    )
+    const res = await withTimeout(platformRequest({ url, method: 'GET' }), 8000)
     const body = (res.data || {}) as HealthBody
     if (res.statusCode === 200 && body.ok) return { ok: true, body }
     return {
@@ -104,9 +107,11 @@ async function probe(base: string): Promise<ProbeResult> {
       error: '服务有响应但不像本项目的后端（HTTP ' + res.statusCode + '）',
     }
   } catch (err) {
-    const msg =
-      (err as { errMsg?: string })?.errMsg || (err as Error)?.message || '连不上'
-    return { ok: false, error: msg }
+    // ⚠️ **平台给的真实原因在 `errMsg` 上**（微信的字段名不是 `message`）——
+    //    2026-11-08 之前这里读 `.message`，读不到 → 只显示「连不上」。
+    const raw = String((err as { errMsg?: unknown })?.errMsg ?? (err as Error)?.message ?? '')
+    const detail = describeNetFailure({ raw, url, transport: 'request', release: isRelease() })
+    return { ok: false, error: formatNetFailure(detail), detail }
   }
 }
 
@@ -128,6 +133,8 @@ export default function Me() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  /** 探活失败时的网络诊断（渲染「网络诊断块」） */
+  const [netError, setNetError] = useState<NetFailure | null>(null)
 
   /**
    * 是不是**正式发布版**
@@ -196,27 +203,30 @@ export default function Me() {
         const body = (h || {}) as HealthBody
         if (body.mode) setMode(body.mode)
         setDbPath(body.db || '')
+        setNetError(null)
       })
-      .catch(() => undefined)
+      .catch((e) => {
+        // ⚠️ **探不到服务端要说话**（2026-11-08）——
+        //    旧代码 `.catch(() => undefined)` 静默吞掉，
+        //    于是「模式」那一行永远显示默认的「多用户模式（按账号隔离）」，
+        //    哪怕根本没连上。
+        const d = (e as { detail?: NetFailure })?.detail
+        if (d) setNetError(d)
+      })
   })
 
   /* ------------------------------ 服务器地址 ------------------------------ */
 
-  /** 探一个地址，顺带把「连不上时先查什么」写在提示里 */
+  /**
+   * 探一个地址
+   *
+   * ⚠️ **提示只由诊断层给**（`utils/net-error.ts`）——
+   *    这里原来自己写了一套正则判断（`url not in domain list` / `timeout`…），
+   *    跟诊断层的判据重复 → 两处会漂移（改了诊断层，这里的提示不变）。
+   *    现在直接用 `detail.hints`。
+   */
   const testBase = useCallback(async (base: string): Promise<ProbeResult> => {
-    const res = await probe(base)
-    if (res.ok) return res
-    const msg = res.error || '连不上'
-    // 本机地址与云端地址的排查方向完全不同，不能混着提示
-    const isLocal = /\/\/(127\.0\.0\.1|localhost|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(base)
-    const hint = /url not in domain list|合法域名/.test(msg)
-      ? '（域名校验没开：开发工具 → 详情 → 本地设置 → 勾「不校验合法域名…」；真机 → 右上「…」→ 打开调试）'
-      : /timeout|fail|ERR_|超时/i.test(msg)
-        ? isLocal
-          ? '（手机与电脑要连同一个 Wi-Fi；电脑防火墙放行该端口；后端要监听 0.0.0.0 而不是 127.0.0.1）'
-          : '（云端地址连不上：先确认网关是否还在、手机网络是否正常）'
-        : ''
-    return { ok: false, error: msg + hint }
+    return probe(base)
   }, [])
 
   const handleApiBaseInput = useCallback((e: InputEvt) => {
@@ -242,9 +252,11 @@ export default function Me() {
           (body.mode === 'single' ? '单机模式，不用登录' : '多用户模式，需要登录') +
           '）。重新进一次页面即可按新地址取数据。',
       )
+      setNetError(null)
       if (body.mode) setMode(body.mode)
     } else {
       setApiHint('已保存，但连不上：' + (probeResult.error || ''))
+      setNetError(probeResult.detail || null)
     }
   }, [apiBaseInput, testBase])
 
@@ -267,6 +279,7 @@ export default function Me() {
       )
     } else {
       setApiHint('连不上：' + (res.error || ''))
+      setNetError(res.detail || null)
     }
     setApiTesting(false)
   }, [apiBaseInput, apiTesting, testBase])
@@ -354,6 +367,9 @@ export default function Me() {
       {error ? <View className="pr-note pr-err">{error}</View> : null}
       {notice ? <View className="pr-note pr-ok">{notice}</View> : null}
 
+      {/* 连不上服务端 —— 当场说清原因（2026-11-08） */}
+      {netError ? <NetError detail={netError} extra='「我的」页探活失败（连不到服务器）' /> : null}
+
       <View className="pr-card">
         <View className="pr-card-title">账号</View>
         <View className="pr-me-row">
@@ -371,7 +387,14 @@ export default function Me() {
         <View className="pr-me-row">
           <Text className="pr-me-key">模式</Text>
           <Text className="pr-me-val">
-            {mode === 'single' ? '单机模式（数据只在本机）' : '多用户模式（按账号隔离）'}
+            {/* ⚠️ 探不到服务端时**不许装作连上了** ——
+                默认 mode 是 'multi'，静默失败时会显示「多用户模式（按账号隔离）」，
+                哪怕根本没连上（2026-11-08 真机截图就是这个）。 */}
+            {netError
+              ? '未知（连不上服务器）'
+              : mode === 'single'
+                ? '单机模式（数据只在本机）'
+                : '多用户模式（按账号隔离）'}
           </Text>
         </View>
         {dbPath && !release ? (

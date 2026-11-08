@@ -1,0 +1,56 @@
+/* 网络诊断块 —— 结论 / 原因 / 地址 / 怎么改 / 复制 */
+
+.pr-neterr {
+  margin: 16rpx 0 24rpx;
+  padding: 20rpx 24rpx;
+  border: 1rpx solid #e0b4ae;
+  border-left: 6rpx solid #b03a2e;
+  border-radius: 10rpx;
+  background: #fdf4f2;
+}
+
+.pr-neterr-extra {
+  display: block;
+  color: #8a8073;
+  font-size: 23rpx;
+  line-height: 1.6;
+}
+
+.pr-neterr-summary {
+  display: block;
+  color: #b03a2e;
+  font-size: 28rpx;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.pr-neterr-reason,
+.pr-neterr-target {
+  display: block;
+  margin-top: 8rpx;
+  color: #7a5c56;
+  font-size: 23rpx;
+  line-height: 1.6;
+  word-break: break-all;
+}
+
+.pr-neterr-hints {
+  margin-top: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.pr-neterr-hint {
+  color: #5c574f;
+  font-size: 23rpx;
+  line-height: 1.6;
+}
+
+.pr-neterr-tip {
+  display: block;
+  margin-top: 12rpx;
+  color: #a39a8c;
+  font-size: 22rpx;
+  line-height: 1.6;
+}
