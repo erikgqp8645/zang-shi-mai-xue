@@ -971,17 +971,47 @@ ok('事件绑定的 handler 都有定义', missingHandlers.length === 0, missing
 
 /* ========================================================================
  * 17. useEffect 的依赖不是空数组（除非确实只跑一次）
+ *
+ * ## 判据（2026-11-08 改细）
+ *
+ * 原来查的是「依赖为空 **且** 体内出现了 `setXxx`／`props.`／`ctx.`」。
+ * 问题：**`setXxx` 是「写」，不是「读」** ——
+ * 「进页面拉一次数据、然后 setState」是**最正常**的挂载期写法，
+ * 却被判成「漏写依赖」。于是这条规则实际上在误报真正的正常写法，
+ * 逼着代码把无关的依赖硬塞进依赖数组（更糟：会引发多余的重复执行）。
+ *
+ * → 改成查**真正会漏写依赖**的那种：effect 体内**读**了某个 state 变量
+ *   （或读了 `props.`／`ctx.`），却把依赖写成空数组 —— 那才是漏写。
  * ======================================================================== */
 const suspiciousEffects = []
 for (const f of [...pageFiles, ...componentFiles]) {
-  const src = read(f)
-  const effects = [...src.matchAll(/useEffect\(\(\)\s*=>\s*\{[\s\S]*?\}\s*,\s*\[([^\]]*)\]\)/g)]
-  for (const m of effects) {
-    const deps = m[1].trim()
-    // 依赖为空但 effect 体内用了 state / props —— 可疑
-    if (!deps && /\b(set[A-Z]\w*|props\.|ctx\.)\b/.test(m[0])) {
-      suspiciousEffects.push(rel(f))
+  const { sf } = parseTsx(f)
+  // 收集本文件里的 state 变量名（`const [x, setX] = useState(...)`）
+  const stateVars = new Set()
+  for (const n of walkAst(sf)) {
+    if (!ts.isVariableDeclaration(n) || !ts.isArrayBindingPattern(n.name)) continue
+    const first = n.name.elements[0]
+    if (first && ts.isIdentifier(first)) stateVars.add(first.text)
+  }
+  for (const n of walkAst(sf)) {
+    if (!ts.isCallExpression(n)) continue
+    if (n.expression.getText(sf) !== 'useEffect') continue
+    const deps = n.arguments[1]
+    if (!deps || !ts.isArrayLiteralExpression(deps) || deps.elements.length !== 0) continue
+    const body = n.arguments[0]
+    if (!body) continue
+    // 体内**读到**的标识符
+    const readIds = new Set()
+    for (const x of walkAst(body)) {
+      if (ts.isIdentifier(x)) readIds.add(x.text)
     }
+    let bad = false
+    for (const v of stateVars) {
+      if (readIds.has(v)) bad = true
+    }
+    const bodyText = body.getText(sf)
+    if (/\bprops\./.test(bodyText) || /\bctx\./.test(bodyText)) bad = true
+    if (bad) suspiciousEffects.push(rel(f))
   }
 }
 ok('useEffect 的依赖数组不是漏写的空数组', suspiciousEffects.length === 0, [...new Set(suspiciousEffects)].slice(0, 5).join(' '))
@@ -2367,15 +2397,20 @@ if (existsSync(loginPageFile)) {
     `游离调用点 ${strayCalls.length} 处`,
   )
 
-  /* 单机模式仍然自动进 —— 那是设计，别顺手改掉
+  /* ⚠️ **一律不许自动进入** —— 两种模式都得用户点一下（2026-11-08 拍板）
    *
-   * ⚠️ 2026-11-08 改口径：**判据搬进纯函数 `shouldAutoEnter`**（utils/auth-flow.ts），
-   *    页面只管「拿到结果就照做」。所以这里查的是
-   *    「useEffect 里调了 shouldAutoEnter」＋「useEffect 里还有 goCases()」，
-   *    不再查 `body.mode === 'single'` 这个字面写法（它已经不在页面里了）。
+   * 口径又变了：上一版是「单机模式默认自动进、刚退出过才不自动进」，
+   * 维护者 2026-11-08 明确说「单机模式也要点一下才进去」——
+   * 于是**整条自动进入的路都拆了**，判据从
+   * 「要不要自动进去」（shouldAutoEnter）改成「**显示哪种入口**」（entryKind）。
+   *
+   * 所以这里查两件事：
+   *   ① `useEffect` 回调里**没有** `goCases()` —— 不许自动进；
+   *   ② `useEffect` 里调了 `entryKind` —— 规则只有一处，页面不自己判。
+   *
+   * ⚠️ 必须查**useEffect 回调里**有没有 goCases() ——
+   *    只查全文有没有 `goCases(` 会被别处（tryWechat 里也调 goCases）蒙混过关。
    */
-  // ⚠️ 必须查**useEffect 回调里有没有 goCases()** ——
-  //    只查全文有没有 `goCases(` 会被别处（tryWechat 里也调 goCases）蒙混过关。
   const effectCalls = [...loginParents.keys()].filter(
     (n) => ts.isCallExpression(n) && n.expression.getText(loginSf) === 'useEffect',
   )
@@ -2385,39 +2420,43 @@ if (existsSync(loginPageFile)) {
         (n) => ts.isCallExpression(n) && n.expression.getText(loginSf) === 'goCases',
       )
     : false
-  const effectCallsShould = effectBody
+  const effectCallsEntryKind = effectBody
     ? walkAst(effectBody).some(
-        (n) => ts.isCallExpression(n) && n.expression.getText(loginSf) === 'shouldAutoEnter',
+        (n) => ts.isCallExpression(n) && n.expression.getText(loginSf) === 'entryKind',
       )
     : false
   ok(
-    '登录页的自动进入走 shouldAutoEnter（规则只有一处，页面不自己判）',
-    effectCallsShould,
-    effectCallsShould ? '' : 'useEffect 里没有调 shouldAutoEnter',
+    '登录页**不许自动进入**：useEffect 里没有 goCases()（两种模式都得用户点一下）',
+    !effectGoesCases,
+    effectGoesCases ? 'useEffect 里调了 goCases() —— 又自动进去了' : '',
   )
   ok(
-    '单机模式仍然自动进（不用登录）',
-    effectGoesCases,
-    effectGoesCases ? '' : 'useEffect 里没有 goCases()',
+    '登录页的入口种类走 entryKind（规则只有一处，页面不自己判）',
+    effectCallsEntryKind,
+    effectCallsEntryKind ? '' : 'useEffect 里没有调 entryKind',
   )
 }
 
 /* ========================================================================
- * 29. 「退出登录退得掉」的第二道闸 ＋ 构建标识看得见
+ * 29. 「一律不许自动进入」＋ 构建标识看得见
  *
- * 维护者 2026-11-08 反馈：「点退出登录后又被自动带回病例页」，之后又说
- * 「依然还会自动登录」。查下来有**两条**独立的自动进入路径：
+ * 维护者 2026-11-08 的两次拍板，合成一条规矩：
+ *
+ *   ① 「点退出登录后这里微信一键登录会自动登录，这个逻辑是错误的，
+ *       需要用户点击才可以登录」；
+ *   ② 「单机模式也要点一下才进去」。
+ *
+ * ⇒ **这个工具没有「自动进入」这回事**。曾经有**两条**自动进入的路：
  *
  *   ① 微信登录被自动发起 —— 第 28 节已经堵掉；
- *   ② **单机模式自动进入** —— 它压根不登录，是 `health()` 说「我是单机模式」
+ *   ② 单机模式自动进入 —— 它压根不登录，是 `health()` 说「我是单机模式」
  *      → 直接 `goCases()`。只修 ① 修不掉它。
  *
- * 所以这节的规矩：
- *   · 「要不要自动进去」只有**一处**判据 —— `utils/auth-flow.ts` 的
- *     `shouldAutoEnter(mode, justLoggedOut)`；
- *   · 用户点了「退出登录」→ 本地记一笔「刚退出过」→ 登录页**不自动进**，
- *     改成一个「继续使用（单机模式）」按钮，由用户自己决定回不回来；
- *   · 登录成功 / 点「继续使用」→ 清掉那笔标记。
+ * 现在两条**一起拆掉**：
+ *   · 「显示哪种入口」只有**一处**判据 —— `utils/auth-flow.ts` 的
+ *     `entryKind(mode)`：multi → 「微信一键登录」；single → 「进入（单机模式）」；
+ *   · 用户点了「退出登录」→ 本地记一笔「刚退出过」→ 登录页**告知**一句
+ *     「你刚才点了退出登录」；登录成功 / 点「进入」→ 清掉那笔标记。
  *
  * 另外加一条**构建标识**：小程序 bundle 在服务上下文里是缓存的，
  * 跑旧包时界面和旧版一模一样 —— 光看代码判断不了「跑的到底是哪一份」。
@@ -2429,23 +2468,27 @@ const meFile = join(SRC, 'pages', 'me', 'index.tsx')
 const taroCfgFile29 = join(SRC, '..', 'config', 'index.ts')
 
 /* ---- 规则只有一处：utils/auth-flow.ts ---- */
-ok('utils/auth-flow.ts 存在（自动进入的判据收在这里）', existsSync(authFlowFile))
+ok('utils/auth-flow.ts 存在（入口种类的判据收在这里）', existsSync(authFlowFile))
 if (existsSync(authFlowFile)) {
   const { src: flowSrc, sf: flowSf } = parseTsx(authFlowFile)
   ok(
-    'auth-flow 导出 shouldAutoEnter',
-    /export\s+function\s+shouldAutoEnter\s*\(/.test(flowSrc),
+    'auth-flow 导出 entryKind',
+    /export\s+function\s+entryKind\s*\(/.test(flowSrc),
   )
-  // ⚠️ **必须查函数体里有没有用到 justLoggedOut** ——
-  //    光看签名不够：把 `if (justLoggedOut) return false` 删掉、参数留着，
-  //    签名照样有 justLoggedOut，函数却已经**不看**「刚退出过」了 ——
-  //    那正是「退出登录又被自动带回」的那条路。
-  //
-  // ⚠️⚠️ **光看「函数体里出现过这个名字」也不够** ——
-  //    `void justLoggedOut` 这种写法照样过（名字在，但**不起判据作用**）。
-  //    → 所以查的是：**它有没有出现在某个条件里**（if 的条件／三元表达式）。
+  ok(
+    'auth-flow 里不许再有 shouldAutoEnter（自动进入这条路已经整个拆了）',
+    // ⚠️ **必须去掉注释再查** —— 注释里提一句「以前有 shouldAutoEnter」
+    //    是解释，不是代码；不 strip 就会误报。
+    !/shouldAutoEnter/.test(stripComments(flowSrc)),
+    '还留着 shouldAutoEnter —— 读代码时以为还有「自动进入」这个选项',
+  )
+  // ⚠️ **必须查函数体里有没有拿 mode 当条件** ——
+  //    光看「导出 entryKind」不够：把函数体改成 `return 'wechat-login'`
+  //    名字照样在，单机模式却认不出来 → 登录页会显示「微信一键登录」
+  //    （单机模式压根没有微信登录这回事）。
+  //    → 查 **mode 出现在某个条件里**，且条件里出现 'single'。
   const flowFn = flowSf.statements.find(
-    (s) => ts.isFunctionDeclaration(s) && s.name?.text === 'shouldAutoEnter',
+    (s) => ts.isFunctionDeclaration(s) && s.name?.text === 'entryKind',
   )
   /** 这个标识符是不是出现在某个「条件」里 */
   const usedAsCondition = (root, name) => {
@@ -2485,33 +2528,51 @@ if (existsSync(authFlowFile)) {
     visit(node)
     return hit
   }
+  /** 子树里有没有这个字符串字面量 */
+  const hasLiteral = (node, text) => {
+    let hit = false
+    const visit = (n) => {
+      if (hit || !n || typeof n !== 'object' || typeof n.kind !== 'number') return
+      if (ts.isStringLiteral(n) && n.text === text) {
+        hit = true
+        return
+      }
+      n.forEachChild((c) => visit(c))
+    }
+    visit(node)
+    return hit
+  }
   ok(
-    'auth-flow 的 shouldAutoEnter 真的**拿「刚退出过」当条件**判（不是提一嘴）',
-    !!flowFn && usedAsCondition(flowFn.body, 'justLoggedOut'),
-    flowFn ? 'justLoggedOut 没出现在任何条件里' : '没找到函数声明',
+    'auth-flow 的 entryKind 拿「服务端模式」当条件判',    !!flowFn && usedAsCondition(flowFn.body, 'mode'),
+    flowFn ? 'mode 没出现在任何条件里' : '没找到函数声明',
   )
   ok(
-    'auth-flow 的 shouldAutoEnter 拿「服务端模式」当条件判（多用户模式也不进）',
-    !!flowFn && usedAsCondition(flowFn.body, 'mode'),
-    flowFn ? 'mode 没出现在任何条件里' : '没找到函数声明',
+    "auth-flow 的 entryKind 认得出单机模式（真的调了 isSingleMode）",
+    // ⚠️ 查的是**有没有调 isSingleMode**，不是查函数体里有没有 'single' 这个字面量 ——
+    //    字面量在 isSingleMode 里，entryKind 只调它（查字面量会误报）。
+    !!flowFn &&
+      walkAst(flowFn.body).some(
+        (n) => ts.isCallExpression(n) && n.expression.getText(flowSf) === 'isSingleMode',
+      ),
+    flowFn ? "entryKind 没调 isSingleMode（认不出单机模式）" : '没找到函数声明',
   )
 }
 
-/* ---- 登录页：从 auth-flow 引 shouldAutoEnter，且渲染「继续使用」按钮 ---- */
+/* ---- 登录页：从 auth-flow 引 entryKind，且渲染「进入（单机模式）」按钮 ---- */
 if (existsSync(loginPageFile)) {
   const { src: loginSrc2, sf: loginSf2 } = parseTsx(loginPageFile)
   ok(
-    '登录页从 utils/auth-flow 引 shouldAutoEnter（不自己写一份）',
-    /import\s*\{[^}]*\bshouldAutoEnter\b[^}]*\}\s*from\s*'[^']*utils\/auth-flow'/.test(loginSrc2),
+    '登录页从 utils/auth-flow 引 entryKind（不自己写一份）',
+    /import\s*\{[^}]*\bentryKind\b[^}]*\}\s*from\s*'[^']*utils\/auth-flow'/.test(loginSrc2),
   )
   ok(
-    '登录页从 utils/storage 引 wasLoggedOut（判断刚退出过）',
+    '登录页从 utils/storage 引 wasLoggedOut（告知「刚才退出了」）',
     /import\s*\{[^}]*\bwasLoggedOut\b[^}]*\}\s*from\s*'[^']*utils\/storage'/.test(loginSrc2),
   )
 
   const loginEls2 = jsxElements(walkAst(loginSf2))
-  const contBtn = loginEls2.find((el) => textOf(el) === '继续使用（单机模式）')
-  ok('登录页有「继续使用（单机模式）」按钮', !!contBtn, contBtn ? '' : '没找到这个按钮')
+  const contBtn = loginEls2.find((el) => textOf(el) === '进入（单机模式）')
+  ok('登录页有「进入（单机模式）」按钮', !!contBtn, contBtn ? '' : '没找到这个按钮')
   if (contBtn) {
     const contAttr = (contBtn.openingElement?.attributes?.properties || []).find(
       (a) => a.name && a.name.text === 'onClick',
@@ -2526,11 +2587,11 @@ if (existsSync(loginPageFile)) {
     const calls = (name) =>
       contBody.some((n) => ts.isCallExpression(n) && n.expression.getText(loginSf2) === name)
     ok(
-      '「继续使用」的处理器清掉「刚退出过」标记',
+      '「进入（单机模式）」的处理器清掉「刚退出过」标记',
       calls('clearLoggedOutMark'),
       contName,
     )
-    ok('「继续使用」的处理器确实进病例页', calls('goCases'), contName)
+    ok('「进入（单机模式）」的处理器确实进病例页', calls('goCases'), contName)
   }
 }
 

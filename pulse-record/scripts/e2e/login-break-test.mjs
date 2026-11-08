@@ -97,8 +97,8 @@ step(
   mutate(
     'A useEffect 里自动登录',
     LOGIN,
-    '        if (shouldAutoEnter(mode, wasLoggedOut())) {\n          if (alive) goCases()\n          return\n        }',
-    '        if (shouldAutoEnter(mode, wasLoggedOut())) {\n          if (alive) goCases()\n          return\n        }\n        if (alive) tryWechat()',
+    '      .then((h) => {\n        const body = (h || {}) as HealthBody',
+    '      .then((h) => {\n        if (alive) tryWechat()\n        const body = (h || {}) as HealthBody',
     '登录页不在生命周期钩子里自动发起微信登录',
   ),
 )
@@ -136,14 +136,14 @@ step(
   ),
 )
 
-/* E. 顺手把单机模式的自动进也删了（那是设计，不该动） */
+/* E. 把「自动进入」塞回 useEffect（单机模式的老路） */
 step(
   mutate(
-    'E 单机模式不再自动进',
+    'E useEffect 里自动进入（单机模式那条老路）',
     LOGIN,
-    '        if (shouldAutoEnter(mode, wasLoggedOut())) {\n          if (alive) goCases()\n          return\n        }',
-    '        if (shouldAutoEnter(mode, wasLoggedOut())) {\n          return\n        }',
-    '单机模式仍然自动进',
+    '        if (alive) setSingleMode(entryKind(mode) === \'single-enter\')',
+    "        if (alive) setSingleMode(entryKind(mode) === 'single-enter')\n        if (alive) goCases()",
+    '登录页**不许自动进入**',
   ),
 )
 
@@ -162,25 +162,25 @@ step(
  * G~L：2026-11-08 补的「第二条自动进入路径」与「构建标识」
  * ======================================================================== */
 
-/* G. shouldAutoEnter 不看「刚退出过」了 —— 退出登录就退不掉 */
+/* G. entryKind 认不出单机模式 —— 单机模式会显示「微信一键登录」 */
 step(
   mutate(
-    'G shouldAutoEnter 不看「刚退出过」',
+    'G entryKind 认不出单机模式',
     AUTH_FLOW,
-    '  if (!isSingleMode(mode)) return false\n  if (justLoggedOut) return false\n  return true',
-    '  if (!isSingleMode(mode)) return false\n  void justLoggedOut\n  return true',
-    'auth-flow 的 shouldAutoEnter 真的**拿「刚退出过」当条件**判',
+    "  return isSingleMode(mode) ? 'single-enter' : 'wechat-login'",
+    "  return mode === 'multi' ? 'wechat-login' : 'wechat-login'",
+    "auth-flow 的 entryKind 认得出单机模式",
   ),
 )
 
-/* H. 页面不判、自己写 if（规则又散回两处） */
+/* H. 页面不调 entryKind，自己判（规则又散回两处） */
 step(
   mutate(
-    'H 登录页不调 shouldAutoEnter，自己判',
+    'H 登录页不调 entryKind，自己判',
     LOGIN,
-    '        if (shouldAutoEnter(mode, wasLoggedOut())) {',
-    "        if (mode === 'single') {",
-    '登录页的自动进入走 shouldAutoEnter',
+    "        if (alive) setSingleMode(entryKind(mode) === 'single-enter')",
+    "        if (alive) setSingleMode(mode === 'single')",
+    '登录页的入口种类走 entryKind',
   ),
 )
 
@@ -195,20 +195,14 @@ step(
   ),
 )
 
-/* J. 删掉「继续使用（单机模式）」按钮 —— 退出后没退路
- *
- * ⚠️ 匹配串要带上下行 —— 文件**顶部注释里也出现过这句话**
- *    （「改成一个「继续使用（单机模式）」按钮」）。
- *    只替换那一句的话，改到的是**注释**，按钮还在 → 断言照样绿 → 白忙一场。
- *    （2026-11-08 实测踩过：第一次这么写，mutation「生效」了却一条红都没有。）
- */
+/* J. 删掉「进入（单机模式）」按钮 —— 单机模式就进不去了 */
 step(
   mutate(
-    'J 删掉「继续使用（单机模式）」按钮',
+    'J 删掉「进入（单机模式）」按钮',
     LOGIN,
-    '            继续使用（单机模式）\n          </Button>',
-    '            继续使用\n          </Button>',
-    '登录页有「继续使用（单机模式）」按钮',
+    '            进入（单机模式）\n          </Button>',
+    '            进入\n          </Button>',
+    '登录页有「进入（单机模式）」按钮',
   ),
 )
 
@@ -231,6 +225,17 @@ step(
     "      'process.env.PULSE_BUILD_AT': JSON.stringify(\n        String(process.env.PULSE_BUILD_AT || '').trim() || buildStamp(),\n      ),",
     "      'process.env.PULSE_BUILD_AT': JSON.stringify(''),",
     '编译期注入 PULSE_BUILD_AT（构建时间）',
+  ),
+)
+
+/* M. 把 shouldAutoEnter 复活 —— 「自动进入」这条路必须整条拆掉 */
+step(
+  mutate(
+    'M auth-flow 里复活 shouldAutoEnter',
+    AUTH_FLOW,
+    "export function entryKind(mode?: string | null): EntryKind {",
+    "export function shouldAutoEnter(mode?: string | null): boolean {\n  return isSingleMode(mode)\n}\n\nexport function entryKind(mode?: string | null): EntryKind {",
+    'auth-flow 里不许再有 shouldAutoEnter',
   ),
 )
 

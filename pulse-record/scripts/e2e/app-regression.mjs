@@ -57,8 +57,17 @@ const chrome = await launchChrome({ url: api.base, width: 1500, height: 1200 })
 
 try {
   // 单机模式也要先过登录页（点「进入」）
+  // ⚠️ 2026-11-08 维护者拍板：「单机模式也要点一下才进去」——
+  //    所以单机模式**不许**自动进（以前 App.tsx 直接 setUser，
+  //    等于替用户登录了，`LoginPanel` 里那个「进入」按钮是死代码）。
+  //    这条断言就是守这个：**登录页必须出现**，不许自动进主界面。
   await sleep(1200)
   const onLogin = await chrome.ev(`!!document.querySelector('.pr-login')`)
+  c.check(
+    '单机模式也先过登录页（不自动进去，得点「进入」）',
+    onLogin === true,
+    '登录页没出现 —— 说明被自动进去了',
+  )
   if (onLogin) {
     await chrome.ev(
       `[...document.querySelectorAll('.pr-login-submit')].find(b=>b.textContent.includes('进入'))?.click()`,

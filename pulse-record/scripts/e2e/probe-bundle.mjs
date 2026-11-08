@@ -5,10 +5,9 @@
  *    → 在 = 模拟器跑的是**带构建标识的新包**（之前那次「依然」就是跑着旧包）；
  *      不在 = 又是旧包，改什么都没用。
  *
- * ② 退出登录后**还会不会被自动带回病例页**
- *    → 复刻登出流程留下的本地标记（`pulse.loggedOut`）→ 跳登录页 →
- *      **必须停在登录页**（且页面上有「继续使用（单机模式）」按钮）。
- *      若被带回病例页 ⇒ 单机模式的自动进入还在发生（老 bug）。
+ * ② **单机模式也不再自动进** —— 维护者 2026-11-08 拍板「单机模式也要点一下才进去」。
+ *    所以：打开登录页 → 必须**停在登录页**、页面上给一个「进入（单机模式）」按钮。
+ *    若自己跑进了病例页 ⇒ 自动进入还在发生（老 bug）。
  *
  * 用法：node scripts/e2e/probe-bundle.mjs
  */
@@ -88,8 +87,8 @@ const verMatch = meText.match(/版本 \d{4}-\d{2}-\d{2} \d{2}:\d{2} · [0-9a-f]+
 ok('「我的」页显示了构建标识（说明跑的是带标识的新包）', !!verMatch, meText.slice(0, 200))
 if (verMatch) console.log('    → ' + verMatch[0])
 
-/* ---------------- ② 退出登录后还会不会被自动带回 ---------------- */
-console.log('\n② 退出登录后会不会被自动带回病例页\n')
+/* ---------------- ② 单机模式也不再自动进 ---------------- */
+console.log('\n② 单机模式会不会自动进\n')
 
 // 复刻「我的」页点退出登录留下的本地标记
 await evalIn((k) => wx.setStorageSync(k, '1'), LOGGED_OUT_KEY)
@@ -107,8 +106,8 @@ ok(
 
 const loginText = await pageText()
 ok(
-  '登录页给出「继续使用（单机模式）」按钮',
-  loginText.includes('继续使用（单机模式）'),
+  '登录页给出「进入（单机模式）」按钮',
+  loginText.includes('进入（单机模式）'),
   loginText.slice(0, 200),
 )
 ok(
@@ -117,17 +116,21 @@ ok(
   '单机模式却渲染了登录卡片',
 )
 
-/* ---------------- ③ 没有「刚退出过」时，单机模式照旧自动进 ---------------- */
-console.log('\n③ 对照组：没被退出过时，单机模式仍然自动进\n')
+/* ---------------- ③ 对照组：没被退出过时，单机模式**也不**自动进 ---------------- */
+console.log('\n③ 对照组：没被退出过时，单机模式同样不自动进\n')
 
 await evalIn((k) => wx.removeStorageSync(k), LOGGED_OUT_KEY)
 await mp.reLaunch('/pages/login/index')
 await sleep(4000)
 const afterClear = await route()
 ok(
-  '清掉标记后，单机模式自动进病例页（原有设计没被改坏）',
-  afterClear === 'pages/cases/index',
+  '清掉标记后**仍然**停在登录页（单机模式也不自动进 —— 一律要点一下）',
+  afterClear === 'pages/login/index',
   '当前路由：' + afterClear,
+)
+ok(
+  '仍然给的是「进入（单机模式）」按钮',
+  (await pageText()).includes('进入（单机模式）'),
 )
 
 try {

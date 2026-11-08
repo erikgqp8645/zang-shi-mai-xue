@@ -448,42 +448,39 @@ Taro.removeStorageSync(config.API_BASE_KEY)
 console.log('\n小程序数据层端到端（Taro · 退出登录与构建标识）\n')
 
 /**
- * 维护者 2026-11-08 反馈：「点退出登录后又被自动带回病例页」。
+ * 维护者 2026-11-08 两次拍板，合成一条：
+ *   ① 「需要用户点击才可以登录」；
+ *   ② 「单机模式也要点一下才进去」。
  *
- * 根因有**两条**，这里逐条验：
- *
- * ① 微信登录被自动发起 —— 由 `taro-lint.mjs` 第 28 节盯源码结构；
- * ② **单机模式自动进入** —— 它压根不登录，是 `health()` 说「我是单机模式」
+ * ⇒ **没有自动进入这回事**。曾经有两条自动进入的路：
+ *   ① 微信登录被自动发起 —— 由 `taro-lint.mjs` 第 28 节盯源码结构；
+ *   ② 单机模式自动进入 —— 它压根不登录，是 `health()` 说「我是单机模式」
  *    → 直接进。只修 ① 修不掉它。
  *
- * ② 的判据收在 `utils/auth-flow.ts` 的 `shouldAutoEnter(mode, justLoggedOut)`，
- * 是**纯函数** —— 所以这里能真的把它跑起来逐条断言。
+ * ② 的判据收在 `utils/auth-flow.ts` 的 `entryKind(mode)`，是**纯函数** ——
+ * 所以这里能真的把它跑起来逐条断言。
  */
 const flow = mod.authFlow
 
 c.check(
-  '多用户模式：一律不自动进（等用户点「微信一键登录」）',
-  flow.shouldAutoEnter('multi', false) === false,
-  String(flow.shouldAutoEnter('multi', false)),
+  '多用户模式：显示「微信一键登录」（等用户点）',
+  flow.entryKind('multi') === 'wechat-login',
+  String(flow.entryKind('multi')),
 )
 c.check(
-  '多用户模式：刚退出过时也不自动进',
-  flow.shouldAutoEnter('multi', true) === false,
-  String(flow.shouldAutoEnter('multi', true)),
+  '单机模式：显示「进入（单机模式）」（等用户点，不自动进）',
+  flow.entryKind('single') === 'single-enter',
+  String(flow.entryKind('single')),
 )
 c.check(
-  '单机模式：默认自动进（不用登录，这是设计）',
-  flow.shouldAutoEnter('single', false) === true,
-  String(flow.shouldAutoEnter('single', false)),
+  '探不到服务端（mode 为空）→ 按多用户处理（显示登录入口）',
+  flow.entryKind('') === 'wechat-login' && flow.entryKind(undefined) === 'wechat-login',
 )
 c.check(
-  '单机模式：刚被退出过 → 不自动进（这才叫「退出登录退得掉」）',
-  flow.shouldAutoEnter('single', true) === false,
-  String(flow.shouldAutoEnter('single', true)),
-)
-c.check(
-  '探不到服务端（mode 为空）→ 不自动进',
-  flow.shouldAutoEnter('', false) === false && flow.shouldAutoEnter(undefined, false) === false,
+  'isSingleMode 只认 single',
+  flow.isSingleMode('single') === true &&
+    flow.isSingleMode('multi') === false &&
+    flow.isSingleMode('') === false,
 )
 
 /* 「刚退出过」标记：写进去 → 读得到 → 清掉 → 读不到 */

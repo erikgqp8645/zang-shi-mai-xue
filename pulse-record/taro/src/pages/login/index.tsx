@@ -9,7 +9,7 @@ import {
   wechatBind,
   wechatLogin,
 } from '../../utils/auth'
-import { isSingleMode, shouldAutoEnter } from '../../utils/auth-flow'
+import { entryKind } from '../../utils/auth-flow'
 import { buildLabel } from '../../utils/build'
 import { health } from '../../utils/data'
 import { clearLoggedOutMark, wasLoggedOut } from '../../utils/storage'
@@ -33,15 +33,15 @@ import './index.scss'
  * ⚠️ **微信登录只能由用户点按钮发起**（维护者 2026-11-08 明确要求）：
  *   进页面就自动 `wechatLogin()` 是错的 —— 那等于「用户还没点就替他登录了」，
  *   最典型的后果是**点「退出登录」根本退不掉**（退出 → 回本页 → 又自动登录 → 又进去了）。
- *   本页的 `useEffect` **只探 `/api/health`**（判断是不是单机模式），
+ *   本页的 `useEffect` **只探 `/api/health`**（判断是单机还是多用户模式），
  *   绝不发起任何登录请求；`tryWechat()` 只挂在「微信一键登录」按钮的 `onClick` 上。
  *
- * ⚠️ **单机模式的自动进入也要看「刚被退出过」**（2026-11-08 补充）：
+ * ⚠️ **单机模式也不自动进**（维护者 2026-11-08 补充拍板）：
  *   单机模式那条路**压根不登录** —— 它是 `health()` 说「我是单机模式」→ 直接进。
  *   所以只修「不自动登录」修不掉它：退出登录后照样被自动带回病例页。
- *   → 规则统一收在 `utils/auth-flow.ts` 的 `shouldAutoEnter(mode, justLoggedOut)`：
- *     多用户模式永远不自动进；单机模式默认自动进，**但刚被退出过就不自动进**，
- *     停在页面给一个「继续使用（单机模式）」按钮，由用户自己决定回不回来。
+ *   → 现在**两种模式都得用户点一下**：
+ *     多用户模式 → 点「微信一键登录」；单机模式 → 点「进入（单机模式）」。
+ *   规则统一收在 `utils/auth-flow.ts` 的 `entryKind(mode)`（只有这一处）。
  *
  * 与原生版的差别只有一处：原生版从 `getApp().globalData.mode` 读「是不是单机模式」，
  * Taro 侧没有全局 App 对象 —— 改为进页面时探一次 `/api/health`（utils/data.ts 的 health()），
@@ -72,11 +72,12 @@ export default function Login() {
   /** 服务端是单机模式时为 true —— 不用登录 */
   const [singleMode, setSingleMode] = useState(false)
   /**
-   * 单机模式、但**刚被显式退出过** → 不自动进，等用户点「继续使用」
+   * 用户刚点过「退出登录」→ 在登录页说明一句
    *
-   * 这是「退出登录退得掉」的第二道闸（第一道是微信登录必须点按钮）。
+   * ⚠️ **它不再决定「要不要自动进去」** —— 现在一律不自动进（一律要点一下）。
+   *    这个标记现在只负责**告知**：「你刚才退出了登录，要用请点下面的按钮」。
    */
-  const [needContinue, setNeedContinue] = useState(false)
+  const [justLoggedOut, setJustLoggedOut] = useState(false)
 
   /** 登录成功 → 回病例 tab */
   const goCases = useCallback(() => {
@@ -112,21 +113,17 @@ export default function Login() {
       .then((h) => {
         const body = (h || {}) as HealthBody
         const mode = body.mode || ''
-        if (isSingleMode(mode)) {
-          if (alive) setSingleMode(true)
-        }
-        // ⚠️ **「要不要自动进去」只有一处判据** —— utils/auth-flow.ts 的
-        //    shouldAutoEnter(mode, justLoggedOut)：
-        //      · 多用户模式 → 永远不自动进（等用户点「微信一键登录」）；
-        //      · 单机模式   → 默认自动进，**但刚被显式退出过就不自动进**
-        //        （停在页面给一个「继续使用（单机模式）」按钮）。
-        //    规则写在纯函数里，才谈得上「回归能逐条断言」。
-        if (shouldAutoEnter(mode, wasLoggedOut())) {
-          if (alive) goCases()
-          return
-        }
-        // 单机模式 + 刚被退出过 → 停在页面等用户自己点
-        if (alive && isSingleMode(mode)) setNeedContinue(true)
+        // ⚠️ **这里只判断「显示哪种入口」，绝不自动进** ——
+        //    规则只有一处：utils/auth-flow.ts 的 entryKind(mode)
+        //      · multi  → 显示「微信一键登录」，用户点了才发起登录；
+        //      · single → 显示「进入（单机模式）」，用户点了才进病例页。
+        //
+        //    ⚠️⚠️ **不要在这里调 `goCases()`** —— 那是「自动进入」，
+        //    维护者 2026-11-08 明确要求：任何模式都得用户点一下。
+        //    （旧代码在这句 `if (body.mode === 'single') goCases()` ——
+        //      点「退出登录」后被自动带回病例页，就是它干的。）
+        if (alive) setSingleMode(entryKind(mode) === 'single-enter')
+        if (alive) setJustLoggedOut(wasLoggedOut())
       })
       .catch(() => {
         // 探不到服务端（默认多用户模式）—— 也停在这一步，等用户自己点。
@@ -135,7 +132,7 @@ export default function Login() {
     return () => {
       alive = false
     }
-  }, [goCases])
+  }, [])
 
   const handleLoginName = useCallback((e: InputEvt) => {
     setLoginName(e.detail.value)
@@ -231,14 +228,18 @@ export default function Login() {
   }, [tryWechat])
 
   /**
-   * 「继续使用（单机模式）」—— 用户被退出登录后，自己决定回不回来
+   * 「进入（单机模式）」—— **单机模式也不自动进**，用户点一下才进去
+   *
+   * 维护者 2026-11-08 拍板：「单机模式也要点一下才进去」。
+   * 所以这台机器上**没有**任何自动进入的路径 —— 不管多用户还是单机，
+   * 都得用户自己点一下。
    *
    * 单机模式没有账号、没有令牌，压根不存在「登录」这回事；
    * 但用户点了「退出登录」，就得**尊重这个动作** —— 不能替他自动进去。
    */
-  const onContinueSingle = useCallback(() => {
+  const onEnterSingle = useCallback(() => {
     clearLoggedOutMark()
-    setNeedContinue(false)
+    setJustLoggedOut(false)
     goCases()
   }, [goCases])
 
@@ -407,19 +408,20 @@ export default function Login() {
         </View>
       )}
 
-      {/* 单机模式 + 刚被退出过 → 停在页面，由用户自己点「继续使用」 */}
-      {singleMode && needContinue ? (
+      {/* 单机模式 → 给一个「进入（单机模式）」按钮，由用户自己点 */}
+      {singleMode ? (
         <View className="pr-card">
           <View className="pr-card-title">单机模式</View>
           <View className="pr-note">
             这台服务器是单机模式（数据只在这一台机器上），不用登录。
-            刚才你点了「退出登录」，所以没有自动带你进来 —— 要用就点下面的按钮。
+            {justLoggedOut ? '你刚才点了「退出登录」，所以没有自动带你进来。' : ''}
+            要用就点下面的按钮。
           </View>
           <Button
             className="pr-btn pr-btn-primary pr-btn-block"
-            onClick={onContinueSingle}
+            onClick={onEnterSingle}
           >
-            继续使用（单机模式）
+            进入（单机模式）
           </Button>
         </View>
       ) : null}
