@@ -625,7 +625,7 @@ npm run mp:dev            # 小程序本机联调（只起后端，不起网站�
 
 ### 6.5 登录要不要
 
-**单机模式（默认 `npm run dev:lan` 就是）不用登录** ——
+**单机模式（默认 `npm run mp:dev` 就是）不用登录** ——
 服务端 `server/index.mjs` 里 `if (SINGLE_USER) return await getLocalUser(db)`，
 所有请求都算内置单机账号，`/api/auth/me` 返回 `wechatBound: false`。
 要验「小程序用网站账号＋密码绑定微信」那条路，才用 `npm run dev:multi`。
