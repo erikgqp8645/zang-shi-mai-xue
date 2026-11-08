@@ -2212,6 +2212,20 @@ if (existsSync(versionFile)) {
   )
 }
 
+/* 「预览正式版」的编译期开关不许被删掉 —— 它是唯一能在发布前看到正式版界面的办法 */
+const taroConfigFile = join(TARO, 'config', 'index.ts')
+if (existsSync(taroConfigFile)) {
+  const cfgCode = stripComments(read(taroConfigFile))
+  ok(
+    '编译期定义了 PULSE_FORCE_RELEASE（本地预览正式版界面用的开关）',
+    /'process\.env\.PULSE_FORCE_RELEASE'/.test(cfgCode),
+  )
+  ok(
+    'PULSE_FORCE_RELEASE 判 1 时要 trim（cmd 的 `set VAR=1 && …` 会带尾随空格）',
+    /\.trim\(\)\s*===\s*'1'/.test(cfgCode),
+  )
+}
+
 /* ========================================================================
  * 汇总
  * ======================================================================== */

@@ -186,6 +186,28 @@ export default defineConfig(async (merge) => {
       'process.env.PULSE_CLOUD_ENV': JSON.stringify(
         process.env.PULSE_CLOUD_ENV || 'pulse-1-d0g880ydl8ddc57f6',
       ),
+      /**
+       * **预览正式版界面**（2026-11-08 维护者要求「服务器」界面与「存储位置」正式版不显示）
+       *
+       * 正式发布版要等备案＋审核才能看到那个界面 —— 那太久了，
+       * 得有个办法**在本地就能看见正式版长什么样**。
+       *
+       * ```bash
+       * PULSE_FORCE_RELEASE=1 npm run mp:taro:build   # 产物按正式版渲染
+       * ```
+       *
+       * ⚠️ **`.trim()` 不是多余的** —— cmd 里 `set VAR=1 && 别的命令` 会把值设成
+       *    `"1 "`（**带一个尾随空格**！），不 trim 就永远判不成立。
+       *    （2026-11-08 实测踩过：构建成功、开关却不生效。）
+       *
+       * ⚠️ **只是编译期替换**（`JSON.stringify` 成字面量），
+       *    产物里不会残留 `process.env.` —— 小程序运行时没有 `process` 这个全局量，
+       *    残留就是启动即抛「process is not defined」→ 整屏白（2026-11-05 真出过）。
+       *    回归第 23 节专门盯这个。
+       */
+      'process.env.PULSE_FORCE_RELEASE': JSON.stringify(
+        String(process.env.PULSE_FORCE_RELEASE || '').trim() === '1' ? '1' : '',
+      ),
     },
 
     /**

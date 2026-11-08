@@ -42,6 +42,11 @@ declare const wx:
  *    （回归脚本要在一趟里分别验正式版／体验版／开发版三条分支）。
  */
 export function envVersion(): EnvVersion {
+  // 编译期注入的「预览正式版」开关（见 config/index.ts 的 defineConstants）。
+  // 正式发布版要等备案＋审核才看得到那个界面 —— 本地想先看一眼就用它。
+  // ⚠️ 这里的 `process.env.PULSE_FORCE_RELEASE` 在构建时被**替换成字面量**，
+  //    产物里不会残留 `process.`（小程序运行时没有 process → 整屏白，2026-11-05 真出过）。
+  if (process.env.PULSE_FORCE_RELEASE === '1') return 'release'
   if (typeof wx !== 'undefined' && typeof wx?.getAccountInfoSync === 'function') {
     try {
       const v = wx.getAccountInfoSync()?.miniProgram?.envVersion

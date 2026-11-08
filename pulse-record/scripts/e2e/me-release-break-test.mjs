@@ -25,6 +25,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const SRC = join(ROOT, 'taro', 'src')
 
 const LINT = join(ROOT, 'scripts', 'e2e', 'taro-lint.mjs')
+const TARO = join(ROOT, 'taro')
 const ME = join(SRC, 'pages', 'me', 'index.tsx')
 const CFG = join(SRC, 'utils', 'config.ts')
 const VER = join(SRC, 'platform', 'version.ts')
@@ -180,6 +181,28 @@ step(
     'const release = isRelease()',
     'const release = false',
     'release 判定来自 isRelease()',
+  ),
+)
+
+// H. 「预览正式版」的编译期开关被删掉（本地就再也看不到正式版界面了）
+step(
+  mutate(
+    'H 删掉 PULSE_FORCE_RELEASE 的 define',
+    join(TARO, 'config', 'index.ts'),
+    "      'process.env.PULSE_FORCE_RELEASE': JSON.stringify(\n        String(process.env.PULSE_FORCE_RELEASE || '').trim() === '1' ? '1' : '',\n      ),\n",
+    '',
+    '编译期定义了 PULSE_FORCE_RELEASE',
+  ),
+)
+
+// I. 判 1 时不 trim（cmd 的 `set VAR=1 && …` 会带尾随空格 → 开关永远不生效）
+step(
+  mutate(
+    'I FORCE_RELEASE 判 1 不 trim',
+    join(TARO, 'config', 'index.ts'),
+    "String(process.env.PULSE_FORCE_RELEASE || '').trim() === '1'",
+    "process.env.PULSE_FORCE_RELEASE === '1'",
+    'PULSE_FORCE_RELEASE 判 1 时要 trim',
   ),
 )
 
