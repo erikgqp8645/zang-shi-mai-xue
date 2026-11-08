@@ -31,6 +31,7 @@ import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { chromePath } from './lib.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const TARO = join(ROOT, 'taro')
@@ -39,11 +40,35 @@ const TARO = join(ROOT, 'taro')
 const requireTaro = createRequire(join(TARO, 'package.json'))
 const { build } = requireTaro('esbuild')
 
-const CHROME = [
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
-  '/Applications/Chromium.app/Contents/MacOS/Chromium',
-].find((p) => existsSync(p))
+/**
+ * Chrome 可执行文件 —— **复用 `lib.mjs` 的跨平台定位**，不另写一份。
+ *
+ * 2026-11-08 踩过的坑：这个脚本原先只列了 macOS 的三个路径，
+ * 于是**在 Windows 上 `CHROME` 是 `undefined`**，
+ * 报出来的却是 `ERR_INVALID_ARG_TYPE: The "file" argument must be of type string`
+ * —— 一句完全指不到「Chrome 没找到」的错。
+ * `lib.mjs` 里那份 `chromePath()` 本来就带 Windows／macOS／Linux 三套路径
+ * ＋ `CHROME_PATH` 覆盖，**两处各写一份必然会走偏**。
+ */
+const CHROME = chromePath()
+if (!CHROME) {
+  console.error(
+    '找不到 Chrome —— 本探针需要本机装了 Google Chrome（Windows / macOS / Linux 都可）。\n' +
+      '找不到就用环境变量指过去：CHROME_PATH=<可执行文件路径>',
+  )
+  process.exit(1)
+}
+
+/**
+ * 本地文件 → `file://` URL。
+ *
+ * Windows 的盘符路径不能直接拼：`file://C:\Users\...` 里的反斜杠会打断 URL。
+ * 统一转成正斜杠 ＋ 三斜杠前缀（`file:///C:/…`）。
+ */
+function fileUrl(p) {
+  const abs = resolve(p).replace(/\\/g, '/')
+  return 'file:///' + abs.replace(/^\/+/, '')
+}
 
 /** 小程序 750 设计稿；浏览器视口按 375 宽 → 1rpx = 0.5px */
 const VIEWPORT_W = 375
@@ -214,14 +239,14 @@ function measure(html, shotPath) {
     '--virtual-time-budget=4000',
   ]
   // ① 量坐标（要 DOM）
-  const dom = execFileSync(CHROME, [...args, '--dump-dom', 'file://' + file], {
+  const dom = execFileSync(CHROME, [...args, '--dump-dom', fileUrl(file)], {
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
     stdio: ['ignore', 'pipe', 'ignore'],
   })
   // ② 顺便拍一张（给人看的）
   if (shotPath) {
-    execFileSync(CHROME, [...args, `--screenshot=${shotPath}`, 'file://' + file], {
+    execFileSync(CHROME, [...args, `--screenshot=${shotPath}`, fileUrl(file)], {
       encoding: 'utf8',
       stdio: ['ignore', 'ignore', 'ignore'],
     })
