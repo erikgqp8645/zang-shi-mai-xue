@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from openpyxl import Workbook
-from openpyxl.styles import Alignment, Border, Font, Side
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 from excel_schema import ARRAY_SEP, CODE_SEP, README_COLS, SHEETS, ColDef, SheetDef
@@ -153,17 +153,57 @@ def build_readme_rows() -> list[dict[str, Any]]:
         {
             "sheet": "（本表）",
             "purpose": (
-                "怎么改这份工作簿。本工作簿是**人工编辑层**，机器消费层是仓库里的 "
-                "src/content/*.json；改完这里，跑 scripts/excel_to_json.py 转回 JSON。"
+                "**怎么改这份工作簿。**\n"
+                "本工作簿是**人工编辑层**；机器消费层是仓库里的 src/content/*.json。\n"
+                "改完存盘 → `python3 scripts/excel_to_json.py` 转回 JSON → `npm test`。\n"
+                "⚠️ 只改**值**，不要改**主键**（主键被别的表引用）；"
+                "留空＝原文没写，**不要替读者补**。"
             ),
-            "cols": "",
-            "howto": "改完存盘 → python3 scripts/excel_to_json.py → npm test",
+            "cols": "表名 | 这张表是什么 | 各列说明 | 怎么填",
+            "howto": (
+                "① 主键列（ID／用字／符号／条目ID）不要动。\n"
+                "② 空白＝原文没写，不作要求 —— 别为了「填满」而补。\n"
+                "③ 剂量单位两套并存：讲稿是**比例制**（「熟地5」），"
+                "同和堂版是**克**；**不换算、不合并**。\n"
+                "④ 页面里的所有内容只是**资料整理**，不构成诊断，也不替读者加减方。"
+            ),
         }
     ]
     for s in SHEETS:
         cols = "\n".join(f"{c.header}（{c.key}）" + (f" — {c.note}" if c.note else "") for c in s.cols)
         howto = _howto_for(s)
         rows.append({"sheet": s.name, "purpose": s.purpose, "cols": cols, "howto": howto})
+    rows.append(
+        {
+            "sheet": "脉象图矩阵（P01- … P50-，每条用方条目一张）",
+            "purpose": (
+                "每条用方条目的**脉象图**，也是脉象图的**唯一编辑面**。\n"
+                "体例照讲义 2026-10 p34 的记录表：左列**部位／取法**，右边**左手、右手**两列，"
+                "9 行（寸浮／寸中／寸沉／关浮／关中／关沉／尺浮／尺中／尺沉）—— "
+                "和讲义上的图对得上。\n"
+                "「脉象图·格位」长表由这些矩阵**派生**出来，不要在那里改脉象。"
+            ),
+            "cols": "部位｜取法｜左手｜右手｜左组号｜右组号｜左格备注｜右格备注｜左柔性｜右柔性",
+            "howto": (
+                "① **表头区（第 2 行起）只有「条目ID」是校验用的**，"
+                "其余（路线／触发条件／出处／与条件文字的出入／关系型要求）都是**只读副本** —— "
+                "真源在「用方条目」表；要改内容去那张表改，改完重跑生成命令。\n"
+                "② **格子（左手／右手）填「用字」**，不是符号代码。"
+                "用字照抄「脉象用字」表第 1 列（如「大或顶」「虚脏」）。"
+                "留空＝原文没提这一格，**不作要求**。\n"
+                "③ **组号（左组号／右组号）**：留空＝本格单独成立；"
+                "填**同一个数字**＝同一组，组内是「且」；填**不同数字**＝不同组，组间是「或」。"
+                "左右两列的组号**各自独立**（左关 与 右关 可以是不同组）。\n"
+                "④ **格备注（左格备注／右格备注）**：写这一格原文的具体话（如「浮大而软」），没有就空着。\n"
+                "⑤ **柔性（左柔性／右柔性）**：填 TRUE ＝「本格还须配合表头的『关系型要求』才成立」；"
+                "不填 ＝ 本格自己就能成立。\n"
+                "⑥ **关系型要求**（画不成单格的，如「忽大忽小」「跳跳停停」）写在表头那一行里，"
+                "照抄原话 —— 这类条目九个格常常都是空的。\n"
+                "⑦ sheet 名里的序号（P01、P02…）是这条条目在「脉象图·条目」里的位置，**不要改**；"
+                "要改内容就改格子里的话。"
+            ),
+        }
+    )
     return rows
 
 
@@ -172,29 +212,41 @@ def _howto_for(s: SheetDef) -> str:
         return "两列：左边＝键，右边＝值。**不要改键**（键会被别的表引用）。"
     if s.json_path == "__patternCells":
         return (
-            "每行＝一个格位要求。\n"
-            "· 「组号」留空＝该条目全部格合成一组（且）；填 1、2、3 ＝第几个且组，"
-            "组内是「且」、组间是「或」。\n"
-            "· 要新增格位：在下方插入一行，填全四列即可。\n"
-            "· 要删格位：删掉整行。"
+            "⚠️ **这张表是派生的，不要在这里改脉象。**\n"
+            "它是各条矩阵 sheet（左手／右手 9 行）摊平后的样子，"
+            "转回 JSON 时**以矩阵为准**，这里改了会被覆盖。\n"
+            "要改脉象，请去对应的 P01- / P02- … 矩阵 sheet 改格子里的话。"
         )
     if s.json_path == "__patternRelations":
         return (
-            "每行＝一个关系。同一关系有多个探针时，占多行："
-            "**只在第一行填「探针格位／探针符号」，其余行留空**。\n"
-            "· 「探针格位」留空 ＝ 该关系没有探针。"
+            "每行＝一个关系（画不成单格的那些，如「忽大忽小」）。"
+            "同一关系有多个探针时占多行：**每行都填自己的探针格位／探针符号**。\n"
+            "· 「探针格位」留空 ＝ 该关系没有探针。\n"
+            "⚠️ 矩阵 sheet 的表头区也写了「关系型要求」，"
+            "**以这张表为准**（矩阵里那份是只读副本）。"
         )
     if s.json_path == "patterns":
         return (
-            "每行＝一条用方条目的脉象图主记录。格位在「脉象图·格位」表、"
-            "关系在「脉象图·关系」表，靠「条目ID」关联。"
+            "每行＝一条用方条目的**元信息**（ID／路线／触发条件／出处／与条件文字的出入）。\n"
+            "· 这里的「触发条件」是**原文用语**，不改写。\n"
+            "· **格位要求在矩阵 sheet 里改**（P01- … P50-），这张表不管格位。"
         )
     if s.json_path == "terms":
         return (
             "「符号集」＝该格允许的取值（逗号分隔，是「或」的关系）。\n"
             "「须并带」＝同一格里还必须同时出现的符号（逗号分隔，也是「或」）。\n"
+            "「符号含义」＝给你看的翻译（如 `++＝有力`），**不用改** —— "
+            "改「符号集」时会自动重算。\n"
             "⚠️ 符号集按**代码实际接受的**取，不是按力度阈值自动推 —— "
             "「大」不含↑，「大或顶」含↑。"
+        )
+    if s.json_path == "symbols":
+        return (
+            "讲义 p34 的**固定符号集**（14 个）—— `0`＝无、`-`＝弱、`+`＝有、`++`＝有力、"
+            "`↑`＝顶、`|`＝弦、`X`＝细、`#`＝变脉、`TTT`＝跳调停、`DDX`＝大大小 ……\n"
+            "「脉象用字」表的符号集就是从这里挑的；"
+            "看到 `++` 不知道是什么时，查这张表。\n"
+            "· 「符号」「名称」是原文，**不要改**。"
         )
     if s.json_path == "drugs":
         return (
@@ -252,6 +304,166 @@ def write_sheet(wb: Workbook, sheet: SheetDef, rows: list[dict[str, Any]]) -> No
         ws.auto_filter.ref = f"A1:{get_column_letter(len(sheet.cols))}1"
 
 
+# ------------------------------------------------------------------
+# 脉象图矩阵（每条用方条目一个 sheet）
+# ------------------------------------------------------------------
+
+#: 矩阵里「已填格」的底色（橙色系 —— 与讲义 p34 实例表的部位列同色系）
+FILLED_FILL = "FFE0B2"
+
+
+def write_matrix_sheet(wb, index: int, pid: str, pattern: dict, rule: dict | None, terms: dict) -> None:
+    """把一条用方条目的脉象图写成一个矩阵 sheet。
+
+    体例照讲义 p34 的记录表：**左列部位／取法，右边左、右手两列**，9 行
+    （寸浮／寸中／寸沉／关浮／关中／关沉／尺浮／尺中／尺沉）。
+
+    格子里填的是**用字**（如「大或顶」），不是符号代码 ——
+    符号代码是「允许集合」，用字才是讲稿／讲义写下的那个词。
+    """
+    from excel_schema import (
+        MATRIX_COLS,
+        MATRIX_HEADER_ROWS,
+        MATRIX_ROWS,
+        matrix_sheet_name,
+    )
+
+    ws = wb.create_sheet(matrix_sheet_name(index, pid))
+
+    # ---- 顶部提示行 ----
+    # 用户多半是直接翻到某个 P01- 看的，看不到「说明」表；
+    # 所以把最要紧的三句放在这里（完整版见「说明」表『脉象图矩阵』一行）。
+    hint = (
+        "填写说明见「说明」表『脉象图矩阵』一行。"
+        "｜ 左手／右手格填**用字**（照抄「脉象用字」表第 1 列），不是符号代码；留空＝原文没提这一格。"
+        "｜ 组号：同号＝一组（且），不同号＝不同组（或），左右两列各自独立。"
+        "｜ 表头区与「关系型要求」是**只读副本**，真源在「用方条目」表／「脉象图·关系」表。"
+    )
+    hcell = ws.cell(row=1, column=1, value=hint)
+    hcell.font = Font(name="微软雅黑", size=9, italic=True, color="808080")
+    hcell.alignment = Alignment(vertical="center", wrap_text=True)
+    ws.row_dimensions[1].height = 30
+
+    # ---- 表头区 ----
+    header_map = {
+        "id": pid,
+        "route": (rule or {}).get("route", ""),
+        "condition": (rule or {}).get("condition", ""),
+        "source": pattern.get("source", ""),
+        "note": pattern.get("note", ""),
+    }
+    r = 2  # 第 1 行是顶部提示行
+    for label, key in MATRIX_HEADER_ROWS:
+        # ⚠️ 除「条目ID」外，表头区都是**只读副本**（真源在「用方条目」表）——
+        #    不标出来，审核者改了会以为生效。条目ID 保持原样（读回要按它定位）。
+        shown = label if key == "id" else f"{label}（只读）"
+        ws.cell(row=r, column=1, value=shown).font = Font(name="微软雅黑", size=11, bold=True)
+        cell = ws.cell(row=r, column=2, value=header_map.get(key, ""))
+        cell.font = FONT
+        cell.alignment = Alignment(vertical="top", wrap_text=True)
+        r += 1
+
+    # ---- 关系型要求（画不成单格的，写在矩阵下方）----
+    rels = pattern.get("relations") or []
+    if rels:
+        ws.cell(row=r, column=1, value="关系型要求（只读）").font = Font(
+            name="微软雅黑", size=11, bold=True
+        )
+        lines = []
+        for rel in rels:
+            probes = rel.get("probe") or []
+            if probes:
+                ps = "；".join(f"{p['cell']}＝{'/'.join(p.get('codes', []))}" for p in probes)
+                lines.append(f"【{rel['kind']}】{rel.get('text', '')}\n    探针：{ps}")
+            else:
+                lines.append(f"【{rel['kind']}】{rel.get('text', '')}")
+        cell = ws.cell(row=r, column=2, value="\n".join(lines))
+        cell.font = FONT
+        cell.alignment = Alignment(vertical="top", wrap_text=True)
+        r += 1
+
+    # ---- 列头 ----
+    # ⚠️ 全部按行号写，**不用 append/insert_rows 混搭** ——
+    #    那套组合会让表头与数据错位一行（已踩过）。
+    header_row = r
+    for ci, c in enumerate(MATRIX_COLS, start=1):
+        cell = ws.cell(row=header_row, column=ci, value=c.header)
+        cell.font = HEADER_FONT
+        cell.alignment = Alignment(vertical="center", horizontal="center", wrap_text=True)
+        cell.border = Border(left=THIN, right=THIN, top=THIN, bottom=MEDIUM)
+    ws.row_dimensions[header_row].height = 24
+
+    # ---- 9 行数据 ----
+    # 格位索引：cellKey → {term, group, note, flex}
+    cell_index: dict[str, dict] = {}
+    group_of: dict[str, int] = {}
+    for gi, grp in enumerate(pattern.get("groups") or [], start=1):
+        for c in grp:
+            group_of[c] = gi
+    for c in pattern.get("cells") or []:
+        cell_index[c["cell"]] = c
+
+    first_data_row = header_row + 1
+    for ri, (organ, depth) in enumerate(MATRIX_ROWS):
+        row_no = first_data_row + ri
+        # ⚠️ 列序必须是**左右交错**（左手｜右手｜左组号｜右组号…），
+        #    与 MATRIX_COLS 的列头一一对应 ——
+        #    早先写成「左手四列块 + 右手四列块」，与列头差一位，读回就串了。
+        def cell_values(hand: str) -> tuple[str, object, str, str]:
+            key = f"{hand}|{organ}|{depth}"
+            spec = cell_index.get(key)
+            if spec is None:
+                return ("", "", "", "")
+            return (
+                spec["term"],
+                group_of.get(key, ""),
+                spec.get("note", ""),
+                "TRUE" if spec.get("flex") else "",
+            )
+
+        l_term, l_group, l_note, l_flex = cell_values("L")
+        r_term, r_group, r_note, r_flex = cell_values("R")
+        values = [
+            organ,
+            depth,
+            l_term,
+            r_term,
+            l_group,
+            r_group,
+            l_note,
+            r_note,
+            l_flex,
+            r_flex,
+        ]
+        for ci, v in enumerate(values, start=1):
+            cell = ws.cell(row=row_no, column=ci, value=v)
+            cell.font = FONT
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+            cell.border = Border(left=HAIR, right=HAIR, top=HAIR, bottom=HAIR)
+
+    # ---- 列宽 ----
+    for i, c in enumerate(MATRIX_COLS, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = c.width
+
+    # 已填的格染色，一眼看出哪些格有要求
+    for ri in range(len(MATRIX_ROWS)):
+        for ci in (3, 4):  # 左手、右手
+            cell = ws.cell(row=first_data_row + ri, column=ci)
+            if cell.value not in (None, ""):
+                cell.fill = PatternFill("solid", fgColor=FILLED_FILL)
+                cell.font = Font(name="微软雅黑", size=11, bold=True)
+
+    # 部位列：三个部位各合并三行（与讲义 p34 的「部位合并、组内不画横线」一致）
+    for gi in range(3):
+        start = first_data_row + gi * 3
+        ws.merge_cells(start_row=start, start_column=1, end_row=start + 2, end_column=1)
+        cell = ws.cell(row=start, column=1)
+        cell.alignment = Alignment(vertical="center", horizontal="center")
+        cell.font = Font(name="微软雅黑", size=11, bold=True)
+
+    ws.freeze_panes = ws.cell(row=first_data_row, column=3)
+
+
 def main() -> int:
     out_path = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else DEFAULT_OUT
 
@@ -262,6 +474,7 @@ def main() -> int:
     patterns_doc = read_json("pulse-patterns.json")
     rules_doc = read_json("formula-rules.json")
     groups_doc = read_json("pulse-groups.json")
+    symbols_doc = read_json("symbols.json")
 
     tables: dict[str, Any] = {
         "drugs": drugs_doc["drugs"],
@@ -272,6 +485,7 @@ def main() -> int:
         "alias": ref_doc["alias"],
         "draftExtra": ref_doc["draftExtra"],
         "terms": terms_doc["terms"],
+        "symbols": symbols_doc["symbols"],
         "groups": groups_doc["groups"],
         "rules": rules_doc["rules"],
         "patterns": patterns_doc["patterns"],
@@ -321,6 +535,14 @@ def main() -> int:
         elif sheet.json_path == "terms":
             # 用字表：字典 {用字: {codes, also, display}} → 行数组
             rows = [{"term": k, **v} for k, v in data.items()]
+            # 「符号含义」：把符号翻译成中文（照抄「符号表」的名称）
+            label_of = {s["code"]: s["label"] for s in tables["symbols"]}
+            for r in rows:
+                parts = [f"{c}＝{label_of.get(c, c)}" for c in r.get("codes", [])]
+                if r.get("also"):
+                    parts.append("须并带：" + "、".join(f"{c}＝{label_of.get(c, c)}" for c in r["also"]))
+                if parts:
+                    r["meaning"] = "；".join(parts)
         elif isinstance(data, dict):
             # 键 → 对象 的字典（如 draftExtra）：键进第一列
             rows = [{sheet.cols[0].key: k, **v} for k, v in data.items()]
@@ -328,6 +550,14 @@ def main() -> int:
             rows = list(data)
 
         write_sheet(wb, sheet, rows)
+
+    # ---- 脉象图矩阵：每条用方条目一个 sheet ----
+    rules_by_id = {r["id"]: r for r in tables["rules"]}
+    pattern_ids = list(tables["patterns"].keys())
+    for i, pid in enumerate(pattern_ids, start=1):
+        write_matrix_sheet(
+            wb, i, pid, tables["patterns"][pid], rules_by_id.get(pid), tables["terms"]
+        )
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(out_path)
@@ -341,6 +571,7 @@ def main() -> int:
             data = tables.get(sheet.json_path) or {}
             n = len(data)
         print(f"[excel]   {sheet.name}  {n} 行 × {len(sheet.cols)} 列")
+    print(f"[excel]   脉象图矩阵  {len(pattern_ids)} 个 sheet（每个 9 行 × 左右两列）")
     return 0
 
 

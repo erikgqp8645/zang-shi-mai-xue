@@ -1,0 +1,86 @@
+{
+  "$schema": "./schema/symbols.schema.json",
+  "symbols": [
+    {
+      "code": "0",
+      "label": "无",
+      "group": "主要脉象",
+      "hint": "力度·小"
+    },
+    {
+      "code": "-",
+      "label": "弱",
+      "group": "主要脉象",
+      "hint": "力度·小，弱于正常"
+    },
+    {
+      "code": "+",
+      "label": "有",
+      "group": "主要脉象",
+      "hint": "力度·中，不大不小"
+    },
+    {
+      "code": "±",
+      "label": "有（比有弱）",
+      "group": "主要脉象",
+      "hint": "力度·中"
+    },
+    {
+      "code": "++",
+      "label": "有力",
+      "group": "主要脉象",
+      "hint": "力度·大"
+    },
+    {
+      "code": "±±",
+      "label": "有力（比有力弱）",
+      "group": "主要脉象",
+      "hint": "力度·大"
+    },
+    {
+      "code": "+++",
+      "label": "很有力",
+      "group": "主要脉象",
+      "hint": "力度·大"
+    },
+    {
+      "code": "++++",
+      "label": "非常有力",
+      "group": "主要脉象",
+      "hint": "力度·大"
+    },
+    {
+      "code": "↑",
+      "label": "顶",
+      "group": "主要脉象",
+      "hint": "比「大」还大，称洪大、顶"
+    },
+    {
+      "code": "|",
+      "label": "弦",
+      "group": "主要脉象"
+    },
+    {
+      "code": "#",
+      "label": "变脉",
+      "group": "变脉",
+      "hint": "忽大忽小"
+    },
+    {
+      "code": "TTT",
+      "label": "跳调停",
+      "group": "变脉"
+    },
+    {
+      "code": "DDX",
+      "label": "大大小",
+      "group": "变脉",
+      "hint": "忽快忽慢"
+    },
+    {
+      "code": "X",
+      "label": "细",
+      "group": "其他"
+    }
+  ]
+}

@@ -17,12 +17,17 @@
 
 ## 注入的坏数据
 
-① 主键为空        → 行无从认起
-② 主键重复        → 还原时哪一行被覆盖说不清
-③ 父 id 悬空      → 格位/关系指向不存在的条目
-④ 用字未定义      → 图上写了个「脉象用字」表里没有的字
-⑤ 组号非正整数    → AND 组的「第几组」说不清
+① 主键为空              → 行无从认起
+② 主键重复              → 还原时哪一行被覆盖说不清
+③ 父 id 悬空            → 关系指向不存在的条目
+④ 矩阵：用字未定义      → 图上写了个「脉象用字」表里没有的字
+⑤ 矩阵：组号非正整数    → AND 组的「第几组」说不清
 ⑥ 同一关系前后用语不一致 → probe 归属说不清
+⑦ 矩阵：表头条目ID 与序号不符 → 张冠李戴，条目会挂错图
+⑧ 矩阵：漏了一个 sheet  → 漏掉一张脉象图
+
+⭐ 注入点**按结构定位**（找列头行、找第一个有值的格），
+   不靠硬编码行号 —— 表头区行数会变，硬编码会失效。
 """
 
 from __future__ import annotations
@@ -39,6 +44,9 @@ from openpyxl import load_workbook
 ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPTS = ROOT / "scripts"
 CONTENT = ROOT / "src" / "content"
+
+#: 拿来开刀的矩阵 sheet（第一条：fx-bianmai-wuli 之外的、有点位的那条）
+MATRIX_SHEET = "P04-fx-ssx-qingdanglu"
 
 failures = 0
 checks = 0
@@ -62,6 +70,37 @@ def run_restore(wb_path: Path, out_dir: Path) -> subprocess.CompletedProcess:
     )
 
 
+# ------------------------------------------------------------------
+# 矩阵 sheet 的结构定位（不硬编码行号）
+# ------------------------------------------------------------------
+
+
+def find_col_header_row(ws) -> int:
+    """找列头行（A 列 == 「部位」的那一行）。"""
+    for r in range(1, min(ws.max_row, 20) + 1):
+        if str(ws.cell(row=r, column=1).value or "").strip() == "部位":
+            return r
+    raise AssertionError(f"矩阵 sheet 里找不到列头行（{ws.title}）")
+
+
+def find_header_row(ws, label: str) -> int:
+    """找表头区里 A 列 == label 的那一行。"""
+    for r in range(1, min(ws.max_row, 20) + 1):
+        if str(ws.cell(row=r, column=1).value or "").strip() == label:
+            return r
+    raise AssertionError(f"矩阵 sheet 里找不到「{label}」行（{ws.title}）")
+
+
+def find_filled_cell(ws, col: int) -> tuple[int, int]:
+    """找第 col 列里第一个有值的格，返回 (行, 列)。"""
+    first = find_col_header_row(ws)
+    for r in range(first + 1, ws.max_row + 1):
+        v = ws.cell(row=r, column=col).value
+        if v is not None and str(v).strip() != "":
+            return r, col
+    raise AssertionError(f"矩阵 sheet 第 {col} 列里没有已填的格（{ws.title}）")
+
+
 def main() -> int:
     tmp = Path(tempfile.mkdtemp(prefix="pulse-excel-break-"))
     try:
@@ -75,63 +114,62 @@ def main() -> int:
             print(r.stderr)
             return 1
 
-        cases = [
+        # ---- 先确认注入点找得到（找不到就是测试自身坏了）----
+        probe_wb = load_workbook(base_wb)
+        probe_ws = probe_wb[MATRIX_SHEET]
+        probe_ws  # 结构定位函数在下面各 case 里复用
+
+        cases: list[dict] = [
             {
                 "name": "① 主键为空（方剂·讲稿2010 的 ID 列）",
-                "sheet": "方剂·讲稿2010",
-                "col": 1,
-                "row": 2,
-                "value": "",
                 "expect": "主键",
+                "mutate": _break_empty_key,
             },
             {
                 "name": "② 主键重复（成方·同和堂版 的 ID 列）",
-                "sheet": "成方·同和堂版",
-                "col": 1,
-                "row": 3,
-                "value": "th-1",  # 与第 2 行重复
                 "expect": "重复",
+                "mutate": _break_dup_key,
             },
             {
-                "name": "③ 父 id 悬空（脉象图·格位 的 条目ID 列）",
-                "sheet": "脉象图·格位",
-                "col": 1,
-                "row": 2,
-                "value": "不存在的条目",
+                "name": "③ 父 id 悬空（脉象图·关系 的 条目ID 列）",
                 "expect": "不存在",
+                "mutate": _break_dangling_fk,
             },
             {
-                "name": "④ 用字未定义（脉象图·格位 的 用字 列）",
-                "sheet": "脉象图·格位",
-                "col": 3,
-                "row": 2,
-                "value": "不存在的用字",
+                "name": "④ 矩阵：用字未定义（左手格）",
                 "expect": "脉象用字",
+                "mutate": _break_matrix_term,
             },
             {
-                "name": "⑤ 组号不是正整数（脉象图·格位 的 组号 列）",
-                "sheet": "脉象图·格位",
-                "col": 4,
-                "row": 2,
-                "value": "零",
+                "name": "⑤ 矩阵：组号不是正整数（左组号列）",
                 "expect": "组号",
+                "mutate": _break_matrix_group,
             },
             {
                 "name": "⑥ 同一关系前后用语不一致（脉象图·关系 的 原文用语 列）",
-                "sheet": "脉象图·关系",
-                "col": 3,
-                # 第 5、6、7 行是同一条关系「fx-ssx-qingdanglu／尺脉不平衡」的三个 probe，
-                # 改第 6 行 ⇒ 与第 5 行的原文用语冲突 ⇒ 必须报错
-                "row": 6,
-                "value": "与别处不一样的说法",
                 "expect": "不一致",
+                "mutate": _break_relation_text,
+            },
+            {
+                "name": "⑦ 矩阵：表头条目ID 与序号不符",
+                "expect": "不一致",
+                "mutate": _break_matrix_id,
+            },
+            {
+                "name": "⑧ 矩阵：漏了一个 sheet（少一张脉象图）",
+                "expect": "没有条目",
+                "mutate": _break_missing_sheet,
+            },
+            {
+                "name": "⑨ 矩阵：sheet 改名导致序号重复（张冠李戴）",
+                "expect": "不一致",
+                "mutate": _break_renamed_sheet,
             },
         ]
 
         for i, c in enumerate(cases):
             wb = load_workbook(base_wb)
-            ws = wb[c["sheet"]]
-            ws.cell(row=c["row"], column=c["col"]).value = c["value"]
+            c["mutate"](wb)
             bad_wb = tmp / f"bad-{i}.xlsx"
             wb.save(bad_wb)
 
@@ -145,12 +183,27 @@ def main() -> int:
             )
 
         print("")
-        print("⑦ 反向：未改坏时必须成功")
+        print("⑨ 反向：未改坏时必须成功")
         r = run_restore(base_wb, tmp / "out-good")
         ok(r.returncode == 0, f"原样工作簿还原成功（退出码 {r.returncode}）")
         back = json.loads((tmp / "out-good/pulse-patterns.json").read_text(encoding="utf-8"))
         disk = json.loads((CONTENT / "pulse-patterns.json").read_text(encoding="utf-8"))
         ok(back == disk, "原样工作簿还原结果与磁盘 JSON 完全一致")
+
+        print("")
+        print("⑩ 派生长表不是编辑面：改「脉象图·格位」必须不影响还原结果")
+        wb = load_workbook(base_wb)
+        ws_cells = wb["脉象图·格位"]
+        for rr in range(2, ws_cells.max_row + 1):
+            for cc in range(1, 11):
+                ws_cells.cell(row=rr, column=cc).value = None
+        derived_wb = tmp / "derived-only.xlsx"
+        wb.save(derived_wb)
+        r = run_restore(derived_wb, tmp / "out-derived")
+        ok(r.returncode == 0, f"清空派生长表后还原仍成功（退出码 {r.returncode}）")
+        if r.returncode == 0:
+            back2 = json.loads((tmp / "out-derived/pulse-patterns.json").read_text(encoding="utf-8"))
+            ok(back2 == disk, "清空派生长表后结果不变（矩阵才是唯一编辑面）")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -160,6 +213,64 @@ def main() -> int:
         return 1
     print(f"[excel-break] EXIT=0 —— {checks} 项全过")
     return 0
+
+
+def _break_empty_key(wb) -> None:
+    """方剂·讲稿2010 的 ID 清空。"""
+    wb["方剂·讲稿2010"].cell(row=2, column=1).value = ""
+
+
+def _break_dup_key(wb) -> None:
+    """成方·同和堂版 的 ID 与第 2 行重复。"""
+    wb["成方·同和堂版"].cell(row=3, column=1).value = "th-1"
+
+
+def _break_dangling_fk(wb) -> None:
+    """脉象图·关系 指向不存在的条目。"""
+    wb["脉象图·关系"].cell(row=2, column=1).value = "不存在的条目"
+
+
+def _break_relation_text(wb) -> None:
+    """同一条关系的原文用语前后不一致。
+
+    第 5、6、7 行是同一条关系「fx-ssx-qingdanglu／尺脉不平衡」的三个 probe，
+    改第 6 行 ⇒ 与第 5 行的原文用语冲突 ⇒ 必须报错。
+    """
+    wb["脉象图·关系"].cell(row=6, column=3).value = "与别处不一样的说法"
+
+
+def _break_missing_sheet(wb) -> None:
+    """删掉一张矩阵 sheet ⇒ 少一条脉象图。"""
+    wb.remove(wb["P02-fx-bianmai-youli"])
+
+
+def _break_renamed_sheet(wb) -> None:
+    """把 P03 改名成 P04 ⇒ 序号重复、条目张冠李戴。
+
+    序号是权威的（sheet 名会被 31 字符上限截断），所以改名必须被发现。
+    """
+    wb["P03-fx-shenyong-mubiao"].title = "P04-fx-shenyong-mubiao"
+
+
+def _break_matrix_term(wb) -> None:
+    """把矩阵里第一个已填的左手格改成未定义的用字。"""
+    ws = wb[MATRIX_SHEET]
+    row, col = find_filled_cell(ws, 3)  # 第 3 列＝左手
+    ws.cell(row=row, column=col).value = "不存在的用字"
+
+
+def _break_matrix_group(wb) -> None:
+    """把矩阵里第一个已填的左手格的组号改成非正整数。"""
+    ws = wb[MATRIX_SHEET]
+    row, _ = find_filled_cell(ws, 3)
+    ws.cell(row=row, column=5).value = "零"  # 第 5 列＝左组号
+
+
+def _break_matrix_id(wb) -> None:
+    """把矩阵表头区的条目ID 改成别的条目的 ID。"""
+    ws = wb[MATRIX_SHEET]
+    row = find_header_row(ws, "条目ID")
+    ws.cell(row=row, column=2).value = "fx-bianmai-wuli"
 
 
 if __name__ == "__main__":

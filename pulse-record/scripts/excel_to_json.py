@@ -31,13 +31,21 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
 
 from openpyxl import load_workbook
 
-from excel_schema import ARRAY_SEP, CODE_SEP, SHEETS, SheetDef
+from excel_schema import (
+    ARRAY_SEP,
+    CODE_SEP,
+    MATRIX_ROWS,
+    MATRIX_SHEET_PREFIX,
+    SHEETS,
+    SheetDef,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 CONTENT = ROOT / "src" / "content"
@@ -223,61 +231,153 @@ def main() -> int:
             list_out.append(item)
         restored[sheet.json_path] = list_out
 
-    # ---- 脉象图：从属表还原 ----
+    # ---- 脉象图：从**矩阵 sheet**还原（矩阵是唯一的编辑面）----
+    #
+    # ⚠️ 「脉象图·格位」长表是**派生的**（由矩阵生成），不是编辑面 ——
+    #    两边都写就有两处真源。故读回时**只认矩阵**，长表由矩阵重新生成。
     patterns = restored.get("patterns") or []
     pattern_ids = {p["id"] for p in patterns}
 
     cells_by_id: dict[str, list[dict[str, Any]]] = {}
     groups_by_id: dict[str, dict[int, list[str]]] = {}
     group_order: dict[str, list[int]] = {}
+    #: cellKey → (手序, 行序) —— 用来把读回来的顺序**归一**
+    #:
+    #: ⚠️ 矩阵是「逐行左右」的版面（左列 9 行、右列 9 行），
+    #:    但 JSON 里 cells 的顺序是**按列序**（左手 9 行读完，再右手 9 行）。
+    #:    两者不是一回事 —— 不归一的话往返比对会报「不一致」，
+    #:    而差异其实只是顺序。这里显式按 (手, 行) 排序，不靠收集顺序碰运气。
+    cell_order: dict[str, dict[str, tuple[int, int]]] = {}
 
-    for r in read_sheet(wb, next(s for s in SHEETS if s.json_path == "__patternCells")):
-        pid = r["patternId"]
-        where = f"「脉象图·格位」第 {r['__row']} 行"
-        if pid is None or str(pid).strip() == "":
-            errors.append(f"{where}：条目ID 为空")
+    matrix_sheets = [
+        n for n in wb.sheetnames if n.startswith(MATRIX_SHEET_PREFIX) and "-" in n
+    ]
+    if not matrix_sheets:
+        raise RestoreError(
+            f"工作簿里没有脉象图矩阵 sheet（应以「{MATRIX_SHEET_PREFIX}01-」开头）。"
+            f"现在的工作簿有 {len(wb.sheetnames)} 个 sheet。"
+        )
+
+    # 矩阵必须**覆盖全部条目** —— 漏一个 sheet 就等于漏掉一张图
+    covered: set[str] = set()
+
+    for sheet_name in matrix_sheets:
+        ws = wb[sheet_name]
+        where = f"矩阵「{sheet_name}」"
+
+        # ---- 条目：按 sheet 名里的序号定位 ----
+        # ⚠️ 不能靠 sheet 名里的 ID（超 31 字符会被截断），
+        #    也不能只靠表头区的 ID（用户可能改了它）——
+        #    **序号是权威的**：它就是「脉象图·条目」表里的行序。
+        m = re.match(rf"^{MATRIX_SHEET_PREFIX}(\d+)-", sheet_name)
+        if not m:
+            errors.append(f"{where}：sheet 名应以「{MATRIX_SHEET_PREFIX}NN-」开头（NN 是两位序号）")
             continue
-        pid = str(pid).strip()
-        if pid not in pattern_ids:
-            errors.append(f"{where}：条目ID「{pid}」在「脉象图·条目」里不存在")
+        idx = int(m.group(1)) - 1
+        if idx < 0 or idx >= len(patterns):
+            errors.append(f"{where}：序号 {m.group(1)} 超出「脉象图·条目」的范围（1~{len(patterns)}）")
             continue
-        cell = r["cell"]
-        if cell is None or str(cell).strip() == "":
-            errors.append(f"{where}：格位为空")
-            continue
-        cell = str(cell).strip()
-        term = r["term"]
-        if term is None or str(term).strip() == "":
-            errors.append(f"{where}：用字为空")
-            continue
-        term = str(term).strip()
-        if term not in terms:
-            errors.append(f"{where}：用字「{term}」不在「脉象用字」表里")
+        pid = patterns[idx]["id"]
+
+        # 表头区的 ID 若与序号对不上 ⇒ 报错（防止张冠李戴）
+        header_row = 0
+        for r in range(1, min(ws.max_row, 12) + 1):
+            if str(ws.cell(row=r, column=1).value or "").strip() == "条目ID":
+                header_row = r
+                declared = str(ws.cell(row=r, column=2).value or "").strip()
+                if declared and declared != pid:
+                    errors.append(
+                        f"{where}：表头写的条目ID 是「{declared}」，"
+                        f"但序号 {m.group(1)} 对应的是「{pid}」—— 两者不一致"
+                    )
+                break
+        if not header_row:
+            errors.append(f"{where}：找不到「条目ID」行")
             continue
 
-        item: dict[str, Any] = {"cell": cell, "term": term}
-        note = r["note"]
-        if note is not None and str(note).strip() != "":
-            item["note"] = str(note)
-        flex = r["flex"]
-        if flex is not None and str(flex).strip().upper() in ("TRUE", "1", "是"):
-            item["flex"] = True
+        # ---- 列头行：找「部位」那一行 ----
+        # ⚠️ 范围要放宽 —— 表头区（条目ID/路线/条件/出处/出入/关系）可能占好几行
+        col_header_row = 0
+        for r in range(header_row + 1, min(ws.max_row, header_row + 12) + 1):
+            if str(ws.cell(row=r, column=1).value or "").strip() == "部位":
+                col_header_row = r
+                break
+        if not col_header_row:
+            errors.append(f"{where}：找不到「部位」列头行")
+            continue
 
-        cells_by_id.setdefault(pid, []).append(item)
+        # ---- 9 行数据 ----
+        # ⚠️ 部位列是**合并单元格**（三个部位各三行），
+        #    只有首行有值，其余是 MergedCell（值 None）——
+        #    所以「部位」要按行**上溯**取，不能直接读。
+        first_data_row = col_header_row + 1
+        organ_of_row: dict[int, str] = {}
+        current_organ = ""
+        for ri in range(len(MATRIX_ROWS)):
+            row_no = first_data_row + ri
+            v = ws.cell(row=row_no, column=1).value
+            if v is not None and str(v).strip() != "":
+                current_organ = str(v).strip()
+            organ_of_row[row_no] = current_organ
 
-        g = r["group"]
-        gtxt = "" if g is None else str(g).strip()
-        if gtxt != "":
-            try:
-                gi = int(gtxt)
-            except ValueError:
-                errors.append(f"{where}：组号「{gtxt}」不是正整数")
-                gi = 0
-            if gi >= 1:
-                groups_by_id.setdefault(pid, {}).setdefault(gi, []).append(cell)
-                order = group_order.setdefault(pid, [])
-                if gi not in order:
-                    order.append(gi)
+        for ri, (_organ, depth) in enumerate(MATRIX_ROWS):
+            row_no = first_data_row + ri
+            organ = organ_of_row.get(row_no, "")
+            if not organ:
+                errors.append(f"{where} 第 {row_no} 行：部位为空（合并单元格上溯失败）")
+                continue
+            for hand, ci_term, ci_group, ci_note, ci_flex in (
+                ("L", 3, 5, 7, 9),
+                ("R", 4, 6, 8, 10),
+            ):
+                term = ws.cell(row=row_no, column=ci_term).value
+                if term is None or str(term).strip() == "":
+                    continue  # 空白格＝原文未提及，不作要求
+                term = str(term).strip()
+                if term not in terms:
+                    errors.append(
+                        f"{where} 第 {row_no} 行：用字「{term}」不在「脉象用字」表里"
+                    )
+                    continue
+                cell_key = f"{hand}|{organ}|{depth}"
+                item: dict[str, Any] = {"cell": cell_key, "term": term}
+
+                g = ws.cell(row=row_no, column=ci_group).value
+                gtxt = "" if g is None else str(g).strip()
+                if gtxt != "":
+                    try:
+                        gi = int(gtxt)
+                    except ValueError:
+                        errors.append(f"{where} 第 {row_no} 行：组号「{gtxt}」不是正整数")
+                        gi = 0
+                    if gi >= 1:
+                        groups_by_id.setdefault(pid, {}).setdefault(gi, []).append(cell_key)
+                        order = group_order.setdefault(pid, [])
+                        if gi not in order:
+                            order.append(gi)
+
+                note = ws.cell(row=row_no, column=ci_note).value
+                if note is not None and str(note).strip() != "":
+                    item["note"] = str(note)
+                flex = ws.cell(row=row_no, column=ci_flex).value
+                if flex is not None and str(flex).strip().upper() in ("TRUE", "1", "是"):
+                    item["flex"] = True
+
+                cells_by_id.setdefault(pid, []).append(item)
+                cell_order.setdefault(pid, {})[cell_key] = (
+                    0 if hand == "L" else 1,
+                    ri,
+                )
+
+        covered.add(pid)
+
+    # 矩阵必须覆盖「脉象图·条目」里的每一条
+    for p in patterns:
+        if p["id"] not in covered:
+            errors.append(
+                f"矩阵里没有条目「{p['id']}」的 sheet —— "
+                f"每条用方条目都要有一张矩阵 sheet，漏了就等于漏掉一张脉象图"
+            )
 
     rels_by_id: dict[str, list[dict[str, Any]]] = {}
     rel_index: dict[str, dict[str, dict[str, Any]]] = {}
@@ -315,12 +415,26 @@ def main() -> int:
             rel.setdefault("probe", []).append({"cell": str(pc).strip(), "codes": codes})
     final_patterns: dict[str, Any] = {}
     for p in patterns:
+        pid = p["id"]
         # ⚠️ 原 JSON 里 pattern 的 value **不含 id**（id 是字典的键），别加进去
-        item: dict[str, Any] = {"cells": cells_by_id.get(p["id"], [])}
-        gmap = groups_by_id.get(p["id"])
+        order = cell_order.get(pid, {})
+        # cells 按 (手, 行) 归一：左手 9 行读完，再右手 9 行
+        cells = sorted(
+            cells_by_id.get(pid, []),
+            key=lambda c: order.get(c["cell"], (9, 99)),
+        )
+        item: dict[str, Any] = {"cells": cells}
+        gmap = groups_by_id.get(pid)
         if gmap:
-            item["groups"] = [gmap[gi] for gi in group_order.get(p["id"], [])]
-        rels = rels_by_id.get(p["id"])
+            # ⚠️ 组与组的顺序**按组号**排，不按首次出现排 ——
+            #    矩阵是逐行扫描的，若第 2 组先被扫到，
+            #    按首次出现排序就会把「组 2」当成「组 1」，组间「或」的语义就串了。
+            # 组内顺序与 cells 同序（组内是「且」）。
+            item["groups"] = [
+                sorted(gmap[gi], key=lambda k: order.get(k, (9, 99)))
+                for gi in sorted(gmap.keys())
+            ]
+        rels = rels_by_id.get(pid)
         if rels:
             item["relations"] = rels
         item["source"] = p.get("source", "")
@@ -349,6 +463,7 @@ def main() -> int:
             "draftExtra": restored["draftExtra"],
         },
         "pulse-terms.json": {"$schema": SCHEMA_PREFIX + "pulse-terms.schema.json", "terms": restored["terms"]},
+        "symbols.json": {"$schema": SCHEMA_PREFIX + "symbols.schema.json", "symbols": restored["symbols"]},
         "pulse-patterns.json": {
             "$schema": SCHEMA_PREFIX + "pulse-patterns.schema.json",
             "patterns": final_patterns,

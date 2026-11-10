@@ -39,6 +39,9 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPTS = ROOT / "scripts"
 CONTENT = ROOT / "src" / "content"
 
+sys.path.insert(0, str(SCRIPTS))
+from excel_schema import MATRIX_ROWS, MATRIX_SHEET_PREFIX  # noqa: E402
+
 FILES = [
     "drugs.json",
     "doses.json",
@@ -47,7 +50,16 @@ FILES = [
     "pulse-patterns.json",
     "formula-rules.json",
     "pulse-groups.json",
+    "symbols.json",
 ]
+
+#: 格位键 → (手序, 行序) —— 矩阵派生序（左手 9 行读完，再右手 9 行）
+ROW_IDX = {(organ, depth): i for i, (organ, depth) in enumerate(MATRIX_ROWS)}
+
+
+def cell_sort_key(cell_key: str) -> tuple[int, int]:
+    hand, organ, depth = cell_key.split("|")
+    return (0 if hand == "L" else 1, ROW_IDX[(organ, depth)])
 
 failures = 0
 checks = 0
@@ -84,20 +96,33 @@ def main() -> int:
             print(r.stderr)
             return 1
 
-        print("② Excel → JSON")
+        print("② 矩阵 sheet 结构（**必须在还原之前查** —— 还原失败会短路，"
+              "放到后面就永远抓不到序号错乱）")
+        from openpyxl import load_workbook
+
+        wb = load_workbook(wb_path)
+        matrix_sheets = [n for n in wb.sheetnames if n.startswith(MATRIX_SHEET_PREFIX) and "-" in n]
+        eq(len(matrix_sheets), 50, f"矩阵 sheet 50 个（实际 {len(matrix_sheets)}）")
+        # 序号必须连续无缺 —— 缺一个就等于漏掉一张脉象图
+        seqs = sorted(
+            int(n[len(MATRIX_SHEET_PREFIX) :].split("-", 1)[0]) for n in matrix_sheets
+        )
+        eq(seqs, list(range(1, 51)), "矩阵序号连续 1..50 无缺号")
+
+        print("③ Excel → JSON")
         r = run([sys.executable, str(SCRIPTS / "excel_to_json.py"), str(wb_path), "--out", str(out_dir)])
         ok(r.returncode == 0, f"还原 JSON 不报错（退出码 {r.returncode}）")
         if r.returncode != 0:
             print(r.stderr)
             return 1
 
-        print("③ 逐字段比对")
+        print("④ 逐字段比对")
         for name in FILES:
             disk = json.loads((CONTENT / name).read_text(encoding="utf-8"))
             back = json.loads((out_dir / name).read_text(encoding="utf-8"))
             eq(back, disk, f"{name} 往返一致")
 
-        print("④ 关键计数")
+        print("⑤ 关键计数")
         patterns = json.loads((out_dir / "pulse-patterns.json").read_text(encoding="utf-8"))["patterns"]
         disk_patterns = json.loads((CONTENT / "pulse-patterns.json").read_text(encoding="utf-8"))["patterns"]
         eq(len(patterns), 50, f"脉象图 50 条（实际 {len(patterns)}）")
@@ -117,6 +142,32 @@ def main() -> int:
             )
 
         eq(probe_count(patterns), probe_count(disk_patterns), "探针总数一致")
+
+        print("⑥ 格位顺序已规范化（矩阵派生序）")
+        bad_order: list[str] = []
+        for pid, v in disk_patterns.items():
+            keys = [c["cell"] for c in v["cells"]]
+            if keys != sorted(keys, key=cell_sort_key):
+                bad_order.append(f"{pid}:cells")
+            for gi, g in enumerate(v.get("groups") or []):
+                if g != sorted(g, key=cell_sort_key):
+                    bad_order.append(f"{pid}:groups[{gi}]")
+        eq(bad_order, [], f"磁盘 JSON 的格位顺序＝矩阵派生序（异常 {bad_order[:3]}）")
+
+        print("⑦ 派生长表不是编辑面（清空「脉象图·格位」后还原仍一致）")
+        wb2 = load_workbook(wb_path)
+        ws_cells = wb2["脉象图·格位"]
+        for r in range(2, ws_cells.max_row + 1):
+            for c in range(1, 11):
+                ws_cells.cell(row=r, column=c).value = None
+        wb2_path = tmp / "roundtrip-no-cells.xlsx"
+        wb2.save(wb2_path)
+        out2 = tmp / "out2"
+        r = run([sys.executable, str(SCRIPTS / "excel_to_json.py"), str(wb2_path), "--out", str(out2)])
+        ok(r.returncode == 0, f"清空派生长表后还原不报错（退出码 {r.returncode}）")
+        if r.returncode == 0:
+            back2 = json.loads((out2 / "pulse-patterns.json").read_text(encoding="utf-8"))["patterns"]
+            eq(back2, disk_patterns, "清空派生长表后结果不变（矩阵才是唯一编辑面）")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

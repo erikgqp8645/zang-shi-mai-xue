@@ -208,7 +208,25 @@ SHEET_TERMS = SheetDef(
         ColDef("符号集", "codes", 34, "codes", note="该格允许的取值，逗号分隔（或关系）"),
         ColDef("须并带", "also", 24, "codes", omit_empty=True, note="同一格里还必须同时出现的符号，逗号分隔（或关系）"),
         ColDef("图上显示", "display", 12, note="图上印的代表符号"),
+        ColDef("符号含义", "meaning", 56, omit_empty=True, note="把上面每个符号翻译成中文（如 ++＝有力）；照抄「符号表」的名称，不自造"),
         ColDef("出处与说明", "note", 48, omit_empty=True, note="讲义 p33/p34 的不一致等；无则空"),
+    ],
+)
+
+SHEET_SYMBOLS = SheetDef(
+    name="符号表",
+    purpose=(
+        "讲义 2026-10 p34「④ 脉象记录」的固定符号集（14 个）。"
+        "「脉象用字」表里的符号集就是从这里挑的 —— "
+        "看到 `++` 不知道是什么时，查这张表。"
+    ),
+    json_path="symbols",
+    row_key="code",
+    cols=[
+        ColDef("符号", "code", 10, note="格子里显示的字符"),
+        ColDef("名称", "label", 16, note="讲义 p34 给的中文名"),
+        ColDef("类别", "group", 12, note="主要脉象／变脉／其他"),
+        ColDef("说明", "hint", 30, omit_empty=True, note="讲义 p33「③ 标准脉象」的补充说明"),
     ],
 )
 
@@ -319,12 +337,71 @@ SHEETS: list[SheetDef] = [
     SHEET_ALIAS,
     SHEET_DRAFT,
     SHEET_TERMS,
+    SHEET_SYMBOLS,
     SHEET_PULSE_GROUPS,
     SHEET_FORMULA_RULES,
     SHEET_PATTERNS,
     SHEET_PATTERN_CELLS,
     SHEET_PATTERN_RELATIONS,
 ]
+
+# ------------------------------------------------------------------
+# 脉象图矩阵（每条用方条目一个 sheet）
+# ------------------------------------------------------------------
+
+#: 矩阵表的 9 行 —— 讲义 p34 记录表体例：寸(浮中沉)／关(浮中沉)／尺(浮中沉)
+MATRIX_ROWS: list[tuple[str, str]] = [
+    ("寸", "浮"),
+    ("寸", "中"),
+    ("寸", "沉"),
+    ("关", "浮"),
+    ("关", "中"),
+    ("关", "沉"),
+    ("尺", "浮"),
+    ("尺", "中"),
+    ("尺", "沉"),
+]
+
+#: 矩阵表的列（左边是部位／取法，右边是左、右手两列）
+MATRIX_COLS: list[ColDef] = [
+    ColDef("部位", "organ", 10, note="寸／关／尺"),
+    ColDef("取法", "depth", 10, note="浮／中／沉"),
+    ColDef("左手", "L", 16, note="讲稿／讲义写明的**用字**；留空＝原文未提及，不作要求"),
+    ColDef("右手", "R", 16, note="同上"),
+    ColDef("左组号", "Lgroup", 8, "int", note="留空＝不分组；数字＝第几个且组（组内且、组间或）"),
+    ColDef("右组号", "Rgroup", 8, "int", note="同上"),
+    ColDef("左格备注", "Lnote", 20),
+    ColDef("右格备注", "Rnote", 20),
+    ColDef("左柔性", "Lflex", 8, note="TRUE＝本格还须配合关系型要求，单填不成立"),
+    ColDef("右柔性", "Rflex", 8),
+]
+
+#: 矩阵 sheet 的表头区（在 9 行之前写这几行）
+MATRIX_HEADER_ROWS = [
+    ("条目ID", "id"),
+    ("路线", "route"),
+    ("触发条件", "condition"),
+    ("出处", "source"),
+    ("与条件文字的出入", "note"),
+]
+
+#: sheet 名前缀（带序号，保证唯一且便于按顺序找；Excel sheet 名上限 31 字符）
+MATRIX_SHEET_PREFIX = "P"
+
+
+def matrix_sheet_name(index: int, pattern_id: str) -> str:
+    """矩阵 sheet 的名字：`P01-<条目ID>`。
+
+    ⚠️ Excel 的 sheet 名上限 **31 字符**，而有两个条目 ID 就超了
+    （``fx2-youguanchi-fuda-ding-muxiang`` 35 字）。所以加两位序号前缀 ——
+    序号即「脉象图·条目」表里的行序，用户能对上号。
+
+    ⚠️ 名字**以序号为准**，不靠 ID 还原 —— 截断后的 ID 认不出来了。
+    读回时按序号定位条目（见 ``excel_to_json.py``）。
+    """
+    name = f"{MATRIX_SHEET_PREFIX}{index:02d}-{pattern_id}"
+    return name[:31]
+
 
 #: 「说明」表的列（写工作簿的第一张表）
 README_COLS = [

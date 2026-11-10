@@ -12,6 +12,7 @@
  */
 
 import { toRecord } from './to-record'
+import SYMBOL_DATA from '../content/symbols.json'
 
 export type SymbolGroup = '主要脉象' | '变脉' | '其他'
 
@@ -23,33 +24,35 @@ export interface SymbolDef {
   hint?: string
 }
 
-export const SYMBOLS: SymbolDef[] = [
-  { code: '0', label: '无', group: '主要脉象', hint: '力度·小' },
-  { code: '-', label: '弱', group: '主要脉象', hint: '力度·小，弱于正常' },
-  { code: '+', label: '有', group: '主要脉象', hint: '力度·中，不大不小' },
-  { code: '±', label: '有（比有弱）', group: '主要脉象', hint: '力度·中' },
-  { code: '++', label: '有力', group: '主要脉象', hint: '力度·大' },
-  { code: '±±', label: '有力（比有力弱）', group: '主要脉象', hint: '力度·大' },
-  { code: '+++', label: '很有力', group: '主要脉象', hint: '力度·大' },
-  { code: '++++', label: '非常有力', group: '主要脉象', hint: '力度·大' },
-  { code: '↑', label: '顶', group: '主要脉象', hint: '比「大」还大，称洪大、顶' },
-  { code: '|', label: '弦', group: '主要脉象' },
-  { code: '#', label: '变脉', group: '变脉', hint: '忽大忽小' },
-  { code: 'TTT', label: '跳调停', group: '变脉' },
-  { code: 'DDX', label: '大大小', group: '变脉', hint: '忽快忽慢' },
-  { code: 'X', label: '细', group: '其他' },
-]
+export const SYMBOLS: SymbolDef[] = SYMBOL_DATA.symbols as SymbolDef[]
 
 export const SYMBOL_BY_CODE: Record<string, SymbolDef> = toRecord(
   SYMBOLS.map((s) => [s.code, s] as [string, SymbolDef]),
 )
 
-/** 常用脉象三组 —— 与 p48–50 记录表表头一致 */
-export const COMMON_GROUPS: { title: string; codes: string[] }[] = [
-  { title: '① 无、弱、有、大、顶、弦', codes: ['0', '-', '+', '±', '++', '±±', '+++', '++++', '↑', '|'] },
-  { title: '② 忽大小、跳调停、忽快慢', codes: ['#', 'TTT', 'DDX'] },
-  { title: '③ 细、数、迟、左右脉不平衡', codes: ['X'] },
+/**
+ * 常用脉象三组 —— 与 p48–50 记录表表头一致。
+ *
+ * ⚠️ 代码从 SYMBOLS 里挑（不另列一份字面量）——
+ *    符号集变了，这一组自动跟着变，不会悄悄对不上。
+ */
+const COMMON_GROUP_TITLES = [
+  '① 无、弱、有、大、顶、弦',
+  '② 忽大小、跳调停、忽快忽慢',
+  '③ 细、数、迟、左右脉不平衡',
 ]
+const COMMON_GROUP_CODES: string[][] = [
+  ['0', '-', '+', '±', '++', '±±', '+++', '++++', '↑', '|'],
+  ['#', 'TTT', 'DDX'],
+  ['X'],
+]
+
+export const COMMON_GROUPS: { title: string; codes: string[] }[] = COMMON_GROUP_TITLES.map(
+  (title, i) => ({
+    title,
+    codes: COMMON_GROUP_CODES[i].filter((c) => SYMBOLS.some((s) => s.code === c)),
+  }),
+)
 
 /**
  * 力度分级（讲义 p33「力度」分支）
