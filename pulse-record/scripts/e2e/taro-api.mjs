@@ -661,6 +661,125 @@ c.check('hostOf 认出局域网地址', net.isPrivateHost('192.168.1.20') && net
 c.check('hostOf 认出裸 IP', net.isIpHost('203.0.113.9') && !net.isIpHost('mai.example.com'))
 c.check('briefReason 截掉 callid', !net.briefReason('boom (callid: 1793943240389-abc)').includes('callid'))
 
+/* ---------------- 第八段：构建期地址校验（占位域名不许进包） ---------------- */
+
+console.log('\n小程序数据层端到端（Taro · 构建期地址校验）\n')
+
+/**
+ * 2026-11-08 的事故：`PULSE_API_BASE=https://mai.example.com npm run mp:taro:build`
+ * 产出一份**装上就必然连不上**的包，构建过程一声不响，第二天开发者工具一开满屏红。
+ *
+ * `example.com` 是 RFC 2606 保留域名，被 IANA 永久保留、**不指向任何服务器** ——
+ * 任何环境、任何网络下都不可能通。所以它属于「**确定**不可能通」，构建期就该拦。
+ *
+ * 这里的断言分两半，两半同等重要：
+ *   ① 该拦的**必须拦住**（否则又出一个「构建成功、就是连不上」的包）；
+ *   ② 不该拦的**必须放过**（否则正常的联调包/上线包全被挡在门外 —— 那是更大的事故）。
+ */
+const guard = mod.apiBaseGuard
+
+c.check('地址校验导出 checkApiBase', typeof guard.checkApiBase === 'function')
+c.check('地址校验导出 splitUrl', typeof guard.splitUrl === 'function')
+
+/* ---- ① 该拦的：文档示例域名（永不解析） ---- */
+const mustBlock = [
+  'https://mai.example.com',
+  'https://example.com',
+  'http://api.example.org:5178',
+  'https://example.net',
+  'https://my.example',
+  'https://foo.invalid',
+  'https://example.com:8443/api/x',
+  // ↓ 归一化才拦得住的变体（2026-11-08 复核时逐条实测出来的漏网口子）
+  'https://example.com.', // 尾点是 root-anchored FQDN，与不带点是同一个名字
+  'https://example.com./x',
+  'https://EXAMPLE.COM.:8443',
+  'https://.example.com', // 前导点，解析结果相同
+  'https://a。example.com', // U+3002 句号（NFKC 不管它，得手动换）
+  'https://ａｐｉ.example.com', // 全角字母（中文输入法很容易打出来）
+  'https://例え.example.com', // IDN 子域
+  'https://foo.test', // .test 也是 RFC 6761 保留顶级域
+  'https://example.com\\@a.cn', // 反斜杠：WHATWG 当斜杠，真实 host 是 example.com
+  'https://example.com\\',
+  // ↓ 文档里「换成你的域名」的占位写法，照抄进命令同样是坏包
+  'https://<你的备案域名>',
+  'https://你的域名',
+  'https://<pulse.your-domain.cn>',
+]
+for (const addr of mustBlock) {
+  const r = guard.checkApiBase(addr)
+  c.check(`拦下示例域名：${addr}`, r.ok === false && r.level === 'error', r.message.split('\n')[0])
+}
+
+/* ---- 拦下来的话得说清「为什么」和「怎么办」，不能只说「不行」 ---- */
+const blocked = guard.checkApiBase('https://mai.example.com')
+c.check('拦下时说清了是示例域名', blocked.message.includes('example.com'))
+c.check('拦下时给了下一步（不传变量 / 换域名 / 显式放行）',
+  blocked.message.includes('PULSE_API_BASE') && blocked.message.includes('PULSE_ALLOW_PLACEHOLDER'))
+c.check('拦下时提到了这是 IANA 保留域名', /保留|解析/.test(blocked.message))
+
+/* ---- ② 不该拦的：正常联调与真实域名，一律放过 ---- */
+const mustPass = [
+  '', // 没注入 = 走源码里的本机默认值
+  'http://127.0.0.1:5178', // 开发者工具联调
+  'http://localhost:5178', // 同上（localhost 不是保留域名，真能用）
+  'http://192.168.1.20:5178', // 真机联调
+  'http://10.0.0.5:5178',
+  'http://test:5178', // 单标签主机名 —— docker 服务名／hosts 里是真的能连的，不许误伤
+  'http://invalid:8080',
+  'https://pulse.my-domain.cn',
+  'https://api.test.com', // test 只是普通子域，不是保留顶级
+  'https://example.cn', // example 只是前缀
+  'https://www.example.com.cn', // 末段是 .cn，不是 example.com 系
+  'https://臧氏脉学.cn', // 真实中文域名（带点）—— 不能因为非 ASCII 就拦
+  'https://pulse-1-xxx.ap-shanghai.app.tcloudbase.com/pulse-api', // 文档里的 CloudBase 网关写法（带路径）
+]
+for (const addr of mustPass) {
+  const r = guard.checkApiBase(addr)
+  c.check(`放过正常地址：${addr || '（空串）'}`, r.ok === true, r.message.split('\n')[0])
+}
+
+/* ---- http 只警告、不中断（开发者工具勾了「不校验合法域名」时能用） ---- */
+const httpRes = guard.checkApiBase('http://192.168.1.20:5178')
+c.check('http 地址只警告不中断（联调包要用）', httpRes.ok === true && httpRes.level === 'warn')
+c.check('http 的警告说明了正式版只收 https', /https/.test(httpRes.message))
+
+const httpsRes = guard.checkApiBase('https://pulse.my-domain.cn')
+c.check('https 真实域名不报警（干净通过）', httpsRes.ok === true && httpsRes.level === 'ok')
+
+/* ---- ③ 放行开关：故意坏包验证「注入链路」时才用 ---- */
+const allowed = guard.checkApiBase('https://mai.example.com', true)
+c.check(
+  'PULSE_ALLOW_PLACEHOLDER 能显式放行（验证注入链路要用）',
+  allowed.ok === true && allowed.level === 'warn',
+)
+c.check('放行时也明确说了「这个包连不上」', /连不上/.test(allowed.message))
+
+/* ---- ④ 根本不是地址的，也得拦 ---- */
+for (const addr of ['mai.example.com', 'ftp://x.example.cn', 'https://', '   ']) {
+  const r = guard.checkApiBase(addr)
+  // 末一个是空串（trim 后）→ 走默认值，属于合法用法
+  const expected = addr.trim() === '' ? r.ok === true : r.ok === false
+  c.check(`非法地址的处理：${JSON.stringify(addr)}`, expected, r.message.split('\n')[0])
+}
+
+/* ---- ⑤ splitUrl / normalizeHost 助手：端口/userinfo/IPv6/尾点都不能把 host 带歪 ---- */
+c.check('splitUrl 去端口', guard.splitUrl('https://a.cn:8443/x')?.host === 'a.cn')
+c.check('splitUrl 去路径', guard.splitUrl('https://a.cn/x/y?z=1')?.host === 'a.cn')
+c.check('splitUrl 去 userinfo', guard.splitUrl('https://u:p@a.cn/x')?.host === 'a.cn')
+c.check('splitUrl 认 IPv6', guard.splitUrl('http://[::1]:5178/x')?.host === '[::1]')
+c.check('splitUrl 取协议', guard.splitUrl('HTTP://a.cn')?.scheme === 'http')
+c.check('splitUrl 没协议返回 null', guard.splitUrl('a.cn:5178') === null)
+c.check(
+  'splitUrl 把反斜杠当分隔符（WHATWG 语义：https://example.com\\@a.cn 的 host 是 example.com）',
+  guard.splitUrl('https://example.com\\@a.cn')?.host === 'example.com',
+)
+
+c.check('normalizeHost 去尾点', guard.normalizeHost('example.com.') === 'example.com')
+c.check('normalizeHost 全角转半角', guard.normalizeHost('ＡＰＩ.Example.COM') === 'api.example.com')
+c.check('normalizeHost 换 U+3002 句号', guard.normalizeHost('a。example.com') === 'a.example.com')
+c.check('normalizeHost 小写', guard.normalizeHost('Example.COM') === 'example.com')
+
 /* ------------------------------ 清理 ------------------------------ */
 rmSync(outDir, { recursive: true, force: true })
 

@@ -248,9 +248,14 @@ npm run build:core      # 编共享包（小程序的知识库与绘制代码）
 | 位置 | 改什么 |
 |---|---|
 | `taro/project.config.json` | `appid` 换成真实的小程序 AppID（个人主体也要先注册） |
-| `taro/src/utils/config.ts` | `API_BASE` 换成 `https://mai.example.com`；`TRANSPORT` 保持 `'request'`（迁 CloudBase 后改 `'cloud'`） |
+| `taro/src/utils/config.ts` | **不用改** —— 上线地址用环境变量注入：`PULSE_API_BASE=https://pulse.your-domain.cn npm run mp:taro:build`（把域名换成你自己已备案的）；自建服务器还要注入 `PULSE_TRANSPORT=request`（**默认是 `'cloud'`**，走云函数、不受合法域名约束） |
 | `taro/project.private.config.json` | 本地配置，**已 gitignore**，不要提交 |
 | `miniprogram/utils/config.js`（原生回退工程） | 同上，对应位置 |
+
+> ⚠️ **不要把域名改成 `config.ts` 里的字面量**（本文档旧版就是这么写的）。
+> 走那条路会**绕过构建期地址校验**（`taro/src/utils/api-base-guard.ts`）——
+> 2026-11-08 的事故正是把示例域名写进去了，构建一声不响，产出一个「装上就必然连不上」的包。
+> 用 `PULSE_API_BASE` 注入：示例域名、`<尖括号占位>`、非 http(s) 都会被构建直接拦下。
 
 > `AppSecret` **绝不入小程序包** —— 它只放在服务器的 `/etc/pulse-record.env`。
 > 小程序只发 `wx.login` 拿到的 `code`，由服务端换 openid。

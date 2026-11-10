@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import { defineConfig } from '@tarojs/cli'
+import { checkApiBase } from '../src/utils/api-base-guard'
 import devConfig from './dev'
 import prodConfig from './prod'
 
@@ -40,6 +41,65 @@ import prodConfig from './prod'
 
 const ROOT = path.resolve(__dirname, '..')
 const SHARED = path.resolve(ROOT, '..', 'src')
+
+/* ------------------- 构建期校验：占位域名不许进包（2026-11-08） ------------------- */
+
+/**
+ * ```bash
+ * PULSE_API_BASE=https://mai.example.com npm run mp:taro:build
+ * ```
+ *
+ * 会产出一个**装上就必然连不上**的包 —— `example.com` 是 RFC 2606 保留给文档的域名，
+ * 被 IANA 永久保留，**不指向任何服务器**。
+ *
+ * 2026-11-08 真出过：把文档里的示例域名（`docs/deploy.md` 各处一直用它举例）
+ * 当真实地址注进了 `PULSE_API_BASE`，产物留在 `taro/dist/`，
+ * 第二天用开发者工具一开，病例页满屏红「request:fail · https://mai.example.com/api/patients」。
+ * **代码一行没坏**，坏的是构建产物；而构建过程**一声不响地**把它打了进去。
+ *
+ * 判定逻辑在 `src/utils/api-base-guard.ts` —— 那是**纯函数**，所以回归能逐条断言
+ * 「拦得住什么、放得过什么」（见 `scripts/e2e/taro-api.mjs` 末段）。
+ * 这里只负责「问一句，不行就中止构建」。
+ *
+ * 要故意坏包来验证「注入链路通不通」（`docs/progress.md` 里那条验证法）时，
+ * 加 `PULSE_ALLOW_PLACEHOLDER=1` 显式放行 —— 故意要坏包的人，得先自己说一句。
+ */
+/**
+ * 校验 `PULSE_API_BASE`，不行就**让当前进程直接退出**。
+ *
+ * ## 为什么是 `process.exit(1)`，不是 `throw`
+ *
+ * ⚠️ **`throw` 在这里不管用**（2026-11-08 复核时读 Taro 源码 + 实测确认）：
+ *
+ * ```
+ * @tarojs/service/dist/Config.js:46   catch (err) { console.log(err) }   ← 只打印，不 rethrow
+ * @tarojs/service/dist/Kernel.js:49    isInitSuccess 为 false → 不填 configPath
+ * @tarojs/cli/dist/commands/build.js  configPath 是 undefined → 打印
+ *                                      「找不到项目配置文件config/index，请确定当前目录是 Taro 项目根目录!」
+ *                                      → process.exit(1)
+ * ```
+ *
+ * 结果：构建确实停了（退出码 1），但**最后一句提示指向「你目录不对」**，
+ * 真正的诊断被埋在一屏调用栈里 —— 这正好是这道校验想避免的那种误导。
+ *
+ * 所以这里自己 `console.error` + `process.exit(1)`：
+ * 错误信息留在正确的位置、正确的方向。配置只在构建期 Node 里跑，exit 完全合法。
+ *
+ * （代价：**回归不能在本进程里「故意喂坏地址」** —— 那会真把测试进程杀掉。
+ *   判定逻辑因此单独放在 `src/utils/api-base-guard.ts` 的纯函数里，
+ *   回归测纯函数、静态断言盯调用点，见 `scripts/e2e/taro-api.mjs` 与 `taro-lint.mjs`。）
+ */
+function assertApiBaseUsable(raw: unknown): void {
+  const result = checkApiBase(
+    raw,
+    String(process.env.PULSE_ALLOW_PLACEHOLDER || '').trim() === '1',
+  )
+  if (!result.ok) {
+    console.error('\n' + result.message + '\n')
+    process.exit(1)
+  }
+  if (result.level === 'warn') console.warn('\n' + result.message + '\n')
+}
 
 /**
  * 与网站端共用的图 —— **真源仍是 `pulse-record/src/assets`**，小程序包里的那份是拷贝。
@@ -168,6 +228,10 @@ function buildGit(): string {
 }
 
 export default defineConfig(async (merge) => {
+  // 占位域名（example.com 之类）永远解析不出来 —— 别让它进包。
+  // 2026-11-08 真出过：一份带示例域名的产物留在 dist/，开发者工具一开满屏红。
+  assertApiBaseUsable(process.env.PULSE_API_BASE)
+
   const baseConfig = {
     projectName: 'pulse-record',
     date: '2026-11-5',
@@ -203,8 +267,12 @@ export default defineConfig(async (merge) => {
      * 用环境变量注入，不用改源码：
      *
      * ```bash
-     * PULSE_API_BASE=https://mai.example.com npm run mp:taro:build
+     * PULSE_API_BASE=https://pulse.your-domain.cn npm run mp:taro:build
      * ```
+     *
+     * ⚠️ **注入的值会先过 `assertApiBaseUsable`**（见本文件上方）：
+     * 文档示例域名（`example.com` 系）、占位写法、非 http(s) 一律让构建中止 ——
+     * 免得又出一个「构建成功、装上就是连不上」的包（2026-11-08 真出过）。
      *
      * 不传就是空串 → 运行时就用 `src/utils/config.ts` 里的本机默认值。
      * 「我的」页里也能改（存在本地存储），所以联调包与正式包可以并存。

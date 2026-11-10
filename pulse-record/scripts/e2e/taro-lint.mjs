@@ -1331,6 +1331,39 @@ let copyPatterns = []
 
 ok('配置里有 copy 规则（出图底图靠它进包）', copyPatterns.length > 0, `当前 ${copyPatterns.length} 条`)
 
+/* ---- 构建期地址校验：**调用点**必须真的接在构建流程上（2026-11-08） ---- */
+/**
+ * 判定逻辑（`src/utils/api-base-guard.ts`）由 `taro-api.mjs` 第八段逐条断言，
+ * 这里只盯「config 有没有把它接上去」。
+ *
+ * ⚠️ **为什么只做静态断言**：`assertApiBaseUsable` 失败时走 `process.exit(1)`
+ * （因为 Taro 会吞掉 `throw`，见 config/index.ts 里的说明），
+ * 那一句在本进程里跑会**直接把整份回归杀掉** —— 所以不能在这里喂坏地址。
+ *
+ * 这一节要防的是：那一行被删掉、被注释掉、或被改成永远不触发 ——
+ * 那样「构建期拦下坏包」就悄悄失效了，而纯函数的断言照样全绿。
+ */
+{
+  const configSrc = stripComments(read(join(TARO, 'config', 'index.ts')))
+  ok(
+    '构建配置 import 了地址校验模块',
+    /import\s*\{[^}]*\bcheckApiBase\b[^}]*\}\s*from\s*['"][^'"]*api-base-guard['"]/.test(configSrc),
+  )
+  ok(
+    '构建配置真的调了校验，且传的是 PULSE_API_BASE',
+    /assertApiBaseUsable\(\s*process\.env\.PULSE_API_BASE\s*\)/.test(configSrc),
+    '没有这一行 = 构建期不拦坏包，示例域名又能进产物（2026-11-08 的事故）',
+  )
+  ok(
+    '校验失败会真的让构建停下（process.exit，不是 throw —— Taro 会吞掉 throw 并改报「找不到项目配置文件」）',
+    /process\.exit\(\s*1\s*\)/.test(configSrc),
+  )
+  ok(
+    '有显式放行开关，且只认 PULSE_ALLOW_PLACEHOLDER=1',
+    /PULSE_ALLOW_PLACEHOLDER/.test(configSrc) && /===\s*'1'/.test(configSrc),
+  )
+}
+
 const backslashFrom = copyPatterns.filter((p) => String(p.from).includes('\\'))
 ok(
   'copy 的 from 全用正斜杠（fast-glob 不认 Windows 反斜杠，会静默匹配 0 个 → 图没进包）',

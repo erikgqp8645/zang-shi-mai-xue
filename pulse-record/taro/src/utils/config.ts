@@ -13,18 +13,26 @@ export { isRelease }
  */
 
 /**
- * 默认 API 根地址（**不带路径**，只到端口或域名）
+ * 默认 API 根地址（只到域名或端口；也可带一段路径，如 CloudBase 的 `/pulse-api` 网关）
  *
  * - 本机联调：微信开发者工具里勾上「不校验合法域名」，用 `http://127.0.0.1:5178`
  * - 真机联调：填电脑的局域网 IP，例如 `http://192.168.1.20:5178`（手机与电脑同一网段）
- * - 上线：填已备案域名的 https 地址，例如 `https://mai.example.com`
+ * - 上线：填已备案域名的 https 地址，例如 `https://pulse.your-domain.cn`
  *   —— 微信的 request 合法域名**不接受端口、不接受 IP、必须是 HTTPS 且已 ICP 备案**
  *
- * **上线包用环境变量注入**（编译期替换，见 `config/index.ts` 的 defineConstants）：
+ * ## 上线包请用环境变量注入（编译期替换，见 `config/index.ts` 的 defineConstants）
  *
  * ```bash
- * PULSE_API_BASE=https://mai.example.com npm run mp:taro:build
+ * PULSE_API_BASE=https://pulse.your-domain.cn npm run mp:taro:build
  * ```
+ *
+ * 注入的值会先过**构建期校验**（`api-base-guard.ts`）：示例域名、占位写法、
+ * 非 http(s) 一律让构建中止。
+ *
+ * ⚠️ **直接改下面这行的字面量也能生效，但绕过了那道校验。**
+ * 2026-11-08 的事故就是从这条路来的：把文档示例域名写进了源码，
+ * 构建一声不响地产出一个「装上就必然连不上」的包。
+ * 真要改字面量，先确认那是你能连上的真实域名。
  *
  * 不注入就用下面这个本机默认值；「我的」页里可以改（存在本地），不写死在包里。
  */
