@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from openpyxl import Workbook
+from openpyxl.comments import Comment
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
@@ -274,6 +275,39 @@ def style_header(ws, ncols: int) -> None:
     ws.row_dimensions[1].height = 26
 
 
+#: 各类型的填写提示 —— 与「说明」表里的列说明**同源**（都来自 ColDef.note）
+TYPE_HINT: dict[str, str] = {
+    "array": "一条一行（同一格内换行分隔）",
+    "codes": "逗号分隔（是「或」的关系）",
+    "int": "整数",
+    "bool": "TRUE／FALSE",
+}
+
+
+def column_comment(c: ColDef) -> Comment:
+    """列头的批注 —— 鼠标悬停就能看见这一列怎么填。
+
+    ⭐ 内容与「说明」表的列说明**同一来源**（`ColDef.note`），
+    不另写一份 —— 否则两处会悄悄对不上。
+    """
+    lines: list[str] = []
+    if c.note:
+        lines.append(c.note)
+    hint = TYPE_HINT.get(c.type)
+    if hint:
+        lines.append(f"【填写格式】{hint}")
+    if c.derived:
+        # 派生列不对应原文的字段 —— 说「留空＝原文没写」会误导
+        lines.append("【只读】这一列是**算出来的**，转回 JSON 时不参与还原")
+    elif c.omit_empty:
+        lines.append("【留空】＝原文没写，不产出该字段 —— 别替读者补")
+    text = "\n\n".join(lines) if lines else "这一列没有额外说明。"
+    cm = Comment(text, "臧氏脉学")
+    cm.width = 320
+    cm.height = 140
+    return cm
+
+
 def style_body(ws, nrows: int, ncols: int) -> None:
     """正文：左上对齐、换行、发丝线边框。"""
     for r in range(2, nrows + 2):
@@ -289,6 +323,10 @@ def write_sheet(wb: Workbook, sheet: SheetDef, rows: list[dict[str, Any]]) -> No
     ws = wb.create_sheet(sheet.name)
     ws.append([c.header for c in sheet.cols])
     style_header(ws, len(sheet.cols))
+
+    # 列头挂批注：鼠标悬停就能看见这一列怎么填（内容与「说明」表同源）
+    for i, c in enumerate(sheet.cols, start=1):
+        ws.cell(row=1, column=i).comment = column_comment(c)
 
     for item in rows:
         ws.append([cell_value(item.get(c.key), c.type) for c in sheet.cols])
@@ -391,6 +429,7 @@ def write_matrix_sheet(wb, index: int, pid: str, pattern: dict, rule: dict | Non
         cell.font = HEADER_FONT
         cell.alignment = Alignment(vertical="center", horizontal="center", wrap_text=True)
         cell.border = Border(left=THIN, right=THIN, top=THIN, bottom=MEDIUM)
+        cell.comment = column_comment(c)  # 悬停看这一列怎么填
     ws.row_dimensions[header_row].height = 24
 
     # ---- 9 行数据 ----
@@ -502,6 +541,19 @@ def main() -> int:
     ws = wb.create_sheet("说明")
     ws.append([c.header for c in README_COLS])
     style_header(ws, len(README_COLS))
+    for i, c in enumerate(README_COLS, start=1):
+        cm = Comment(
+            f"「说明」表是这份工作簿的**使用手册**：\n"
+            f"每行＝一张表（最后一行是脉象图矩阵）。\n\n"
+            f"· 「这张表是什么」—— 它的用途。\n"
+            f"· 「列」—— 每列的名字（括号里是数据里的键名）。\n"
+            f"· 「怎么编辑」—— 具体怎么填。\n\n"
+            f"⚠️ 各表列头的**批注**与本表同源 —— 悬停列头即可看到该列怎么填。",
+            "臧氏脉学",
+        )
+        cm.width = 340
+        cm.height = 180
+        ws.cell(row=1, column=i).comment = cm
     for item in build_readme_rows():
         ws.append([cell_value(item.get(c.key), c.type) for c in README_COLS])
     style_body(ws, len(build_readme_rows()), len(README_COLS))

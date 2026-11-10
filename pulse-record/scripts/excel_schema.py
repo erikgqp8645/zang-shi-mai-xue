@@ -61,6 +61,11 @@ class ColDef:
     （不是写成空串）。这一列若为真，读回时空值不产出该键，
     保证往返后与原 JSON 的键集完全一致。
     """
+    derived: bool = False  # **派生列**：不是原文的字段，读回时忽略
+    """
+    派生列由别的列算出来（如「符号含义」＝把符号集翻成中文），
+    不对应原文的某个键。它只给人看 —— 读回时不参与还原。
+    """
 
 
 @dataclass(frozen=True)
@@ -208,7 +213,7 @@ SHEET_TERMS = SheetDef(
         ColDef("符号集", "codes", 34, "codes", note="该格允许的取值，逗号分隔（或关系）"),
         ColDef("须并带", "also", 24, "codes", omit_empty=True, note="同一格里还必须同时出现的符号，逗号分隔（或关系）"),
         ColDef("图上显示", "display", 12, note="图上印的代表符号"),
-        ColDef("符号含义", "meaning", 56, omit_empty=True, note="把上面每个符号翻译成中文（如 ++＝有力）；照抄「符号表」的名称，不自造"),
+        ColDef("符号含义", "meaning", 56, omit_empty=True, derived=True, note="**自动算出来的，只读** —— 把「符号集」里的每个符号翻成中文（如 `++＝有力`）。要改含义去「符号表」改「名称」，要改可接受的取值就改「符号集」"),
         ColDef("出处与说明", "note", 48, omit_empty=True, note="讲义 p33/p34 的不一致等；无则空"),
     ],
 )
@@ -364,16 +369,16 @@ MATRIX_ROWS: list[tuple[str, str]] = [
 
 #: 矩阵表的列（左边是部位／取法，右边是左、右手两列）
 MATRIX_COLS: list[ColDef] = [
-    ColDef("部位", "organ", 10, note="寸／关／尺"),
-    ColDef("取法", "depth", 10, note="浮／中／沉"),
-    ColDef("左手", "L", 16, note="讲稿／讲义写明的**用字**；留空＝原文未提及，不作要求"),
-    ColDef("右手", "R", 16, note="同上"),
-    ColDef("左组号", "Lgroup", 8, "int", note="留空＝不分组；数字＝第几个且组（组内且、组间或）"),
-    ColDef("右组号", "Rgroup", 8, "int", note="同上"),
-    ColDef("左格备注", "Lnote", 20),
-    ColDef("右格备注", "Rnote", 20),
-    ColDef("左柔性", "Lflex", 8, note="TRUE＝本格还须配合关系型要求，单填不成立"),
-    ColDef("右柔性", "Rflex", 8),
+    ColDef("部位", "organ", 10, note="**只读** —— 寸／关／尺，三个部位各合并三行（与讲义 p34 一致），不要改"),
+    ColDef("取法", "depth", 10, note="**只读** —— 浮／中／沉，每部位三行，不要改"),
+    ColDef("左手", "L", 16, note="讲稿／讲义写明的**用字**（照抄「脉象用字」表第 1 列，如「大或顶」）；留空＝原文未提及，不作要求"),
+    ColDef("右手", "R", 16, note="同「左手」"),
+    ColDef("左组号", "Lgroup", 8, "int", note="留空＝本格单独成立；填**同一个数字**＝同一组（组内是「且」）；不同数字＝不同组（组间是「或」）。与右列的组号**各自独立**"),
+    ColDef("右组号", "Rgroup", 8, "int", note="同「左组号」"),
+    ColDef("左格备注", "Lnote", 20, note="这一格原文的具体话（如「浮大而软」）；没有就空着"),
+    ColDef("右格备注", "Rnote", 20, note="同「左格备注」"),
+    ColDef("左柔性", "Lflex", 8, note="TRUE＝本格还须配合表头的「关系型要求」才成立；不填＝本格自己就能成立"),
+    ColDef("右柔性", "Rflex", 8, note="同「左柔性」"),
 ]
 
 #: 矩阵 sheet 的表头区（在 9 行之前写这几行）
