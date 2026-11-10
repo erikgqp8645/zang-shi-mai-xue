@@ -1229,6 +1229,83 @@ runtime 把 `uid` 改成用户值 → hydrate 时 `node.uid !== node.sid` → `d
 ③ 清单正常 → 折叠的「用方知识库」标题写着「▸ 用方知识库 · 讲义 p44 依脉用方 61 条 · 讲稿方剂 30 方」→
 点 ③ 的「上焦方」→ 知识库展开并滚到高亮条目。
 
+### 3.18 数据搬进可编辑层 —— JSON 为真源，Excel 为人工编辑层（2026-11-07）
+
+**用户的要求**：「json 非常好，但是不利于我编辑，你需要想一个中间格式，比如 excel 格式。
+第一轮你先编辑，然后我审核修改，最后成型」＋「后续你可以用这个 excel 随便转换为你需要的任何格式」。
+
+#### 为什么中间格式是 Excel 而不是别的
+
+先做了一轮**三链实测**（Vite 8 / `tsc`→CJS 共享包 / Node `require`），结论是**纯 JSON** 是唯一三链通吃的格式：
+
+| 方案 | Vite 8 | `tsc` → CJS | Node `require('*.json')` | 结论 |
+|---|---|---|---|---|
+| **纯 JSON** | ✅ | ✅ 自动拷进产物 | ✅ | **通吃** |
+| JSONC（带注释） | ❌ 内部是裸 `JSON.parse` | ⚠️ 编译过 | ❌ `Expected property name` | 出局 |
+| YAML / TOML | ❌ 要自己加 loader | ❌ | ❌ | 出局 |
+
+所以分工是：**JSON 当真源**（机器消费），**Excel 当人工编辑层**（人改），脚本单向/双向转换。
+
+#### 搬走了什么
+
+TS 源码里的数据字面量 **1936 行** → `src/content/*.json` **7 个文件**：
+
+| 文件 | 内容 | 条数 |
+|---|---|---|
+| `drugs.json` | 讲稿 2010 方剂 | 30 |
+| `doses.json` | 同和堂版成方（克）＋ 科中 ＋ 成方↔科中对照 | 49 ＋ 17 ＋ 15 |
+| `formula-reference.json` | 讲义 p42 表 ＋ 别名 ＋ 草稿方 | 28 ＋ 15 ＋ 1 |
+| `formula-rules.json` | 用方条目（条件文字／治法／方剂／出处） | 61 |
+| `pulse-terms.json` | 原文用字 → 符号集 | 18 |
+| `pulse-groups.json` | 脉位组合 | 7 |
+| `pulse-patterns.json` | 脉象图 | 50 |
+
+`src/domain/*.ts` 现在**只留逻辑**：`evaluate`（判定）、查表、视图组装。
+
+#### Excel 的摊平规则（`scripts/excel_schema.py` 是唯一真源）
+
+① **数组用单元格内换行分隔** —— 讲稿方名自带顿号（「柴鳖骨（柴胡、鳖甲、地骨皮）」），
+   用顿号分隔必然切错；
+② **嵌套拆成带外键的多张表**，靠「父 id ＋ 序号」关联；「且／或」由「组号」表达
+   （组号留空＝合成一组；1/2/3＝第几个且组，组内且、组间或）；
+③ **原文 JSON 是稀疏的**（讲稿没写的字段根本没有键）→ 列上标 `omit_empty`，
+   空值不产出该键，往返后键集完全一致；
+④ **符号集用逗号分隔** —— 符号集里没有逗号。
+
+工作簿 `content/臧氏脉学-用方知识库.xlsx` 共 **13 张表**，
+第一张是「说明」表（每张表的列说明与编辑约定）。
+
+#### 两个测试把住这条链路
+
+- `scripts/e2e/excel_roundtrip.py`（**14 项**）：断言「JSON → Excel → JSON」**逐字段一致**；
+- `scripts/e2e/excel_roundtrip_break.py`（**14 项**）：注入 6 类坏数据
+  （主键为空／主键重复／父 id 悬空／用字未定义／组号非正整数／同一关系前后用语不一致），
+  断言还原脚本**必须报错** —— 证明它不是无脑接受一切。
+
+两者都挂在 `npm test` 里。**往返还不是一次过的**：第一版就抓出 5 类真问题
+（`notes`／`draftNote` 两列漏了、键序被打乱、稀疏字段被补成空串、
+pattern 多了个 `id` 键、**关系的多 probe 静默丢了 3 个**）。
+最后一个最险：摊平成「只有第一行填探针、其余留空」后，
+读回无法区分「第 2 个探针」与「续行」—— 改成**每行一个 probe**才无歧义。
+
+#### 顺带修掉的坑
+
+- `Object.fromEntries` 是 **ES2019**，本项目编译目标是 ES2017 —— 老机型会白屏。
+  `core-smoke.mjs` 的**既有断言**抓到了（它专门盯这条），改成 ES2017 写法。
+- 微信小程序的 `require` **不吃 `.json`** → `build-core.mjs` 增加一步：
+  把 `content/*.json` 转成同名 `.js` 的 CJS 模块，并把 require 的 `.json` 后缀改指 `.js`。
+- `PULSE_GROUPS`、`FORMULA_ALIAS` 等也是照抄原文的数据，一并搬进 JSON，
+  免得「数据分两处住」。
+
+#### 待办
+
+⏳ **首轮工作簿已产出，等用户审核修改**（用户原话：「第一轮你先编辑，然后我审核修改，最后成型」）。
+用户改完跑 `npm run content:json` 转回 JSON。
+
+⏳ **脉象图渲染器还没做** —— `pattern` 数据已就位（50 条），
+但 `PulsePatternTable` 组件、`.pr-ptable*` 样式、接入 `Findings.tsx` 的 `FormulaItem`
+与 `FormulaLibrary.tsx` 的 `libraryRule()` 都没写。**这部分是本轮的后续**。
+
 ## 4. P3 · 迁 CloudBase（🟡 云端已建成，开发／试用环境）
 
 **目标**：网站跑静态托管、API 跑云函数、数据存 **PostgreSQL**、小程序走 `wx.cloud.callFunction`（不走合法域名校验）。
@@ -1404,7 +1481,8 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`chore/desktop-electron` = `8bc151f`；`feat/wechat-miniprogram` = `623aca8`（小程序／鸿蒙／桌面端／CloudBase 线，**历史原样保留**）；**`feat/web-site` = `845b339`（网站端线，2026-11-06 从 `6ebc881` 切出）** |
 | 分支纪律 | **两条长期开发线**（2026-11-06 起）：网站端新改动走 `feat/web-site`，小程序／鸿蒙／桌面端走 `feat/wechat-miniprogram`；同源于 `6ebc881`，都**不开 PR**、都不**改写已推送的历史**。详见 `AGENTS.md`「Git 约定」 |
 | PR | #6 `chore/multi-user → main`，**OPEN**；#7 `chore/desktop-electron → chore/multi-user`，**OPEN**；`feat/wechat-miniprogram` **永不开 PR**（2026-11-06 拍板：**永不合并进 `main`**） |
-| 全量回归 | **515/515 全绿**（core 26 ＋ taro-lint 202 ＋ taro-api 51 ＋ migration 53 ＋ auth 53 ＋ **app 28** ＋ 桌面端 33 ＋ 鸿蒙 69） |
+| 全量回归 | **543/543 全绿**（core 26 ＋ **excel 14 ＋ excel-break 14** ＋ taro-lint 202 ＋ taro-api 51 ＋ migration 53 ＋ auth 53 ＋ **app 28** ＋ 桌面端 33 ＋ 鸿蒙 69） |
+| 数据层 | **JSON 为唯一真源**（`src/content/*.json` 7 个文件）；**Excel 为人工编辑层**（`content/臧氏脉学-用方知识库.xlsx`，13 张表）；TS 只留逻辑。往返测试 ＋ 故意写坏测试都挂在 `npm test`。用法见 [`content-layer.md`](./content-layer.md)（详见 §3.18） |
 | 小程序工程 | `pulse-record/taro/`（Taro 4.3.2 ＋ React 18）；**原生 `miniprogram/` 原样保留作回退** |
 | 网站端 | `pulse-record/src/`（Vite ＋ React ＋ TS，单页 `App.tsx`）；③ 框内有**可折叠「用方知识库」**（p44 依脉用方全量 61 条 ＋ 讲稿方剂全量 30 方），③ 的方名**可点进去定位 ＋ 高亮**（详见 §3.17）；后端**仍跑本机 SQLite**（`local-data/history.sqlite`），**未接 CloudBase PG** |
 | 小程序包体 | 媒体资源 **119.0 KB**（底图 JPEG 116.3 KB ＋ 8 个 tabbar 图标 ≤0.4 KB）；**微信「图片和音频 > 200 K」已通过**（详见 §3.12） |
@@ -1453,3 +1531,10 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 - ⭐ **小程序线永不合并进 `main`（2026-11-06 维护者拍板）**：微信端、鸿蒙端、Windows 桌面端、多用户与 CloudBase 迁移**全部永久留在 `feat/wechat-miniprogram`**。**不向 `main` 合并、不向 `main` 开 PR** —— 这条比「上线之前集中开发」更强，不是「上线前不合」而是**不合**。`main` 保持为原始资料库 ＋ 已合入的稳定工具。
 - **PR 状态**：#6（`chore/multi-user → main`）、#7（`chore/desktop-electron → chore/multi-user`）**保持 OPEN、既不合也不关**；它们都已是 `feat/wechat-miniprogram` 的祖先，合进去就等于把小程序线合进 `main`。**「以后要不要并回 `main`」这个问题已关闭**，不必再问、也不必准备合并方案。日常推远端就在 `feat/wechat-miniprogram` 上提交并 `git push` 到同名远端分支，**不需要开 PR**。
 - **表格优先**：状态一律用表格写，行尾标注实测日期，别写「大概」「应该」。
+- ⭐ **数据住在 JSON，不住在 TS 源码里（2026-11-07）**：照抄原文的数据一律进
+  `src/content/*.json`；`src/domain/*.ts` 只留**逻辑**（判定、查表、视图组装）。
+  想改内容走 **Excel**（`content/臧氏脉学-用方知识库.xlsx`）→
+  `npm run content:json` 转回 JSON → `npm test`。
+  摊平规则（数组用换行、嵌套用外键、稀疏字段用 `omit_empty`）的**唯一真源**是
+  `scripts/excel_schema.py` —— 改列必须回来改它，否则往返测试会红。
+  详见 [`content-layer.md`](./content-layer.md)。
