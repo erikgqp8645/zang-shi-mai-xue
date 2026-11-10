@@ -22,6 +22,8 @@
   · 引用了不存在的父 id → 报错（外键悬空）
   · 用字不在「脉象用字」表里 → 报错（图上写了个没定义的字）
   · 组号不是正整数 → 报错（AND 组的「第几组」说不清）
+  · 填了用字却没填组号 → 报错（这一格会被悄悄丢出任何组，
+    图上还留着用字，看着像有要求、其实没有）
   · 同一父条目的关系种类前后用语不一致 → 报错（probe 归属说不清）
 
 @see excel_schema.py
@@ -438,7 +440,17 @@ def restore(
 
                 g = ws.cell(row=row_no, column=ci_group).value
                 gtxt = "" if g is None else str(g).strip()
-                if gtxt != "":
+                if gtxt == "":
+                    # ⚠️ 填了用字却没填组号 ⇒ 这一格**不属于任何组**，
+                    #    判定时它被**悄悄丢掉**，而图上还留着那个用字 ——
+                    #    看着像有要求，其实没有（实测：清空 P04 寸浮的左组号后，
+                    #    读回的 groups 里 L|寸|浮 直接消失）。
+                    #    这种「静默失真」比直接报错糟得多，必须拦下来。
+                    errors.append(
+                        f"{where} 第 {row_no} 行：填了用字「{term}」但没填组号"
+                        f"（组号必填：1、2、3…；填了用字就必须填组号）"
+                    )
+                else:
                     try:
                         gi = int(gtxt)
                     except ValueError:

@@ -256,7 +256,7 @@ footer{margin-top:44px;padding-top:20px;border-top:1px solid var(--line);
   <p class="muted" style="font-size:14px">体例照讲义 2026-10 p34 的记录表：左列部位／取法，右边左手、右手两列，9 行。<br>下面这张表<strong>由工作簿里真实的 P04（清挡路）直接渲染</strong>，不是手画的 —— 工作簿改了，重跑 <code class="mono">scripts/make_flowchart.py</code> 即同步。</p>
   <!-- matrix:begin -->
 <div class="matrix-card">
-<div class="mx-hint">填写说明见「说明」表『脉象图矩阵』一行。｜ 左手／右手格填<strong>用字</strong>（照抄「脉象用字」表第 1 列），不是符号代码；留空＝原文没提这一格。｜ 组号：同号＝一组（且），不同号＝不同组（或），左右两列各自独立。｜ 表头区与「关系型要求」是<strong>只读副本</strong>，真源在「用方条目」表／「脉象图·关系」表。</div>
+<div class="mx-hint">填写说明见「说明」表『脉象图矩阵』一行。｜ 左手／右手格填<strong>用字</strong>（照抄「脉象用字」表第 1 列），不是符号代码；留空＝原文没提这一格。｜ 组号：同号＝一组（且），不同号＝不同组（或），左右两列<strong>共用一个编号空间</strong>（左格与右格同号即同组）；填了用字就要填组号。｜ 表头区与「关系型要求」是<strong>只读副本</strong>，真源在「用方条目」表／「脉象图·关系」表。</div>
 <table class="mx-head">
 <tr><th>条目ID</th><td>fx-ssx-qingdanglu</td></tr>
 <tr><th>路线（只读）</th><td>上盛下虚</td></tr>
@@ -291,7 +291,7 @@ footer{margin-top:44px;padding-top:20px;border-top:1px solid var(--line);
 <div class="mx-legend">
 <div class="mx-legend-row"><div class="lg-name"><span class="mx-badge ro">只读</span><span class="lg-cols">部位／取法</span></div><div class="lg-note"><strong>只读</strong> —— 寸／关／尺，三个部位各合并三行（与讲义 p34 一致），不要改</div></div>
 <div class="mx-legend-row"><div class="lg-name"><span class="mx-badge fill">归你填</span><span class="lg-cols">左手／右手</span></div><div class="lg-note">讲稿／讲义写明的<strong>用字</strong>（照抄「脉象用字」表第 1 列，如「大或顶」）；留空＝原文未提及，不作要求</div></div>
-<div class="mx-legend-row"><div class="lg-name"><span class="mx-badge fill">归你填</span><span class="lg-cols">左组号／右组号</span></div><div class="lg-note">留空＝本格单独成立；填<strong>同一个数字</strong>＝同一组（组内是「且」）；不同数字＝不同组（组间是「或」）。与右列的组号<strong>各自独立</strong></div></div>
+<div class="mx-legend-row"><div class="lg-name"><span class="mx-badge fill">归你填</span><span class="lg-cols">左组号／右组号</span></div><div class="lg-note">填了用字<strong>就要填组号</strong>（1、2、3…）。组号＝AND 组的编号：同号＝同一组（组内是「且」），异号＝不同组（组间是「或」）。⚠️ 左列与右列<strong>共用同一个编号空间</strong> —— 左格与右格都填 1，它们就是<strong>同一组</strong>（都要满足），不是两组</div></div>
 <div class="mx-legend-row"><div class="lg-name"><span class="mx-badge fill">归你填</span><span class="lg-cols">左格备注／右格备注</span></div><div class="lg-note">这一格原文的具体话（如「浮大而软」）；没有就空着</div></div>
 <div class="mx-legend-row"><div class="lg-name"><span class="mx-badge fill">归你填</span><span class="lg-cols">左柔性／右柔性</span></div><div class="lg-note">TRUE＝本格还须配合表头的「关系型要求」才成立；不填＝本格自己就能成立</div></div>
 </div>

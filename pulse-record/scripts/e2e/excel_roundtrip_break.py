@@ -25,6 +25,8 @@
 ⑥ 同一关系前后用语不一致 → probe 归属说不清
 ⑦ 矩阵：表头条目ID 与序号不符 → 张冠李戴，条目会挂错图
 ⑧ 矩阵：漏了一个 sheet  → 漏掉一张脉象图
+⑨ 矩阵：sheet 改名导致序号重复 → 张冠李戴（另一张图挂错条目）
+⑩ 矩阵：填了用字却没填组号 → 这一格被悄悄丢出任何组，图上还留着用字
 
 ⭐ 注入点**按结构定位**（找列头行、找第一个有值的格），
    不靠硬编码行号 —— 表头区行数会变，硬编码会失效。
@@ -165,6 +167,11 @@ def main() -> int:
                 "expect": "不一致",
                 "mutate": _break_renamed_sheet,
             },
+            {
+                "name": "⑩ 矩阵：填了用字却没填组号（这一格会被悄悄丢掉）",
+                "expect": "组号",
+                "mutate": _break_matrix_group_empty,
+            },
         ]
 
         for i, c in enumerate(cases):
@@ -264,6 +271,18 @@ def _break_matrix_group(wb) -> None:
     ws = wb[MATRIX_SHEET]
     row, _ = find_filled_cell(ws, 3)
     ws.cell(row=row, column=5).value = "零"  # 第 5 列＝左组号
+
+
+def _break_matrix_group_empty(wb) -> None:
+    """把矩阵里第一个已填的左手格的**组号清空**。
+
+    ⚠️ 这一格用字还在，但不属于任何组 ⇒ 判定时被丢掉，
+    而图上还显示着那个用字 —— 看着像有要求，其实没有。
+    必须报错，不能静默写进 JSON。
+    """
+    ws = wb[MATRIX_SHEET]
+    row, _ = find_filled_cell(ws, 3)
+    ws.cell(row=row, column=5).value = None  # 第 5 列＝左组号
 
 
 def _break_matrix_id(wb) -> None:
