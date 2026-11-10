@@ -58,6 +58,12 @@ npm run content:exercise
 
 # 验收练习册（填完一格就能验一格）
 npm run content:exercise:check
+
+# 重新生成填写流程图里的矩阵示意（工作簿改了之后）
+npm run content:flowchart
+
+# 只校验流程图页面与工作簿是否一致
+npm run content:flowchart:check
 ```
 
 工作簿默认位置：`pulse-record/content/臧氏脉学-用方知识库.xlsx`
@@ -134,6 +140,8 @@ npm run content:exercise:check
 | `scripts/exercise_points.py` | **练习点定义** —— 生成与验收共用同一份（单一真源） |
 | `scripts/e2e/excel_exercise.py` | 练习册**验收**：逐格告诉你填对没有、差在哪儿 |
 | `scripts/e2e/excel_exercise_roundtrip.py` | 练习册自身的回归（13 项，挂在 `npm test`） |
+| [`填写流程图.html`](./填写流程图.html) | **填写流程图** —— 主流程五步、「改什么→去哪张表」路由、矩阵 sheet 长什么样（浏览器直接打开，自包含单文件） |
+| `scripts/make_flowchart.py` | 生成流程图里的矩阵示意：**直接读工作簿的 P04 sheet 渲染**，不是手画的 |
 
 ⭐ **练习册的正确答案不写死**，而是从真源 `src/content/*.json` 现取 ——
 所以练习册不会和真源脱节，验收也不会「按错误的答案判对错」。

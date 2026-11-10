@@ -1,6 +1,6 @@
 # 项目进度 —— 臧氏脉学 · 脉象记录表生成器
 
-> **更新于** 2026-11-06 ｜ **仓库** `erikgqp8645/zang-shi-mai-xue` ｜ **当前分支** `feat/web-site`（网站端线；基点 `6ebc881`，与小程序线同源）｜ 小程序线见 `feat/wechat-miniprogram`
+> **更新于** 2026-11-10 ｜ **仓库** `erikgqp8645/zang-shi-mai-xue` ｜ **当前分支** `feat/web-site`（网站端线；基点 `6ebc881`，与小程序线同源）｜ 小程序线见 `feat/wechat-miniprogram`
 >
 > 本文是**进度台账**：记每条工作线做到哪了、卡在哪、下一手做什么。
 > 桌面应用的**实施方案**另见 [`desktop-plan.md`](./desktop-plan.md)；上线手册见 [`deploy.md`](./deploy.md)；迁 CloudBase 见 [`cloudbase-migration.md`](./cloudbase-migration.md)；小程序 Taro 迁移约定见 [`taro-migration.md`](./taro-migration.md)。
@@ -1745,3 +1745,11 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
   `src/domain/*.ts` 只能 `import` `src/content/*.json`，
   再写一份字面量就是两处真源，改了一处另一处悄悄对不上。
   （`symbols.ts` 的 14 个符号就是这么从硬编码改成读 `symbols.json` 的。）
+- ⭐ **流程图里的矩阵示意是从工作簿生成的**（2026-11-10）。
+  [`填写流程图.html`](./填写流程图.html) 第 03 节那张「一个矩阵 sheet 长什么样」，
+  由 `scripts/make_flowchart.py` 直接读 `content/臧氏脉学-用方知识库.xlsx`
+  的 P04 sheet（清挡路）渲染，**不是手画的** —— 手绘那版已经漂移过一次
+  （画成 7 列、2 行表头区，还多一条竖线，表头与数值对不上同一套列定义）。
+  改了工作簿后跑 `npm run content:flowchart` 同步；
+  `npm run content:flowchart:check` 校验页面与工作簿是否一致。
+  生成器自带**结构自检**（行数、每行摊平后的列数），不合格就拒绝写进页面。
