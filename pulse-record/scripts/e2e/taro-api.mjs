@@ -203,6 +203,28 @@ const syms = await dataApi.listCustomSymbols()
 c.check('自定义符号出现在清单里', syms.some((s) => s.code === 'S' && s.name === '涩'))
 const dup = await expectError(() => dataApi.saveCustomSymbol({ code: '+', name: '有' }))
 c.check('与讲义固定符号重名被拒（400）', !!dup && dup.status === 400, dup && dup.message)
+
+/* 硬性规定：**符号不能为空** —— 服务端也要拦，不能只靠前端。
+ * 这些值肉眼看着「有内容」（空格、零宽、软连字符），存进去却什么都显示不出来。 */
+const emptyCode = await expectError(() => dataApi.saveCustomSymbol({ code: '', name: '涩' }))
+c.check('空符号被 400 拒', !!emptyCode && emptyCode.status === 400, emptyCode && emptyCode.message)
+const blankCode = await expectError(() => dataApi.saveCustomSymbol({ code: '   ', name: '涩' }))
+c.check('只填空格被 400 拒', !!blankCode && blankCode.status === 400)
+const zwCode = await expectError(() => dataApi.saveCustomSymbol({ code: '\u200b', name: '涩' }))
+c.check('零宽字符被 400 拒', !!zwCode && zwCode.status === 400)
+const softHyphen = await expectError(() => dataApi.saveCustomSymbol({ code: '\u00ad', name: '涩' }))
+c.check('软连字符被 400 拒（能造出与 S 一样的影子符号）', !!softHyphen && softHyphen.status === 400)
+const dotCode = await expectError(() => dataApi.saveCustomSymbol({ code: '.', name: '点' }))
+c.check('「.」被 400 拒（URL 归一化后永远删不掉）', !!dotCode && dotCode.status === 400)
+const emptyName = await expectError(() => dataApi.saveCustomSymbol({ code: 'Q', name: '' }))
+c.check('空名称被 400 拒', !!emptyName && emptyName.status === 400)
+const afterBad = await dataApi.listCustomSymbols()
+c.check(
+  '被拒的符号一个都没落库',
+  !afterBad.some((s) => ['', 'Q', '.'].includes(s.code)),
+  JSON.stringify(afterBad),
+)
+
 await dataApi.deleteCustomSymbol('S')
 const syms2 = await dataApi.listCustomSymbols()
 c.check('删完清单里没有了', !syms2.some((s) => s.code === 'S'))

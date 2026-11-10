@@ -49,7 +49,7 @@ import { deleteCustomSymbol, listCustomSymbols, saveCustomSymbol } from './api/s
 import { sampleShaoJuan } from './domain/sample'
 import { LoginPanel } from './components/LoginPanel'
 import { logout as apiLogout, me, serverState, type AuthUser } from './api/auth'
-import { UNAUTHORIZED_EVENT } from './api/http'
+import { ApiError, UNAUTHORIZED_EVENT } from './api/http'
 
 function uid(): string {
   return `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
@@ -710,6 +710,13 @@ export default function App() {
       setSymbolError(null)
       return true
     } catch (e) {
+      // 404 ＝ 服务端已经没有这个符号了（另一台设备／小程序先删过）——
+      // 本地也去掉，别让这个 chip 永远删不掉。与小程序端同一处理。
+      if (e instanceof ApiError && e.status === 404) {
+        setCustomSymbols((prev) => prev.filter((s) => s.code !== code))
+        setSymbolError(null)
+        return true
+      }
       setSymbolError(String((e as Error)?.message ?? e))
       return false
     }

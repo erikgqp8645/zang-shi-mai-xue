@@ -66,7 +66,7 @@ import {
   updatePatientLayout,
   searchPatients,
   DB_PATH,
-  RESERVED_SYMBOL_CODES,
+  symbolInputError,
   getLocalUser,
   // 鉴权层也走 store —— 它按 PULSE_STORE 分发（SQLite ↔ PostgreSQL）
   authenticate,
@@ -486,34 +486,33 @@ export async function handleApi(req, res) {
       const body = await readJson(req)
       const code = String(body?.code ?? '').trim()
       const name = String(body?.name ?? '').trim()
-      if (!code || !name) {
-        sendJson(res, 400, { error: '请填写符号代码与名称' })
-        return
-      }
-      if (code.length > 3) {
-        sendJson(res, 400, { error: '符号代码最多 3 个字符' })
-        return
-      }
-      if (/\s/.test(code) || code.includes('/')) {
-        sendJson(res, 400, { error: '符号代码里不能有空格或「/」' })
-        return
-      }
-      if (name.length > 12) {
-        sendJson(res, 400, { error: '符号名称最多 12 个字符' })
-        return
-      }
-      if (RESERVED_SYMBOL_CODES.includes(code)) {
-        sendJson(res, 400, { error: `代码「${code}」与讲义固定符号重复，换一个` })
+      // 校验只有一份（server/symbol-codes.mjs），路由与两套存储都调它
+      const invalid = symbolInputError(code, name)
+      if (invalid) {
+        sendJson(res, 400, { error: invalid })
         return
       }
       const symbol = await putCustomSymbol(db, ownerId, { code, name })
+      if (!symbol) {
+        // 存储层也不收（理论上到不了这里）—— 但**绝不能**回 200 + null：
+        // 那会变成「界面说已添加、清单里没有」的静默失败。
+        sendJson(res, 400, { error: '这个符号存不进去，换一个试试' })
+        return
+      }
       sendJson(res, 200, { symbol })
       return
     }
 
     const sm = path.match(/^\/api\/symbols\/([^/]+)$/)
     if (sm && method === 'DELETE') {
-      const code = decodeURIComponent(sm[1])
+      let code = sm[1]
+      try {
+        code = decodeURIComponent(code)
+      } catch {
+        // 畸形百分号编码（如 `%E0%A4%A`）：回 400，别让它冒成 500 并回显内部错误
+        sendJson(res, 400, { error: '符号代码的编码不对' })
+        return
+      }
       const ok = await deleteCustomSymbol(db, code, ownerId)
       sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: '没有这个自定义符号' })
       return

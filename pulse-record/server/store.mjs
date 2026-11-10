@@ -110,4 +110,4 @@ export const {
  */
 export const { DB_PATH } = impl
 
-export { RESERVED_SYMBOL_CODES } from './symbol-codes.mjs'
+export { RESERVED_SYMBOL_CODES, hasInvisibleChars, symbolInputError } from './symbol-codes.mjs'

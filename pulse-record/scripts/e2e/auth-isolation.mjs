@@ -256,12 +256,34 @@ try {
   {
     const la = await api('/api/symbols', { token: tokenA })
     check('A 看得到自己建的符号', (la.data?.symbols?.length ?? 0) === 1)
+
     const lb = await api('/api/symbols', { token: tokenB })
     check('B 看不到 A 的符号', (lb.data?.symbols?.length ?? 0) === 0, `实际 ${lb.data?.symbols?.length}`)
-    const rb = await api('/api/symbols', { method: 'DELETE', token: tokenB })
-    check('B 删 A 的符号 → 404', rb.status === 404, `实际 ${rb.status}`)
+
+    // ⚠️ 这里必须带上 code。原来写成 `DELETE /api/symbols`（没有 /S）——
+    //    那个 URL 在路由表里根本不存在，请求在路由层就 404 了，
+    //    `deleteCustomSymbol()` 一次都没执行，所以这条断言**无论 owner 过滤在不在都全绿**。
+    const rb = await api('/api/symbols/S', { method: 'DELETE', token: tokenB })
+    check('B 删 A 的符号（带 code）→ 404', rb.status === 404, `实际 ${rb.status}`)
+
     const la2 = await api('/api/symbols', { token: tokenA })
     check('A 的符号还在', (la2.data?.symbols?.length ?? 0) === 1)
+    check('A 的符号名称没被改动', la2.data?.symbols?.[0]?.name === '涩', JSON.stringify(la2.data?.symbols))
+
+    // B 用**同一个代码**建自己的符号：主键必须是 (owner_id, code)，
+    // 否则这一下会把 A 的 S 覆盖成「B的涩」——这是 upsert 最容易漏的越权口子。
+    const wb = await api('/api/symbols', { method: 'POST', token: tokenB, body: { code: 'S', name: 'B的涩' } })
+    check('B 用同一代码建自己的符号 → 200', wb.status === 200, `实际 ${wb.status}`)
+
+    const la3 = await api('/api/symbols', { token: tokenA })
+    check('A 的 S 没被 B 覆盖', la3.data?.symbols?.[0]?.name === '涩', JSON.stringify(la3.data?.symbols))
+
+    const lb3 = await api('/api/symbols', { token: tokenB })
+    check(
+      'B 自己有了一份同代码符号',
+      (lb3.data?.symbols?.length ?? 0) === 1 && lb3.data?.symbols?.[0]?.name === 'B的涩',
+      JSON.stringify(lb3.data?.symbols),
+    )
   }
 
   /* --- 7. 用别人的 id 存患者：不会覆盖 --- */

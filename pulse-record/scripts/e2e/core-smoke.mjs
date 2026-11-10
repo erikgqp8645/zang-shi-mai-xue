@@ -63,6 +63,28 @@ ok('同和堂版成方 49 条', core.formulaTable.FORMULA_DOSES.length === 49, `
 ok('科中 17 条', core.formulaTable.FORMULA_SCIENCES.length === 17, `实际 ${core.formulaTable.FORMULA_SCIENCES.length}`)
 ok('讲义固定符号 14 个', core.symbols.SYMBOLS.length === 14, `实际 ${core.symbols.SYMBOLS.length}`)
 ok('符号索引 14 条', Object.keys(core.symbols.SYMBOL_BY_CODE).length === 14)
+
+/* ---- 2b. 自定义符号的校验：硬性规定「符号不能为空」----
+ *
+ * 这条规矩有三层（前端校验 / 路由 400 / 存储层返回 null），这里盯第一层。
+ * 为什么要逐条列不可见字符：它们**肉眼与正常符号完全一样**，
+ * 只判 `trim() === ''` 会放过一个「格子里什么都没显示、却录进了一个符号」的怪状态。
+ */
+const vs = core.symbols.validateCustomSymbol
+ok('符号不能为空（空串被拦）', !!vs('', '涩'))
+ok('只填空格被拦', !!vs('   ', '涩'))
+ok('零宽空格被拦', !!vs('\u200b', '涩'))
+ok('软连字符被拦（能造出与 S 一模一样的影子符号）', !!vs('\u00ad', '涩'))
+ok('盲文空白被拦（有字形，但字形是空白）', !!vs('\u2800', '涩'))
+ok('名称不能为空', !!vs('S', ''))
+ok('名称里只有零宽字符被拦', !!vs('S', '\u200b'))
+ok('不能占用讲义固定代码', !!vs('++', '有力'))
+ok('重复代码被拦', !!vs('S', '涩', [{ code: 'S', name: '涩' }]))
+ok('「.」与「..」不能当代码（URL 归一化后永远删不掉）', !!vs('.', '点') && !!vs('..', '双减'))
+ok('代码超过 3 字符被拦', !!vs('ABCD', '太长'))
+ok('代码里的空格被拦', !!vs('S S', '空格'))
+ok('正常符号放行', vs('S', '涩') === null && vs('涩', '涩') === null)
+ok('名称里的全角空格放行（中文输入法打出来就是它，不该按「看不见」拒）', vs('S', '涩　脉') === null)
 ok('规则 21 条', core.rules.RULES.length === 21, `实际 ${core.rules.RULES.length}`)
 
 /* ---- 3. 产物里不得出现 ES2019 内建 ---- */

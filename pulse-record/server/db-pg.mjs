@@ -24,7 +24,7 @@
 
 import { dataRpc } from './pg-client.mjs'
 import { CONSTITUTIONS, THERAPIES, normalizeValues, parseValues, pickEnum } from './values.mjs'
-import { RESERVED_SYMBOL_CODES } from './symbol-codes.mjs'
+import { RESERVED_SYMBOL_CODES, symbolInputError } from './symbol-codes.mjs'
 
 export { RESERVED_SYMBOL_CODES }
 
@@ -318,8 +318,8 @@ export async function listCustomSymbols(db, ownerId) {
 export async function putCustomSymbol(db, ownerId, symbol) {
   const code = String(symbol?.code ?? '').trim()
   const name = String(symbol?.name ?? '').trim()
-  if (!code || !name) return null
-  if (RESERVED_SYMBOL_CODES.includes(code)) return null
+  // 与路由**同一个函数**（server/symbol-codes.mjs）—— SQLite 与 PG 不再各写一份
+  if (symbolInputError(code, name)) return null
   const res = await dataRpc('pulse_put_symbol', ownerId, { code, name })
   return res?.symbol ?? null
 }
