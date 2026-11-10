@@ -53,6 +53,13 @@ DEFAULT_WB = ROOT / "content" / "臧氏脉学-用方知识库.xlsx"
 
 SCHEMA_PREFIX = "./schema/"
 
+#: 文件名里带这些字的工作簿 ＝ **练习／示范册**，不许写回真源
+#:
+#: 练习册里有几格是**故意留空**的。对它跑还原，空格会被当成「原文没写」，
+#: 写回 JSON 就把内容真丢了。所以这里直接拒绝。
+#: 要验收练习册，用 ``scripts/e2e/excel_exercise.py``（它只读不写）。
+GUARD_MARKERS = ("示例", "练习", "示范")
+
 
 class RestoreError(Exception):
     """还原失败。"""
@@ -125,8 +132,95 @@ def main() -> int:
         print(f"[excel] 找不到工作簿：{wb_path}", file=sys.stderr)
         return 1
 
+    # ⚠️ 练习／示范册**不许写回真源** ——
+    #    它有几格是故意留空的，写回去就等于把内容真丢了。
+    if out_dir == CONTENT and any(m in wb_path.name for m in GUARD_MARKERS):
+        print(
+            f"[excel] 这是**练习／示范工作簿**（{wb_path.name}），不写回真源。\n"
+            f"        里面有故意留空的格子，还原后写回 JSON 会把内容丢掉。\n"
+            f"        验收请用：python3 scripts/e2e/excel_exercise.py {wb_path}\n"
+            f"        要真的写回，请用主工作簿：{DEFAULT_WB}",
+            file=sys.stderr,
+        )
+        return 1
+
+    outputs, errors, _coords = restore(wb_path)
+    if errors:
+        print(f"[excel] 还原失败，{len(errors)} 处问题：", file=sys.stderr)
+        for e in errors:
+            print(f"  · {e}", file=sys.stderr)
+        return 1
+
+    if check_only:
+        bad = 0
+        for name, obj in outputs.items():
+            disk_path = CONTENT / name
+            if not disk_path.exists():
+                print(f"[excel] {name}: 磁盘上没有可读的文件", file=sys.stderr)
+                bad += 1
+                continue
+            disk = json.loads(disk_path.read_text(encoding="utf-8"))
+            if disk == obj:
+                print(f"[excel] {name}: 一致 ✓")
+            else:
+                bad += 1
+                print(f"[excel] {name}: 不一致", file=sys.stderr)
+                for line in _diff_lines(disk, obj)[:20]:
+                    print(f"  · {line}", file=sys.stderr)
+        if bad:
+            print(f"[excel] --check 失败：{bad} 个文件与工作簿不一致", file=sys.stderr)
+            return 1
+        print("[excel] --check 通过：工作簿与 JSON 完全一致")
+        return 0
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for name, obj in outputs.items():
+        text = json.dumps(obj, ensure_ascii=False, indent=2) + "\n"
+        (out_dir / name).write_text(text, encoding="utf-8")
+        print(f"[excel] 已写出 {out_dir / name}  {len(text.encode('utf-8'))} 字节")
+    print("[excel] 完毕")
+    return 0
+
+
+def _diff_lines(a: Any, b: Any, path: str = "") -> list[str]:
+    """深比较，返回差异描述。"""
+    out: list[str] = []
+    ta = "array" if isinstance(a, list) else type(a).__name__
+    tb = "array" if isinstance(b, list) else type(b).__name__
+    if ta != tb:
+        return [f"{path or '(根)'}: 类型 {ta} ≠ {tb}"]
+    if ta == "array":
+        if len(a) != len(b):
+            out.append(f"{path}: 数组长度 {len(a)} ≠ {len(b)}")
+        for i in range(max(len(a), len(b))):
+            out.extend(_diff_lines(a[i] if i < len(a) else None, b[i] if i < len(b) else None, f"{path}[{i}]"))
+        return out
+    if ta == "dict":
+        for k in sorted(set(a) | set(b)):
+            out.extend(_diff_lines(a.get(k), b.get(k), f"{path}.{k}" if path else k))
+        return out
+    if a != b:
+        out.append(f"{path}: {json.dumps(a, ensure_ascii=False)} ≠ {json.dumps(b, ensure_ascii=False)}")
+    return out
+
+
+def restore(
+    wb_path: Path,
+) -> tuple[dict[str, Any], list[str], dict[str, dict[str, tuple[str, int, int]]]]:
+    """把工作簿还原成 outputs 结构。
+
+    返回 ``(outputs, errors, coords)``：
+
+    · ``outputs`` ＝ 各 JSON 文件的还原结果；
+    · ``errors`` ＝ 还原过程中的问题（宁可报错也不猜）；
+    · ``coords`` ＝ 矩阵格位坐标（pid → cellKey → (sheet, 行, 列)），
+      验收脚本靠它把差异指到具体格子。
+    """
     wb = load_workbook(wb_path, data_only=True)
     errors: list[str] = []
+    #: 格位坐标：pid → cellKey → (sheet 名, 行号, 列号)
+    #: 验收脚本靠它把「哪一格填错了」指到具体行列。
+    coords: dict[str, dict[str, tuple[str, int, int]]] = {}
 
     # ---- 读各主表 ----
     restored: dict[str, Any] = {}
@@ -363,6 +457,7 @@ def main() -> int:
                 if flex is not None and str(flex).strip().upper() in ("TRUE", "1", "是"):
                     item["flex"] = True
 
+                coords.setdefault(pid, {})[cell_key] = (sheet_name, row_no, ci_term)
                 cells_by_id.setdefault(pid, []).append(item)
                 cell_order.setdefault(pid, {})[cell_key] = (
                     0 if hand == "L" else 1,
@@ -442,12 +537,6 @@ def main() -> int:
             item["note"] = p["note"]
         final_patterns[p["id"]] = item
 
-    if errors:
-        print(f"[excel] 还原失败，{len(errors)} 处问题：", file=sys.stderr)
-        for e in errors:
-            print(f"  · {e}", file=sys.stderr)
-        return 1
-
     outputs = {
         "drugs.json": {"$schema": SCHEMA_PREFIX + "drugs.schema.json", "drugs": restored["drugs"]},
         "doses.json": {
@@ -478,57 +567,7 @@ def main() -> int:
         },
     }
 
-    if check_only:
-        bad = 0
-        for name, obj in outputs.items():
-            disk_path = CONTENT / name
-            if not disk_path.exists():
-                print(f"[excel] {name}: 磁盘上没有可读的文件", file=sys.stderr)
-                bad += 1
-                continue
-            disk = json.loads(disk_path.read_text(encoding="utf-8"))
-            if disk == obj:
-                print(f"[excel] {name}: 一致 ✓")
-            else:
-                bad += 1
-                print(f"[excel] {name}: 不一致", file=sys.stderr)
-                for line in _diff_lines(disk, obj)[:20]:
-                    print(f"  · {line}", file=sys.stderr)
-        if bad:
-            print(f"[excel] --check 失败：{bad} 个文件与工作簿不一致", file=sys.stderr)
-            return 1
-        print("[excel] --check 通过：工作簿与 JSON 完全一致")
-        return 0
-
-    out_dir.mkdir(parents=True, exist_ok=True)
-    for name, obj in outputs.items():
-        text = json.dumps(obj, ensure_ascii=False, indent=2) + "\n"
-        (out_dir / name).write_text(text, encoding="utf-8")
-        print(f"[excel] 已写出 {out_dir / name}  {len(text.encode('utf-8'))} 字节")
-    print("[excel] 完毕")
-    return 0
-
-
-def _diff_lines(a: Any, b: Any, path: str = "") -> list[str]:
-    """深比较，返回差异描述。"""
-    out: list[str] = []
-    ta = "array" if isinstance(a, list) else type(a).__name__
-    tb = "array" if isinstance(b, list) else type(b).__name__
-    if ta != tb:
-        return [f"{path or '(根)'}: 类型 {ta} ≠ {tb}"]
-    if ta == "array":
-        if len(a) != len(b):
-            out.append(f"{path}: 数组长度 {len(a)} ≠ {len(b)}")
-        for i in range(max(len(a), len(b))):
-            out.extend(_diff_lines(a[i] if i < len(a) else None, b[i] if i < len(b) else None, f"{path}[{i}]"))
-        return out
-    if ta == "dict":
-        for k in sorted(set(a) | set(b)):
-            out.extend(_diff_lines(a.get(k), b.get(k), f"{path}.{k}" if path else k))
-        return out
-    if a != b:
-        out.append(f"{path}: {json.dumps(a, ensure_ascii=False)} ≠ {json.dumps(b, ensure_ascii=False)}")
-    return out
+    return outputs, errors, coords
 
 
 if __name__ == "__main__":

@@ -29,7 +29,7 @@
     "pg:admin": "node scripts/pg-admin.mjs",
     "pg:migrate": "node scripts/migrate-sqlite-to-pg.mjs",
     "cloudfn:build": "node scripts/build-cloudfunction.mjs",
-    "test": "npm run build:core && npm run test:e2e:core && npm run test:e2e:excel && npm run test:e2e:excel:break && npm run test:e2e:mp && npm run test:e2e:mp:api && npm run test:e2e:migration && npm run test:e2e:auth && npm run test:e2e:app && npm run test:e2e:desktop && npm run test:e2e:harmony",
+    "test": "npm run build:core && npm run test:e2e:core && npm run test:e2e:excel && npm run test:e2e:excel:break && npm run test:e2e:exercise && npm run test:e2e:mp && npm run test:e2e:mp:api && npm run test:e2e:migration && npm run test:e2e:auth && npm run test:e2e:app && npm run test:e2e:desktop && npm run test:e2e:harmony",
     "test:e2e:core": "node scripts/e2e/core-smoke.mjs",
     "test:e2e:excel": "python3 scripts/e2e/excel_roundtrip.py",
     "test:e2e:excel:break": "python3 scripts/e2e/excel_roundtrip_break.py",
@@ -55,7 +55,10 @@
     "desktop:dev": "npm run build && electron .",
     "desktop:pack": "npm run build && electron-builder --dir",
     "desktop:dist": "npm run build && electron-builder",
-    "desktop:dist:win": "npm run build && electron-builder --win --x64"
+    "desktop:dist:win": "npm run build && electron-builder --win --x64",
+    "content:exercise": "python3 scripts/make_exercise_workbook.py",
+    "content:exercise:check": "python3 scripts/e2e/excel_exercise.py",
+    "test:e2e:exercise": "python3 scripts/e2e/excel_exercise_roundtrip.py"
   },
   "dependencies": {
     "@cloudbase/node-sdk": "^3.18.7",
