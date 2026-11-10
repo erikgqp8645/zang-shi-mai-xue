@@ -1,4 +1,6 @@
 import { DRUGS, type Drug } from './drugs'
+import GROUP_DATA from '../content/pulse-groups.json'
+import REF_DATA from '../content/formula-reference.json'
 import {
   DOSE_SCIENCE_NAME,
   FORMULA_DOSE_BY_ID,
@@ -160,60 +162,7 @@ export interface PulseGroup {
   source: string
 }
 
-export const PULSE_GROUPS: PulseGroup[] = [
-  {
-    id: 'g-shuangguan',
-    name: '双关同治',
-    positions: ['L|关', 'R|关'],
-    ref: '双关',
-    source:
-      '讲稿 2010·第四讲「双关同治是两个关都有出现浮大」；讲稿 2010·第二讲「（三）肝脾（双关）同治」；讲义 2026-10·p44 图「（五）（双关同治）」',
-  },
-  {
-    id: 'g-ganshu',
-    name: '肝肺同治',
-    positions: ['L|关', 'R|寸'],
-    ref: '左关右寸',
-    source:
-      '讲稿 2010·第四讲「肝肺同治，也就是左关跟右寸」；讲义 2026-10·p44 图「（二）（肝肺同治）」；讲义 2026-10·p42「肝肺同治：左关右寸浮大」',
-  },
-  {
-    id: 'g-ganxin',
-    name: '肝心同治',
-    positions: ['L|寸', 'L|关'],
-    ref: '左寸关',
-    source:
-      '讲稿 2010·第四讲「第六个是肝心同治。左手寸关浮大的时候，用肝心同治」；讲义 2026-10·p44 图「（六）肝心同治」；讲义 2026-10·p42「肝心同治：左寸关浮大」',
-  },
-  {
-    id: 'g-shuangcun',
-    name: '双寸',
-    positions: ['L|寸', 'R|寸'],
-    ref: '双寸',
-    source: '讲稿 2010·第二讲「（四）双寸比较浮大」、「双寸弱的不宜」（用上焦方）',
-  },
-  {
-    id: 'g-shuangchi',
-    name: '双尺',
-    positions: ['L|尺', 'R|尺'],
-    ref: '双尺',
-    source: '讲稿 2010·第十四讲「双尺脉影响双关，双关再影响上面来」、「双尺不平衡」',
-  },
-  {
-    id: 'g-shuangguan-youcun',
-    name: '双关右寸',
-    positions: ['L|关', 'R|关', 'R|寸'],
-    ref: '双关右寸',
-    source: '讲义 2026-10·p42「黄芪鳖甲：双关右寸浮洪大」；讲义 2026-10·p44 图「⑥双关右寸浮大：黄芪鳖甲」',
-  },
-  {
-    id: 'g-youguanchi',
-    name: '右关尺',
-    positions: ['R|关', 'R|尺'],
-    ref: '右关尺',
-    source: '讲义 2026-10·p42「木香顺气：右关尺浮大顶手」；讲稿 2010·第二讲「右关尺浮大（增液汤加减）」',
-  },
-]
+export const PULSE_GROUPS: PulseGroup[] = GROUP_DATA.groups as PulseGroup[]
 
 /** 脉位文字（如「左关＋右寸」） */
 export function groupPositionsLabel(g: PulseGroup): string {
@@ -334,239 +283,7 @@ export interface FormulaReference {
  * 方名沿用各资料原样（「天王芪」「理中术姜芪」「六味桂」等），不改写成现代教材方名；
  * 某套资料没有的，一律留空并写明「未载」，不臆造。
  */
-export const FORMULA_REFERENCE: FormulaReference[] = [
-  {
-    no: 1,
-    name: '一号上焦方',
-    indication: '变脉，六弱脉',
-    doseId: 'th-1',
-    doseBasis: '同名同方（讲义 p42 第 1 行 ↔ 同和堂版 p1「1号上焦方」）',
-    draftName: '一号上焦方',
-  },
-  {
-    no: 2,
-    name: '二号上焦方',
-    indication: '同上，素食者',
-    doseId: 'th-2',
-    doseBasis: '同名同方（讲义 p42 第 2 行 ↔ 同和堂版 p1「2号上焦方」）',
-    draftName: '二号上焦方',
-  },
-  {
-    no: 3,
-    name: '三号上焦方',
-    indication: '变脉；左寸弱且右脉有',
-    doseId: 'th-3',
-    doseBasis: '同名同方（讲义 p42 第 3 行 ↔ 同和堂版 p1「3号上焦方」）',
-    draftName: '三号上焦方（二仁茯芪）',
-  },
-  {
-    no: 4,
-    name: '五味异功散',
-    indication: '右关弱则拉高白术；右关浮大则拉高茯苓',
-    doseId: 'th-wuwei',
-    doseBasis: '同方异名（讲义作「五味异功散」，同和堂版作「五味异功（五异）」）',
-    draftNote: '讲稿 2010 未载「五味异功散」的组成与剂量',
-  },
-  {
-    no: 5,
-    name: '参苓白术散',
-    indication: '右关弱；治疗慢性腹泻',
-    doseId: 'th-shenling',
-    doseBasis: '同名同方（讲义 p42 第 5 行 ↔ 同和堂版 p1「参苓白术散」）',
-    draftNote: '讲稿 2010 未载「参苓白术散」的组成与剂量',
-  },
-  {
-    no: 6,
-    name: '六神散',
-    indication: '右关浮软；治疗烧退又烧',
-    doseId: 'th-liushen',
-    doseBasis: '同名同方（讲义 p42 第 6 行 ↔ 同和堂版 p1「六神散」）',
-    draftName: '右关虚脏 · 浮大而软（六神汤）',
-  },
-  {
-    no: 7,
-    name: '增液汤',
-    indication: '右关浮大',
-    doseId: 'th-zengye',
-    doseBasis: '同名同方（讲义 p42 第 7 行 ↔ 同和堂版 p1「增液汤」）',
-    draftName: '右关尺浮大（增液汤加减）',
-  },
-  {
-    no: 8,
-    name: '加味增液汤',
-    indication: '右关浮大；加当归郁李仁缓解便秘',
-    doseId: 'th-jiawei-zengye',
-    doseBasis: '同名同方（讲义 p42 第 8 行 ↔ 同和堂版 p1「加味增液汤」）',
-    draftName: '右关尺浮大（增液汤加减）',
-  },
-  {
-    no: 9,
-    name: '易简地黄饮子',
-    indication: '右三部脉浮洪大',
-    doseId: 'th-yijian',
-    doseBasis: '同名同方（讲义 p42 第 9 行 ↔ 同和堂版 p1「易简地黄饮子」）',
-    draftName: '右脉浮大微弦（易简地黄饮子）',
-  },
-  {
-    no: 10,
-    name: '加味理中',
-    indication: '右关弱且左关有',
-    doseId: 'th-jiawei-lizhong',
-    doseBasis:
-      '同方异名（讲义作「加味理中」，同和堂版作「加味理中汤」）。注意讲稿另有三焦疗法的「中焦方（加味理中）」，与本条不是同一张方',
-    draftName: '右关虚脏 · 软而无力（加味理中）',
-  },
-  {
-    no: 11,
-    name: '理中术姜芪',
-    indication: '右关微；治疗伤寒感冒',
-    doseId: 'th-lizhong-shujiangqi',
-    doseBasis: '同名同方（讲义 p42 第 11 行 ↔ 同和堂版 p1「理中术姜芪」）',
-    draftNote: '讲稿 2010 未载「理中术姜芪」的组成与剂量',
-  },
-  {
-    no: 12,
-    name: '木香顺气',
-    indication: '右关尺浮大顶手',
-    doseId: 'th-muxiang',
-    doseBasis: '同名同方（讲义 p42 第 12 行 ↔ 同和堂版 p1「木香顺气」）',
-    draftName: '右关尺浮大顶手（木香顺气）',
-  },
-  {
-    no: 13,
-    name: '养心汤',
-    indication: '左寸弱迟',
-    doseId: 'th-yangxin',
-    doseBasis: '同名同方（讲义 p42 第 13 行 ↔ 同和堂版 p1「养心汤」）',
-    draftName: '左寸浮大 · 脉迟（养心汤）',
-  },
-  {
-    no: 14,
-    name: '天王芪',
-    indication: '左寸浮大数',
-    doseId: 'th-tianwang',
-    doseBasis: '同方异名（讲义作「天王芪」，同和堂版作「天王补心+芪（天王芪）」）',
-    draftName: '左寸浮大 · 脉数（天王补心丹加芪）',
-  },
-  {
-    no: 15,
-    name: '肝心同治',
-    indication: '左寸关浮大',
-    doseId: 'th-ganxin',
-    doseBasis: '同名同方（讲义 p42 第 15 行 ↔ 同和堂版 p2「肝心同治」）',
-    draftName: '肝心同治（逍遥散加芪）',
-  },
-  {
-    no: 16,
-    name: '肝肺同治',
-    indication: '左关右寸浮大',
-    doseId: 'th-ganfei',
-    doseBasis:
-      '同名同方（讲义 p42 第 16 行 ↔ 同和堂版 p2「肝肺同治」）。讲义 p44「依脉用方」图把它列为（二）肝肺同治，治法名与方名在此合用',
-    draftNote:
-      '讲稿 2010·第二讲无同名方条（讲稿按脉位写作「左关右寸」两条：浮大带点→黄芪鳖甲／秦艽扶羸；浮洪大→黄芪鳖甲）；讲稿 2010·第四讲有「肝肺同治」这一治法名',
-  },
-  {
-    no: 17,
-    name: '黄芪鳖甲',
-    indication: '双关右寸浮洪大',
-    doseId: 'th-huangqibiejia',
-    doseBasis:
-      '同名同方（讲义 p42 第 17 行 ↔ 同和堂版 p2「黄芪鳖甲」）。脉位表述两套资料不同：讲义作「双关右寸浮洪大」，讲稿作「左关右寸浮洪大」',
-    draftName: '左关右寸 · 浮洪大（黄芪鳖甲）',
-  },
-  {
-    no: 18,
-    name: '龙胆泻肝',
-    indication: '左关洪或弦',
-    doseId: 'th-longdan',
-    doseBasis: '同名同方（讲义 p42 第 18 行 ↔ 同和堂版 p2「龙胆泻肝」）',
-    draftName: '左关浮洪大（加味龙胆泻肝）',
-  },
-  {
-    no: 19,
-    name: '参苏饮',
-    indication: '右寸浮洪大',
-    doseId: 'th-cansuyin',
-    doseBasis: '同名同方（讲义 p42 第 19 行 ↔ 同和堂版 p2「参苏饮」）',
-    draftName: '右寸浮大（参苏饮）',
-  },
-  {
-    no: 20,
-    name: '六味地黄丸',
-    indication: '寸关浮大尺脉弱',
-    doseId: 'th-liuwei',
-    doseBasis:
-      '同方异名（讲义作「六味地黄丸」，同和堂版作「六味桂」＝六味地黄＋肉桂，另带天冬、五味子）',
-    draftName: '引火归元（肾脏疗法）',
-  },
-  {
-    no: 21,
-    name: '明目六味地黄',
-    indication: '寸关浮大尺脉弱 且左关大',
-    doseId: 'th-mingmu-liuwei',
-    doseBasis: '同方异名（讲义作「明目六味地黄」，同和堂版作「明目六味桂」＝柴胡＋当归＋六味桂）',
-    draftName: '引火归元（肾脏疗法）',
-  },
-  {
-    no: 22,
-    name: '知柏六味地黄',
-    indication: '左右尺脉不平衡；尺脉亢',
-    doseId: 'th-zhibai',
-    doseBasis: '同方异名（讲义作「知柏六味地黄」，同和堂版作「知柏六味桂」＝知母黄柏＋六味桂天味）',
-    draftName: '引火归元（肾脏疗法）',
-  },
-  {
-    no: 23,
-    name: '明目知柏地黄',
-    indication: '左右尺脉不平衡；尺脉亢；外加左关大',
-    doseId: 'th-mingmu-zhibai',
-    doseBasis: '同方异名（讲义作「明目知柏地黄」，同和堂版作「明目知柏六味桂」＝柴胡＋当归＋知柏六味桂）',
-    draftNote: '讲稿 2010 未载该组合方（讲稿只分别写了「添加柴味归」与「添加知柏」两味加减）',
-  },
-  {
-    no: 24,
-    name: '七宝美髯丹',
-    indication: '变脉',
-    doseId: 'th-xiajiao',
-    doseBasis:
-      '同方异名：两套资料都把「七宝美髯丹」列为**下焦方**的科学中药 —— 同和堂版 p4「下焦方：七宝美髯丹3 小茴香0.3」，讲稿「下焦方（天乙丹）」同；讲义 p42 作「七宝美髯丹」、脉象「变脉」，与下焦方的适应症一致，故列其成方「下焦方」',
-    draftName: '下焦方（天乙丹）',
-  },
-  {
-    no: 25,
-    name: '大补阴丸',
-    indication: '尺脉洪大',
-    doseId: 'th-dabuyin',
-    doseBasis: '同名同方（讲义 p42 第 25 行 ↔ 同和堂版 p3「大补阴丸」）',
-    draftName: 'DRAFT-大补阴丸',
-  },
-  {
-    no: 26,
-    name: '还少丹',
-    indication: '食疗补肾方（一付五天）',
-    doseId: 'th-huanshaodan',
-    doseBasis: '同名同方（讲义 p42 第 26 行 ↔ 同和堂版 p3「还少丹」）',
-    draftName: '食补肾（还少丹加减）',
-  },
-  {
-    no: 27,
-    name: '人参养荣汤',
-    indication: '左右脉不平衡；治疗脱发、产后虚、大病初愈',
-    doseId: 'th-renshenyangrong',
-    doseBasis: '同名同方（讲义 p42 第 27 行 ↔ 同和堂版 p1「人参养荣汤」）',
-    draftName: '左右脉不平衡（人参养荣汤）',
-  },
-  {
-    no: 28,
-    name: '补中益气汤',
-    indication: '双关浮大；加散药用于虚人感冒',
-    doseId: 'th-shuangguan',
-    doseBasis:
-      '同方异名（讲义作「补中益气汤」，同和堂版作「双关同治（补中益气）」）；讲稿作「肝脾（双关）同治（补中益气加散药）」',
-    draftName: '肝脾（双关）同治（补中益气加散药）',
-  },
-]
+export const FORMULA_REFERENCE: FormulaReference[] = REF_DATA.rows as FormulaReference[]
 
 /**
  * 讲稿 2010 里写明了组成、但**不在第二讲**的方 —— 单列，出处标到讲次。
@@ -574,17 +291,7 @@ export const FORMULA_REFERENCE: FormulaReference[] = [
  * 第二讲是讲稿唯一系统给出「方 ↔ 组成／服法／加减／禁忌」的地方；
  * 这条是讲稿第五讲顺带写下的方，组成只给药味简称、没有剂量，照录不改。
  */
-export const DRAFT_EXTRA: Record<
-  string,
-  { name: string; composition: string; source: string; note?: string }
-> = {
-  'DRAFT-大补阴丸': {
-    name: '大补阴丸（讲稿 2010·第五讲）',
-    composition: '柏、母、地、龟。柏，黄柏，母，知母，地，熟地，龟，龟板',
-    source: '讲稿 2010·第五讲',
-    note: '讲稿只给药味简称，未写剂量；剂量见同和堂版 p3「大补阴丸」',
-  },
-}
+export const DRAFT_EXTRA: Record<string, { name: string; composition: string; source: string; note?: string }> = REF_DATA.draftExtra
 
 /**
  * 一行方剂的「配伍与剂量」视图 —— 把三套资料的对应内容并到一起。
@@ -640,26 +347,7 @@ export function formulaDoseView(r: FormulaReference): FormulaDoseView {
  * （平和体质 → 一体疗法 → 1.清挡路方 2.冷热水），
  * 对应讲稿第二讲「一体疗法（冷热水疗法）·服法为『热的就给他冷水，冷的就给他热水』」。
  */
-export const FORMULA_ALIAS: Record<string, string> = {
-  天王芪: '左寸浮大 · 脉数（天王补心丹加芪）',
-  六神散: '右关虚脏 · 浮大而软（六神汤）',
-  加味增液汤: '右关尺浮大（增液汤加减）',
-  补中益气汤: '肝脾（双关）同治（补中益气加散药）',
-  龙胆泻肝: '左关浮洪大（加味龙胆泻肝）',
-  加味龙胆: '左关浮洪大（加味龙胆泻肝）',
-  // 五脏疗法的加味理中（讲义 p42 第 10 行「右关弱且左关有」）；
-  // 注意与三焦疗法的「中焦方（加味理中）」不是同一张方
-  加味理中: '右关虚脏 · 软而无力（加味理中）',
-  六味地黄丸: '引火归元（肾脏疗法）',
-  明目六味地黄: '引火归元（肾脏疗法）',
-  知柏六味地黄: '引火归元（肾脏疗法）',
-  明目知柏地黄: '引火归元（肾脏疗法）',
-  黄芪鳖甲: '左关右寸 · 浮洪大（黄芪鳖甲）',
-  还少丹: '食补肾（还少丹加减）',
-  人参养荣汤: '左右脉不平衡（人参养荣汤）',
-  // 讲义 p47「开方三部曲图」上的用名（p42 之外的第二处来源）
-  冷热水: '一体疗法（冷热水疗法）',
-}
+export const FORMULA_ALIAS: Record<string, string> = REF_DATA.alias
 
 /**
  * 按方名找讲稿 2010 的方剂条目（查组成／服法／禁忌用）。
