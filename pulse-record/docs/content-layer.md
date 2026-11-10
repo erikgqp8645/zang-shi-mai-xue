@@ -52,6 +52,12 @@ npm run content:check
 # 往返一致性 + 故意写坏验证（已挂在 npm test 里）
 npm run test:e2e:excel
 npm run test:e2e:excel:break
+
+# 重新生成练习册（主工作簿改了之后）
+npm run content:exercise
+
+# 验收练习册（填完一格就能验一格）
+npm run content:exercise:check
 ```
 
 工作簿默认位置：`pulse-record/content/臧氏脉学-用方知识库.xlsx`
@@ -117,6 +123,24 @@ npm run test:e2e:excel:break
 
 矩阵 sheet 名里的**序号是权威的**（条目 ID 超 31 字符会被 Excel 截断），
 所以 sheet 名不要改；表头区的「条目ID」与序号对不上时，转回 JSON 会直接报错。
+
+## 3.5 教程与练习册
+
+| 文件 | 是什么 |
+|---|---|
+| [`教程-如何填写用方知识库.md`](./教程-如何填写用方知识库.md) | **面向审核者**的教程：从原文到格子的每一步、分表细则、报错对照、纪律 |
+| `content/示例-填写示范.xlsx` | **练习册** —— 主工作簿的副本，5 格故意留空 ＋ 标黄 ＋ 批注说明 |
+| `scripts/make_exercise_workbook.py` | 生成练习册（可复现，别手改二进制） |
+| `scripts/exercise_points.py` | **练习点定义** —— 生成与验收共用同一份（单一真源） |
+| `scripts/e2e/excel_exercise.py` | 练习册**验收**：逐格告诉你填对没有、差在哪儿 |
+| `scripts/e2e/excel_exercise_roundtrip.py` | 练习册自身的回归（13 项，挂在 `npm test`） |
+
+⭐ **练习册的正确答案不写死**，而是从真源 `src/content/*.json` 现取 ——
+所以练习册不会和真源脱节，验收也不会「按错误的答案判对错」。
+
+⚠️ **误操作防护**：文件名含「示例／练习／示范」的工作簿，
+`excel_to_json.py` **拒绝写回真源** —— 里面有故意留空的格子，
+写回去等于把内容真丢了。
 
 ## 4. 摊平规则（`scripts/excel_schema.py` 是唯一真源）
 
