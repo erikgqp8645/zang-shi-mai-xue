@@ -93,7 +93,7 @@ export default function App() {
 
   /**
    * 登录状态（多用户）。
-   * - 单机模式（服务端 PULSE_SINGLE_USER=1）：不用登录，直接进
+   * - 单机模式（服务端 PULSE_SINGLE_USER=1）：不用登录，但也要点一下「进入」
    * - 多用户模式：必须登录；令牌失效（401）→ 广播事件 → 回到登录页
    */
   const [user, setUser] = useState<AuthUser | null>(null)
@@ -106,7 +106,15 @@ export default function App() {
       const state = await serverState()
       setMode(state.mode)
       if (state.mode === 'single') {
-        setUser({ id: 'local', loginName: 'local', displayName: '本机用户', role: 'admin' })
+        // ⚠️ **单机模式也不自动进去**（维护者 2026-11-08 拍板：
+        //    「需要用户点击才可以登录」＋「单机模式也要点一下才进去」）。
+        //
+        //    这里原来**直接 setUser(...)** —— 效果是「一打开就进去了」，
+        //    等于替用户登录了；而 `LoginPanel` 里那个写好的「进入」按钮
+        //    （`single` 分支）**永远显示不出来** —— 死代码。
+        //
+        //    → 现在单机模式也让 `user` 保持 null → 渲染 `LoginPanel` 的
+        //      单机分支 → 用户点「进入」才进（`onEnterSingle`）。
         setAuthReady(true)
         return
       }
