@@ -47,6 +47,7 @@ from excel_schema import (
     MATRIX_SHEET_PREFIX,
     SHEETS,
     SheetDef,
+    matrix_sheet_name,
 )
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -146,11 +147,28 @@ def main() -> int:
         )
         return 1
 
-    outputs, errors, _coords = restore(wb_path)
+    # ---- 核对模式：收集「sheet 名 ↔ 图名」的不一致 ----
+    #
+    # ⭐ 只有核对模式才做这件事。转移模式（content:json）**绝不能**因此报错 ——
+    #    那会死锁：改了图名 → 转移报错 → 新图名进不了 JSON → 没法重生成 → 永远卡住。
+    name_issues: list[str] = []
+    outputs, errors, _coords = restore(
+        wb_path, name_issues=name_issues if check_only else None
+    )
     if errors:
         print(f"[excel] 还原失败，{len(errors)} 处问题：", file=sys.stderr)
         for e in errors:
             print(f"  · {e}", file=sys.stderr)
+        return 1
+
+    if check_only and name_issues:
+        print(f"[excel] --check 失败，{len(name_issues)} 处 sheet 名与图名对不上：", file=sys.stderr)
+        for e in name_issues:
+            print(f"  · {e}", file=sys.stderr)
+        print(
+            "        改了图名要重跑 `npm run content:excel`（sheet 的 tab 名才跟得上）",
+            file=sys.stderr,
+        )
         return 1
 
     if check_only:
@@ -208,6 +226,8 @@ def _diff_lines(a: Any, b: Any, path: str = "") -> list[str]:
 
 def restore(
     wb_path: Path,
+    *,
+    name_issues: list[str] | None = None,
 ) -> tuple[dict[str, Any], list[str], dict[str, dict[str, tuple[str, int, int]]]]:
     """把工作簿还原成 outputs 结构。
 
@@ -217,6 +237,16 @@ def restore(
     · ``errors`` ＝ 还原过程中的问题（宁可报错也不猜）；
     · ``coords`` ＝ 矩阵格位坐标（pid → cellKey → (sheet, 行, 列)），
       验收脚本靠它把差异指到具体格子。
+
+    ## ``name_issues``
+
+    ⭐ **可选的收集袋** —— 传入一个 list，矩阵 sheet 的名字
+    （``P序号-图名``）与「脉象图·条目」里的**图名**对不上时，
+    把说明写进去。
+
+    ⚠️ **它不进 ``errors``** —— 那会死锁：改了图名 → 转移报错 →
+       新图名进不了 JSON → 没法重生成 sheet 名 → 永远卡住。
+       只有核对命令（``--check``）才把它当错误报出来。
     """
     wb = load_workbook(wb_path, data_only=True)
     errors: list[str] = []
@@ -375,6 +405,24 @@ def restore(
             continue
         pid = patterns[idx]["id"]
 
+        # ---- sheet 名 ↔ 图名：核对（**不报错**，只收集）----
+        #
+        # ⭐ 矩阵 sheet 的 tab 名＝`P序号-图名`，图名来自「脉象图·条目」表的
+        #    「图名」列。改了图名却没重跑 `content:excel`，tab 名就与图名对不上。
+        #
+        # ⚠️ 这里**只收集、不报错** —— 报错会死锁：改了图名 → 转移报错 →
+        #    新图名进不了 JSON → 没法重生成 sheet 名 → 永远卡住。
+        #    只有核对命令（`--check`）才把它当错误报出来。
+        if name_issues is not None:
+            title = (patterns[idx].get("title") or "").strip()
+            expected = matrix_sheet_name(idx + 1, title, pid)
+            if sheet_name != expected:
+                name_issues.append(
+                    f"{where}：sheet 名与图名不一致 —— "
+                    f"这一条的图名是「{title or '（空）'}」，sheet 名应该是「{expected}」。"
+                    f"改了图名要重跑 `npm run content:excel`"
+                )
+
         # 表头区的 ID 若与序号对不上 ⇒ 报错（防止张冠李戴）
         header_row = 0
         for r in range(1, min(ws.max_row, 12) + 1):
@@ -530,7 +578,13 @@ def restore(
             cells_by_id.get(pid, []),
             key=lambda c: order.get(c["cell"], (9, 99)),
         )
-        item: dict[str, Any] = {"cells": cells}
+        item: dict[str, Any] = {}
+        # ⭐ 图名（title）**参与往返** —— 不然重生成工作簿时 50 个名字全丢，
+        #    sheet 名就退回到内部 ID。空值不产出该键（与「与条件文字的出入」同理）。
+        title = (p.get("title") or "").strip()
+        if title:
+            item["title"] = title
+        item["cells"] = cells
         gmap = groups_by_id.get(pid)
         if gmap:
             # ⚠️ 组与组的顺序**按组号**排，不按首次出现排 ——

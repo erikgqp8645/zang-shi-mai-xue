@@ -109,6 +109,40 @@ def main() -> int:
         )
         eq(seqs, list(range(1, 51)), "矩阵序号连续 1..50 无缺号")
 
+        print("②之补 命名：sheet 名＝P序号-图名，图名互不相同且非空")
+        # ⚠️ 按结构解析：图名从「脉象图·条目」表的**图名列**现读，
+        #    不从别处抄一份 —— 抄一份就变成两处真源。
+        ws_idx = wb["脉象图·条目"]
+        headers = [ws_idx.cell(row=1, column=c).value for c in range(1, ws_idx.max_column + 1)]
+        col_title = headers.index("图名") + 1 if "图名" in headers else 0
+        ok(col_title > 0, "「脉象图·条目」表里有「图名」列")
+        titles_in_sheet: list[str] = []
+        for r in range(2, ws_idx.max_row + 1):
+            v = ws_idx.cell(row=r, column=col_title).value
+            if v is None or str(v).strip() == "":
+                continue
+            titles_in_sheet.append(str(v).strip())
+        eq(len(titles_in_sheet), 50, f"图名 50 条（实际 {len(titles_in_sheet)}）")
+        eq(len(set(titles_in_sheet)), 50, "50 个图名互不相同")
+        empty_titles = [t for t in titles_in_sheet if not t.strip()]
+        eq(empty_titles, [], "没有空图名")
+
+        # sheet 名 ↔ 图名：按序号一一对应
+        by_seq = {}
+        for n in matrix_sheets:
+            seq = int(n[len(MATRIX_SHEET_PREFIX) :].split("-", 1)[0])
+            by_seq[seq] = n
+        bad_names = []
+        for i, title in enumerate(titles_in_sheet, start=1):
+            # 「脉象图·条目」表按行序 = 序号（读回也是按序号定位条目）
+            if i not in by_seq:
+                bad_names.append(f"P{i:02d}: 缺 sheet")
+                continue
+            expect = f"{MATRIX_SHEET_PREFIX}{i:02d}-{title}"
+            if by_seq[i] != expect:
+                bad_names.append(f"P{i:02d}: {by_seq[i]} ≠ {expect}")
+        eq(bad_names, [], f"每个 sheet 名＝P序号-图名（异常 {bad_names[:3]}）")
+
         print("③ Excel → JSON")
         r = run([sys.executable, str(SCRIPTS / "excel_to_json.py"), str(wb_path), "--out", str(out_dir)])
         ok(r.returncode == 0, f"还原 JSON 不报错（退出码 {r.returncode}）")
@@ -133,6 +167,17 @@ def main() -> int:
         eq(count(patterns, "cells"), count(disk_patterns, "cells"), "格位总数一致")
         eq(count(patterns, "groups"), count(disk_patterns, "groups"), "AND 组总数一致")
         eq(count(patterns, "relations"), count(disk_patterns, "relations"), "关系总数一致")
+
+        # ⭐ 图名必须**参与往返** —— 不然重生成工作簿时 50 个名字全丢，
+        #    sheet 的 tab 名就退回内部 ID。
+        back_titles = {k: v.get("title", "") for k, v in patterns.items()}
+        disk_titles = {k: v.get("title", "") for k, v in disk_patterns.items()}
+        eq(back_titles, disk_titles, "图名往返一致（title 不丢）")
+        eq(
+            sorted(t for t in back_titles.values() if t),
+            sorted(t for t in disk_titles.values() if t),
+            "非空图名往返一致",
+        )
 
         def probe_count(src: dict) -> int:
             return sum(

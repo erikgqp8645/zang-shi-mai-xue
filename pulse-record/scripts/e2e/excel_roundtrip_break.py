@@ -27,6 +27,7 @@
 ⑧ 矩阵：漏了一个 sheet  → 漏掉一张脉象图
 ⑨ 矩阵：sheet 改名导致序号重复 → 张冠李戴（另一张图挂错条目）
 ⑩ 矩阵：填了用字却没填组号 → 这一格被悄悄丢出任何组，图上还留着用字
+⑪ 矩阵：改了图名但没重跑 content:excel → **核对**必须失败（转移必须成功）
 
 ⭐ 注入点**按结构定位**（找列头行、找第一个有值的格），
    不靠硬编码行号 —— 表头区行数会变，硬编码会失效。
@@ -48,7 +49,7 @@ SCRIPTS = ROOT / "scripts"
 CONTENT = ROOT / "src" / "content"
 
 #: 拿来开刀的矩阵 sheet（第一条：fx-bianmai-wuli 之外的、有点位的那条）
-MATRIX_SHEET = "P04-fx-ssx-qingdanglu"
+MATRIX_SHEET = "P04-清挡路"
 
 failures = 0
 checks = 0
@@ -67,6 +68,15 @@ def ok(cond: bool, msg: str) -> None:
 def run_restore(wb_path: Path, out_dir: Path) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(SCRIPTS / "excel_to_json.py"), str(wb_path), "--out", str(out_dir)],
+        capture_output=True,
+        text=True,
+    )
+
+
+def run_check(wb_path: Path) -> subprocess.CompletedProcess:
+    """跑**核对**模式（``--check``）—— 只校验，不写文件。"""
+    return subprocess.run(
+        [sys.executable, str(SCRIPTS / "excel_to_json.py"), str(wb_path), "--check"],
         capture_output=True,
         text=True,
     )
@@ -198,6 +208,39 @@ def main() -> int:
         ok(back == disk, "原样工作簿还原结果与磁盘 JSON 完全一致")
 
         print("")
+        print("⑪ 改了图名但没重跑 content:excel：核对必须失败、转移必须成功")
+        # ⚠️ 这一条是**防死锁**的守门员：
+        #   转移（content:json）若因「sheet 名与图名不一致」报错，
+        #   用户改了图名就永远进不了 JSON、也就永远重生成不了 sheet 名 —— 死锁。
+        #   所以：错报在**核对**（content:check）里，转移必须照常成功。
+        wb = load_workbook(base_wb)
+        _break_title(wb)
+        bad_title_wb = tmp / "bad-title.xlsx"
+        wb.save(bad_title_wb)
+
+        r = run_check(bad_title_wb)
+        msg = (r.stderr or "") + (r.stdout or "")
+        ok(r.returncode != 0, f"改了图名后核对必须失败（实际退出码 {r.returncode}）")
+        ok(
+            "sheet 名与图名不一致" in msg,
+            f"改了图名后核对必须报「sheet 名与图名不一致」"
+            f"（实际：{' / '.join([x for x in msg.splitlines() if x.strip()][:3])}）",
+        )
+
+        r = run_restore(bad_title_wb, tmp / "out-bad-title")
+        ok(
+            r.returncode == 0,
+            f"改了图名后**转移**必须成功（否则死锁）（实际退出码 {r.returncode}）",
+        )
+        if r.returncode == 0:
+            back2 = json.loads((tmp / "out-bad-title/pulse-patterns.json").read_text(encoding="utf-8"))
+            titles = {v.get("title", "") for v in back2["patterns"].values()}
+            ok(
+                "改了名字的图" in titles,
+                f"转移后新图名进了 JSON（实际取到：{sorted(titles)[:3]}）",
+            )
+
+        print("")
         print("⑩ 派生长表不是编辑面：改「脉象图·格位」必须不影响还原结果")
         wb = load_workbook(base_wb)
         ws_cells = wb["脉象图·格位"]
@@ -248,7 +291,7 @@ def _break_relation_text(wb) -> None:
 
 def _break_missing_sheet(wb) -> None:
     """删掉一张矩阵 sheet ⇒ 少一条脉象图。"""
-    wb.remove(wb["P02-fx-bianmai-youli"])
+    wb.remove(wb["P02-减半三焦疗法·肾虚"])
 
 
 def _break_renamed_sheet(wb) -> None:
@@ -256,7 +299,7 @@ def _break_renamed_sheet(wb) -> None:
 
     序号是权威的（sheet 名会被 31 字符上限截断），所以改名必须被发现。
     """
-    wb["P03-fx-shenyong-mubiao"].title = "P04-fx-shenyong-mubiao"
+    wb["P03-下焦方"].title = "P04-下焦方"
 
 
 def _break_matrix_term(wb) -> None:
@@ -290,6 +333,25 @@ def _break_matrix_id(wb) -> None:
     ws = wb[MATRIX_SHEET]
     row = find_header_row(ws, "条目ID")
     ws.cell(row=row, column=2).value = "fx-bianmai-wuli"
+
+
+def _break_title(wb) -> None:
+    """把「脉象图·条目」表里某一条的**图名**改掉（sheet 的 tab 名没跟上）。
+
+    ⚠️ 注入点**按结构定位** —— 找「图名」列头、按条目ID 找行，
+       不硬编码行列号（表结构一变就会失效）。
+    """
+    ws = wb["脉象图·条目"]
+    headers = [ws.cell(row=1, column=c).value for c in range(1, ws.max_column + 1)]
+    if "图名" not in headers:
+        raise AssertionError("「脉象图·条目」表里没有「图名」列")
+    col_title = headers.index("图名") + 1
+    col_id = headers.index("条目ID") + 1
+    for r in range(2, ws.max_row + 1):
+        if str(ws.cell(row=r, column=col_id).value or "").strip() == "fx-ssx-qingdanglu":
+            ws.cell(row=r, column=col_title).value = "改了名字的图"
+            return
+    raise AssertionError("「脉象图·条目」表里找不到 fx-ssx-qingdanglu 行")
 
 
 if __name__ == "__main__":

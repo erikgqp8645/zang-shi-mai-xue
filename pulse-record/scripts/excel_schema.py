@@ -284,11 +284,23 @@ SHEET_PATTERNS = SheetDef(
         "一条用方条目一张脉象图。图只标示讲稿／讲义写明的条件，"
         "**不下诊断、不替读者加减方**。"
         "「与条件文字的出入」一列显式写出差异，不静默取一边。"
+        "「图名」＝这张图是哪个方子的，矩阵 sheet 的 tab 名就是 `P序号-图名`。"
     ),
     json_path="patterns",
     row_key="id",
     cols=[
         ColDef("条目ID", "id", 24, note="主键；与用方条目的 ID 同名（脉象图挂在用方条目上）"),
+        ColDef(
+            "图名",
+            "title",
+            24,
+            omit_empty=True,
+            note=(
+                "这张图是**哪个方子**的（用讲稿／讲义的原文用词）。"
+                "矩阵 sheet 的 tab 名＝`P序号-图名`，所以这一列改了 tab 名就跟着变。"
+                "⚠️ 改完要重跑 `npm run content:excel`，否则 tab 名对不上"
+            ),
+        ),
         ColDef("出处", "source", 34, note="格式：讲稿 2010·第N讲／讲义 2026-10·pNN"),
         ColDef("与条件文字的出入", "note", 44, note="讲义标「右关」但讲稿未分左右之类；有则写，无则空"),
     ],
@@ -394,17 +406,24 @@ MATRIX_HEADER_ROWS = [
 MATRIX_SHEET_PREFIX = "P"
 
 
-def matrix_sheet_name(index: int, pattern_id: str) -> str:
-    """矩阵 sheet 的名字：`P01-<条目ID>`。
+def matrix_sheet_name(index: int, title: str, pattern_id: str = "") -> str:
+    """矩阵 sheet 的名字：`P01-<图名>`。
 
-    ⚠️ Excel 的 sheet 名上限 **31 字符**，而有两个条目 ID 就超了
-    （``fx2-youguanchi-fuda-ding-muxiang`` 35 字）。所以加两位序号前缀 ——
-    序号即「脉象图·条目」表里的行序，用户能对上号。
+    ⭐ **图名（方剂名）是给人看的，序号才是给机器看的** ——
+    审核者翻工作簿时，一眼就要看出「这张表是哪个方子的」，
+    而不是背一串 `fx-ssx-qingdanglu` 这样的内部 ID。
 
-    ⚠️ 名字**以序号为准**，不靠 ID 还原 —— 截断后的 ID 认不出来了。
+    ⚠️ Excel 的 sheet 名上限 **31 字符**。图名最长 11 字符，加前缀远够；
+    但仍保留截断（``[:31]``），免得将来有人起超长图名把工作簿写坏。
+
+    ⚠️ 名字**以序号为准**，不靠 ID 或图名还原 —— 截断后认不出来了。
     读回时按序号定位条目（见 ``excel_to_json.py``）。
+
+    ⚠️ **图名为空时回退成条目 ID** —— 不让名字塌成 `P04-`
+    （那会让 tab 栏出现一排没头没脑的 `P04-`）。
     """
-    name = f"{MATRIX_SHEET_PREFIX}{index:02d}-{pattern_id}"
+    label = (title or "").strip() or (pattern_id or "").strip()
+    name = f"{MATRIX_SHEET_PREFIX}{index:02d}-{label}"
     return name[:31]
 
 

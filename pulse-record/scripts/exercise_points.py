@@ -38,7 +38,7 @@ CODE_SEP = ","
 #:
 #: ``where`` 说明这一格在哪：
 #:   · 普通表：``{"sheet": 表名, "key_col": 主键列头, "key_value": 主键值, "col": 列头}``
-#:   · 矩阵表：``{"sheet": "P04-xxx", "organ": "关", "depth": "浮", "col": "左手"}``
+#:   · 矩阵表：``{"sheet": "P04-清挡路", "organ": "关", "depth": "浮", "col": "左手"}``
 #:
 #: ``expect`` 说明正确答案从哪个 JSON 路径取：
 #:   · ``path`` ＝ 逐层键；末层若是 list，另给 ``cell_key``／``group_of``
@@ -85,7 +85,7 @@ EXERCISE_POINTS: list[dict[str, Any]] = [
     {
         "id": "E3",
         "title": "矩阵格 —— 填**用字**，不是符号代码",
-        "where": {"sheet": "P04-fx-ssx-qingdanglu", "organ": "关", "depth": "浮", "col": "左手"},
+        "where": {"sheet": "P04-清挡路", "organ": "关", "depth": "浮", "col": "左手"},
         "expect": {
             "file": "pulse-patterns.json",
             "path": ["patterns", "fx-ssx-qingdanglu", "cells"],
@@ -103,7 +103,7 @@ EXERCISE_POINTS: list[dict[str, Any]] = [
     {
         "id": "E4",
         "title": "矩阵的「组号」—— 同号＝且，异号＝或",
-        "where": {"sheet": "P04-fx-ssx-qingdanglu", "organ": "寸", "depth": "浮", "col": "左组号"},
+        "where": {"sheet": "P04-清挡路", "organ": "寸", "depth": "浮", "col": "左组号"},
         "expect": {
             "file": "pulse-patterns.json",
             "path": ["patterns", "fx-ssx-qingdanglu", "groups"],

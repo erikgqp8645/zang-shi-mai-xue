@@ -176,7 +176,7 @@ def build_readme_rows() -> list[dict[str, Any]]:
         rows.append({"sheet": s.name, "purpose": s.purpose, "cols": cols, "howto": howto})
     rows.append(
         {
-            "sheet": "脉象图矩阵（P01- … P50-，每条用方条目一张）",
+            "sheet": "脉象图矩阵（P01-三焦疗法·肾虚 … P50-肝心同治·挡路六，每条用方条目一张）",
             "purpose": (
                 "每条用方条目的**脉象图**，也是脉象图的**唯一编辑面**。\n"
                 "体例照讲义 2026-10 p34 的记录表：左列**部位／取法**，右边**左手、右手**两列，"
@@ -200,8 +200,9 @@ def build_readme_rows() -> list[dict[str, Any]]:
                 "不填 ＝ 本格自己就能成立。\n"
                 "⑥ **关系型要求**（画不成单格的，如「忽大忽小」「跳跳停停」）写在表头那一行里，"
                 "照抄原话 —— 这类条目九个格常常都是空的。\n"
-                "⑦ sheet 名里的序号（P01、P02…）是这条条目在「脉象图·条目」里的位置，**不要改**；"
-                "要改内容就改格子里的话。"
+                "⑦ sheet 名＝`P序号-图名`：**序号**（P01、P02…）是这条条目在「脉象图·条目」里的位置，**不要改**；"
+                "**图名**（方剂名）取自「脉象图·条目」表的「图名」列，要改去那张表改，"
+                "改完重跑 `npm run content:json` ＋ `npm run content:excel`。"
             ),
         }
     )
@@ -216,7 +217,7 @@ def _howto_for(s: SheetDef) -> str:
             "⚠️ **这张表是派生的，不要在这里改脉象。**\n"
             "它是各条矩阵 sheet（左手／右手 9 行）摊平后的样子，"
             "转回 JSON 时**以矩阵为准**，这里改了会被覆盖。\n"
-            "要改脉象，请去对应的 P01- / P02- … 矩阵 sheet 改格子里的话。"
+            "要改脉象，请去对应的 P04-清挡路 / P05-引火归元·上盛下虚 … 矩阵 sheet 改格子里的话。"
         )
     if s.json_path == "__patternRelations":
         return (
@@ -228,9 +229,12 @@ def _howto_for(s: SheetDef) -> str:
         )
     if s.json_path == "patterns":
         return (
-            "每行＝一条用方条目的**元信息**（ID／路线／触发条件／出处／与条件文字的出入）。\n"
+            "每行＝一条用方条目的**元信息**（ID／图名／路线／触发条件／出处／与条件文字的出入）。\n"
             "· 这里的「触发条件」是**原文用语**，不改写。\n"
-            "· **格位要求在矩阵 sheet 里改**（P01- … P50-），这张表不管格位。"
+            "· 「**图名**」＝这张脉象图是**哪个方子**的（原文用词），"
+            "矩阵 sheet 的 tab 名就是 `P序号-图名` —— 改完这一列，"
+            "跑 `npm run content:json` ＋ `npm run content:excel`，tab 名就跟上。\n"
+            "· **格位要求在矩阵 sheet 里改**（P04-清挡路 … P50-肝心同治·挡路六），这张表不管格位。"
         )
     if s.json_path == "terms":
         return (
@@ -350,7 +354,9 @@ def write_sheet(wb: Workbook, sheet: SheetDef, rows: list[dict[str, Any]]) -> No
 FILLED_FILL = "FFE0B2"
 
 
-def write_matrix_sheet(wb, index: int, pid: str, pattern: dict, rule: dict | None, terms: dict) -> None:
+def write_matrix_sheet(
+    wb, index: int, pid: str, title: str, pattern: dict, rule: dict | None, terms: dict
+) -> None:
     """把一条用方条目的脉象图写成一个矩阵 sheet。
 
     体例照讲义 p34 的记录表：**左列部位／取法，右边左、右手两列**，9 行
@@ -358,6 +364,9 @@ def write_matrix_sheet(wb, index: int, pid: str, pattern: dict, rule: dict | Non
 
     格子里填的是**用字**（如「大或顶」），不是符号代码 ——
     符号代码是「允许集合」，用字才是讲稿／讲义写下的那个词。
+
+    ``title`` 是**图名**（方剂名），决定 sheet 的 tab 名 ——
+    审核者一眼就能看出「这张表是哪个方子的」。
     """
     from excel_schema import (
         MATRIX_COLS,
@@ -366,13 +375,14 @@ def write_matrix_sheet(wb, index: int, pid: str, pattern: dict, rule: dict | Non
         matrix_sheet_name,
     )
 
-    ws = wb.create_sheet(matrix_sheet_name(index, pid))
+    ws = wb.create_sheet(matrix_sheet_name(index, title, pid))
 
     # ---- 顶部提示行 ----
     # 用户多半是直接翻到某个 P01- 看的，看不到「说明」表；
     # 所以把最要紧的三句放在这里（完整版见「说明」表『脉象图矩阵』一行）。
     hint = (
         "填写说明见「说明」表『脉象图矩阵』一行。"
+        "｜ 本 sheet 的名字＝`P序号-图名`（图名＝哪个方子的），**图名在「脉象图·条目」表改**。"
         "｜ 左手／右手格填**用字**（照抄「脉象用字」表第 1 列），不是符号代码；留空＝原文没提这一格。"
         "｜ 组号：同号＝一组（且），不同号＝不同组（或），左右两列**共用一个编号空间**（左格与右格同号即同组）；填了用字就要填组号。"
         "｜ 表头区与「关系型要求」是**只读副本**，真源在「用方条目」表／「脉象图·关系」表。"
@@ -623,8 +633,9 @@ def main() -> int:
     rules_by_id = {r["id"]: r for r in tables["rules"]}
     pattern_ids = list(tables["patterns"].keys())
     for i, pid in enumerate(pattern_ids, start=1):
+        pat = tables["patterns"][pid]
         write_matrix_sheet(
-            wb, i, pid, tables["patterns"][pid], rules_by_id.get(pid), tables["terms"]
+            wb, i, pid, pat.get("title", ""), pat, rules_by_id.get(pid), tables["terms"]
         )
 
     out_path.parent.mkdir(parents=True, exist_ok=True)

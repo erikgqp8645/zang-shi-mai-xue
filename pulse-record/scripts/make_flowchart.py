@@ -42,7 +42,9 @@ END = "<!-- matrix:end -->"
 
 # 演示用的矩阵 sheet：清挡路（上方下虚）。
 # 选它是因为它六行只读表头区齐（含「关系型要求」）、且九行里填了六格。
+# ⚠️ sheet 名＝`P序号-图名` —— 图名变了这里要跟着改（找不到会退回按序号取第一个）。
 DEMO_SHEET_PREFIX = "P04-"
+DEMO_SHEET_NAME = "P04-清挡路"
 
 # Excel 里配色（与 excel_from_json.py 同源）：
 #   部位列橙 FFC000、已填的左手/右手格 FFE0B2
@@ -97,6 +99,9 @@ def br(text: object) -> str:
 # ── 读工作簿 ───────────────────────────────────────────────
 
 def pick_demo_sheet(wb) -> str:
+    # 先按**全名**找（图名改了也能精准命中），再退回按前缀找。
+    if DEMO_SHEET_NAME in wb.sheetnames:
+        return DEMO_SHEET_NAME
     for name in wb.sheetnames:
         if name.startswith(DEMO_SHEET_PREFIX):
             return name
