@@ -383,6 +383,10 @@ def write_matrix_sheet(wb, index: int, pid: str, pattern: dict, rule: dict | Non
     ws.row_dimensions[1].height = 30
 
     # ---- 表头区 ----
+    # ⭐ 表头区的「值」放在 B 列，但 B 列的宽度是按数据区的「取法」列设的（10），
+    #    长文本（关系型要求、出处）会被**截断**显示 —— 审核者得点进单元格才看得到。
+    #    所以把表头区的值格**合并到 J 列**（B..J），让它直接显示全。
+    #    ⚠️ 合并只影响表头区，数据区不受影响；读回仍读 B 列 ✓。
     header_map = {
         "id": pid,
         "route": (rule or {}).get("route", ""),
@@ -431,6 +435,18 @@ def write_matrix_sheet(wb, index: int, pid: str, pattern: dict, rule: dict | Non
         cell.border = Border(left=THIN, right=THIN, top=THIN, bottom=MEDIUM)
         cell.comment = column_comment(c)  # 悬停看这一列怎么填
     ws.row_dimensions[header_row].height = 24
+
+    # ---- 表头区合并：让长文本显示得开 ----
+    # 值列（B）宽度是按数据区「取法」列设的（10），长文本会被截断显示 ——
+    # 合并 B..J 之后总宽约 114 字符，「关系型要求」「出处」都能直接看全。
+    # ⚠️ 只合并表头区（第 2 行 ~ 列头行前一行）与顶部提示行；数据区不动。
+    # ⚠️ 第 1 行（提示行）的文字在 A 列，所以整行合 A..J —— 不能先合 B..J
+    #    再合 A..J，那会**重叠**（Excel 会报错）。
+    for rr in range(2, header_row):
+        ws.merge_cells(start_row=rr, start_column=2, end_row=rr, end_column=10)
+        ws.row_dimensions[rr].height = 22
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=10)
+    ws.row_dimensions[1].height = 30
 
     # ---- 9 行数据 ----
     # 格位索引：cellKey → {term, group, note, flex}
