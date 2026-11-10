@@ -58,6 +58,8 @@
     "desktop:dist:win": "npm run build && electron-builder --win --x64",
     "content:exercise": "python3 scripts/make_exercise_workbook.py",
     "content:exercise:check": "python3 scripts/e2e/excel_exercise.py",
+    "content:flowchart": "python3 scripts/make_flowchart.py",
+    "content:flowchart:check": "python3 scripts/make_flowchart.py --check",
     "test:e2e:exercise": "python3 scripts/e2e/excel_exercise_roundtrip.py"
   },
   "dependencies": {
