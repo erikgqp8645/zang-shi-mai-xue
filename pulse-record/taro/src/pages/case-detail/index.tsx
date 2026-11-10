@@ -8,6 +8,7 @@ import type { LayoutMode } from '@domain/types'
 
 import { getPatient, listCustomSymbols, listMedication, updateVisit } from '../../utils/data'
 import { selectPatient, useVisitContext } from '../../store/context'
+import { useCustomSymbols } from '../../store/symbols'
 
 import RecordSheet, { type SheetSession } from '../../components/record-sheet'
 import DiagramView from '../../components/diagram-view'
@@ -39,7 +40,15 @@ export default function CaseDetail() {
   const [layout, setLayout] = useState<LayoutMode>('nine')
   const [sessions, setSessions] = useState<SheetSession[]>([])
   const [medications, setMedications] = useState<MedicationRow[]>([])
-  const [customSymbols, setCustomSymbols] = useState<{ code: string; name: string }[]>([])
+  // 自定义符号：与「就诊」页共用同一个 hook（清单、增删、错误提示）
+  const {
+    customSymbols,
+    setCustomSymbols,
+    symbolError,
+    clearSymbolError,
+    addCustomSymbol,
+    removeCustomSymbol,
+  } = useCustomSymbols()
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [error, setError] = useState('')
 
@@ -52,10 +61,16 @@ export default function CaseDetail() {
       return
     }
     try {
-      const [patient, syms] = await Promise.all([getPatient(patientId), listCustomSymbols()])
+      const patient = await getPatient(patientId)
       if (!patient) {
         setError('没有这位患者的记录')
         return
+      }
+      // 符号表是账号级的：取不到就空着，**不能**让整页跟着「读取失败」
+      try {
+        setCustomSymbols(await listCustomSymbols())
+      } catch {
+        /* 符号表取不到不挡看表 */
       }
       const meds = await listMedication(patientId)
       const list: SheetSession[] = (patient.visits || []).map((v) => ({
@@ -70,7 +85,6 @@ export default function CaseDetail() {
       setLayout(patient.layout === 'seven' ? 'seven' : 'nine')
       setSessions(list)
       setMedications(meds)
-      setCustomSymbols(syms)
       setError('')
       snapshot.current = list.map((s) => ({
         id: s.id,
@@ -86,6 +100,11 @@ export default function CaseDetail() {
   useDidShow(() => {
     load()
   })
+
+  /* --------------------------- 自定义符号 --------------------------- */
+  /* 增删逻辑在 `store/symbols` 的 useCustomSymbols 里 —— 与「就诊」页共用一份。
+     这一页也能加，是因为看片子时常常才发现「这个人的脉该记个自己的符号」，
+     让人退回录入页再加一遍，等于把思路打断。 */
 
   /* --------------------------- 组件回调 --------------------------- */
 
@@ -209,6 +228,10 @@ export default function CaseDetail() {
           editable
           onChange={onSheetChange}
           onSessionTap={setActiveSessionId}
+          onAddCustom={addCustomSymbol}
+          onDeleteCustom={removeCustomSymbol}
+          customError={symbolError}
+          onClearCustomError={clearSymbolError}
         />
       </View>
 

@@ -984,6 +984,21 @@ npm run test:e2e:mp:legacy   # 原生回退工程的三套（mp-lint / mp-api / 
   `components/diagram-view` 里，画哪一次跟着当前选中的那一列。
 - 页面必须声明「**本工具只做记录，不构成诊断**」。
 
+### 自定义符号（自建，如 涩＝S）
+
+讲义 p33–34 的固定符号集**一个字不改**；使用者可以另加自己的记法（`custom_symbols` 表）。
+
+| 规矩 | 落地 |
+|---|---|
+| **按账号存** | 表的主键是 `(owner_id, code)`；读写都带 owner 过滤，跨用户一律 404。每人的符号表不同，换手机／换端登录还在 |
+| **符号不能为空** | 硬性规定：`code` 必须填一个看得见的符号或字母（如 `S`），`name` 也必须填（如 `涩`）。空串、纯空格、零宽字符都拦 |
+| 不占固定代码 | 与 `SYMBOLS` 的 14 个代码重复会被拒；同一人不能建两个同代码 |
+| 长度 | 代码 ≤ 3 字符、名称 ≤ 12 字符；代码里不许有空格与 `/` |
+| 两边同一套规则 | `src/domain/symbols.ts` 的 `validateCustomSymbol()`（网页端与小程序共用）＋ `server/symbol-codes.mjs`（服务端兜底），改一处要一起改 |
+| 增删入口 | 网页端 `src/components/SymbolPalette.tsx`；小程序 `components/record-sheet` 的符号面板（「＋ 添加」／与 chip **并排**的 ×，不压在 chip 上）。落库逻辑在 `taro/src/store/symbols.ts` 的 `useCustomSymbols()`，就诊页与病例详情页**共用一份** |
+| 历史不受影响 | 删符号不删已录进格子的代码；导出图例仍会给出说明（`buildCustomLegend`，删掉的标「已从符号表删除」） |
+| 不参与判读 | 自定义代码只跟着录入／图示／导出走，**不进**任何判读规则与依脉用方比对 |
+
 ### 鸿蒙端（2026-11-06 起）
 
 同一套 Taro 源码，鸿蒙走 **`harmony_cpp`**（C-API 路线；ArkTS 那条 `plugin-platform-harmony-ets` 是 webpack＋ArkUI-X，路线不兼容）。

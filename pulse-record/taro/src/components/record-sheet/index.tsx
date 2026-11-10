@@ -4,7 +4,8 @@ import { Input, ScrollView, Text, View } from '@tarojs/components'
 import { groupRows } from '@domain/layout'
 import { cellKey } from '@domain/types'
 import type { Constitution, Depth, Hand, LayoutMode, Organ } from '@domain/types'
-import { COMMON_GROUPS, SYMBOL_BY_CODE, formatCodes, parseCodes } from '@domain/symbols'
+import { COMMON_GROUPS, SYMBOL_BY_CODE, formatCodes, parseCodes, validateCustomSymbol } from '@domain/symbols'
+import type { CustomSymbol as DomainCustomSymbol } from '@domain/symbols'
 import { CONSTITUTION_OPTIONS, THERAPY_OPTIONS, therapyOf } from '@domain/triad'
 
 import { cleanSessions, sameSessions, toCodeArray } from './shapes'
@@ -62,10 +63,13 @@ export interface SheetSession {
   therapy?: string | null
 }
 
-export interface CustomSymbol {
-  code: string
-  name: string
-}
+/**
+ * 自定义符号 —— 讲义 p33–34 固定符号集之外，使用者自建的（如「涩」记作 S）。
+ *
+ * 类型直接取共享包的 `CustomSymbol`：网站端与小程序是**同一份定义**，
+ * 不会出现「一边能存三个字、另一边只能存一个」这种漂移。
+ */
+export type CustomSymbol = DomainCustomSymbol
 
 export interface RecordSheetProps {
   sessions?: SheetSession[]
@@ -84,6 +88,24 @@ export interface RecordSheetProps {
   activeSessionId?: string | null
   onChange?: (sessions: SheetSession[]) => void
   onSessionTap?: (id: string) => void
+  /**
+   * 自定义符号的增删 —— **落库由页面做**（组件不碰网络）。
+   *
+   * 返回 true 表示成功；失败时页面把原因写进 `customError`，
+   * 组件只在面板里显示，不自己编一句笼统的「保存失败」。
+   * 不传这两个回调时，面板只显示已有符号，不出现「＋ 添加」与「×」。
+   */
+  onAddCustom?: (code: string, name: string) => Promise<boolean>
+  onDeleteCustom?: (code: string) => Promise<boolean>
+  /** 页面／服务端给出的错误提示（如「代码 S 已经有了」） */
+  customError?: string | null
+  /**
+   * 让页面把 `customError` 清掉。
+   *
+   * 不清的话，上一次服务端报错会**留在面板里**：关掉表单再打开，
+   * 明明还没提交，红字就已经挂在那儿了 —— 会让人以为又错了一次。
+   */
+  onClearCustomError?: () => void
 }
 
 /** 一次就诊在某格的符号数组 */
@@ -177,6 +199,10 @@ export default function RecordSheet(props: RecordSheetProps) {
     activeSessionId = null,
     onChange,
     onSessionTap,
+    onAddCustom,
+    onDeleteCustom,
+    customError = '',
+    onClearCustomError,
   } = props
 
   /** 组件持有的 sessions —— 编辑就改这里，改完通过 onChange 抛给页面 */
@@ -199,6 +225,21 @@ export default function RecordSheet(props: RecordSheetProps) {
   const [manualText, setManualText] = useState('')
   const [editingConstitution, setEditingConstitution] = useState('')
   const [editingTherapy, setEditingTherapy] = useState('')
+
+  /**
+   * 自定义符号表单。
+   *
+   * `customLocalError` 只装**本地校验**出来的错（空符号、重名、占用固定代码），
+   * 服务端回来的错走 `customError` prop —— 两处都以红字显示在同一行，
+   * 使用者不需要分辨这句话是谁说的，只需要知道「这个符号没存进去、为什么」。
+   */
+  const [addingCustom, setAddingCustom] = useState(false)
+  const [customName, setCustomName] = useState('')
+  const [customCode, setCustomCode] = useState('')
+  const [customBusy, setCustomBusy] = useState(false)
+  /** 正在删的那个代码（删除中把十字变淡；与「保存中」分开，互不卡住） */
+  const [deletingCode, setDeletingCode] = useState('')
+  const [customLocalError, setCustomLocalError] = useState('')
 
   const paletteGroups = useMemo(() => buildPalette(), [])
   const selectedSet = useMemo(() => toSet(selectedCodes), [selectedCodes])
@@ -289,8 +330,14 @@ export default function RecordSheet(props: RecordSheetProps) {
       setManualText(formatCodes(codes))
       setEditingConstitution('')
       setEditingTherapy('')
+      // 换格子也当作新一轮：不把上一个格子的符号表单与错误带过来
+      setAddingCustom(false)
+      setCustomName('')
+      setCustomCode('')
+      setCustomLocalError('')
+      onClearCustomError?.()
     },
-    [editable, sessions],
+    [editable, sessions, onClearCustomError],
   )
 
   /** 关闭符号面板 */
@@ -298,7 +345,15 @@ export default function RecordSheet(props: RecordSheetProps) {
     setSelected(null)
     setSelectedCodes([])
     setManualText('')
-  }, [])
+    // 关面板＝这一轮结束：草稿与红字一起收掉。
+    // 不然下次点开另一个格子，上一次「删除失败」的红字还挂在那儿，
+    // 而这一轮其实什么都没提交 —— 会让人以为又错了一次。
+    setAddingCustom(false)
+    setCustomName('')
+    setCustomCode('')
+    setCustomLocalError('')
+    onClearCustomError?.()
+  }, [onClearCustomError])
 
   /**
    * 把符号写回当前格。
@@ -356,6 +411,79 @@ export default function RecordSheet(props: RecordSheetProps) {
     setManualText('')
     applyCodes([])
   }, [applyCodes])
+
+  /* --------------------------- 自定义符号 --------------------------- */
+
+  const openCustomForm = useCallback(() => {
+    setAddingCustom(true)
+    setCustomLocalError('')
+    onClearCustomError?.()
+  }, [onClearCustomError])
+
+  const cancelCustomForm = useCallback(() => {
+    setAddingCustom(false)
+    setCustomName('')
+    setCustomCode('')
+    setCustomLocalError('')
+    onClearCustomError?.()
+  }, [onClearCustomError])
+
+  /**
+   * 保存一个自定义符号。
+   *
+   * 本机先校验一遍（**空符号在这里就被拦下**，不用等服务端来回一趟），
+   * 通过后再交给页面落库 —— 每人的符号表存在各自账号下，
+   * 换手机／换端登录，符号还在。
+   */
+  const submitCustom = useCallback(async () => {
+    if (customBusy) return
+
+    const code = customCode.trim()
+    const name = customName.trim()
+
+    const err = validateCustomSymbol(code, name, customSymbols)
+    if (err) {
+      setCustomLocalError(err)
+      return
+    }
+    if (!onAddCustom) {
+      setCustomLocalError('这个页面不能改符号表')
+      return
+    }
+
+    setCustomLocalError('')
+    setCustomBusy(true)
+    try {
+      const ok = await onAddCustom(code, name)
+      // 失败时原因由页面写进 customError，这里不再编一句笼统的提示
+      if (ok) {
+        setAddingCustom(false)
+        setCustomName('')
+        setCustomCode('')
+      }
+    } catch (e) {
+      setCustomLocalError((e as Error)?.message || '保存失败')
+    } finally {
+      setCustomBusy(false)
+    }
+  }, [customBusy, customCode, customName, customSymbols, onAddCustom])
+
+  /** 删掉一个自定义符号（已录进格子的历史符号不动） */
+  const removeCustom = useCallback(
+    async (code: string) => {
+      if (deletingCode || !onDeleteCustom) return
+      setDeletingCode(code)
+      setCustomLocalError('')
+      try {
+        await onDeleteCustom(code)
+      } catch (e) {
+        setCustomLocalError((e as Error)?.message || '删除失败')
+      } finally {
+        setDeletingCode('')
+      }
+    },
+    [deletingCode, onDeleteCustom],
+  )
 
   /** 点表头日期 → 设为当前列（与网站一致：图示、① 框都跟着这一列） */
   const onHeadTap = useCallback(
@@ -723,23 +851,101 @@ export default function RecordSheet(props: RecordSheetProps) {
                 </View>
               ))}
 
-              {customSymbols.length ? (
-                <View className='pr-pal-grp'>
-                  <View className='pr-pal-title'>自定义符号（自建，如 涩＝S）</View>
+              {/* 自定义符号：讲义固定符号集之外，使用者自建（如 涩＝S）。
+                  存到**各自账号**下 —— 每人的记法不一样，换手机／换端登录还在。 */}
+              <View className='pr-pal-grp'>
+                <View className='pr-pal-title pr-pal-title-row'>
+                  <Text>自定义符号（自建，如 涩＝S）</Text>
+                  {onAddCustom && !addingCustom ? (
+                    <View className='pr-pal-add' onClick={openCustomForm}>
+                      ＋ 添加
+                    </View>
+                  ) : null}
+                </View>
+
+                {/* 表单紧贴标题：面板是底部弹层，键盘从下面顶上来，
+                    表单放最上面才不会被挡住（放 chip 下面就悬了）。 */}
+                {addingCustom ? (
+                  <View className='pr-custom-form'>
+                    <View className='pr-custom-row'>
+                      <Input
+                        className='pr-input'
+                        value={customName}
+                        placeholder='名称，如 涩'
+                        maxlength={12}
+                        cursorSpacing={20}
+                        onInput={(e) => {
+                          setCustomName(e.detail.value)
+                          setCustomLocalError('')
+                          onClearCustomError?.()
+                        }}
+                      />
+                      <Input
+                        className='pr-input'
+                        value={customCode}
+                        placeholder='符号或字母，如 S'
+                        maxlength={3}
+                        cursorSpacing={20}
+                        onInput={(e) => {
+                          setCustomCode(e.detail.value)
+                          setCustomLocalError('')
+                          onClearCustomError?.()
+                        }}
+                      />
+                    </View>
+                    <View className='pr-custom-ops'>
+                      <View className='pr-btn pr-btn-sm pr-btn-primary' onClick={submitCustom}>
+                        {customBusy ? '保存中…' : '保存'}
+                      </View>
+                      <View className='pr-btn pr-btn-sm' onClick={cancelCustomForm}>
+                        取消
+                      </View>
+                    </View>
+                  </View>
+                ) : null}
+
+                {addingCustom && (customLocalError || customError) ? (
+                  <View className='pr-custom-err'>{customLocalError || customError}</View>
+                ) : null}
+
+                {customSymbols.length ? (
                   <View className='pr-pal-btns'>
                     {customSymbols.map((item) => (
-                      <View
-                        key={item.code}
-                        className={`pr-sym ${selectedSet[item.code] ? 'is-on' : ''}`}
-                        onClick={() => toggleSymbol(item.code)}
-                      >
-                        <Text className='pr-sym-code'>{item.code}</Text>
-                        <Text className='pr-sym-label'>{item.name}</Text>
+                      <View key={item.code} className='pr-sym-wrap'>
+                        <View
+                          className={`pr-sym is-custom ${selectedSet[item.code] ? 'is-on' : ''}`}
+                          onClick={() => toggleSymbol(item.code)}
+                        >
+                          <Text className='pr-sym-code'>{item.code}</Text>
+                          <Text className='pr-sym-label'>{item.name}</Text>
+                        </View>
+                        {onDeleteCustom ? (
+                          <View
+                            className={`pr-sym-del ${deletingCode === item.code ? 'is-busy' : ''}`}
+                            onClick={(e) => {
+                              // 别让「删符号」这一下顺带把符号选进格子
+                              e.stopPropagation()
+                              void removeCustom(item.code)
+                            }}
+                          >
+                            {deletingCode === item.code ? '·' : '×'}
+                          </View>
+                        ) : null}
                       </View>
                     ))}
                   </View>
-                </View>
-              ) : null}
+                ) : null}
+
+                {!addingCustom && (customLocalError || customError) ? (
+                  <View className='pr-custom-err'>{customLocalError || customError}</View>
+                ) : null}
+
+                {!customSymbols.length && !addingCustom ? (
+                  <View className='pr-note pr-custom-hint'>
+                    讲义固定符号之外，可自建符号（如「涩」记作 S）；存在你的账号下，换手机也在。
+                  </View>
+                ) : null}
+              </View>
 
               <View className='pr-manual'>
                 <View className='pr-label'>手输组合（如 X↑ / 0+# / ++）</View>

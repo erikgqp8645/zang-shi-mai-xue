@@ -109,8 +109,38 @@ export interface CustomSymbol {
 export const BUILTIN_CODES: string[] = SYMBOLS.map((s) => s.code)
 
 /**
+ * 「看不见」的字符 —— 不止零宽空格一种。
+ *
+ * 实测这一批都能绕过「非空」检查，而且存进去之后**肉眼与正常符号完全一样**
+ * （软连字符能造出 `S` 的影子符号，删一个另一个还在）：
+ *
+ *   · 软连字符 U+00AD、阿拉伯字母标记 U+061C —— 格式字符，`trim()` 删不掉
+ *   · 盲文空白 U+2800、韩文填充符 U+3164／U+115F／U+FFA0 —— 有字形，但字形是空白
+ *   · 变体选择符 U+FE00–FE0F、组合附加符 U+0300–036F —— 单独出现什么都不显示
+ *   · 标签字符 U+E0020–E007F、BOM U+FEFF、方向控制符 U+202A–202E
+ *
+ * ⚠️ 这个集合**含各种空白**（U+2000–200A、U+202F、U+205F、U+3000），只用于**符号代码**。
+ * 名称用的是下面那个宽松版 —— 中文输入法打出的空格常常是 U+3000，
+ * 那是**看得见宽度**的空白，不该按「看不见」拒掉。
+ */
+const INVISIBLE_CODE =
+  /[\u0000-\u001f\u007f-\u009f\u00ad\u0300-\u036f\u0483-\u0489\u0600-\u0605\u061c\u06dd\u070f\u115f\u1160\u180e\u2000-\u200f\u2028-\u202f\u205f-\u2064\u2066-\u206f\u20d0-\u20f0\u2800\u3000\u3164\ufe00-\ufe0f\ufe20-\ufe2f\ufeff\uffa0\ufff9-\ufffb\u1ab0-\u1aff\u1dc0-\u1dff\u{1d173}-\u{1d17a}\u{e0001}\u{e0020}-\u{e007f}]/u
+
+/** 名称用：只拦没有任何字形的字符，各种宽度的空格一律放行（见上） */
+const INVISIBLE_NAME =
+  /[\u0000-\u001f\u007f-\u009f\u00ad\u0300-\u036f\u0483-\u0489\u0600-\u0605\u061c\u06dd\u070f\u115f\u1160\u180e\u200b-\u200f\u2028-\u202e\u2060-\u2064\u2066-\u206f\u20d0-\u20f0\u2800\u3164\ufe00-\ufe0f\ufe20-\ufe2f\ufeff\uffa0\ufff9-\ufffb\u1ab0-\u1aff\u1dc0-\u1dff\u{1d173}-\u{1d17a}\u{e0001}\u{e0020}-\u{e007f}]/u
+
+/** 不能当符号代码的两个值：URL 客户端会把它们当成「当前／上一级」，建得进、删不掉 */
+const UNUSABLE_CODES = ['.', '..']
+
+/**
  * 自定义符号的校验 —— 返回错误信息，通过则返回 null。
- * 与服务端 server/db.mjs 的 RESERVED_SYMBOL_CODES 同一套规则。
+ *
+ * 与服务端 `server/symbol-codes.mjs` 的 `RESERVED_SYMBOL_CODES` 同一套规则
+ * （前端 TS 与服务端 .mjs 无法互相 import，知识常量两边各留一份，改动要一起改）。
+ *
+ * **硬性规定：符号不能为空。** 一格脉象必须写出一个看得见的符号或字母（如 S），
+ * 名称也必须填（如 涩）—— 否则导出时读表的人只看到一个无从解释的代码。
  */
 export function validateCustomSymbol(
   code: string,
@@ -119,11 +149,14 @@ export function validateCustomSymbol(
 ): string | null {
   const c = code.trim()
   const n = name.trim()
-  if (!c) return '请填写符号代码'
+  if (!c) return '符号不能为空 —— 必须填一个符号或字母（如 S）'
+  if (INVISIBLE_CODE.test(c)) return '符号里有看不见的字符，换一个能看见的'
   if (c.length > 3) return '符号代码最多 3 个字符'
   if (/\s/.test(c)) return '符号代码里不能有空格'
   if (c.includes('/')) return '符号代码里不能有「/」'
-  if (!n) return '请填写符号名称'
+  if (UNUSABLE_CODES.includes(c)) return '不能把「.」或「..」当符号（这种地址删不掉）'
+  if (!n) return '请填写符号名称（如 涩）'
+  if (INVISIBLE_NAME.test(n)) return '名称里有看不见的字符，换一个能看见的'
   if (n.length > 12) return '符号名称最多 12 个字符'
   if (BUILTIN_CODES.includes(c)) return `代码「${c}」与讲义固定符号重复，换一个`
   if (existing.some((s) => s.code === c)) return `代码「${c}」已经有了`

@@ -10,6 +10,7 @@ import { sampleShaoJuan } from '@domain/sample'
 import { getPatient, listCustomSymbols, savePatient, updatePatientLayout, updateVisit } from '../../utils/data'
 import { getStorageSync, setStorageSync } from '../../platform/storage'
 import { selectVisit, useVisitContext } from '../../store/context'
+import { useCustomSymbols } from '../../store/symbols'
 
 import ContextBar from '../../components/context-bar'
 import SubTabs from '../../components/sub-tabs'
@@ -87,7 +88,15 @@ export default function Visit() {
   const [layout, setLayout] = useState<LayoutMode>('nine')
   const [sessions, setSessions] = useState<SheetSession[]>([])
   const [medications, setMedications] = useState<MedicationInput[]>([])
-  const [customSymbols, setCustomSymbols] = useState<{ code: string; name: string }[]>([])
+  // 自定义符号：清单、增删、错误提示都在这个 hook 里（与病例详情页共用一份）
+  const {
+    customSymbols,
+    setCustomSymbols,
+    symbolError,
+    clearSymbolError,
+    addCustomSymbol,
+    removeCustomSymbol,
+  } = useCustomSymbols()
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [view, setView] = useState<'wide' | 'single'>('wide')
   const [error, setError] = useState('')
@@ -95,42 +104,50 @@ export default function Visit() {
 
   /* ---------------- 载入 ---------------- */
 
-  const load = useCallback(async (patientId: string | null) => {
-    if (!patientId) {
-      setName('')
-      setSessions([])
-      setMedications([])
-      setActiveSessionId(null)
-      return
-    }
-    try {
-      const p = await getPatient(patientId)
-      if (!p) {
-        setError('没有这位患者的记录')
+  const load = useCallback(
+    async (patientId: string | null) => {
+      // 符号表是**账号级**的，跟「这一次有没有读到患者」无关 —— 单独拉。
+      // 以前它排在 `getPatient` 之后，而 `getPatient` 读失败会 return，
+      // 于是网络抖一下就会「患者读不到 → 符号也空着 → 面板里一个自建符号都没有」。
+      void (async () => {
+        try {
+          setCustomSymbols(await listCustomSymbols())
+        } catch {
+          /* 自定义符号取不到不挡录入 */
+        }
+      })()
+
+      if (!patientId) {
+        setName('')
+        setSessions([])
+        setMedications([])
+        setActiveSessionId(null)
         return
       }
-      const list: SheetSession[] = (p.visits || []).map((v) => ({
-        id: v.id,
-        label: v.label,
-        at: v.at,
-        values: v.values || {},
-        constitution: v.constitution || null,
-        therapy: v.therapy || null,
-      }))
-      setName(p.name || '')
-      setLayout(p.layout === 'seven' ? 'seven' : 'nine')
-      setSessions(list)
-      setError('')
-    } catch (e) {
-      setError((e as Error)?.message || '读取失败')
-    }
-    try {
-      const syms = await listCustomSymbols()
-      setCustomSymbols(syms)
-    } catch {
-      /* 自定义符号取不到不挡录入 */
-    }
-  }, [])
+      try {
+        const p = await getPatient(patientId)
+        if (!p) {
+          setError('没有这位患者的记录')
+          return
+        }
+        const list: SheetSession[] = (p.visits || []).map((v) => ({
+          id: v.id,
+          label: v.label,
+          at: v.at,
+          values: v.values || {},
+          constitution: v.constitution || null,
+          therapy: v.therapy || null,
+        }))
+        setName(p.name || '')
+        setLayout(p.layout === 'seven' ? 'seven' : 'nine')
+        setSessions(list)
+        setError('')
+      } catch (e) {
+        setError((e as Error)?.message || '读取失败')
+      }
+    },
+    [setCustomSymbols],
+  )
 
   useEffect(() => {
     load(ctx.patientId)
@@ -374,6 +391,10 @@ export default function Visit() {
           onToggleLayout={onToggleLayout}
           onAddVisit={onAddVisit}
           onLoadSample={onLoadSample}
+          onAddCustom={addCustomSymbol}
+          onDeleteCustom={removeCustomSymbol}
+          customError={symbolError}
+          onClearCustomError={clearSymbolError}
         />
       ) : null}
 

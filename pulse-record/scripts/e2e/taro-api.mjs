@@ -81,6 +81,24 @@ const config = mod.config
 const dataApi = mod.data
 const authApi = mod.auth
 
+/**
+ * 符号校验（`domain/symbols.ts`）单独打一份 —— 它是纯函数，Node 里直接跑。
+ *
+ * 不并进上面那个 bundle：那边入口是 `utils/index.ts`，塞进去只为测试而加导出，
+ * 会把「测试的方便」变成生产代码的负担。单独打一份最干净。
+ */
+const symbolsOut = join(outDir, 'symbols.mjs')
+await build({
+  entryPoints: [join(SHARED, 'domain', 'symbols.ts')],
+  outfile: symbolsOut,
+  bundle: true,
+  format: 'esm',
+  platform: 'node',
+  target: 'node20',
+  logLevel: 'silent',
+})
+const symbolsApi = await import(pathToFileURL(symbolsOut).href)
+
 /* ------------------------------ 小工具 ------------------------------ */
 
 const c = makeChecker()
@@ -206,6 +224,80 @@ c.check('与讲义固定符号重名被拒（400）', !!dup && dup.status === 40
 await dataApi.deleteCustomSymbol('S')
 const syms2 = await dataApi.listCustomSymbols()
 c.check('删完清单里没有了', !syms2.some((s) => s.code === 'S'))
+
+/* ---- 硬性规定：符号不能为空（服务端也要拦，不能只靠前端） ---- */
+const emptyCode = await expectError(() => dataApi.saveCustomSymbol({ code: '', name: '空' }))
+c.check('服务端拒绝空符号（400）', !!emptyCode && emptyCode.status === 400, emptyCode && emptyCode.message)
+
+const blankCode = await expectError(() => dataApi.saveCustomSymbol({ code: '   ', name: '空格' }))
+c.check('服务端拒绝只有空格的符号（400）', !!blankCode && blankCode.status === 400)
+
+const emptyName = await expectError(() => dataApi.saveCustomSymbol({ code: 'Q', name: '' }))
+c.check('服务端拒绝空名称（400）', !!emptyName && emptyName.status === 400)
+
+// 名称里的空白是允许的 —— 中文输入法的空格常是 U+3000，不能按「看不见」拒掉
+const spaced = await dataApi.saveCustomSymbol({ code: 'Q', name: '涩\u3000脉' })
+c.check('名称里可以有全角空格（U+3000）', !!(spaced && spaced.name === '涩\u3000脉'), JSON.stringify(spaced))
+await dataApi.deleteCustomSymbol('Q')
+
+const zwName = await expectError(() => dataApi.saveCustomSymbol({ code: 'Q', name: '涩\u200b脉' }))
+c.check('名称里的零宽空格仍被拒（400）', !!zwName && zwName.status === 400, zwName && zwName.message)
+
+// 零宽空格：trim() 删不掉，肉眼也看不见 —— 只判空字符串会漏掉
+const zwCode = await expectError(() => dataApi.saveCustomSymbol({ code: '\u200b', name: '零宽' }))
+c.check('服务端拒绝不可见字符（400）', !!zwCode && zwCode.status === 400)
+
+// 黑名单外的「隐形」也必须挡住：软连字符能造出与 S 一模一样的影子符号，
+// 盲文空白／韩文填充符是「有字形但字形是空白」，变体选择符单独出现什么都不显示
+for (const [label, code] of [
+  ['软连字符 U+00AD', '\u00ad'],
+  ['盲文空白 U+2800', '\u2800'],
+  ['韩文填充符 U+3164', '\u3164'],
+  ['变体选择符 U+FE0F', '\ufe0f'],
+  ['标签字符 U+E0041', '\u{e0041}'],
+]) {
+  const r = await expectError(() => dataApi.saveCustomSymbol({ code, name: '隐形' }))
+  c.check(`服务端拒绝${label}（400）`, !!r && r.status === 400, r && r.message)
+}
+
+// `.` / `..` 建得进去却删不掉（URL 会把它们归一化掉），从源头拒
+const dotCode = await expectError(() => dataApi.saveCustomSymbol({ code: '.', name: '点' }))
+c.check('服务端拒绝「.」当符号（400）', !!dotCode && dotCode.status === 400, dotCode && dotCode.message)
+const dotsCode = await expectError(() => dataApi.saveCustomSymbol({ code: '..', name: '点' }))
+c.check('服务端拒绝「..」当符号（400）', !!dotsCode && dotsCode.status === 400)
+
+const afterBad = await dataApi.listCustomSymbols()
+c.check('被拒的符号一个都没落库', afterBad.length === 0, JSON.stringify(afterBad))
+
+/* ---- 自定义符号的本地校验（面板在提交前先拦一遍，不等服务端来回） ---- */
+const vs = symbolsApi.validateCustomSymbol
+c.check('空符号被拦', !!vs('', '涩'))
+c.check('空符号的提示说得清「不能为空」', /不能为空/.test(vs('', '涩') || ''), vs('', '涩'))
+c.check('只有空格的符号被拦', !!vs('   ', '涩'))
+c.check('零宽字符的符号被拦', !!vs('\u200b', '涩'))
+for (const bad of ['\u00ad', '\u2800', '\u3164', '\ufe0f', '\u{e0041}']) {
+  c.check(`隐形字符 ${JSON.stringify(bad)} 被拦`, !!vs(bad, '涩'))
+}
+c.check('「.」不能当符号', !!vs('.', '点'))
+c.check('「..」不能当符号', !!vs('..', '点'))
+c.check('名称不能为空', !!vs('S', ''))
+c.check('名称只有零宽字符也被拦', !!vs('S', '\u200b'))
+// 名称里的**空白**是允许的（中文输入法打出的空格常常是 U+3000，那是看得见宽度的）
+c.check('名称里可以有半角空格', vs('S', '涩 脉') === null, vs('S', '涩 脉'))
+c.check('名称里可以有全角空格（U+3000）', vs('S', '涩\u3000脉') === null, vs('S', '涩\u3000脉'))
+c.check('名称里可以有细空格（U+2009）', vs('S', '涩\u2009脉') === null, vs('S', '涩\u2009脉'))
+c.check('名称里的零宽空格仍被拦', !!vs('S', '涩\u200b脉'))
+c.check('与讲义固定符号重复被拦', !!vs('++', '有力'))
+c.check('同一代码不能建两次', !!vs('S', '涩', [{ code: 'S', name: '涩' }]))
+c.check('超过 3 个字符被拦', !!vs('ABCD', '长'))
+c.check('符号里带空格被拦', !!vs('S S', '涩'))
+c.check('符号里带「/」被拦', !!vs('S/T', '涩'))
+c.check('名称超过 12 字被拦', !!vs('S', '一二三四五六七八九十一二三'))
+
+c.check('正常符号放行（S＝涩）', vs('S', '涩') === null, vs('S', '涩'))
+c.check('汉字直接当符号也放行（涩＝涩）', vs('涩', '涩') === null, vs('涩', '涩'))
+c.check('三个字符的自定义写法放行（TT2）', vs('TT2', '跳停') === null, vs('TT2', '跳停'))
+c.check('自定义符号与别的代码互不影响', vs('H', '滑', [{ code: 'S', name: '涩' }]) === null)
 
 /* —— 体例：唯一真源，改体例不动格值 —— */
 const beforeValues = JSON.stringify((await dataApi.getPatient(patientId)).visits[0].values)

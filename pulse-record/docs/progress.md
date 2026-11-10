@@ -359,6 +359,8 @@ canvas 版没有表下「体质／（未判）」「（未定）」两行、不�
 - 全量回归 **321 → 327 全绿**（taro-lint 94 → 100：新增页面存在性断言 ×2 ＋ 隐私接口清单断言 ×4）
 - `npm run mp:taro:typecheck` 全绿 ／ `npm run mp:taro:build` 全绿（包体 0.63 MB）
 - 编译期注入**双向验过**：带 `PULSE_API_BASE=https://mai.example.com` 构建 → 产物里是它；不带 → 产物里是 `http://127.0.0.1:5178`（构建后已还原，没留 example.com）
+  - ⚠️ **2026-11-08 之后这条验证法要加开关**：示例域名现在会被构建期校验拦下（见 §3.31），
+    要故意坏包得写 `PULSE_ALLOW_PLACEHOLDER=1 PULSE_API_BASE=https://mai.example.com npm run mp:taro:build`
 
 #### 还差的（要用户操作）
 
@@ -2263,6 +2265,156 @@ export function entryKind(mode?: string | null): EntryKind {
 ```
 
 全量回归 **605 → 649 全绿**（core 26 ＋ lint 290 ＋ taro-api 96 ＋ migration 53 ＋ auth 53 ＋ app 29 ＋ 桌面端 33 ＋ 鸿蒙 69）。
+
+### 3.31 「连不上服务器」的真根因：**示例域名被打进了包**（2026-11-08 傍晚）
+
+**现象**：维护者发来开发者工具截图 —— 病例页一片红：
+
+```
+病例列表读取失败 · 连不上服务器
+原因：request:fail
+地址：https://mai.example.com/api/patients
+```
+
+维护者说「**前几个版本并没有出现**」。这句话是破案的关键线索。
+
+**根因：不是代码 bug，是构建产物。**
+
+`taro/dist/common.js` 里编译进去的 `API_BASE` 是 `https://mai.example.com`。
+`example.com` 是 **RFC 2606 保留给文档的域名**，被 IANA 永久保留，**不指向任何服务器** ——
+所以这个包**在任何网络、任何设备上都必然连不上**。
+
+它是怎么进去的：有人跑过一次
+
+```bash
+PULSE_API_BASE=https://mai.example.com npm run mp:taro:build
+```
+
+（`docs/progress.md` 上面那条「编译期注入双向验过」的验证法就是这么验的，
+`docs/deploy.md` 里各处也一直拿这个域名举例）。产物留在 `dist/` 里，第二天打开就是满屏红。
+
+**前几个版本为什么没事**：那些产物里是默认值 `http://127.0.0.1:5178`，
+开发者工具勾着「不校验合法域名」，直连本机 5178 是通的 —— 地址写错也无感。
+
+**为什么难查**：现象在界面（「连不上」），根因在几小时前的**构建命令**里，
+中间隔着产物、缓存、开发者工具。只能从界面倒着查回去。这正是要把它提前到构建期的理由。
+
+#### 改法
+
+| 层 | 文件 | 改动 |
+|---|---|---|
+| 判定（**纯函数**） | `taro/src/utils/api-base-guard.ts`（新） | `checkApiBase()` / `splitUrl()` / `normalizeHost()`：拦示例域名与占位写法，放过联调地址与真实域名，http 只警告 |
+| 构建期 | `taro/config/index.ts` | `assertApiBaseUsable(process.env.PULSE_API_BASE)`，不通过就**中止构建** |
+| 产物 | `taro/dist/` | 重建，地址回到 `http://127.0.0.1:5178` |
+| 回归 · 判定 | `scripts/e2e/taro-api.mjs` 第八段 | 纯函数逐条断言：该拦的 20 条、该放的 13 条（全段 58 条） |
+| 回归 · 调用点 | `scripts/e2e/taro-lint.mjs` | 静态断言盯「config 真的把它接上了」 |
+| 文档 | `docs/deploy.md` §6.2、`taro/src/utils/config.ts` | 不再教人改源码字面量（那条路绕过校验）；示例域名换成真实域名写法 |
+
+**为什么是 `process.exit(1)`，不是 `throw`**（读 Taro 源码 ＋ 实测确认）：
+
+```
+@tarojs/service/dist/Config.js:46   catch (err) { console.log(err) }   ← 只打印，不 rethrow
+@tarojs/service/dist/Kernel.js:49    isInitSuccess=false → 不填 configPath
+@tarojs/cli/.../build.js:64          configPath 未定义 → 打印
+                                     「找不到项目配置文件config/index，请确定当前目录是 Taro 项目根目录!」
+                                     → process.exit(1)
+```
+
+`throw` 也能让构建停下（退出码 1），但**最后一句提示指向「你目录不对」**，
+真正的诊断被埋在一屏调用栈里 —— 正好是这道校验想避免的那种误导。
+自己 `console.error` + `process.exit(1)`，错误信息就留在正确的地方。
+
+#### 拦什么、放什么
+
+| 输入 | 处理 | 依据 |
+|---|---|---|
+| `example.com` / `.net` / `.org` 及子域、`.example`、`.invalid`、`.test` | **拦** | RFC 2606 / 6761 保留，永不解析 |
+| `example.com.`（尾点）、`ＡＰＩ.example.com`（全角）、`a。example.com`（U+3002） | **拦** | 归一化后同样是 `example.com`（尾点是 root-anchored FQDN） |
+| `https://example.com\@a.cn`（反斜杠） | **拦** | WHATWG 把 `\` 当斜杠，真实 host 是 `example.com` |
+| `https://<你的备案域名>`、`https://你的域名` | **拦** | 文档里的占位写法，照抄就是坏包 |
+| 空串（没注入） | 放行 | 走源码默认值，正常用法 |
+| `http://127.0.0.1:5178`、`localhost`、局域网 IP、带端口 | 放行 | 开发者工具与真机联调都真能用 |
+| 真实 https 域名（含 `臧氏脉学.cn`、CloudBase 带 `/pulse-api` 路径） | 放行 | —— |
+| 非 https 的 http 地址 | **只警告** | 开发者工具勾了「不校验合法域名」时能用 |
+
+#### 实测
+
+| 项 | 结果 |
+|---|---|
+| `PULSE_API_BASE=https://mai.example.com npm run mp:taro:build` | **退出码 1**，输出 `[PULSE_API_BASE] 构建中止：…是文档里的示例域名…` |
+| `PULSE_ALLOW_PLACEHOLDER=1` ＋ 同上 | 退出码 0，产物里就是它（故意坏包的验证手段保留） |
+| `PULSE_API_BASE=https://pulse.my-domain.cn`（真实域名） | 退出码 0，产物里是它 —— **不误伤** |
+| 正常构建 | 产物 `http://127.0.0.1:5178`，无 `example.com`、无 `process.env.` 残留，51 个文件齐全 |
+| `test:e2e:mp` | **294/294**（290 ＋ 新增 4 条调用点断言） |
+| `test:e2e:mp:api` | **154/154**（96 ＋ 新增 58 条地址校验断言） |
+| `test:e2e:mp:net:break` | 11/11 mutation 全被抓到，还原后复绿 |
+| `mp:taro:typecheck` / `typecheck`（网站端） | 全绿 |
+
+#### 已知遗留（没在这轮改）
+
+- **「忘了注入」与「联调不注入」分不出来** —— 都是空串 ⇒ 正式包会静默落 `127.0.0.1:5178`
+  （真机上那指手机自己）。这是同一类事故的另一个入口，但判据要牵涉 `NODE_ENV` / `TRANSPORT`，
+  这轮不动。
+- **`mp:dev` 会透传 shell 里的 `PULSE_API_BASE`**（`scripts/mp-dev.mjs:147`）。
+  shell 里 export 过一个坏地址时，联调会在构建阶段就停（后端也不会起）——
+  行为从严是对的，但失败面比「包坏」大。
+- **`local-data/check-dist-netdiag.mjs`**（未入库的临时脚本）第 42 行断言产物里**含** `mai.example.com`，
+  现在跑会误报。要用就改成 `127.0.0.1:5178`。
+
+### 3.32 自定义符号：小程序也能自建，按账号存（2026-11-08 晚）
+
+**来由**：维护者发来两张对照截图 —— 网页端「符号录入」有 **自定义符号（自建，如 涩＝S）＋「＋ 添加」**，
+小程序同一块面板只有讲义固定符号。要求：**小程序也要能自定义**，而且「根据用户名保存到数据库」
+（每人习惯不同），硬性规定**必须有符号或字母、符号不能为空**。
+
+**这不是存储缺口，是 UI 没接上。** `custom_symbols` 表的主键早就是 `(owner_id, code)`，
+`GET/POST/DELETE /api/symbols` 三条路由齐全，网页端也能增删；
+小程序的 `record-sheet` 里只有一个 `customSymbols.length ? …` 的**只读展示分支** ——
+所以清单读得出来，却没有任何地方能写进去。
+
+#### 改法
+
+| 层 | 文件 | 改动 |
+|---|---|---|
+| 校验（两端共用） | `src/domain/symbols.ts` | `validateCustomSymbol()`：符号为空直接拦（提示「符号不能为空 —— 必须填一个符号或字母」）；**不可见字符按「有没有可见字形」判**（软连字符 U+00AD、盲文空白 U+2800、韩文填充符 U+3164、变体选择符、组合附加符、方向控制符、BOM…）；名称同样必填；`.` / `..` 不许当符号 |
+| 服务端 | `server/symbol-codes.mjs`、`server/index.mjs`、`db.mjs`、`db-pg.mjs` | 判定抽出**一个** `symbolInputError(code, name)`，路由与两套存储都调它（以前路由 6 项、存储 3 项，直调存储能写进 `ABCD`／`S S`／13 字名称）；路由不再回 `200 + {symbol:null}`；畸形百分号编码回 400 而不是 500；老库重建符号表时保留已有 `owner_id`（不再一律抹成 `__legacy__`） |
+| 符号面板 | `taro/src/components/record-sheet/index.tsx` / `.scss` | 「＋ 添加」→ 名称＋符号两个输入 → 保存／取消；每个自建符号带 **×** 删除（**与 chip 并排、不压在 chip 上**，避免「想选却删了」）；关面板／换格子时把草稿与红字一起收掉；自定义 chip 用**虚线框**与固定符号区分 |
+| 落库 | `taro/src/store/symbols.ts`（新）、`pages/visit/index.tsx`、`pages/case-detail/index.tsx` | 抽一个 `useCustomSymbols()` 给两页共用（清单／增删／错误一份逻辑，改一处不会忘另一处）；内部接 `saveCustomSymbol()` / `deleteCustomSymbol()`；新增前先跑同一套校验；删到 404（别处已删）按**已删**处理，chip 不会卡住 |
+| 回归 | `scripts/e2e/taro-api.mjs`、`taro-lint.mjs`、`auth-isolation.mjs` | 数据层 ＋41 条（空符号／纯空格／软连字符／盲文空白／韩文填充／变体选择符／`.` `..` 全被 400 拒，且**一个都没落库**；名称里的全角空格要能过）；静态检查 ＋23 条（面板入口、×、先校验、两页共用 hook、服务端与两套存储共用 `symbolInputError`）；**修掉一条假测试**：原来「B 删 A 的符号」打的 URL 没带 code，在路由层就 404，存储层一次都没执行 |
+| 文档 | `AGENTS.md`、`README.md` | 新增「自定义符号」小节（按账号存／必填／不占固定代码／历史不受影响）；README 更正「存本机 SQLite」为**按账号存** |
+
+#### 两个刻意的取舍
+
+1. **表单放在标题下面、而不是 chip 后面**：面板是底部弹层，键盘从下面顶上来 ——
+   表单排在 chip 后面时，输入框正好落在键盘底下（网页端无所谓，手机上有所谓）。
+2. **删符号不删历史**：已录进格子的代码原样留着，导出图例仍给说明（`buildCustomLegend` 标「已从符号表删除」）——
+   删的只是「以后还能不能点」，不是「以前记过什么」。
+3. **「不可见」按位置分两档**：符号代码严判（连各种空白一起拒，代码本来也不许空格）；
+   名称只拦**没有字形**的字符 —— 中文输入法打出的空格常常是 U+3000，
+   那是看得见宽度的空白，按「看不见」拒掉会让「涩　脉」莫名其妙存不进去。
+
+#### 实测
+
+| 项 | 结果 |
+|---|---|
+| `test:e2e:mp` | **317/317**（294 ＋ 23 条面板／接线／服务端同规则断言） |
+| `test:e2e:mp:api` | **195/195**（154 ＋ 41 条符号规则断言） |
+| `test:e2e:auth` | **57/57**（含【6】自定义符号跨用户：A 的 B 看不到、B 删不掉、B 用同一代码建不会覆盖 A） |
+| `test:e2e:core` / `test:e2e:app` | 26/26、29/29 |
+| `test:e2e:mp:sim` | **55/55**（完整跑通过）。最后一次改完重跑时**开发者工具的截图接口卡死**（`screenshot` 45s 超时，四页全超时）；用应用内探针确认四个 tab 都能切、`currentPage` 与页面栈正确 —— 是 IDE 截图的环境问题，不是页面坏 |
+| `mp:taro:typecheck` / `typecheck` | 全绿 |
+| `npm run mp:taro:build` | exit 0；51 个文件、无空文件，`common.js` 里 `http://127.0.0.1:5178`、无 `example.com` |
+
+#### 已知边界（没在这轮做）
+
+- **面板不做「改名」**：同代码再存会覆盖名称，但面板按网页端一致用法先挡住重复代码 ——
+  要改名就先删再建（历史记录不受影响）。
+- **删除没有二次确认**：× 点一下即删（已改成与 chip 并排，不再压在 chip 上）；符号可随时重建，且不动历史格子。
+- **PG 的 SQL 函数还只有空判断**：`pulse_put_symbol`（`server/pg-functions.sql`）没同步这轮规则；
+  应用层（`db-pg.mjs` 的 JS）会先过 `symbolInputError`，但**直接走 RPC／数据库通道**仍能写入非法代码。
+  本轮没有 `PULSE_CB_*` 凭证、无法实测，不敢盲改未部署验证的 SQL —— 等下次连上云库再下沉。
+- **记录格值（`visits.values`）没有做「空代码」校验**：这是本轮之前就有的行为，历史数据里可能有空串；
+  真要收紧得先定迁移策略（清掉还是保留），不在这次范围。
 
 ## 4. P3 · 迁 CloudBase（🟡 云端已建成，开发／试用环境）
 

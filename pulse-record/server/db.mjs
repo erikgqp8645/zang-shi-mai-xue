@@ -282,9 +282,21 @@ function rebuildCustomSymbols(db) {
       // 否则解析器分不清 `ON` 是 UPSERT 的开头还是 JOIN 的 ON（SQLite 官方文档明写这条歧义）。
       // `WHERE true` 是恒真条件，不改变语义；写成这样 SQL 与 PostgreSQL 都能跑
       // （PostgreSQL 同样接受 `ON CONFLICT DO NOTHING`）。
+      //
+      // owner 的来源要分两种老库：
+      //   · 真·老结构（只有 code）：没有 owner 列，只能归给单机账号
+      //   · 中间版本（有 owner_id、但主键只有 code）：**必须原样带过来**，
+      //     否则会把几个账号的符号全并到单机账号下 —— 那是一次跨用户数据合并。
+      const legacyHasOwner = db
+        .prepare('PRAGMA table_info(custom_symbols)')
+        .all()
+        .some((c) => c.name === 'owner_id')
+      const ownerExpr = legacyHasOwner
+        ? `COALESCE(NULLIF(owner_id, ''), '${LEGACY_OWNER}')`
+        : `'${LEGACY_OWNER}'`
       db.exec(`
         INSERT INTO custom_symbols_new (code, owner_id, name, created_at)
-        SELECT code, '${LEGACY_OWNER}', name, created_at FROM custom_symbols WHERE true
+        SELECT code, ${ownerExpr}, name, created_at FROM custom_symbols WHERE true
         ON CONFLICT (owner_id, code) DO NOTHING;
       `)
       db.exec('DROP TABLE IF EXISTS custom_symbols')
@@ -741,7 +753,7 @@ export async function deleteMedication(db, id, ownerId) {
  * 与 src/domain/symbols.ts 的 SYMBOLS 保持一致（那边是前端 TS，这边是服务端 .mjs，无法互相 import）。
  * 常量本体在 server/symbol-codes.mjs —— 它是知识常量，换存储实现时不变。
  */
-import { RESERVED_SYMBOL_CODES } from './symbol-codes.mjs'
+import { RESERVED_SYMBOL_CODES, symbolInputError } from './symbol-codes.mjs'
 export { RESERVED_SYMBOL_CODES }
 
 /** 自定义符号清单，按添加顺序（只看该 owner 的） */
@@ -756,8 +768,8 @@ export async function listCustomSymbols(db, ownerId) {
 export async function putCustomSymbol(db, ownerId, symbol) {
   const code = String(symbol?.code ?? '').trim()
   const name = String(symbol?.name ?? '').trim()
-  if (!code || !name) return null
-  if (RESERVED_SYMBOL_CODES.includes(code)) return null
+  // 与路由**同一个函数**：空、不可见、长度、空格/斜杠、保留代码、点号，一处判定
+  if (symbolInputError(code, name)) return null
   db.prepare(
     `INSERT INTO custom_symbols (code, owner_id, name, created_at)
      VALUES (?, ?, ?, ?)

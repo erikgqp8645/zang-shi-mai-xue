@@ -415,6 +415,18 @@ if (existsSync(sheetFile)) {
   ok('符号面板用 .pr-pal-*（不与表格 .pr-grp 撞名）', /pr-pal-grp/.test(sheet) || /pr-pal-grp/.test(sheetScss))
   ok('表格的部位分组仍叫 .pr-grp', /\.pr-grp\b/.test(sheetScss))
 
+  /* ---- 自定义符号（2026-11-08）：能自建、能删、提交前先校验 ---- */
+  ok('符号面板有「＋ 添加」入口', /pr-pal-add/.test(sheet) && /＋ 添加/.test(sheet))
+  ok('面板把增删交给页面落库（组件不碰网络）', /onAddCustom/.test(sheet) && /onDeleteCustom/.test(sheet))
+  ok(
+    '新增前先跑本机校验（空符号不等服务端就拦下）',
+    /validateCustomSymbol\(/.test(sheet) && /@domain\/symbols/.test(sheet),
+  )
+  ok('每个自定义符号带删除十字（×）', /pr-sym-del/.test(sheet) && /removeCustom\(/.test(sheet))
+  ok('删除十字不会顺带把符号选进格子', /stopPropagation\(\)/.test(sheet))
+  ok('自定义符号用虚线框（与固定符号区分）', /is-custom/.test(sheet) && /border-style:\s*dashed/.test(sheetScss))
+  ok('自定义符号为空时有说明', /pr-custom-hint/.test(sheet))
+
   // 版式取色：讲义 p34 实例表实测值
   ok('部位列取讲义 p34 的橙色 #ffc000', /#ffc000/i.test(sheetScss))
   ok('表底取讲义 p34 的 #cce8cf', /#cce8cf/i.test(sheetScss))
@@ -742,6 +754,50 @@ for (const [label, f] of [
   const src = read(f)
   ok(`${label} 用的是 record-sheet 组件`, /record-sheet/.test(src))
   ok(`${label} 没有自己画表格骨架`, !/pr-organ/.test(src) && !/<table\b/.test(src))
+}
+
+/* ------------------------------------------------------------------------
+ * 8a. 自定义符号：两处页面都要真的接上（2026-11-08）
+ *
+ * 面板只负责收表单，**落库在页面**。只有面板没有接线，
+ * 就会出现「点了保存没反应」—— 静态检查盯住这条线。
+ * --------------------------------------------------------------------- */
+for (const [label, f] of [
+  ['病例详情页', caseDetail],
+  ['就诊页', visitPage],
+]) {
+  if (!existsSync(f)) continue
+  const src = read(f)
+  ok(`${label} 用共用的 useCustomSymbols（不各写一份）`, /useCustomSymbols/.test(src))
+  ok(
+    `${label} 把符号增删交给面板`,
+    /onAddCustom=\{addCustomSymbol\}/.test(src) && /onDeleteCustom=\{removeCustomSymbol\}/.test(src),
+  )
+  ok(`${label} 把符号表错误交给面板显示`, /customError=\{symbolError\}/.test(src))
+}
+
+const symbolsHook = join(SRC, 'store', 'symbols.ts')
+ok('自定义符号 hook 存在', existsSync(symbolsHook))
+if (existsSync(symbolsHook)) {
+  const hook = read(symbolsHook)
+  ok('hook 真的打到 /api/symbols（保存＋删除）', /saveCustomSymbol/.test(hook) && /deleteCustomSymbol/.test(hook))
+  ok('hook 新增前先跑本机校验（空符号在这里就拦下）', /validateCustomSymbol\(/.test(hook))
+  ok('hook 把服务端错误留在 symbolError 里（面板就地显示）', /setSymbolError/.test(hook))
+  ok(
+    '删一个服务端已没有的符号 → 当作已删（404 幂等，chip 不会卡住）',
+    /ApiError/.test(hook) && /status === 404/.test(hook),
+  )
+
+  /* ---- 服务端与存储层必须是**同一套**符号规则（2026-11-08 复核发现的分叉） ---- */
+  const codesFile = join(ROOT, 'server', 'symbol-codes.mjs')
+  ok('符号规则常量存在（server/symbol-codes.mjs）', existsSync(codesFile))
+  if (existsSync(codesFile)) {
+    ok('规则以 symbolInputError 形式对外（一份判定）', /export function symbolInputError/.test(read(codesFile)))
+    ok('路由调用它（不自己再写一遍）', /symbolInputError\(/.test(read(join(ROOT, 'server', 'index.mjs'))))
+    for (const f of ['db.mjs', 'db-pg.mjs']) {
+      ok(`存储层 ${f} 调用同一个 symbolInputError`, /symbolInputError\(/.test(read(join(ROOT, 'server', f))))
+    }
+  }
 }
 
 /* ========================================================================

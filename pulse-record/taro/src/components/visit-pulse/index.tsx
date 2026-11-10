@@ -37,6 +37,13 @@ export interface VisitPulseProps {
   onToggleLayout: () => void
   onAddVisit: (ymd: string) => void
   onLoadSample: () => void
+  /** 自定义符号的增删（落库在页面，组件只把表单值抛上去） */
+  onAddCustom: (code: string, name: string) => Promise<boolean>
+  onDeleteCustom: (code: string) => Promise<boolean>
+  /** 符号表相关的错误提示（空符号、重名、服务端拒绝…） */
+  customError?: string | null
+  /** 清掉上面那条错误（打开／关闭表单、重新输入时） */
+  onClearCustomError?: () => void
 }
 
 export default function VisitPulse(props: VisitPulseProps) {
@@ -55,6 +62,10 @@ export default function VisitPulse(props: VisitPulseProps) {
     onToggleLayout,
     onAddVisit,
     onLoadSample,
+    onAddCustom,
+    onDeleteCustom,
+    customError,
+    onClearCustomError,
   } = props
 
   return (
@@ -114,6 +125,10 @@ export default function VisitPulse(props: VisitPulseProps) {
         activeSessionId={activeSessionId}
         onChange={onSessionsChange}
         onSessionTap={onSessionTap}
+        onAddCustom={onAddCustom}
+        onDeleteCustom={onDeleteCustom}
+        customError={customError}
+        onClearCustomError={onClearCustomError}
       />
     </View>
   )

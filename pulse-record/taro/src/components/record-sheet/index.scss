@@ -521,6 +521,90 @@
   color: #fdfbf7;
 }
 
+/* ---------- 自定义符号（使用者自建，如 涩＝S） ---------- */
+
+/* 标题行：左边标题，右边「＋ 添加」 */
+.pr-pal-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+}
+
+.pr-pal-add {
+  padding: 4rpx 18rpx;
+  border: 1rpx dashed #c9c4b4;
+  border-radius: 999rpx;
+  background: #ffffff;
+  color: #7c8974;
+  font-size: 22rpx;
+  line-height: 1.6;
+}
+
+/* chip ＋ 右侧的删除十字。
+   ⚠️ 十字**不压在 chip 上**：chip 最高频的动作是「选中」，
+   手指落点本来就偏，压在右上角会变成「想选却删了」。所以排成并排两件，
+   中间留 4rpx 空隙 —— 点不到 chip 也点不到删除，不会误伤。 */
+.pr-sym-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 8rpx;
+}
+
+.pr-sym.is-custom {
+  border-style: dashed;
+}
+
+.pr-sym-del {
+  width: 40rpx;
+  height: 40rpx;
+  line-height: 36rpx;
+  text-align: center;
+  border-radius: 50%;
+  background: #b03a2e;
+  color: #ffffff;
+  font-size: 26rpx;
+}
+
+/* 删除请求在路上：十字变淡，表示「已经点了，别再点」 */
+.pr-sym-del.is-busy {
+  opacity: 0.4;
+}
+
+.pr-custom-form {
+  margin-top: 10rpx;
+}
+
+.pr-custom-row {
+  display: flex;
+  gap: 12rpx;
+}
+
+.pr-custom-row .pr-input {
+  flex: 1;
+  min-width: 0;
+  height: 64rpx;
+  line-height: 64rpx;
+  font-size: 26rpx;
+}
+
+.pr-custom-ops {
+  display: flex;
+  gap: 12rpx;
+  margin-top: 12rpx;
+}
+
+.pr-custom-err {
+  margin-top: 10rpx;
+  color: #b03a2e;
+  font-size: 22rpx;
+  line-height: 1.6;
+}
+
+.pr-custom-hint {
+  margin-top: 8rpx;
+}
+
 .pr-manual {
   margin-top: 24rpx;
 }
