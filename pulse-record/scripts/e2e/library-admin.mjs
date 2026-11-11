@@ -77,7 +77,15 @@ function cli(args) {
     encoding: 'utf8',
     cwd: ROOT,
   })
-  return { code: r.status ?? -1, out: `${r.stdout ?? ''}${r.stderr ?? ''}` }
+  return {
+    code: r.status ?? -1,
+    // 人读的输出（stdout ＋ stderr 都算）—— 断言「输出里有没有某句话」用这个
+    out: `${r.stdout ?? ''}${r.stderr ?? ''}`,
+    // ⚠️ **stdout 单独留一份**：Node 的 ExperimentalWarning（node:sqlite 是实验特性）
+    //    走的是 stderr，混进 out 会让 JSON.parse 直接失败 ——
+    //    「要解析 JSON」的断言必须用这个，不能用 out。
+    stdout: r.stdout ?? '',
+  }
 }
 
 /**
@@ -582,7 +590,8 @@ await check('K1 export 出来的条目数与覆盖层一致', async () => {
   const r = cli(['export'])
   let doc = null
   try {
-    doc = JSON.parse(r.out)
+    // 只解析 stdout：stderr 里可能有 Node 的 ExperimentalWarning，混进来就解析不了
+    doc = JSON.parse(r.stdout)
   } catch {
     /* 解析失败 */
   }
