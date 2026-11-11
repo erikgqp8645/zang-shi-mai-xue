@@ -362,3 +362,62 @@ export async function deleteFormulaPatterns(db, ownerId, formulaId) {
   const res = await dataRpc('pulse_delete_formula_patterns', ownerId, { formulaId })
   return res?.ok === true
 }
+
+/* ------------------------------------------------------------------ *
+ * 用方知识库 · 管理员覆盖层（全局共享，不按账号隔离）
+ * ------------------------------------------------------------------ */
+
+/**
+ * 覆盖层全部条目。
+ *
+ * ⚠️ **没有 owner 过滤** —— 与 SQLite 版同形（公共资料，管理员改一次所有账号共享一份）。
+ *
+ * @returns {Promise<Array<object>>} `[{ kind, item_id, payload, deleted, updated_at, updated_by, note }]`
+ *   payload 是 **JSON 字符串**（PG 函数里用 `payload::text` 吐出来，与 SQLite 版同形）。
+ */
+export async function listLibraryItems(db) {
+  const res = await dataRpc('pulse_list_library_items', '', {})
+  if (!Array.isArray(res)) return []
+  return res.map((r) => ({
+    kind: r.kind,
+    item_id: r.item_id,
+    payload: typeof r.payload === 'string' ? r.payload : JSON.stringify(r.payload ?? {}),
+    deleted: Number(r.deleted) === 1 ? 1 : 0,
+    updated_at: r.updated_at,
+    updated_by: r.updated_by ?? null,
+    note: r.note ?? null,
+  }))
+}
+
+/**
+ * 写入／覆盖一条覆盖层记录（PG 函数内是一个事务）。
+ *
+ * @param {string} kind
+ * @param {string} itemId
+ * @param {object} payload  该条目的完整 JSON
+ * @param {object} [opts]   `{ deleted?, updatedBy?, note? }`
+ * @returns {Promise<boolean>}
+ */
+export async function putLibraryItem(db, kind, itemId, payload, opts = {}) {
+  const k = String(kind ?? '').trim()
+  const id = String(itemId ?? '').trim()
+  if (!k || !id) return false
+  const res = await dataRpc('pulse_put_library_item', '', {
+    kind: k,
+    itemId: id,
+    payload: payload ?? {},
+    deleted: opts.deleted ? 1 : 0,
+    updatedBy: String(opts.updatedBy ?? 'cli'),
+    note: opts.note ?? null,
+  })
+  return res?.ok === true
+}
+
+/** 撤销一条覆盖（删掉这一行 → 回到内置基线） */
+export async function deleteLibraryItem(db, kind, itemId) {
+  const res = await dataRpc('pulse_delete_library_item', '', {
+    kind: String(kind ?? '').trim(),
+    itemId: String(itemId ?? '').trim(),
+  })
+  return res?.ok === true
+}

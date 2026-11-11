@@ -91,8 +91,11 @@ export function resolveFormulaLink(name: string): FormulaLink | null {
   if (!q) return null
 
   // ① 明确声明的规则对照
+  //    ⚠️ 管理员可能已经把这条规则删了（`library del rule <id>`）——
+  //    那就不能再跳过去：锚点不存在，点了没反应。
+  //    这里查一下还在不在，不在就往下走，最后落到「用方页未载」。
   const rl = RULE_LINKS[q]
-  if (rl) return { kind: 'rule', ...rl }
+  if (rl && FORMULA_RULES.some((r) => r.id === rl.id)) return { kind: 'rule', ...rl }
 
   // ②③ 讲稿方剂：完全同名 → 方名后括号不算方名
   const drug =

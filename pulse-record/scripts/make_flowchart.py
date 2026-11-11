@@ -15,8 +15,10 @@
 
 ## 用法
 
-    python3 scripts/make_flowchart.py            # 生成并写回 docs/填写流程图.html
-    python3 scripts/make_flowchart.py --check    # 只校验，不一致则退出码 1
+    npm run content:flowchart                    # 生成并写回 docs/填写流程图.html
+    （Windows 上 `python3` 可能只是 Microsoft Store 的空壳别名 —— 用上面这条 npm 命令，
+      仓库会自己找能用的解释器，不会卡在「python3 不是内部或外部命令」上）
+    npm run content:flowchart:check              # 只校验，不一致则退出码 1
 """
 
 from __future__ import annotations
@@ -360,7 +362,7 @@ def main() -> int:
 
     if check:
         if new_text != page_text:
-            print(f"✗ {PAGE.name} 与工作簿不一致 —— 跑 python3 scripts/make_flowchart.py 同步")
+            print(f"✗ {PAGE.name} 与工作簿不一致 —— 跑 npm run content:flowchart 同步")
             return 1
         print(f"✓ {PAGE.name} 与工作簿一致")
         return 0

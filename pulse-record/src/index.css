@@ -229,6 +229,13 @@ button:disabled {
   text-decoration: underline dotted var(--sage);
 }
 
+/* 放在 <button> 里的方名链接（不能再是 button，见 TriadFrame.tsx 的说明）：
+   span 默认没有手型光标、也不是 inline-block，padding 与点选手感都要补齐。 */
+.pr-link-inline {
+  cursor: pointer;
+  display: inline-block;
+}
+
 .pr-ghost {
   border-style: dashed !important;
   color: var(--sage) !important;

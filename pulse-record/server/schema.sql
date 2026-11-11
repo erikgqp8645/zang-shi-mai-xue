@@ -155,3 +155,34 @@ CREATE TABLE IF NOT EXISTS formula_patterns (
 -- 依赖 owner_id 的索引（patients_by_owner / visits_by_owner / medication_by_owner /
 -- symbols_by_owner）在 server/db.mjs 的 migrate() 里建：
 -- 老库要先 ALTER TABLE 补上 owner_id 列，才能建这些索引。
+
+-- 用方知识库 · 管理员覆盖层（全局共享，不按账号隔离）
+--
+-- 内置基线在 src/content/*.json（Excel 管线产出，只读）。
+-- 这里只存**管理员改过的那些条目**：一条目一行，按 (kind, item_id) 整条接管 ——
+--   · 有行且 deleted=0 → 用这一行的 payload 整条替换基线条目
+--   · 有行且 deleted=1 → 墓碑：该条目在结果里消失
+--   · 没有行           → 保持内置基线
+-- 为什么要墓碑：覆盖层是「有行就用覆盖层」，若删除只表现为「没有行」，
+-- 读回来就等于「没改过」→ 静默回落到基线，管理员刚删的条目又冒出来。
+--
+-- ⚠️ 这张表**没有 owner_id**，是 store.mjs「ownerId 必填」硬规则的**有意例外**：
+--   用方知识库是**公共资料**不是个人数据 —— 管理员改一次，所有账号看到同一份
+--   （用户 2026-11-11 拍板：多人模式下所有账号共享一份）。
+CREATE TABLE IF NOT EXISTS library_items (
+  -- 种类：rule | drug | ref | dose | science | sciencemap
+  -- （注册表见 server/library-schema.mjs 的 LIBRARY_KINDS）
+  kind        TEXT    NOT NULL,
+  -- 基线条目的主键。ref 用 no 的字符串形式（如 '1'），sciencemap 用成方 id
+  item_id     TEXT    NOT NULL,
+  -- 该条目的完整 JSON（新增条目的 payload 即其全部内容）
+  payload     TEXT    NOT NULL,
+  -- 1 = 墓碑（这条被删了，apply 时从结果里消失）
+  deleted     INTEGER NOT NULL DEFAULT 0,
+  updated_at  INTEGER NOT NULL,
+  -- 谁改的（审计；默认 'cli'）
+  updated_by  TEXT    NOT NULL DEFAULT 'cli',
+  -- 管理员备注（为什么改这一条）
+  note        TEXT,
+  PRIMARY KEY (kind, item_id)
+);

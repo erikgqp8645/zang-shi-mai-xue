@@ -261,6 +261,56 @@ try {
     JSON.stringify(afterDim),
   )
 
+  /* ---- ⑨ ② 定疗法里的方名链接：不得嵌套 button，也不得连带选疗法 ---- */
+  console.log('\n【⑨】② 定疗法里的方名链接：不得嵌套 button，也不得连带选疗法')
+  // 嵌套 button 有两个后果：
+  //   ① HTML 无效 —— button 的内容模型不含 interactive content，浏览器会警告；
+  //   ② **点击会冒泡到外层「选疗法」按钮** —— 想查一条方的组成，却顺手把疗法定了。
+  // React 自己建 DOM、不会像 HTML 解析器那样自动拆开嵌套 button，
+  // 所以 `button button` 这个选择器抓得到源码里的嵌套。
+  const nested = await chrome.ev(
+    `(()=>{const bad=[...document.querySelectorAll('button button')];return {n:bad.length,sample:bad.slice(0,3).map(b=>b.textContent.trim().replace(/\\n+/g,' ').slice(0,40))}})()`,
+  )
+  console.log(`  button 套 button：${nested.n} 处 ${JSON.stringify(nested.sample)}`)
+  c.check('页面上没有 button 套 button', nested.n === 0, JSON.stringify(nested.sample))
+
+  const linkTags = await chrome.ev(
+    `[...document.querySelectorAll('.pr-triad-pick-path .pr-link')].map(e=>e.tagName)`,
+  )
+  console.log(`  ② 里方名链接的标签：${JSON.stringify(linkTags)}`)
+  c.check(
+    '② 里的方名链接不是 <button>（外层整张卡已经是 button）',
+    Array.isArray(linkTags) && linkTags.length > 0 && linkTags.every((t) => t !== 'BUTTON'),
+    JSON.stringify(linkTags),
+  )
+
+  // 行为：先把已选的疗法清掉，再点方名链接 —— 点完**不该**有疗法被选中
+  await chrome.ev(`(()=>{const b=document.querySelector('.pr-triad-pick-clear');b&&b.click();return 1})()`)
+  await sleep(500)
+  const selBefore = await chrome.ev(`document.querySelectorAll('.pr-triad-pick-opt.is-on').length`)
+  await chrome.ev(
+    `(()=>{const e=[...document.querySelectorAll('.pr-triad-pick-path .pr-link')].find(e=>e.textContent.trim()==='上焦方');e&&e.click();return 1})()`,
+  )
+  await sleep(800)
+  const selAfter = await chrome.ev(`document.querySelectorAll('.pr-triad-pick-opt.is-on').length`)
+  console.log(`  点「上焦方」前后被选中的疗法卡：${selBefore} → ${selAfter}`)
+  c.check(
+    '点方名链接不会连带把疗法选了',
+    selBefore === 0 && selAfter === 0,
+    `点完有 ${selAfter} 张疗法卡被选中`,
+  )
+
+  // 改完还得能用：点链接仍然要定位到知识库那一条
+  const pickHit = await chrome.ev(
+    `(()=>{const el=document.getElementById('rule-fx-dl3-bianmai-wuli');return {open:!!document.querySelector('#pr-flib.is-open'),found:!!el,focus:!!(el&&el.classList.contains('is-focus'))}})()`,
+  )
+  console.log(`  ${JSON.stringify(pickHit)}`)
+  c.check(
+    '点「上焦方」链接仍然定位得到知识库那一条（没把功能改坏）',
+    pickHit.open === true && pickHit.found === true && pickHit.focus === true,
+    JSON.stringify(pickHit),
+  )
+
   /* ---- ⑤ 控制台 ---- */
   console.log('\n【⑤】控制台异常')
   console.log('  ', chrome.errors.length ? chrome.errors : '（无）')

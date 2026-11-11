@@ -876,3 +876,70 @@ export async function deleteFormulaPatterns(db, ownerId, formulaId) {
     .run(ownerId, formulaId)
   return Number(info.changes) > 0
 }
+
+/* ------------------------------------------------------------------ */
+/* 用方知识库 · 管理员覆盖层（全局共享，不按账号隔离）                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 覆盖层全部条目。
+ *
+ * ⚠️ **没有 owner_id 过滤** —— 这是 store.mjs「ownerId 必填」硬规则的**有意例外**：
+ * 用方知识库是**公共资料**不是个人数据，管理员改一次所有账号共享一份
+ * （用户 2026-11-11 拍板）。理由写在 server/store.mjs 的契约表里。
+ *
+ * @returns {Promise<Array<object>>} `[{ kind, item_id, payload, deleted, updated_at, updated_by, note }]`
+ *   payload 是 **JSON 字符串**（与 PG 版同形）。
+ */
+export async function listLibraryItems(db) {
+  const rows = db
+    .prepare(
+      'SELECT kind, item_id, payload, deleted, updated_at, updated_by, note FROM library_items ORDER BY kind, item_id',
+    )
+    .all()
+  return rows.map((r) => ({
+    kind: r.kind,
+    item_id: r.item_id,
+    payload: r.payload,
+    deleted: Number(r.deleted) === 1 ? 1 : 0,
+    updated_at: r.updated_at,
+    updated_by: r.updated_by,
+    note: r.note ?? null,
+  }))
+}
+
+/**
+ * 写入／覆盖一条覆盖层记录（UPSERT）。
+ *
+ * @param {string} kind
+ * @param {string} itemId
+ * @param {object} payload  该条目的完整 JSON
+ * @param {object} [opts]   `{ deleted?, updatedBy?, note? }`
+ * @returns {Promise<boolean>}
+ */
+export async function putLibraryItem(db, kind, itemId, payload, opts = {}) {
+  const k = String(kind ?? '').trim()
+  const id = String(itemId ?? '').trim()
+  if (!k || !id) return false
+  const deleted = opts.deleted ? 1 : 0
+  const text = JSON.stringify(payload ?? {})
+  db.prepare(
+    `INSERT INTO library_items (kind, item_id, payload, deleted, updated_at, updated_by, note)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(kind, item_id) DO UPDATE SET
+       payload    = excluded.payload,
+       deleted    = excluded.deleted,
+       updated_at = excluded.updated_at,
+       updated_by = excluded.updated_by,
+       note       = excluded.note`,
+  ).run(k, id, text, deleted, Date.now(), String(opts.updatedBy ?? 'cli'), opts.note ?? null)
+  return true
+}
+
+/** 撤销一条覆盖（删掉这一行 → 回到内置基线） */
+export async function deleteLibraryItem(db, kind, itemId) {
+  const info = db
+    .prepare('DELETE FROM library_items WHERE kind = ? AND item_id = ?')
+    .run(String(kind ?? '').trim(), String(itemId ?? '').trim())
+  return Number(info.changes) > 0
+}

@@ -1670,7 +1670,7 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 
 ---
 
-## 6. 当前仓库状态（2026-11-06 实测）
+## 6. 当前仓库状态（2026-11-11 实测）
 
 | 项 | 值 |
 |---|---|
@@ -1678,7 +1678,7 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`chore/desktop-electron` = `8bc151f`；`feat/wechat-miniprogram` = `623aca8`（小程序／鸿蒙／桌面端／CloudBase 线，**历史原样保留**）；**`feat/web-site` = `845b339`（网站端线，2026-11-06 从 `6ebc881` 切出）** |
 | 分支纪律 | **两条长期开发线**（2026-11-06 起）：网站端新改动走 `feat/web-site`，小程序／鸿蒙／桌面端走 `feat/wechat-miniprogram`；同源于 `6ebc881`，都**不开 PR**、都不**改写已推送的历史**。详见 `AGENTS.md`「Git 约定」 |
 | PR | #6 `chore/multi-user → main`，**OPEN**；#7 `chore/desktop-electron → chore/multi-user`，**OPEN**；`feat/wechat-miniprogram` **永不开 PR**（2026-11-06 拍板：**永不合并进 `main`**） |
-| 全量回归 | **550 项全绿**（core 26 ＋ **excel 20 ＋ excel-break 22 ＋ exercise 13** ＋ taro-lint 202 ＋ taro-api 53 ＋ migration 51 ＋ auth 28 ＋ app 33 ＋ 桌面端 33 ＋ 鸿蒙 69） |
+| 全量回归 | **677 项全绿**（core 40 ＋ **excel 27 ＋ excel-break 28 ＋ exercise 13** ＋ taro-lint 202 ＋ taro-api 58 ＋ migration 53 ＋ auth 57 ＋ app 32 ＋ **library-admin 52 ＋ rule-delete-loader 13** ＋ 桌面端 33 ＋ 鸿蒙 69） |
 | 教程与练习册 | **`docs/教程-如何填写用方知识库.md`**（面向审核者：分表细则 ＋ 三个完整例子 ＋ 报错对照）；**`content/示例-填写示范.xlsx`**（练习册：5 格故意留空 ＋ 标黄 ＋ 批注）＋ `npm run content:exercise:check` 逐格验收。练习册的正确答案**从真源现取**，不写死；文件名含「示例／练习／示范」的工作簿**拒绝写回真源**（详见 §3.20） |
 | 数据层 | **JSON 为唯一真源**（`src/content/*.json` **8 个文件**，新增 `symbols.json`）；**Excel 为人工编辑层**（`content/臧氏脉学-用方知识库.xlsx`，**65 个 sheet** ＝ 15 通用表 ＋ **50 张脉象图矩阵**）；TS 只留逻辑。**矩阵是脉象图的唯一编辑面**，长表由它派生。往返 20 项 ＋ 故意写坏 22 项都挂在 `npm test`。用法见 [`content-layer.md`](./content-layer.md)（详见 §3.18／§3.19） |
 | 小程序工程 | `pulse-record/taro/`（Taro 4.3.2 ＋ React 18）；**原生 `miniprogram/` 原样保留作回退** |
@@ -1848,3 +1848,209 @@ VITE_API_BASE="https://pulse-1-d0g880ydl8ddc57f6-1257312696.ap-shanghai.app.tclo
 跨域已放行（`PULSE_CORS_ORIGINS` 含 `localhost:5180`／`127.0.0.1:5180`，
 Vite 实际端口取自 `scripts/dev.mjs` 的 `WEB_PORT`）。小程序侧的 `PULSE_CLOUD_ENV`
 默认值也已从旧环境改为 `pulse-1-d0g880ydl8ddc57f6`（`taro/config/index.ts`）。
+
+### 3.22 ② 定疗法里的方名链接：点一下会顺手把疗法也定了（2026-11-11）
+
+**怎么发现的**：本地起网站端（`npm run dev`，前端 5180／后端 5178，单机模式），
+点「载入示例（少娟）」后逐块试。点 ② 定疗法里的「上焦方」想看那条方的完整条目 ——
+点完之后**「三焦疗法」那张卡自己被选中了**（橙色高亮），右上角冒出「清除」，
+③ 开方药也跟着自动填满。我只想查一条方，却把疗法给定了。
+
+**根因**：`src/components/TriadFrame.tsx` 的 `TherapyPicker` 里，
+整张疗法卡是 `<button>`（点它＝选疗法），卡内的方名又是 `<button>`（点它＝看方剂条目）。
+**button 套 button** 有两个后果：
+
+1. HTML 无效 —— button 的内容模型不含 interactive content，
+   React 开发期直接警告 `<button> cannot be a descendant of <button>`；
+2. **更要紧的是点击冒泡** —— 内层 button 的 onClick 打完，
+   外层 button 的 onClick 跟着触发，于是「查一条方的组成」顺手改了「选哪个疗法」。
+
+**改法**：内层换成 `<span role="button" tabIndex={0}>`，onClick 里 `e.stopPropagation()`；
+onKeyDown 里同样处理 Enter／Space（键盘也要能开、也不能顺带选疗法）。
+外层 `<button>` 不动（它的语义与键盘行为本来就是对的）。
+另补 `.pr-link-inline`（`cursor: pointer` ＋ `display: inline-block`）——
+span 默认没有手型光标、也不是 inline-block，padding 与点选手感都要补齐。
+
+⚠️ **只把 button 换成 span 是不够的**：不 `stopPropagation` 的话照样会连带选疗法。
+（break-test 的 mutation B 专门验这一条。）
+
+**实测**
+
+| 项 | 结果 |
+|---|---|
+| 浏览器手动复验 | 点「上焦方」→ 知识库定位到那一条；三张疗法卡 `class` 都**没有** `is-on`，也没有「清除」按钮 |
+| 网站端浏览器回归【⑨】段（新增 4 项） | button 套 button 计数 **0**；方名链接标签全是 `SPAN`；点方名链接前后被选中的疗法卡 **0 → 0**；点链接仍定位得到知识库那条（没把功能改坏） |
+| break-test `scripts/e2e/app-nested-button-break-test.mjs`（新增，12 项） | A（改回 button ＋ 去掉 stopPropagation）→ 两条断言都红；B（**只**去掉 stopPropagation）→「连带选疗法」红而「没有 button 套 button」**仍绿** |
+| 全量回归 | 见 §6 |
+
+break-test 的 mutation B 是关键：结构没坏，只去了 `stopPropagation` ——
+「连带选疗法」那条照样红，说明它真的在测**事件冒泡**，
+不是靠 A 的嵌套结构顺带变红的假阳性；反过来「没有 button 套 button」在 B 里仍绿，
+说明两条断言各测各的，没有互相顶。
+
+**纪律**
+
+- 外层卡片已经是 `<button>` 时，**内层可点元素不得再是 `<button>`** → 用 `span role="button"` ＋ `tabIndex`。
+- 内层可点元素**必须 `stopPropagation()`** —— 「点一个只读的东西」绝不能顺带改动状态。
+- 断言要能验**行为**（「点完有没有顺带选中」），不能只验结构；
+  并且要用 break-test 证明它不是恒绿（也不能恒红）。
+
+### 3.23 用方知识库 · 管理员覆盖层：整个知识库可编辑（2026-11-11）
+
+**需求**：整个用方知识库都可以编辑（可改 ＋ 可增 ＋ 可删）。
+**用户收窄的范围**（本轮硬边界）：
+
+- **只改后端**，管理员来改，**前端一行都不改**；
+- 内容落在**本地 SQLite**；
+- 前端若要消费这些改动，**等用户通知后**再做同步。
+
+**根因（决定了方案形态的三条事实）**
+
+1. 前端内容是**编译期内联**的（`src/domain/*.ts` 的 `import x from '../content/x.json'` → Vite 打进
+   `dist/assets/index-*.js`），前端**没有任何运行时内容拉取** →
+   前端要看到改动，只有「内容导出 → 重新 build」这条路。
+2. 讲义 p44 依脉用方 61 条的**命中判定是 TS 函数**
+   （`src/domain/formulas.ts` 的 `EVALUATORS`，`loadRules` 做 JSON↔函数**双向校验、缺一即抛错**）→
+   p44 条目**改字段可以纯数据做**，**新增／删除必须同时改代码**。
+3. 讲稿方剂、p42 对照表、同和堂版成方、科中**全是纯数据**
+   （`src/domain/drugs.ts:41`、`src/domain/medication.ts:286`，无 per-id 函数、不抛错）→
+   这 4 类**改／增／删都能纯数据完成**。
+
+**改法**
+
+| 层 | 做什么 |
+|---|---|
+| 存储 | 新增 `library_items` 表（SQLite ＋ PG）：`kind \| item_id \| payload \| deleted \| updated_at \| updated_by \| note`，按 `(kind, item_id)` **整条接管**；`deleted=1` 是**墓碑**（否则删除会静默回落到基线） |
+| 真源 | 新增 `server/library-schema.mjs`：kind 注册表（能改哪些字段、能不能增删）、三层校验（字段／主键／悬空引用）、合并算法、级联清理 |
+| 写入面 | `npm run admin -- library …`（`scripts/admin.mjs` ＋ `scripts/lib/library-cli.mjs`）—— 直接读写本机 SQLite，不过 HTTP，服务器上也能用 |
+| 读接口 | `GET /api/library/overrides` —— 为将来的前端同步预留底座（本轮前端不接） |
+| 出口 | `library apply` 把覆盖层合并回 `src/content/*.json`（**数据层**）→ `content:excel` → `npm run build` → 前端**代码零改动**就生效 |
+
+**p44 的架构边界**：命令行对 p44 的**新增／删除直接拒绝**并说明原因
+（判定逻辑在代码里，数据与函数必须一一对应，缺一个前端就起不来），
+并给出可执行的替代（先加成 `kind=drug`，那是纯数据）；
+**改字段照常允许**。覆盖层里要是绕过命令行混进了 p44 的增删
+（手改数据库／导入外部文件），`apply` 也会**拒绝写盘**，`verify` 会点名报出来。
+
+**级联（按 AGENTS.md「宁可留空并写『未载』，不臆造」）**：删讲稿方剂 → p44 的 `drugs[]` 去掉该 id；
+删成方 → p42 的 `doseId` 置空、`doseBasis` 标「未载（原 doseId=xxx 已删除）」、科中映射里那一项删掉；
+删科中 → 科中映射里的值写成「未载」。
+
+**一个有意例外**：`library_items` **没有 `owner_id`**，是 store.mjs「ownerId 必填」硬规则的例外 ——
+用方知识库是**公共资料**不是个人数据，管理员改一次所有账号共享一份（用户 2026-11-11 拍板）。
+例外只此一处，理由写在 `server/store.mjs` 的契约表里；其余四张业务表仍严格按 owner 隔离。
+
+**实测**
+
+| 项 | 结果 |
+|---|---|
+| 新增 e2e `scripts/e2e/library-admin.mjs` | **47 项全绿**（A 空状态／B 改一条／C 新增／D 删除／E 撤销／F 级联／G 悬空引用／H p44 边界／I 字段校验／J 命令行契约／K 导出导入／L 读接口／M 仓库真文件未被碰） |
+| 新增 break-test `scripts/e2e/library-admin-break-test.mjs` | **7 条 mutation 全部被抓**（覆盖层不生效／墓碑当没改过／悬空引用检查关掉／p44 边界关掉／每次写盘带时间戳／删成方级联去掉／删讲稿方剂级联去掉），还原后逐字节一致 |
+| 全量回归 | 见 §6 |
+
+break-test 里两条**假阳性**是被它抓出来的，值得记一笔：
+
+- **H6「verify 抓到那条」**：一开始注入的 payload **缺 `quote`**，被字段校验先拦下 ——
+  「p44 边界被关掉」时它照样绿，说明它测的是「缺必填字段」而不是「p44 越界」。
+  改成注入一条**完全合法**的 payload 之后，它才真的在测 p44 边界。
+- **B5「apply 幂等」**：一开始只把 `writeBaseline` 改成带时间戳，结果**抓不到** ——
+  因为 `apply` 在「内容没变」时根本不写盘，时间戳的抖动被挡在外面。
+  补了 A4「apply 之后内容文件里没有多出后端自己加的顶层键」，并让 M5 顺带去掉
+  「没变就不写」那条捷径，两条断言才都咬得住。
+
+**纪律**
+
+- **覆盖层是「有行就用覆盖层」** —— 删除必须写**墓碑**，不能靠「没有行」表达
+  （没有行＝没改过＝静默回落到基线，刚删的条目又冒出来）。
+- **改一条要按字段改**，不要整条覆盖 —— 否则改一个字段会连带丢掉别的字段。
+- **后端不许往内容文件里塞自己的东西**（写入时间戳、内部标记）—— 那会让「apply 幂等」变成空话。
+- **apply 是叠加，不是替换** —— 人工在 Excel 里的改动要先 `content:json` 拉进 JSON 推进基线，
+  顺序反了会被盖掉。
+- **引用断了宁可什么都不写** —— `apply` 拒绝写盘，绝不写出半坏数据。
+- **断言要能区分「抓对了原因」** —— 一条断言被别的检查顺带弄红，等于没测（M3/M4 那两条就是这么现原形）。
+
+**这一轮明确不做**
+
+前端任何改动（编辑 UI、合并层、读接口接入）、小程序端任何改动、
+HTTP 写接口与 role 闸门、放宽 `loadRules` 支持 p44 增删。
+
+---
+
+### 3.24 开放删除：讲义 p44 的条目可以删了（2026-11-11）
+
+**为什么做**：用户 2026-11-11 画布批注「主线里面的也要求可以单独编辑。做好可以做成区块，
+我可以任意拼接组合」，并口头拍板「**开放删除功能**」。
+上一轮（§3.23）把 p44 的增删一起挡住了 —— 现在打开**删除**这一半。
+
+**卡点在哪**：p44 的条目数据在 `src/content/formula-rules.json`，
+命中判定在 `src/domain/formulas.ts` 的 `EVALUATORS`。
+原先 `loadRules` 对这两边做**双向校验、缺一即抛错** ——
+删掉一条条目 → 数据少一条、函数还留着 → **前端启动就崩**。
+所以「删除」不是后端放开一个开关就完了，它卡在前端装载器上。
+
+**改法：两个方向刻意不对称**
+
+| 方向 | 改前 | 改后 | 为什么 |
+|---|---|---|---|
+| 数据有、判定函数没有 | 抛错 | **仍然抛错** | 那条规则永远不命中，界面却看不出来 —— 最坏的一种坏法，宁可载入失败 |
+| 判定函数有、数据没有 | 抛错 | **跳过**（不加载） | 这是条目被管理员删掉之后的正常状态：函数是**残留代码** |
+
+因为判定函数还留着，`library revive` 把条目放回来时**一行代码都不用改**。
+
+**改动清单**
+
+| 层 | 文件 | 改了什么 |
+|---|---|---|
+| 前端 | `src/domain/formulas.ts` | `loadRules` 改成上面那两个方向；导出 `loadRulesFrom`／`EVALUATORS` 供测试注入数据 |
+| 前端 | `src/domain/formula-links.ts` | `RULE_LINKS` 命中后校验那条规则**还在不在** —— 不在就落到「用方页未载」，而不是点过去没反应 |
+| 后端 | `server/library-schema.mjs` | `rule` 的 `deletable` 放开；`checkRuleBoundary` 改成 `checkRuleAddBoundary`（**只管新增**）；新增 `readEvaluatorIds()`（从 `formulas.ts` 里读出**有判定函数的 id 集合**当白名单） |
+| 命令行 | `scripts/lib/library-cli.mjs` | `del` 存**原内容快照**；新增 `revive`（把删掉的放回来）；`restore` 保持原义（撤「覆盖层这一行」）并加了提示 |
+
+**为什么白名单要从代码里读、而不另设一张登记表**：
+「哪些 id 能被命中」的真源就是那份 `EVALUATORS`。另设一张表，两边必然漂移，
+而漂移的后果是「前端载入即报错」—— 所以 `readEvaluatorIds()` 直接读真源。
+读不到（文件不在／格式变了）就退回「只认基线里的 id」，宁可少放行。
+
+**`restore` 与 `revive` 的分工**（这是本轮想清楚的一件事）
+
+| 命令 | 撤的是 | 结果 |
+|---|---|---|
+| `restore` | 覆盖层里**这一行** | 回到内置基线的样子 |
+| `revive` | **那一次删除** | 把删掉的条目原样放回来（靠墓碑里的原内容快照） |
+
+两者只在「**删除已经 apply 过去**」时才分得出差别 ——
+`apply` 是写进基线的，墓碑一旦 apply 过去，基线里就没有这一条了，
+光撤墓碑撤不回来，得用 `revive` 把内容放回去。命令行遇到这种情况会提示用 `revive`。
+
+> 踩过的坑：一开始把 `restore` 直接改成「墓碑翻活」，结果 `library-admin` 的
+> E1／E2／F3 三条**立刻变红** —— 因为「restore ＝ 撤销我对这一条的全部改动」
+> 是既有语义（新增一条再 restore ＝ 这条不该在结果里）。
+> 于是拆成两个命令：`restore` 保持原义，`revive` 专管「放回来」。
+
+**实测**
+
+| 项 | 结果 |
+|---|---|
+| `scripts/e2e/library-admin.mjs` | **52 项全绿**（H 段重写：p44 可改／可删／不可新增，删除→apply→消失，revive→放回来内容一字不差，restore 撤不回落已写掉的基线并提示用 revive） |
+| `scripts/e2e/library-admin-break-test.mjs` | **9 条 mutation 全部被抓**（新增两条：revive 放不回来／墓碑不存快照），还原后逐字节一致 |
+| 新增 `scripts/e2e/rule-delete-loader.mjs` | **13 项全绿** —— 拿**编译后的共享内核**（网站端与小程序端共用）验「删掉一条 p44 条目之后前端照样起得来」，不是验「命令行没报错」 |
+| 新增 `scripts/e2e/rule-delete-loader-break-test.mjs` | **2 条 mutation 全部被抓**：① 装载器不再为「数据有、判定函数没有」抛错 → 静默降级；② 装载器回到旧规矩（两个方向都抛错）→ 删一条就起不来。还原后源码逐字节一致、**共享内核重新编译**（产物不留脏） |
+| 全量回归 | 见 §6 |
+
+**纪律**
+
+- **「数据有、判定函数没有」必须抛错** —— 不许静默降级（那条规则永远不命中，
+  界面却看不出来，是最坏的一种坏法）。
+- **「判定函数有、数据没有」必须跳过** —— 那是删除之后的正常状态，不是错误。
+- **删掉的条目要放得回来** —— 墓碑行里存原内容快照；没有快照的墓碑，
+  `revive` 要明确说「放不回来，只能手工 add」，不能假装成功。
+- **白名单从真源读，不另设登记表** —— 避免两处漂移。
+- **改共享内核的源码后，break-test 必须重新编译并重新编回** ——
+  否则编译产物里留着写坏的那一版，后面所有测试都被污染。
+
+**这一轮明确不做**
+
+前端编辑 UI、合并层、读接口接入；小程序端任何改动；
+**p44 的新增**（那要一份判定函数，是代码，命令行补不出来）；
+「区块拼接组合」的数据模型（条目拆成可复用的块再组装成新条目）——
+那要另立一套结构，等用户明确要了再做。

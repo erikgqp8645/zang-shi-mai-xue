@@ -4,7 +4,9 @@
 
 用法::
 
-    python3 scripts/make_exercise_workbook.py [输出路径]
+    npm run content:exercise
+    （Windows 上 `python3` 可能只是 Microsoft Store 的空壳别名 —— 用上面这条 npm 命令，
+      仓库会自己找能用的解释器，不会卡在「python3 不是内部或外部命令」上）
 
 默认输出 ``content/示例-填写示范.xlsx``。
 
@@ -13,7 +15,7 @@
 主工作簿的**副本**，但有 5 格被**故意清空并标黄**，旁边写了批注：
 这一格该填什么、依据哪句原文。填完可以用::
 
-    python3 scripts/e2e/excel_exercise.py content/示例-填写示范.xlsx
+    npm run content:exercise:check
 
 验收 —— 每一格填对没有，差在哪儿。
 
@@ -169,7 +171,7 @@ def main() -> int:
 
     print(f"[exercise] 已写出 {out_path}")
     print(f"[exercise]   练习点 {len(EXERCISE_POINTS)} 处（已清空并标黄、写了批注）")
-    print(f"[exercise]   验收：python3 scripts/e2e/excel_exercise.py {out_path}")
+    print(f"[exercise]   验收：npm run content:exercise:check")
     return 0
 
 

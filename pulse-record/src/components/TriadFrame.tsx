@@ -262,14 +262,29 @@ export function TherapyPicker({
                   <span key={p.name}>
                     {i > 0 && '、'}
                     {link ? (
-                      <button
-                        type="button"
-                        className="pr-link"
-                        onClick={() => onOpenFormula?.(link)}
+                      /* 这里原本是 <button>，但外层整张卡片已经是 <button>（选疗法）——
+                         button 套 button 是无效 HTML，浏览器会警告；更要紧的是点击会冒泡到
+                         外层，「查一条方的组成」会**顺手把疗法也定了**。
+                         所以内层改成 span + role="button"，并在 onClick 里止住冒泡。 */
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        className="pr-link pr-link-inline"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onOpenFormula?.(link)
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            onOpenFormula?.(link)
+                          }
+                        }}
                         title={`看「${link.label}」的完整条目　依据：${link.basis}`}
                       >
                         {p.name}
-                      </button>
+                      </span>
                     ) : (
                       <span>{p.name}</span>
                     )}

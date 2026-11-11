@@ -26,6 +26,9 @@
  * | `putCustomSymbol(db, ownerId, symbol)` | 新增／改名 |
  * | `deleteCustomSymbol(db, code, ownerId)` | 删 |
  * | `getLocalUser(db)` | 内置单机账号 |
+ * | `listLibraryItems(db)` | **用方知识库**覆盖层全部条目 |
+ * | `putLibraryItem(db, kind, itemId, payload, opts)` | 写入／覆盖一条知识库覆盖 |
+ * | `deleteLibraryItem(db, kind, itemId)` | 撤销一条知识库覆盖（回到基线） |
  *
  * **鉴权层也从这里转发**（`createUser` / `authenticate` / `createSession` …）——
  * 它同样按 `PULSE_STORE` 分发（server/auth.mjs ↔ server/auth-pg.mjs），
@@ -36,6 +39,16 @@
  * 2. 全部函数都是 **async**。SQLite 实现内部是同步的（await 一个非 Promise 也没问题），
  *    但 CloudBase PostgreSQL 是异步的（postgREST）—— 签名先定成 async，
  *    将来换后端时调用方一行都不用改。
+ *
+ * ## ⚠️ 有意例外：用方知识库的三条函数**没有 ownerId**
+ *
+ * `listLibraryItems` / `putLibraryItem` / `deleteLibraryItem` **不带归属过滤**。
+ * 原因：用方知识库是**公共资料**，不是个人数据 —— 管理员改一次，
+ * 所有账号看到同一份（用户 2026-11-11 拍板：多人模式下所有账号共享一份）。
+ * `library_items` 表也没有 owner_id 列。
+ *
+ * 这条例外**只此一处**，别顺手扩散到别的表 —— 其余四张业务表
+ * （patients / visits / medication / custom_symbols）仍然严格按 owner 隔离。
  *
  * ## 换后端时怎么做
  *
@@ -105,6 +118,10 @@ export const {
   listFormulaPatterns,
   putFormulaPatterns,
   deleteFormulaPatterns,
+  // 用方知识库覆盖层 —— ⚠️ 有意例外：这三个**没有 ownerId**（公共资料，全账号共享一份）
+  listLibraryItems,
+  putLibraryItem,
+  deleteLibraryItem,
 } = impl
 
 /**

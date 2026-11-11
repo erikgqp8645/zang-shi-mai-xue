@@ -881,3 +881,72 @@ BEGIN
   GET DIAGNOSTICS v_count = ROW_COUNT;
   RETURN jsonb_build_object('ok', v_count > 0);
 END $$;
+
+-- ── 用方知识库 · 管理员覆盖层（全局共享）────────────────────────────────
+-- ⚠️ p_owner 形参保留是为了跟别的 PG 函数保持同一形态；这张表**没有 owner_id**，
+--    函数体不使用 p_owner —— 用方知识库是公共资料，管理员改一次所有账号共享一份
+--    （用户 2026-11-11 拍板：多人模式下所有账号共享一份）。
+
+-- 覆盖层全部条目。payload 用 payload::text 吐出来 → 与 SQLite 版同形（JSON 字符串）
+CREATE OR REPLACE FUNCTION pulse_list_library_items(p_owner text, p_args jsonb)
+RETURNS jsonb LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN (
+    SELECT COALESCE(
+      jsonb_agg(
+        jsonb_build_object(
+          'kind',       kind,
+          'item_id',    item_id,
+          'payload',    payload::text,
+          'deleted',    deleted,
+          'updated_at', updated_at,
+          'updated_by', updated_by,
+          'note',       note
+        ) ORDER BY kind, item_id
+      ),
+      '[]'::jsonb
+    )
+    FROM library_items
+  );
+END $$;
+
+-- 写入／覆盖一条（UPSERT）。函数体自带事务
+CREATE OR REPLACE FUNCTION pulse_put_library_item(p_owner text, p_args jsonb)
+RETURNS jsonb LANGUAGE plpgsql AS $$
+DECLARE
+  v_kind    text    := coalesce(p_args->>'kind', '');
+  v_id      text    := coalesce(p_args->>'itemId', '');
+  v_payload jsonb   := coalesce(p_args->'payload', '{}'::jsonb);
+  v_deleted integer := coalesce((p_args->>'deleted')::integer, 0);
+  v_by      text    := coalesce(p_args->>'updatedBy', 'cli');
+  v_note    text    := p_args->>'note';
+  v_now     bigint  := floor(extract(epoch from clock_timestamp()) * 1000)::bigint;
+BEGIN
+  IF v_kind = '' OR v_id = '' THEN
+    RETURN jsonb_build_object('ok', false);
+  END IF;
+
+  INSERT INTO library_items (kind, item_id, payload, deleted, updated_at, updated_by, note)
+  VALUES (v_kind, v_id, v_payload, v_deleted, v_now, v_by, v_note)
+  ON CONFLICT (kind, item_id) DO UPDATE SET
+    payload    = excluded.payload,
+    deleted    = excluded.deleted,
+    updated_at = excluded.updated_at,
+    updated_by = excluded.updated_by,
+    note       = excluded.note;
+
+  RETURN jsonb_build_object('ok', true);
+END $$;
+
+-- 撤销一条覆盖（删掉这一行 → 回到内置基线）
+CREATE OR REPLACE FUNCTION pulse_delete_library_item(p_owner text, p_args jsonb)
+RETURNS jsonb LANGUAGE plpgsql AS $$
+DECLARE
+  v_kind  text := coalesce(p_args->>'kind', '');
+  v_id    text := coalesce(p_args->>'itemId', '');
+  v_count integer;
+BEGIN
+  DELETE FROM library_items WHERE kind = v_kind AND item_id = v_id;
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN jsonb_build_object('ok', v_count > 0);
+END $$;
