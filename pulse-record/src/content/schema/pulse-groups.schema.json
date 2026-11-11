@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./schema/pulse-groups.schema.json",
+  "title": "脉位组（双关／肝肺／肝心…）",
+  "description": "7 组「同一组脉位一起看」的组合（双关同治、肝肺同治、肝心同治、双寸、双尺、双关右寸、右关尺）。ⓘ 与 `content_pulse_cells.group_no` **不是一回事** —— 这里的组是「讲义 p44 图上的方」，格位组号是「一张图里的 AND 组」。",
+  "type": "object",
+  "required": [
+    "groups"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "groups": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/group"
+      }
+    }
+  },
+  "$defs": {
+    "group": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "positions",
+        "source"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "positions": {
+          "type": "array",
+          "description": "「手|部位」",
+          "items": {
+            "type": "string",
+            "pattern": "^(L|R)\\|(寸|关|尺)$"
+          }
+        },
+        "ref": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "x-tables": [
+    {
+      "name": "content_pulse_groups",
+      "comment": "脉位组",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "notNull": true,
+          "pk": true,
+          "json": "groups.items.id"
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "notNull": true,
+          "json": "groups.items.name"
+        },
+        {
+          "name": "ref",
+          "type": "text",
+          "json": "groups.items.ref"
+        },
+        {
+          "name": "source",
+          "type": "text",
+          "notNull": true,
+          "json": "groups.items.source"
+        }
+      ]
+    },
+    {
+      "name": "content_group_positions",
+      "comment": "组里的脉位",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "notNull": true,
+          "pk": true,
+          "comment": "代理主键（派生）＝「group_id|seq」—— Directus 只认单列主键，复合键的表会被整表忽略"
+        },
+        {
+          "name": "group_id",
+          "type": "text",
+          "notNull": true,
+          "fk": {
+            "table": "content_pulse_groups",
+            "column": "id"
+          }
+        },
+        {
+          "name": "seq",
+          "type": "integer",
+          "notNull": true
+        },
+        {
+          "name": "hand",
+          "type": "text",
+          "notNull": true,
+          "enum": [
+            "L",
+            "R"
+          ]
+        },
+        {
+          "name": "organ",
+          "type": "text",
+          "notNull": true,
+          "enum": [
+            "寸",
+            "关",
+            "尺"
+          ]
+        }
+      ],
+      "derivedId": {
+        "columns": [
+          "group_id",
+          "seq"
+        ],
+        "separator": "|"
+      }
+    }
+  ]
+}

@@ -1,0 +1,273 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./schema/pulse-patterns.schema.json",
+  "title": "脉象图（条件示意表）",
+  "description": "50 张脉象图，每张标出「讲稿／讲义写明的这一格应该是什么脉象」。ⓘ **它是条件示意，不是诊断**：空白格＝原文未提及，不作要求。ⓘ `groups` 是一组格子的列表，**一个组可以只含左手、只含右手、或左右各一格** ⇒ 组号是**一个共用编号空间里的组序号**，不是「左右成对的编号」。落库时摊成一行一个「部位×取法×左右」，每图固定 18 行。",
+  "type": "object",
+  "required": [
+    "patterns"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "patterns": {
+      "type": "object",
+      "description": "条目 id → 脉象图",
+      "additionalProperties": {
+        "$ref": "#/$defs/pattern"
+      }
+    }
+  },
+  "$defs": {
+    "pattern": {
+      "type": "object",
+      "required": [
+        "title",
+        "cells",
+        "source"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "图名（方剂名）"
+        },
+        "cells": {
+          "type": "array",
+          "description": "有要求的格位",
+          "items": {
+            "$ref": "#/$defs/cell"
+          }
+        },
+        "groups": {
+          "type": "array",
+          "description": "AND 组：每组是若干格键；同组的格必须同时成立",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^(L|R)\\|(寸|关|尺)\\|(浮|中|沉)$"
+            }
+          }
+        },
+        "relations": {
+          "type": "array",
+          "description": "非格子式的条件说明",
+          "items": {
+            "$ref": "#/$defs/relation"
+          }
+        },
+        "source": {
+          "type": "string",
+          "description": "出处"
+        },
+        "note": {
+          "type": "string",
+          "description": "图级说明（如讲义两处不一致）"
+        }
+      }
+    },
+    "cell": {
+      "type": "object",
+      "required": [
+        "cell",
+        "term"
+      ],
+      "properties": {
+        "cell": {
+          "type": "string",
+          "description": "格键：手|部位|取法",
+          "pattern": "^(L|R)\\|(寸|关|尺)\\|(浮|中|沉)$"
+        },
+        "term": {
+          "type": "string",
+          "description": "原文用字（`content_pulse_terms` 的键）；空串＝手填符号的格"
+        },
+        "codes": {
+          "type": "array",
+          "description": "直接给出的符号（与 term 二选一；手填场景）",
+          "items": {
+            "type": "string"
+          }
+        },
+        "note": {
+          "type": "string",
+          "description": "格级小注"
+        },
+        "flex": {
+          "type": "boolean",
+          "description": "该格可灵活（讲稿未明说，只在 2 格上出现）"
+        }
+      }
+    },
+    "relation": {
+      "type": "object",
+      "required": [
+        "kind",
+        "text",
+        "probe"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string",
+          "description": "原文措辞"
+        },
+        "probe": {
+          "type": "array",
+          "description": "探针格（判定用的示例格）",
+          "items": {
+            "type": "object",
+            "required": [
+              "cell",
+              "codes"
+            ],
+            "properties": {
+              "cell": {
+                "type": "string",
+                "pattern": "^(L|R)\\|(寸|关|尺)\\|(浮|中|沉)$"
+              },
+              "codes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-tables": [
+    {
+      "name": "content_pulse_patterns",
+      "comment": "脉象图本体",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "notNull": true,
+          "pk": true,
+          "json": "patterns"
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "notNull": true,
+          "json": "patterns.items.title"
+        },
+        {
+          "name": "source",
+          "type": "text",
+          "notNull": true,
+          "json": "patterns.items.source"
+        },
+        {
+          "name": "note",
+          "type": "text",
+          "json": "patterns.items.note"
+        },
+        {
+          "name": "relations",
+          "type": "json",
+          "json": "patterns.items.relations"
+        }
+      ]
+    },
+    {
+      "name": "content_pulse_cells",
+      "comment": "格位：一行＝部位×取法×左右，每图固定 18 行",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "notNull": true,
+          "pk": true,
+          "comment": "代理主键（派生）＝「pattern_id|seq」—— Directus 只认单列主键，复合键的表会被整表忽略"
+        },
+        {
+          "name": "pattern_id",
+          "type": "text",
+          "notNull": true,
+          "fk": {
+            "table": "content_pulse_patterns",
+            "column": "id"
+          }
+        },
+        {
+          "name": "seq",
+          "type": "integer",
+          "notNull": true
+        },
+        {
+          "name": "organ",
+          "type": "text",
+          "notNull": true,
+          "enum": [
+            "寸",
+            "关",
+            "尺"
+          ]
+        },
+        {
+          "name": "depth",
+          "type": "text",
+          "notNull": true,
+          "enum": [
+            "浮",
+            "中",
+            "沉"
+          ]
+        },
+        {
+          "name": "side",
+          "type": "text",
+          "notNull": true,
+          "enum": [
+            "L",
+            "R"
+          ]
+        },
+        {
+          "name": "term_id",
+          "type": "text",
+          "fk": {
+            "table": "content_pulse_terms",
+            "column": "key"
+          },
+          "json": "patterns.items.cells.items.term"
+        },
+        {
+          "name": "codes",
+          "type": "json",
+          "json": "patterns.items.cells.items.codes"
+        },
+        {
+          "name": "group_no",
+          "type": "integer",
+          "json": "patterns.items.groups"
+        },
+        {
+          "name": "note",
+          "type": "text",
+          "json": "patterns.items.cells.items.note"
+        },
+        {
+          "name": "flex",
+          "type": "bool",
+          "json": "patterns.items.cells.items.flex"
+        }
+      ],
+      "derivedId": {
+        "columns": [
+          "pattern_id",
+          "seq"
+        ],
+        "separator": "|"
+      }
+    }
+  ]
+}

@@ -29,7 +29,7 @@
     "pg:admin": "node scripts/pg-admin.mjs",
     "pg:migrate": "node scripts/migrate-sqlite-to-pg.mjs",
     "cloudfn:build": "node scripts/build-cloudfunction.mjs",
-    "test": "npm run build:core && npm run test:e2e:core && npm run test:e2e:excel && npm run test:e2e:excel:break && npm run test:e2e:exercise && npm run test:e2e:mp && npm run test:e2e:mp:api && npm run test:e2e:migration && npm run test:e2e:auth && npm run test:e2e:app && npm run test:e2e:desktop && npm run test:e2e:harmony",
+    "test": "npm run build:core && npm run test:e2e:core && npm run test:e2e:excel && npm run test:e2e:excel:break && npm run test:e2e:exercise && npm run test:e2e:mp && npm run test:e2e:mp:api && npm run test:e2e:migration && npm run test:e2e:auth && npm run test:e2e:app && npm run test:e2e:desktop && npm run test:e2e:harmony && npm run test:e2e:content",
     "test:e2e:core": "node scripts/e2e/core-smoke.mjs",
     "test:e2e:excel": "python3 scripts/e2e/excel_roundtrip.py",
     "test:e2e:excel:break": "python3 scripts/e2e/excel_roundtrip_break.py",
@@ -62,7 +62,12 @@
     "content:flowchart:check": "python3 scripts/make_flowchart.py --check",
     "test:e2e:exercise": "python3 scripts/e2e/excel_exercise_roundtrip.py",
     "test:e2e:patterns": "node scripts/e2e/formula-patterns.mjs",
-    "test:e2e:library": "node scripts/e2e/library-search.mjs"
+    "test:e2e:library": "node scripts/e2e/library-search.mjs",
+    "content:seed": "node scripts/content-seed.mjs",
+    "content:seed:check": "node scripts/content-seed.mjs --check",
+    "content:admin": "node scripts/content-admin.mjs",
+    "content:admin:init": "node scripts/content-admin-init.mjs",
+    "test:e2e:content": "node scripts/e2e/content-schema-break.mjs"
   },
   "dependencies": {
     "@cloudbase/node-sdk": "^3.18.7",

@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./schema/drugs.schema.json",
+  "title": "讲稿 2010 第二讲 · 叁、用方（讲稿方剂条目）",
+  "description": "讲稿 2010·第二讲「叁、用方」的方剂条目：组成用**比例制**（与同和堂版的「克」是两套，不可换算、不可合并）、服法、适应、加减、禁忌、逐字原文。ⓘ `composition`（比例制）与 `science`（科中比例）都是**原文照录的一整串**，不拆列。",
+  "type": "object",
+  "required": ["drugs"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "drugs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/drug" }
+    }
+  },
+  "$defs": {
+    "drug": {
+      "type": "object",
+      "required": ["id", "name", "therapy", "source", "quote"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "therapy": { "type": "string", "description": "一体疗法／三焦疗法／五脏疗法" },
+        "usage": { "type": "string", "description": "服法" },
+        "indication": { "type": "string", "description": "适应" },
+        "composition": {
+          "type": "string",
+          "description": "组成原文照录（**比例制**）。与同和堂版的「克」不是同一套，不换算。"
+        },
+        "science": { "type": "string", "description": "科学中药比例原文照录" },
+        "adjustments": {
+          "type": "array",
+          "description": "加减／服法细节，逐条照录",
+          "items": { "type": "string" }
+        },
+        "contraindication": { "type": "string", "description": "禁忌，逐条保留" },
+        "source": { "type": "string", "description": "出处（如「讲稿 2010·第二讲（叁、用方·一、一体疗法）」）" },
+        "quote": { "type": "string", "description": "逐字原文（渲染时加引号）" }
+      }
+    }
+  },
+  "x-tables": [
+    {
+      "name": "content_drugs",
+      "comment": "讲稿方剂条目（组成＝比例制）",
+      "columns": [
+        { "name": "id", "type": "text", "notNull": true, "pk": true, "json": "drugs.items.id" },
+        { "name": "name", "type": "text", "notNull": true, "unique": true, "json": "drugs.items.name" },
+        { "name": "therapy", "type": "text", "notNull": true, "json": "drugs.items.therapy" },
+        { "name": "usage", "type": "text", "json": "drugs.items.usage" },
+        { "name": "indication", "type": "text", "json": "drugs.items.indication" },
+        { "name": "composition", "type": "text", "json": "drugs.items.composition" },
+        { "name": "science", "type": "text", "json": "drugs.items.science" },
+        { "name": "adjustments", "type": "json", "json": "drugs.items.adjustments" },
+        { "name": "contraindication", "type": "text", "json": "drugs.items.contraindication" },
+        { "name": "source", "type": "text", "notNull": true, "json": "drugs.items.source" },
+        { "name": "quote", "type": "text", "notNull": true, "json": "drugs.items.quote" }
+      ]
+    }
+  ]
+}

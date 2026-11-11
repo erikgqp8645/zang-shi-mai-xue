@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./schema/pulse-terms.schema.json",
+  "title": "原文用字",
+  "description": "18 个原文用字（如「大或顶」「虚脏」「变脉无力」），每个用字对应一组**讲义 p34 的符号**。ⓘ 讲义没明说的一律不加 —— 宁可窄，不可臆造。",
+  "type": "object",
+  "required": [
+    "terms"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "terms": {
+      "type": "object",
+      "description": "用字 → 符号集",
+      "additionalProperties": {
+        "$ref": "#/$defs/term"
+      }
+    }
+  },
+  "$defs": {
+    "term": {
+      "type": "object",
+      "required": [
+        "codes",
+        "display"
+      ],
+      "properties": {
+        "codes": {
+          "type": "array",
+          "description": "该格**允许**的取值（彼此是「或」关系）",
+          "items": {
+            "type": "string"
+          }
+        },
+        "also": {
+          "type": "array",
+          "description": "同一格里**还必须**同时出现的符号（如「变脉且无力」＝codes 取一个变脉符号 ＋ also 取一个无力符号）",
+          "items": {
+            "type": "string"
+          }
+        },
+        "display": {
+          "type": "string",
+          "description": "图上显示的代表符号"
+        },
+        "note": {
+          "type": "string",
+          "description": "出处与说明（讲义两处不一致写在这里）"
+        }
+      }
+    }
+  },
+  "x-tables": [
+    {
+      "name": "content_pulse_terms",
+      "comment": "原文用字",
+      "columns": [
+        {
+          "name": "key",
+          "type": "text",
+          "notNull": true,
+          "pk": true,
+          "json": "terms"
+        },
+        {
+          "name": "display",
+          "type": "text",
+          "notNull": true,
+          "json": "terms.items.display"
+        },
+        {
+          "name": "note",
+          "type": "text",
+          "json": "terms.items.note"
+        }
+      ]
+    },
+    {
+      "name": "content_term_codes",
+      "comment": "用字 → 允许的符号",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "notNull": true,
+          "pk": true,
+          "comment": "代理主键（派生）＝「term_key|seq」—— Directus 只认单列主键，复合键的表会被整表忽略"
+        },
+        {
+          "name": "term_key",
+          "type": "text",
+          "notNull": true,
+          "fk": {
+            "table": "content_pulse_terms",
+            "column": "key"
+          }
+        },
+        {
+          "name": "seq",
+          "type": "integer",
+          "notNull": true
+        },
+        {
+          "name": "code",
+          "type": "text",
+          "notNull": true,
+          "json": "terms.items.codes"
+        }
+      ],
+      "derivedId": {
+        "columns": [
+          "term_key",
+          "seq"
+        ],
+        "separator": "|"
+      }
+    },
+    {
+      "name": "content_term_also",
+      "comment": "用字 → 必须同时出现的符号",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "notNull": true,
+          "pk": true,
+          "comment": "代理主键（派生）＝「term_key|seq」—— Directus 只认单列主键，复合键的表会被整表忽略"
+        },
+        {
+          "name": "term_key",
+          "type": "text",
+          "notNull": true,
+          "fk": {
+            "table": "content_pulse_terms",
+            "column": "key"
+          }
+        },
+        {
+          "name": "seq",
+          "type": "integer",
+          "notNull": true
+        },
+        {
+          "name": "code",
+          "type": "text",
+          "notNull": true,
+          "json": "terms.items.also"
+        }
+      ],
+      "derivedId": {
+        "columns": [
+          "term_key",
+          "seq"
+        ],
+        "separator": "|"
+      }
+    }
+  ]
+}

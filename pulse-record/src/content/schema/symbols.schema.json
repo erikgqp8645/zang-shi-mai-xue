@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./schema/symbols.schema.json",
+  "title": "脉象符号",
+  "description": "讲义 p34 的 14 个固定符号（0 - + ± ++ ±± +++ ++++ ↑ | # TTT DDX X）。ⓘ 用字一律沿用讲义原文符号，不做简化或替换。",
+  "type": "object",
+  "required": ["symbols"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "symbols": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/symbol" }
+    }
+  },
+  "$defs": {
+    "symbol": {
+      "type": "object",
+      "required": ["code", "label", "group"],
+      "properties": {
+        "code": { "type": "string", "description": "符号代码（多字符，如 ++ ±± TTT）" },
+        "label": { "type": "string", "description": "中文名（无／弱／有／大／顶…）" },
+        "group": { "type": "string", "description": "分组（主要脉象／脉象变化…）" },
+        "hint": { "type": "string", "description": "提示（力度·小 等）" }
+      }
+    }
+  },
+  "x-tables": [
+    {
+      "name": "content_symbols",
+      "comment": "讲义 p34 的固定符号集",
+      "columns": [
+        { "name": "code", "type": "text", "notNull": true, "pk": true, "json": "symbols.items.code" },
+        { "name": "label", "type": "text", "notNull": true, "json": "symbols.items.label" },
+        { "name": "group", "type": "text", "notNull": true, "json": "symbols.items.group" },
+        { "name": "hint", "type": "text", "json": "symbols.items.hint" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./schema/doses.schema.json",
+  "title": "方剂与科学中药",
+  "description": "同和堂版《臧氏脉学方剂汇总统表》的成方（药味＋克）＋ 第 4 页「科中」科学中药比例。ⓘ 组成是**原文照录的一整串**（如「茯苓12 茯神10 酸枣仁10 …」），**不拆成药味＋克数列** —— 实测 475 个 token 里 13 个带不可结构化信息（量程、括注、单位、组合方引用、整段散文），拆了会丢原文。",
+  "type": "object",
+  "required": ["doses", "sciences", "scienceByDoseId"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "doses": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/dose" }
+    },
+    "sciences": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/science" }
+    },
+    "scienceByDoseId": {
+      "type": "object",
+      "description": "方剂 id → 科学中药的**名称**（不是 id）。名称唯一，落库时解析成 science_id。",
+      "additionalProperties": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "dose": {
+      "type": "object",
+      "required": ["id", "name", "composition", "page"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "composition": {
+          "type": "string",
+          "description": "组成原文照录（克）。量程、括注、单位一律留在串里。"
+        },
+        "page": { "type": "integer", "description": "同和堂版页码" },
+        "notes": {
+          "type": "array",
+          "description": "照录原文时的说明（如「原文作『茯苓卷 12』——照录，不改作『茯苓12』」）",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "science": {
+      "type": "object",
+      "required": ["id", "name", "ratio", "page"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "ratio": {
+          "type": "string",
+          "description": "科学中药比例原文照录。ⓘ 可能是「四君子汤2 陈皮0.2 …」也可能是「麦冬：玄参：生地=1:1:1」这种比例式 —— 不拆列。"
+        },
+        "page": { "type": "integer" }
+      }
+    }
+  },
+  "x-tables": [
+    {
+      "name": "content_doses",
+      "comment": "同和堂版成方（克）",
+      "columns": [
+        { "name": "id", "type": "text", "notNull": true, "pk": true, "json": "doses.items.id" },
+        { "name": "name", "type": "text", "notNull": true, "json": "doses.items.name" },
+        { "name": "composition", "type": "text", "notNull": true, "json": "doses.items.composition" },
+        { "name": "page", "type": "integer", "json": "doses.items.page" },
+        { "name": "notes", "type": "json", "json": "doses.items.notes" },
+        {
+          "name": "science_id",
+          "type": "text",
+          "json": "scienceByDoseId",
+          "fk": { "table": "content_sciences", "column": "id" },
+          "comment": "由 scienceByDoseId 的**名称**解析而来；该方没有对应科中时为空"
+        }
+      ]
+    },
+    {
+      "name": "content_sciences",
+      "comment": "科学中药比例（第 4 页「科中」）",
+      "columns": [
+        { "name": "id", "type": "text", "notNull": true, "pk": true, "json": "sciences.items.id" },
+        { "name": "name", "type": "text", "notNull": true, "json": "sciences.items.name" },
+        { "name": "ratio", "type": "text", "notNull": true, "json": "sciences.items.ratio" },
+        { "name": "page", "type": "integer", "json": "sciences.items.page" }
+      ]
+    }
+  ]
+}

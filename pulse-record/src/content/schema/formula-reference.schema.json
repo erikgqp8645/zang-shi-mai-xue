@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./schema/formula-reference.schema.json",
+  "title": "方剂对照 · 别名 · 草稿补充",
+  "description": "讲义 2026-10·p42「依脉用方表」的 28 行（处方｜对应脉象及加减）、讲义用名 → 讲稿条目名的别名对照、以及讲稿未载但需要补的方剂。ⓘ `alias` 的值是**讲稿方剂条目的名称**（15/15 命中，名称唯一）⇒ 可建外键。",
+  "type": "object",
+  "required": ["rows", "alias", "draftExtra"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "rows": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/row" }
+    },
+    "alias": {
+      "type": "object",
+      "description": "讲义用名 → 讲稿方剂条目名",
+      "additionalProperties": { "type": "string" }
+    },
+    "draftExtra": {
+      "type": "object",
+      "description": "讲稿未载、需要补录的方剂",
+      "additionalProperties": { "$ref": "#/$defs/draftExtra" }
+    }
+  },
+  "$defs": {
+    "row": {
+      "type": "object",
+      "required": ["no", "name", "indication", "doseId", "doseBasis"],
+      "properties": {
+        "no": { "type": "integer", "description": "讲义 p42 的行号" },
+        "name": { "type": "string", "description": "讲义 p42 的处方名（照录）" },
+        "indication": { "type": "string", "description": "对应脉象及加减（照录）" },
+        "doseId": { "type": "string", "description": "同和堂版成方的 id（真外键）" },
+        "doseBasis": { "type": "string", "description": "对照依据" },
+        "draftName": { "type": "string", "description": "讲稿里的方名" },
+        "draftNote": { "type": "string", "description": "讲稿未载／写法不同的说明" }
+      }
+    },
+    "draftExtra": {
+      "type": "object",
+      "required": ["name", "composition", "source", "note"],
+      "properties": {
+        "name": { "type": "string" },
+        "composition": { "type": "string", "description": "原文照录（讲稿只给药味简称的，照录不改）" },
+        "source": { "type": "string" },
+        "note": { "type": "string" }
+      }
+    }
+  },
+  "x-tables": [
+    {
+      "name": "content_formula_reference",
+      "comment": "讲义 p42 的 28 行",
+      "columns": [
+        { "name": "no", "type": "integer", "notNull": true, "pk": true, "json": "rows.items.no" },
+        { "name": "name", "type": "text", "notNull": true, "json": "rows.items.name" },
+        { "name": "indication", "type": "text", "notNull": true, "json": "rows.items.indication" },
+        {
+          "name": "dose_id",
+          "type": "text",
+          "fk": { "table": "content_doses", "column": "id" },
+          "json": "rows.items.doseId"
+        },
+        { "name": "dose_basis", "type": "text", "json": "rows.items.doseBasis" },
+        { "name": "draft_name", "type": "text", "json": "rows.items.draftName" },
+        { "name": "draft_note", "type": "text", "json": "rows.items.draftNote" }
+      ]
+    },
+    {
+      "name": "content_alias",
+      "comment": "讲义用名 → 讲稿方剂条目名",
+      "columns": [
+        { "name": "alias", "type": "text", "notNull": true, "pk": true, "json": "alias" },
+        {
+          "name": "target",
+          "type": "text",
+          "notNull": true,
+          "fk": { "table": "content_drugs", "column": "name" },
+          "json": "alias"
+        }
+      ]
+    },
+    {
+      "name": "content_draft_extra",
+      "comment": "讲稿未载、需要补录的方剂",
+      "columns": [
+        { "name": "id", "type": "text", "notNull": true, "pk": true, "json": "draftExtra" },
+        { "name": "name", "type": "text", "json": "draftExtra.items.name" },
+        { "name": "composition", "type": "text", "json": "draftExtra.items.composition" },
+        { "name": "source", "type": "text", "json": "draftExtra.items.source" },
+        { "name": "note", "type": "text", "json": "draftExtra.items.note" }
+      ]
+    }
+  ]
+}

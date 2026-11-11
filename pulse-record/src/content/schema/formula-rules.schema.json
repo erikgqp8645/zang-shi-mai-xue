@@ -1,0 +1,239 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./schema/formula-rules.schema.json",
+  "title": "用方条目（依脉辨证论治）",
+  "description": "61 条用方条目：适用条件、疗法、方名、加减、逐字原文与出处。ⓘ **判定逻辑不在这里**（`evaluate` 字段数＝0）—— 61 条的判定函数在 `src/domain/formulas.ts` 的 `EVALUATORS` 表，用户能改数据、改不了判定实现。ⓘ `formulas` 里是**原文方名写法**（讲稿的「六神散 ＋ 陈皮 ＋ 黄芪」「天王 ＋ 防风」「凉尺脉」等，98 个取值里只有 12 个对得上方剂名）⇒ **不是方剂外键**，只能照录成文本；界面按名解析、查不到就明说「未载」，不拿相近的方顶替。",
+  "type": "object",
+  "required": [
+    "rules"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/rule"
+      }
+    }
+  },
+  "$defs": {
+    "rule": {
+      "type": "object",
+      "required": [
+        "id",
+        "route",
+        "condition",
+        "therapy",
+        "formulas",
+        "source",
+        "quote",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "route": {
+          "type": "string",
+          "description": "讲稿里的路线/章节（如「肆、依脉辨证论治（第二讲）」「挡路二（肝肺同治）」）"
+        },
+        "condition": {
+          "type": "string",
+          "description": "适用条件（原文措辞）"
+        },
+        "therapy": {
+          "type": "string",
+          "description": "疗法或治法（原文措辞，自由文本）"
+        },
+        "formulas": {
+          "type": "array",
+          "description": "方名原文写法（照录）",
+          "items": {
+            "type": "string"
+          }
+        },
+        "drugs": {
+          "type": "array",
+          "description": "讲稿方剂条目的 id（真外键）",
+          "items": {
+            "type": "string"
+          }
+        },
+        "always": {
+          "type": "boolean",
+          "description": "常驻条目（不依脉象）；只有 2 条有"
+        },
+        "adds": {
+          "type": "array",
+          "description": "加减药／添加药（与方名分开标）；只有 1 条有",
+          "items": {
+            "type": "string"
+          }
+        },
+        "source": {
+          "type": "string",
+          "description": "出处"
+        },
+        "quote": {
+          "type": "string",
+          "description": "逐字原文"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "主线",
+            "挡路",
+            "加味",
+            "禁忌"
+          ]
+        }
+      }
+    }
+  },
+  "x-tables": [
+    {
+      "name": "content_formula_rules",
+      "comment": "用方条目本体",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "notNull": true,
+          "pk": true,
+          "json": "rules.items.id"
+        },
+        {
+          "name": "route",
+          "type": "text",
+          "notNull": true,
+          "json": "rules.items.route"
+        },
+        {
+          "name": "condition",
+          "type": "text",
+          "notNull": true,
+          "json": "rules.items.condition"
+        },
+        {
+          "name": "therapy",
+          "type": "text",
+          "notNull": true,
+          "json": "rules.items.therapy"
+        },
+        {
+          "name": "kind",
+          "type": "text",
+          "notNull": true,
+          "json": "rules.items.kind"
+        },
+        {
+          "name": "source",
+          "type": "text",
+          "notNull": true,
+          "json": "rules.items.source"
+        },
+        {
+          "name": "quote",
+          "type": "text",
+          "notNull": true,
+          "json": "rules.items.quote"
+        },
+        {
+          "name": "always",
+          "type": "bool",
+          "json": "rules.items.always"
+        },
+        {
+          "name": "adds",
+          "type": "json",
+          "json": "rules.items.adds"
+        }
+      ]
+    },
+    {
+      "name": "content_rule_formulas",
+      "comment": "条目的方名（原文写法，照录；不是方剂外键）",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "notNull": true,
+          "pk": true,
+          "comment": "代理主键（派生）＝「rule_id|seq」—— Directus 只认单列主键，复合键的表会被整表忽略"
+        },
+        {
+          "name": "rule_id",
+          "type": "text",
+          "notNull": true,
+          "fk": {
+            "table": "content_formula_rules",
+            "column": "id"
+          }
+        },
+        {
+          "name": "seq",
+          "type": "integer",
+          "notNull": true
+        },
+        {
+          "name": "formula_text",
+          "type": "text",
+          "notNull": true,
+          "json": "rules.items.formulas"
+        }
+      ],
+      "derivedId": {
+        "columns": [
+          "rule_id",
+          "seq"
+        ],
+        "separator": "|"
+      }
+    },
+    {
+      "name": "content_rule_drugs",
+      "comment": "条目挂的讲稿方剂（真外键）",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "notNull": true,
+          "pk": true,
+          "comment": "代理主键（派生）＝「rule_id|seq」—— Directus 只认单列主键，复合键的表会被整表忽略"
+        },
+        {
+          "name": "rule_id",
+          "type": "text",
+          "notNull": true,
+          "fk": {
+            "table": "content_formula_rules",
+            "column": "id"
+          }
+        },
+        {
+          "name": "seq",
+          "type": "integer",
+          "notNull": true
+        },
+        {
+          "name": "drug_id",
+          "type": "text",
+          "notNull": true,
+          "fk": {
+            "table": "content_drugs",
+            "column": "id"
+          }
+        }
+      ],
+      "derivedId": {
+        "columns": [
+          "rule_id",
+          "seq"
+        ],
+        "separator": "|"
+      }
+    }
+  ]
+}
