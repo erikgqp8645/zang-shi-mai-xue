@@ -1678,9 +1678,10 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`chore/desktop-electron` = `8bc151f`；`feat/wechat-miniprogram` = `623aca8`（小程序／鸿蒙／桌面端／CloudBase 线，**历史原样保留**）；**`feat/web-site` = `845b339`（网站端线，2026-11-06 从 `6ebc881` 切出）** |
 | 分支纪律 | **两条长期开发线**（2026-11-06 起）：网站端新改动走 `feat/web-site`，小程序／鸿蒙／桌面端走 `feat/wechat-miniprogram`；同源于 `6ebc881`，都**不开 PR**、都不**改写已推送的历史**。详见 `AGENTS.md`「Git 约定」 |
 | PR | #6 `chore/multi-user → main`，**OPEN**；#7 `chore/desktop-electron → chore/multi-user`，**OPEN**；`feat/wechat-miniprogram` **永不开 PR**（2026-11-06 拍板：**永不合并进 `main`**） |
-| 全量回归 | **677 项全绿**（core 40 ＋ **excel 27 ＋ excel-break 28 ＋ exercise 13** ＋ taro-lint 202 ＋ taro-api 58 ＋ migration 53 ＋ auth 57 ＋ app 32 ＋ **library-admin 52 ＋ rule-delete-loader 13** ＋ 桌面端 33 ＋ 鸿蒙 69） |
+| 全量回归 | **693 项全绿**（core 40 ＋ excel 27 ＋ excel-break 28 ＋ exercise 13 ＋ taro-lint 202 ＋ taro-api 58 ＋ migration 53 ＋ auth 57 ＋ app 32 ＋ 桌面端 33 ＋ **content 16** ＋ library-admin 52 ＋ rule-delete-loader 13 ＋ 鸿蒙 69） |
 | 教程与练习册 | **`docs/教程-如何填写用方知识库.md`**（面向审核者：分表细则 ＋ 三个完整例子 ＋ 报错对照）；**`content/示例-填写示范.xlsx`**（练习册：5 格故意留空 ＋ 标黄 ＋ 批注）＋ `npm run content:exercise:check` 逐格验收。练习册的正确答案**从真源现取**，不写死；文件名含「示例／练习／示范」的工作簿**拒绝写回真源**（详见 §3.20） |
 | 数据层 | **JSON 为唯一真源**（`src/content/*.json` **8 个文件**，新增 `symbols.json`）；**Excel 为人工编辑层**（`content/臧氏脉学-用方知识库.xlsx`，**65 个 sheet** ＝ 15 通用表 ＋ **50 张脉象图矩阵**）；TS 只留逻辑。**矩阵是脉象图的唯一编辑面**，长表由它派生。往返 20 项 ＋ 故意写坏 22 项都挂在 `npm test`。用法见 [`content-layer.md`](./content-layer.md)（详见 §3.18／§3.19） |
+| 内容层（新版 · 进行中） | **本地 `local-data/content.sqlite` ＝ 编辑真源**（17 张表 1472 行，Directus 后台可编辑）→ 发布命令 → 远端 PG `content` schema ＋ 仓库 `src/content/*.json` 快照。**M0～M3 已完成**（选型／落库／远端通路／发布命令），**M4（Excel 退役）起未做**。见 §3.25 与 [`content-publish.md`](./content-publish.md) |
 | 小程序工程 | `pulse-record/taro/`（Taro 4.3.2 ＋ React 18）；**原生 `miniprogram/` 原样保留作回退** |
 | 网站端 | `pulse-record/src/`（Vite ＋ React ＋ TS，单页 `App.tsx`）；③ 框内有**可折叠「用方知识库」**（p44 依脉用方全量 61 条 ＋ 讲稿方剂全量 30 方），③ 的方名**可点进去定位 ＋ 高亮**（详见 §3.17）；后端**仍跑本机 SQLite**（`local-data/history.sqlite`），**未接 CloudBase PG** |
 | 小程序包体 | 媒体资源 **119.0 KB**（底图 JPEG 116.3 KB ＋ 8 个 tabbar 图标 ≤0.4 KB）；**微信「图片和音频 > 200 K」已通过**（详见 §3.12） |
@@ -1689,7 +1690,7 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 本机库 | `pulse-record/local-data/history.sqlite`（已迁移到多用户结构：15 患者／57 就诊／1 自定义符号，归属归到 `local`；迁移前快照 `history.sqlite.bak-20261104102030`） |
 | 桌面版产物 | `pulse-record/release/`（安装包 ＋ 免安装版，已 gitignore） |
 | 桌面版数据 | 安装版 `%APPDATA%\臧氏脉学\`；**免安装版 exe 旁边的 `data\`** |
-| CloudBase 环境 | `pulse-1-d0g880ydl8ddc57f6`（ap-shanghai，**体验版 `baas_trial`，到期 2027-05-06**）；PG `postgres-gi7xmyo4`（17.11）8 表 ＋ **38 个 `pulse_*` 函数**；云函数 `pulse-api`（Event）；静态托管已开通（仅平台默认文件） |
+| CloudBase 环境 | `pulse-1-d0g880ydl8ddc57f6`（ap-shanghai，**体验版 `baas_trial`，到期 2027-05-06**）；PG `postgres-gi7xmyo4`（17.11）8 表 ＋ **38 个 `pulse_*` 函数**；云函数 `pulse-api`（Event）；静态托管已开通（仅平台默认文件）。**另有内容层**：`content` schema 17 张数据表 ＋ `content_meta` schema 3 张账本表 ＋ 6 个 `content_*` 函数（详见 §3.25） |
 | CloudBase 上的数据 | **3 账号**（`local` / `guoguo` / `mptest01`）＋ **29 患者／113 就诊／1 用药／0 自定义符号**（从本机 SQLite 搬的）；**三条 owner 不变量全 0** |
 | 云端环境变量 | `PULSE_STORE=pg`、`PULSE_SINGLE_USER=0`、`PULSE_API_PREFIX=/pulse-api`、`PULSE_CORS_ORIGINS=…`、`PULSE_WX_APPID=wx3a21eb903a16cbc4`、`PULSE_WX_APPSECRET=…`（**必须用 `PULSE_WX_*`，`WX_` 前缀会被平台盖掉**）；写变量用 `scripts/cf-admin.mjs`，**别用 `tcb config update`**（它会把键名大小写改坏） |
 | 本地 PG/云端工具 | `scripts/pg-admin.mjs`（`tcb/ExecutePGSql` CAPI，绕开 MCP 的 PG 缓存缺陷）、`scripts/cf-admin.mjs`（云函数环境变量，**密钥不进对话**）、`scripts/lib/tcb-capi.mjs`（TC3 签名，两者共用）、`scripts/migrate-sqlite-to-pg.mjs`（搬数据）、`scripts/build-cloudfunction.mjs`（打包云函数）、`scripts/e2e/pg-store.mjs`（对真库回归 49 项） |
@@ -1707,6 +1708,8 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 |---|---|---|
 | 🔴 1 | **域名注册 → 个人实名 → 提交 ICP 备案** | 7~20 工作日，是整条时间线最长的一段；不今天提交，后面小程序、CloudBase 全在等。**且自定义域名是 CloudBase 默认域名的唯一出路**（默认域名只许开发测试，有「风险提醒中间页」，流量异常还可能被风控关停） |
 | 🔴 1b | **微信侧把 CloudBase 环境关联到小程序 appid** | 环境 `ambitious-parrot-d7ehh7x0fd9d680` 的 `WxAppId` **还是空** → 小程序的 `wx.cloud.callFunction` 走不通（代码已兜底退回 `wx.request`，不会白屏，但等于没迁）。**公开 API 做不到**（已逐个查过 `tcb` 服务的环境类接口，没有关联 appid 的 Action）→ 只能在**微信开发者工具「云开发」面板**或 **CloudBase 控制台「环境配置 → 安全配置 → 小程序关联」**里填 `wx3a21eb903a16cbc4`。详见 `docs/cloudbase-migration.md` §5.2 |
+| 🔴 1c | **两条「知识库怎么改」的路子并存，取哪条要拍板** | ① **本地后台 ＋ 发布管道**（§3.25：本地 SQLite ＋ Directus 后台 → 发布命令 → 远端 PG ＋ JSON 快照，**Excel 退役**）② **服务端管理员覆盖层**（§3.23：命令行 `library` ＋ 服务端表，**Excel 保留**）。两条都已在 `feat/web-site` 上（合并提交 `79cb2db`），功能都能用，但**长期只留一条**才是答案 —— 拍板方向定下来之前，M4（Excel 退役）不动 |
+| 🔴 1d | **`tcb login` 一次**（扫码，十几秒） | 发布命令要连远端 PG，凭证只从环境变量读。`scripts/cb-credentials.mjs` 会调 `tcb secrets get` 取临时密钥注入子进程 —— 但 **CLI 登录态会过期**，过期时命令报「无有效身份信息」。**不登录就验证不了端到端发布**（M3 的远端断言 A5／A6／A7 需要真连） |
 | 🔴 2 | ~~**后台声明《用户隐私保护指引》两项隐私类型**~~ | ✅ **2026-11-05 已不需要** —— 小程序不提供导出，隐私接口降到 **0 个**，后台**一项都不用勾**（详见 §3.11）。剩下要填的只有「用户信息收集」那一栏（用户输入内容／账号信息，见上线清单 §1.3） |
 | 🔴 2c | **填运营者主体与联系邮箱** | 隐私政策**第八**节现在是占位文字（`运营者：（待填写）`），审核会看 |
 | 🟡 2b | 注册微信小程序（个人主体）→ 填真实 AppID | ✅ 已完成（`wx3a21eb903a16cbc4`）；开发者工具需登录对应管理员微信号才能预览／上传 |
@@ -2054,3 +2057,100 @@ HTTP 写接口与 role 闸门、放宽 `loadRules` 支持 p44 增删。
 **p44 的新增**（那要一份判定函数，是代码，命令行补不出来）；
 「区块拼接组合」的数据模型（条目拆成可复用的块再组装成新条目）——
 那要另立一套结构，等用户明确要了再做。
+
+### 3.25 内容层重构 M0～M3：本地后台 ＋ 发布管道（2026-11-11）
+
+> 目标：把「知识库怎么改」从「改 Excel」换成「后台页面上改，改完发一条命令」。
+> 本轮完成 M0（选型）→ M1（落库）→ M2（远端通路）→ M3（发布命令）；
+> **M4（Excel 退役）起未做**。
+
+**为什么做**
+
+原来的链路是「改 Excel → `content:json` 转回 JSON → 编译」。
+Excel 是给人看的工作簿，**不是数据库**：多一层摊平规则、sheet 名与图名要手工对齐、
+「脉象图·格位」长表由矩阵派生（两处真源风险）。
+计划 v8 把这条路整个换掉。
+
+**M0 · 本地后台选型（实测，不是查文档）**
+
+| 项 | 实测结果 |
+|---|---|
+| 方案 | **SQLite（本地编辑库）＋ Directus 12.6.1（容器）**，不是本地 PG |
+| 冷启动 | **11.6 s** 到可服务 |
+| 稳态内存 | **287 MiB**（本机 7.75 GiB 的 3.7%） |
+| 镜像 | 1.11 GB（Docker Desktop 4.91.0 / 引擎 29.8.0 已装） |
+| 接管 | **17/17 张表**，每张都有字段与主键 |
+| 关系 | **11 条外键**全部升级为 Directus 关系 |
+| 过滤 | 按 `pattern_id` 过滤返回**正好 18 行**（左 9 ＋ 右 9） |
+| 中文 | ✅ 登录页已是中文，项目 `default_language` 与用户 `language` 均 `zh-CN` |
+
+实测推翻了两个乐观假设：
+
+- **Directus 只认单列主键**（源码 `packages/schema/src/dialects/sqlite.ts`：
+  `primaryKeys.length !== 1 ? void 0 : ...`）⇒ 6 张复合主键的表被**整表忽略**
+  （含核心的 `content_pulse_cells`）⇒ 改用派生单列代理键 `id`（＝「父键｜序号」），
+  规则写在 `x-tables.derivedId` 里（唯一来源）。
+- **WAL 不能跨进程共享**：宿主机脚本与容器是两个 SQLite 实例，宿主机连接关闭会
+  checkpoint ＋ unlink `-wal`/`-shm`，容器仍握着已删 inode 的 fd ⇒ **容器写入全部凭空消失**
+  （API 返回成功、文件纹丝不动）⇒ 内容库改 `journal_mode = DELETE`
+  （**业务库 `server/db.mjs` 仍用 WAL**，那是另一份库，不动）。
+
+选型全文见 [`content-admin-选型.md`](./content-admin-选型.md)。
+
+**M1 · 内容层落库**
+
+- 8 份 `src/content/schema/*.schema.json`：合法 JSON Schema（draft 2020-12）
+  ＋ `x-tables` 扩展段（表定义／每列的 json 来源指针／fk／pk／唯一约束）。
+  顺带补上 8 个内容 JSON 一直指向不存在文件的 `$schema` 缺口（实测 8/8 现在都能解析）。
+- 同一份 schema 生成 **SQLite 与 PG 两方言**的 DDL；落库与导出**互为逆运算**。
+- 灌库结果：**17 表 1472 行**。
+- 断言 **A1**（schema↔库结构：表／列／类型／可空／主键／唯一约束）、
+  **A2**（每图 18 行、seq 连续）、**A3**（组号一个编号空间）、
+  **A4**（有用字必有组号）、**A5**（派生代理主键与规则一致）、
+  **RT**（库↔JSON 逐字段）、**RTL**（库→JSON→库 无损）。
+  `scripts/e2e/content-schema-break.mjs` **故意写坏 16 例**（含反向「好库零告警」防假绿），全过。
+
+**M2 · 远端 PG 通路**
+
+- 远端 `content` schema：17 张数据表；`content_meta` schema：3 张账本表
+  （`content_state`／`content_revisions`／`content_audit`）。
+- 6 个函数：`content_check_order`／`content_publish`／`content_read`／
+  `content_state_get`／`content_revisions_list`／`content_rollback`。
+- 签名 `(p_owner text, p_args jsonb)`（沿用仓库既有约定，不另立形状）。
+- 灌入用 `jsonb_populate_recordset(NULL::content.<表>, $1)`：
+  列清单取自 PG 目录 ⇒ **schema 是唯一真源**，函数不用跟着改。
+
+**账本表为什么单独一个 schema**：发布要 TRUNCATE 数据表（整份覆盖）。
+若账本表同 schema，「哪些是数据表」就得靠一张写死的排除名单区分 ——
+将来加第 4 张账本表而忘了改名单，它就会被当成数据表清空。
+分开之后发布函数**只碰 `content`**，结构上就碰不到账本。
+
+**「整份覆盖」的结构闸门**：载荷的 `order` 必须与 `content` schema 的实际表清单
+**完全一致**。少一张表 ⇒ 那张表会留着旧数据 ⇒ 线上是「新版 ＋ 旧版」的混合体，
+而发布**看起来成功了**。现在直接报错并点名是哪几张（实测拦下过一回）。
+
+**M3 · 发布命令**
+
+`npm run content:publish` 五步：① 自检 → ② 对拍 → ③ 原子发布 → ④ 生成快照 → ⑤ 三方对拍。
+另有 `content:snapshot`／`content:status`／`content:rollback`。
+详见 [`content-publish.md`](./content-publish.md)。
+
+**这一轮实测踩出来的坑**
+
+| 坑 | 根因 | 修法 |
+|---|---|---|
+| `content schema 里没有表` | 平台默认只给 **public** schema 授权，新建的 content schema 一张授权都没有 ⇒ `information_schema` 里看不见 | 授权文件（`server/content-pg-grants.sql`）：schema 的 USAGE ＋ 表权限 ＋ **序列**（`bigserial` 要 `GRANT USAGE ON SEQUENCES`）＋ `ALTER DEFAULT PRIVILEGES` |
+| `permission denied for schema content` | 同上，schema 的 USAGE 没给 | 同上 |
+| RPC 读不到数据 | 实测探针确认：**SDK 的 rpc 跑在 `service_role` 下**（`session_user` 是 `cloudbase_authenticator`） | 授权按 `service_role` 给 |
+| `TRUNCATE` 跑去了 public | `quote_ident(表名)` **不带 schema 前缀** | 自己拼 `'content' \|\| '.' \|\| quote_ident(表名)` |
+| 灌表顺序错、外键失败 | PG 的 `jsonb` 会**重排键** ⇒ 载荷的键顺序不可依赖 | 载荷显式带 `order` 数组（拓扑序来自 schema，函数内不另算一份） |
+| 库结构被手抄坏 | 手抄生成器输出的 DDL 会破坏拓扑序 | 迁移 SQL 只能用生成器原文 |
+
+**这一轮明确不做**
+
+- **M4（Excel 退役）与 M5（前端改从 `GET /api/content` 取数）起未做**。
+- **远端端到端发布未验证**：本机 CloudBase CLI 登录态过期，`tcb secrets get` 报
+  `AUTH_FAILED`；发布命令已跑到「一次 RPC ＝ 一个事务」并因缺序列授权**干净回滚**
+  （远端无脏数据），修完授权后**还没再真跑一遍**。
+  ⇒ 远端断言 **A5／A6／A7 已写好**（`npm run test:e2e:content:pg`），**等登录后跑**。
+- **后台界面的人眼确认与截图未做**（M0 验收项 ③⑤ 的最后一环）。
