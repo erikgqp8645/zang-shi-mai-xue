@@ -10,6 +10,7 @@
  *
  * 公开接口（不需登录）：
  *   GET  /api/health              健康检查（含当前模式）
+ *   GET  /api/content             已发布的知识库内容包（8 个 JSON 的形状）
  *   POST /api/auth/login          登录名＋密码登录
  *   POST /api/auth/register       注册（并自动登录）
  *   POST /api/auth/wechat/login   小程序 wx.login 的 code 换 openid
@@ -20,6 +21,7 @@
  *
  * 路由：
  *   GET    /api/health             → { ok: true, db, mode }
+ *   GET    /api/content            → { ok, version, source, content }   已发布内容包
  *   GET    /api/patients           → { patients: [...] }        患者列表（含就诊次数）
  *   GET    /api/search?q=…         → { patients: [...] }        搜索：姓名／日期标签／脉象符号
  *   GET    /api/symbols             → { symbols: [...] }        自定义符号（使用者自建，如「涩」＝S）
@@ -90,6 +92,8 @@ import {
 // 与存储无关的纯逻辑（单机模式开关、会话有效期、登录名规则）
 import { SINGLE_USER, SESSION_TTL_MS, isValidLoginName } from './auth-core.mjs'
 import { code2Session } from './wechat.mjs'
+// 内容层（已发布的知识库）—— 按 PULSE_STORE 分派：pg 读远端，sqlite 读仓库快照
+import { readContent, CONTENT_SOURCE } from './content-store.mjs'
 
 const PORT = Number(process.env.PORT ?? 5178)
 /**
@@ -126,6 +130,7 @@ let db = null
 /** 不需要登录的接口 */
 const PUBLIC_PATHS = new Set([
   '/api/health',
+  '/api/content',
   '/api/auth/login',
   '/api/auth/register',
   '/api/auth/wechat/login',
@@ -401,6 +406,30 @@ export async function handleApi(req, res) {
         db: DB_PATH,
         mode: SINGLE_USER ? 'single' : 'multi',
         sessionTtlDays: Math.round(SESSION_TTL_MS / 86400000),
+      })
+      return
+    }
+
+    // 内容包（已发布的知识库）。公开接口 —— 内容是全局的一份，不按人分片。
+    // ⭐ 不可达时**直接报错**（500 ＋ 明确信息），不做本地缓存兜底：
+    //    静默拿旧内容顶上，用户会以为改动已经上线（与 src/api/patterns.ts 同一纪律）。
+    if (path === '/api/content' && method === 'GET') {
+      let pack
+      try {
+        pack = await readContent()
+      } catch (err) {
+        console.error('[臧氏脉学] 读内容包失败：', err)
+        sendJson(res, 500, {
+          error: `内容库不可达：${String(err?.message ?? err)}`,
+          source: CONTENT_SOURCE,
+        })
+        return
+      }
+      sendJson(res, 200, {
+        ok: true,
+        version: pack.version,
+        source: pack.source,
+        content: pack.content,
       })
       return
     }

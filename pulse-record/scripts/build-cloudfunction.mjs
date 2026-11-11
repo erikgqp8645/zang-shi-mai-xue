@@ -60,6 +60,28 @@ function main() {
   }
   console.log(`  · server/ 拷了 ${files.length} 个文件`)
 
+  // 2.5) 拷内容层的 schema
+  //
+  //      `server/content-schema.mjs` 用 `join(HERE, '..', '..')` 定位根目录：
+  //        仓库里 → `pulse-record/`      ⇒ `pulse-record/src/content/schema`
+  //        包里   → `.cloudfn/pulse-api/` ⇒ `.cloudfn/pulse-api/src/content/schema`
+  //      同一个相对位置 ⇒ 同一份代码在两处都找得到 schema，不需要任何路径分支。
+  //
+  //      为什么必须带：内容包读取层（server/content-pg.mjs）要把 PG 的行
+  //      还原成 content 包，靠的就是这份 schema 里的表定义与列映射。
+  const schemaSrc = join(ROOT, 'src', 'content', 'schema')
+  if (existsSync(schemaSrc)) {
+    const schemaOut = join(OUT, 'src', 'content', 'schema')
+    mkdirSync(schemaOut, { recursive: true })
+    let n = 0
+    for (const name of readdirSync(schemaSrc)) {
+      if (!name.endsWith('.schema.json')) continue
+      cpSync(join(schemaSrc, name), join(schemaOut, name))
+      n += 1
+    }
+    console.log(`  · src/content/schema/ 拷了 ${n} 个（内容包读取层要靠它）`)
+  }
+
   // 3) 入口（CommonJS）
   cpSync(join(SERVER, 'cloudfunction', 'index.js'), join(OUT, 'index.js'))
   console.log('  · index.js（入口）')

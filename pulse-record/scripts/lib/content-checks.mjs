@@ -16,7 +16,7 @@
  * 不靠 `msg` 文案匹配 —— 文案会改，`id` 不会。
  */
 
-import { buildContentFromRows, qi, tableDefs } from './content-schema.mjs'
+import { buildContentFromRows, buildRows, canonicalJson, qi, tableDefs } from './content-schema.mjs'
 
 /** 内容表名（只算 `content_*`；`directus_*` 等外来表不管） */
 export function contentTableNames(db) {
@@ -207,16 +207,8 @@ export function checkDerivedIds(db) {
   return problems
 }
 
-/** 深比较用：数组保序、对象键排序 */
-function norm(v) {
-  if (Array.isArray(v)) return v.map(norm)
-  if (v && typeof v === 'object') {
-    const out = {}
-    for (const k of Object.keys(v).sort()) out[k] = norm(v[k])
-    return out
-  }
-  return v
-}
+/** 深比较用（归一化实现见 server/content-schema.mjs 的 canonicalJson） */
+const norm = canonicalJson
 
 /**
  * 往返：库 → JSON 是否与源 JSON 一致（逐字段）
@@ -246,6 +238,89 @@ export function checkRoundTrip(db, content) {
   return problems
 }
 
+/**
+ * 往返：库 → JSON → 库 是否逐字段一致（**无损**）
+ *
+ * ## 跟 checkRoundTrip 的区别
+ *
+ *   · `checkRoundTrip`     —— 库 回读出来的 JSON == **源 JSON 文件**。
+ *                             用于「刚灌完库」的场景（源还是那个源）。
+ *   · `checkRoundTripLossless` —— 库 → JSON → 再灌回库 == 原库。
+ *                             用于**发布**场景：库里已经是改过的稿，
+ *                             源 JSON 文件是**上一版的快照**（本来就不该相等）。
+ *
+ * 发布的本质就是「库 → JSON 快照 → 远端」，所以这条才是发布前该守的不变量：
+ * **导出会不会丢字段**。
+ *
+ * @param {object} db 内容库
+ * @returns {{id: string, msg: string}[]} 问题清单（空 = 通过）
+ */
+export function checkRoundTripLossless(db) {
+  const problems = []
+  const defs = tableDefs()
+  const rows = {}
+  for (const def of defs) {
+    if (!hasTable(db, def.table)) continue
+    rows[def.table] = db.prepare(`SELECT * FROM ${def.table}`).all()
+  }
+
+  // 库 → JSON
+  const back = buildContentFromRows(rows)
+  // JSON → 库（用与灌库**同一个**函数，不另写一套）
+  const again = buildRows(back)
+
+  for (const def of defs) {
+    const a = rows[def.table] || []
+    const b = again[def.table] || []
+    if (a.length !== b.length) {
+      problems.push({
+        id: 'RTL',
+        msg: `往返丢行：${def.table} 库里有 ${a.length} 行，JSON 回灌后 ${b.length} 行`,
+      })
+      continue
+    }
+    for (let i = 0; i < a.length; i += 1) {
+      for (const c of def.columns) {
+        const va = a[i][c.name] ?? null
+        const vb = b[i][c.name] ?? null
+        if (va === vb) continue
+        // JSON 列：库里是字符串，回灌后还是字符串；布尔：0/1 与 false/true 等价
+        const same =
+          (c.type === 'json' && norm(String(va)) === norm(String(vb))) ||
+          (c.type === 'bool' && Boolean(va) === Boolean(vb))
+        if (same) continue
+        problems.push({
+          id: 'RTL',
+          msg: `往返改字段：${def.table}.${c.name} 第 ${i + 1} 行 库=${JSON.stringify(va)} 回灌=${JSON.stringify(vb)}`,
+        })
+      }
+    }
+  }
+  return problems
+}
+
+/**
+ * 发布前的自检（**不含**「库 vs 源 JSON」那条）
+ *
+ * ⭐ 为什么不含那条：发布时库里已经是**改过的稿**，
+ * 源 JSON 文件是**上一版的快照**（本来就不该相等 ——
+ * 「改了没发布」正是发布命令要处理的状态）。
+ *
+ * 发布前该守的是「**导出会不会丢字段**」⇒ 那条是 `checkRoundTripLossless`
+ * （库 → JSON → 库，逐字段一致）。
+ *
+ * @param {object} db 内容库
+ * @returns {{id: string, msg: string}[]} 问题清单（空 = 通过）
+ */
+export function runPublishChecks(db) {
+  return [
+    ...checkSchemaVsDb(db),
+    ...checkCells(db),
+    ...checkDerivedIds(db),
+    ...checkRoundTripLossless(db),
+  ]
+}
+
 /** 跑全部检查 */
 export function runChecks(db, content) {
   return [
@@ -253,5 +328,6 @@ export function runChecks(db, content) {
     ...checkCells(db),
     ...checkDerivedIds(db),
     ...checkRoundTrip(db, content),
+    ...checkRoundTripLossless(db),
   ]
 }
