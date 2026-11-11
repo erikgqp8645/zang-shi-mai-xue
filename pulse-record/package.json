@@ -67,7 +67,15 @@
     "content:seed:check": "node scripts/content-seed.mjs --check",
     "content:admin": "node scripts/content-admin.mjs",
     "content:admin:init": "node scripts/content-admin-init.mjs",
-    "test:e2e:content": "node scripts/e2e/content-schema-break.mjs"
+    "content:publish": "node scripts/content-publish.mjs",
+    "content:snapshot": "node scripts/content-snapshot.mjs",
+    "content:status": "node scripts/content-status.mjs",
+    "content:rollback": "node scripts/content-rollback.mjs",
+    "content:pg:setup": "node scripts/content-pg-setup.mjs",
+    "content:pg:check": "node scripts/content-pg-setup.mjs --check",
+    "content:creds": "node scripts/cb-credentials.mjs --",
+    "test:e2e:content": "node scripts/e2e/content-schema-break.mjs",
+    "test:e2e:content:pg": "node scripts/e2e/content-pg.mjs"
   },
   "dependencies": {
     "@cloudbase/node-sdk": "^3.18.7",
