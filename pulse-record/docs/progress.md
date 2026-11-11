@@ -1848,3 +1848,49 @@ VITE_API_BASE="https://pulse-1-d0g880ydl8ddc57f6-1257312696.ap-shanghai.app.tclo
 跨域已放行（`PULSE_CORS_ORIGINS` 含 `localhost:5180`／`127.0.0.1:5180`，
 Vite 实际端口取自 `scripts/dev.mjs` 的 `WEB_PORT`）。小程序侧的 `PULSE_CLOUD_ENV`
 默认值也已从旧环境改为 `pulse-1-d0g880ydl8ddc57f6`（`taro/config/index.ts`）。
+
+### 3.22 ② 定疗法里的方名链接：点一下会顺手把疗法也定了（2026-11-11）
+
+**怎么发现的**：本地起网站端（`npm run dev`，前端 5180／后端 5178，单机模式），
+点「载入示例（少娟）」后逐块试。点 ② 定疗法里的「上焦方」想看那条方的完整条目 ——
+点完之后**「三焦疗法」那张卡自己被选中了**（橙色高亮），右上角冒出「清除」，
+③ 开方药也跟着自动填满。我只想查一条方，却把疗法给定了。
+
+**根因**：`src/components/TriadFrame.tsx` 的 `TherapyPicker` 里，
+整张疗法卡是 `<button>`（点它＝选疗法），卡内的方名又是 `<button>`（点它＝看方剂条目）。
+**button 套 button** 有两个后果：
+
+1. HTML 无效 —— button 的内容模型不含 interactive content，
+   React 开发期直接警告 `<button> cannot be a descendant of <button>`；
+2. **更要紧的是点击冒泡** —— 内层 button 的 onClick 打完，
+   外层 button 的 onClick 跟着触发，于是「查一条方的组成」顺手改了「选哪个疗法」。
+
+**改法**：内层换成 `<span role="button" tabIndex={0}>`，onClick 里 `e.stopPropagation()`；
+onKeyDown 里同样处理 Enter／Space（键盘也要能开、也不能顺带选疗法）。
+外层 `<button>` 不动（它的语义与键盘行为本来就是对的）。
+另补 `.pr-link-inline`（`cursor: pointer` ＋ `display: inline-block`）——
+span 默认没有手型光标、也不是 inline-block，padding 与点选手感都要补齐。
+
+⚠️ **只把 button 换成 span 是不够的**：不 `stopPropagation` 的话照样会连带选疗法。
+（break-test 的 mutation B 专门验这一条。）
+
+**实测**
+
+| 项 | 结果 |
+|---|---|
+| 浏览器手动复验 | 点「上焦方」→ 知识库定位到那一条；三张疗法卡 `class` 都**没有** `is-on`，也没有「清除」按钮 |
+| 网站端浏览器回归【⑨】段（新增 4 项） | button 套 button 计数 **0**；方名链接标签全是 `SPAN`；点方名链接前后被选中的疗法卡 **0 → 0**；点链接仍定位得到知识库那条（没把功能改坏） |
+| break-test `scripts/e2e/app-nested-button-break-test.mjs`（新增，12 项） | A（改回 button ＋ 去掉 stopPropagation）→ 两条断言都红；B（**只**去掉 stopPropagation）→「连带选疗法」红而「没有 button 套 button」**仍绿** |
+| 全量回归 | 见 §6 |
+
+break-test 的 mutation B 是关键：结构没坏，只去了 `stopPropagation` ——
+「连带选疗法」那条照样红，说明它真的在测**事件冒泡**，
+不是靠 A 的嵌套结构顺带变红的假阳性；反过来「没有 button 套 button」在 B 里仍绿，
+说明两条断言各测各的，没有互相顶。
+
+**纪律**
+
+- 外层卡片已经是 `<button>` 时，**内层可点元素不得再是 `<button>`** → 用 `span role="button"` ＋ `tabIndex`。
+- 内层可点元素**必须 `stopPropagation()`** —— 「点一个只读的东西」绝不能顺带改动状态。
+- 断言要能验**行为**（「点完有没有顺带选中」），不能只验结构；
+  并且要用 break-test 证明它不是恒绿（也不能恒红）。
