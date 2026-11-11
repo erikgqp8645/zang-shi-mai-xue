@@ -60,3 +60,7 @@ pulse-record/.cloudfn/
 pulse-record/.secrets/
 *.key
 !pulse-record/miniprogram/**/*.key
+
+# CloudBase CLI 从云端拉下来的函数配置（tcb config pull fn）
+# 里面含 PULSE_WX_APPSECRET 明文，绝不进版本库；需要时重新 pull 即可
+cloudbaserc.json

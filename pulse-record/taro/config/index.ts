@@ -178,7 +178,7 @@ export default defineConfig(async (merge) => {
       ),
       /** CloudBase 环境 id（wx.cloud.init 用） */
       'process.env.PULSE_CLOUD_ENV': JSON.stringify(
-        process.env.PULSE_CLOUD_ENV || 'ambitious-parrot-d7ehh7x0fd9d680',
+        process.env.PULSE_CLOUD_ENV || 'pulse-1-d0g880ydl8ddc57f6',
       ),
     },
 

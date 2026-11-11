@@ -202,7 +202,7 @@ S1 独立可交付 —— 只做它，也能立刻看到 50 条图。
 |---|---|
 | S1 只读显示（`PatternSheet` / `PatternStrip`） | ✅ 50 条全部能渲染（39 张有格位、11 张关系型） |
 | S2 多图模型（`pattern` → `patterns[]`） | ✅ 加载时把单张包成数组，JSON 一行没改 |
-| S3 持久化（表 ＋ 3 条 API ＋ 合并层） | ✅ SQLite 全通；**云端 PG 待部署**（见 8.3） |
+| S3 持久化（表 ＋ 3 条 API ＋ 合并层） | ✅ SQLite 全通；✅ 云端 PG 已部署并跑通（见 8.3） |
 | S4 编辑抽屉（符号面板／术语预设／增删排序） | ✅ `PatternEditor` |
 | S5 测试与文档 | ✅ `npm run test:e2e:patterns`（11 项）＋ 本页 |
 
@@ -221,12 +221,34 @@ S1 独立可交付 —— 只做它，也能立刻看到 50 条图。
 下面的符号条只是「追加」的快捷方式。归一（`parseCodes`）放在**失焦与保存**两处 ——
 边打边解析会在打到 `T` 时就把 `TTT` 吃掉。
 
-### 8.3 云端 PG 需要执行的两段 SQL
+### 8.3 云端 PG 部署（已执行）
 
-本机没有 PG 连接串，CloudBase MCP 当前指向的是**已销毁的** `ambitious-parrot-d7ehh7x0fd9d680`，
-所以只验证了 SQLite 路径。要在 `pulse-1-d0g880ydl8ddc57f6` 生效，按顺序做两件事。
+2026-11-11 用 CloudBase CLI 在 `pulse-1-d0g880ydl8ddc57f6` 上执行完毕：
 
-**第一步：建表**（等价于 `server/schema-pg.sql` 末尾那段）
+| 事项 | 结果 |
+|---|---|
+| `formula_patterns` 表 ＋ `formula_patterns_by_owner` 索引 | ✅ 5 列（owner_id / formula_id / seq / payload jsonb / updated_at） |
+| 3 个 plpgsql 函数 | ✅ `pulse_list/put/delete_formula_patterns`，云端函数总数 35 → **38** |
+| SQL 层冒烟 | ✅ 写两张 → 读回 2；清空 → 键仍在、值是 `[]`；撤销 → 键消失 |
+| 云函数 `pulse-api` 重新部署 | ✅ Event / Nodejs20.19 / `index.main`，环境变量 5 个一个没丢 |
+| 网关 `https://pulse-1-d0g880ydl8ddc57f6-1257312696.ap-shanghai.app.tcloudbase.com/pulse-api` | ✅ `/api/health` 返回 `db: CloudBase PostgreSQL`；`/api/formula-patterns` 未登录 401（不是 404） |
+| 真实网关闭环（`scripts/e2e/cloud-smoke.mjs`） | ✅ 10/10 |
+
+执行方式（`tcb db execute` 支持多语句，注意 `$$` 别被 shell 展开）：
+
+```bash
+export PATH="$HOME/.workbuddy/binaries/node/cli-connector-packages/bin:$PATH"
+SQL=$(cat /tmp/pulse_formula_patterns_pg.sql)     # 建表 ＋ 三函数
+tcb db execute -e pulse-1-d0g880ydl8ddc57f6 --sql "$SQL"
+```
+
+**部署云函数时的一个坑**：`tcb fn deploy --install-dependency false` 并**不会**上传本地
+`node_modules`，函数起来直接 `ERR_MODULE_NOT_FOUND: @cloudbase/node-sdk`。
+改成 `--install-dependency true`（Nodejs20.19 支持云端装依赖）才正常。
+
+下面的原始 SQL 保留备查。
+
+**建表**（等价于 `server/schema-pg.sql` 末尾那段）
 
 ```sql
 CREATE TABLE IF NOT EXISTS formula_patterns (
@@ -241,7 +263,7 @@ CREATE TABLE IF NOT EXISTS formula_patterns (
 CREATE INDEX IF NOT EXISTS formula_patterns_by_owner ON formula_patterns (owner_id);
 ```
 
-**第二步：三个函数**（`server/pg-functions.sql` 末尾，原样执行）
+**三个函数**（`server/pg-functions.sql` 末尾，原样执行）
 
 ```sql
 CREATE OR REPLACE FUNCTION pulse_list_formula_patterns(p_owner text, p_args jsonb)
@@ -295,8 +317,13 @@ BEGIN
 END $$;
 ```
 
-**第三步：重新部署云函数 `pulse-api`** —— 三条新路由在函数包里，
-不重部署的话云端仍是旧代码（`/api/formula-patterns` 会 404）。
+**改完 SQL 之后必须重新部署云函数 `pulse-api`** —— 三条新路由在函数包里，
+不重部署的话云端仍是旧代码（`/api/formula-patterns` 返回 404）：
+
+```bash
+node scripts/build-cloudfunction.mjs
+tcb fn deploy pulse-api --dir .cloudfn/pulse-api --force --install-dependency true -e pulse-1-d0g880ydl8ddc57f6
+```
 
 ### 8.4 两套编辑面怎么共存
 
@@ -307,3 +334,37 @@ END $$;
 
 ⚠️ 某条目一旦在网页上改过，就**不再跟随** Excel 里这块基线的新内容。
 想重新跟随：点「恢复默认」，覆盖层删除，回落基线。
+
+### 8.5 CloudBase CLI 连不上新环境的坑（记一次）
+
+CLI 在 `/Users/applemima1111/.workbuddy/binaries/node/cli-connector-packages/bin/tcb`
+（`@cloudbase/cli`）。切换到 `pulse-1-d0g880ydl8ddc57f6` 后，`tcb env list` 仍然报：
+
+```
+✖ [DescribeBillingInfo] Env `ambitious-parrot-d7ehh7x0fd9d680` Not Exists
+```
+
+改 `.cloudbase/project.json`、加 `-e`、加 `-r ap-shanghai` **都没用**。
+真正的原因是**登录凭据里也存了一份 envId**：
+
+```
+~/.config/.cloudbase/auth.json   →  credential.envId
+```
+
+里面是旧环境 id，CLI 拿它去查计费信息，于是一路 404。改掉这一行就通了
+（凭据本身没过期，`credential.expired` 是毫秒时间戳）。同理，若凭据过期，
+`tcb login` 会重新走一遍授权。
+
+常用命令备忘：
+
+| 干什么 | 命令 |
+|---|---|
+| 看环境 | `tcb env list -r ap-shanghai` |
+| 跑 SQL（支持多语句） | `tcb db execute -e <envId> --sql "..."` |
+| 看函数列表 | `tcb fn list -e <envId>` |
+| 直接调函数看报错 | `tcb fn invoke pulse-api -e <envId> --params '{"path":"/api/health","httpMethod":"GET"}' --json` |
+| 备份／核对环境变量 | `tcb fn env pull pulse-api -e <envId> --output-file <路径>` |
+| 看网关路由 | `tcb routes list -e <envId>` |
+
+⚠️ `tcb fn deploy --force` **不会**冲掉环境变量（实测 5 个变量部署前后完全一致），
+但 `--install-dependency false` 也不会把本地 `node_modules` 带上去 —— 见 8.3 那个坑。

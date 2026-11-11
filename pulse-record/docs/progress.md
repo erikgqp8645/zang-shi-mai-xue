@@ -1814,8 +1814,28 @@ SQLite 与 PG 两套实现同时改了，e2e 里有一条专门守它。
   被拒后原数据不坏、空列表留痕、恢复默认、畸形编码、跨账号隔离、未登录 401）。
 - 回归：core 40 / auth 57 / app 28 全过；`tsc --noEmit` 无错。
 
-**⚠️ 云端 PG 尚未部署**：本机 `.secrets` 没有 PG 连接串，CloudBase MCP 当前指向的又是
-**已销毁的 `ambitious-parrot-d7ehh7x0fd9d680`**（`PG_NOT_READY`），所以只验证了 SQLite 路径。
-要在线上生效，需在 `pulse-1-d0g880ydl8ddc57f6` 执行两段 SQL（表 + 3 个函数），
-再重新部署云函数 `pulse-api`（新路由在包里）。语句见
-[`formula-pattern.md`](./formula-pattern.md) §8。
+**云端已部署（2026-11-11 同日完成）**
+
+CloudBase CLI 连上 `pulse-1-d0g880ydl8ddc57f6` 之后全部补齐：
+
+| 事项 | 结果 |
+|---|---|
+| `formula_patterns` 表 ＋ 索引 | ✅ 云端 PG 5 列就位 |
+| 3 个 `pulse_*_formula_patterns` 函数 | ✅ 云端函数 35 → **38** |
+| SQL 层冒烟（写两张／清空留痕／撤销） | ✅ 接管标记行在 PG 上同样生效 |
+| 云函数 `pulse-api` 重部署 | ✅ Event / Nodejs20.19；5 个环境变量部署前后一致 |
+| 网关闭环 `scripts/e2e/cloud-smoke.mjs` | ✅ 10/10（健康、令牌、401、写入、读回、顺序、格值、撤销） |
+
+**两个踩过的坑**（详见 `formula-pattern.md` §8.3 / §8.5）：
+
+1. `tcb env list` 一直报旧环境不存在 —— 根因不在 `.cloudbase/project.json`，
+   而在 `~/.config/.cloudbase/auth.json` 的 `credential.envId` 也存了一份；
+   改掉这一行即通。加 `-e`、`-r` 都不解决。
+2. `tcb fn deploy --install-dependency false` **不上传**本地 `node_modules`，
+   函数起来直接 `ERR_MODULE_NOT_FOUND: @cloudbase/node-sdk`；
+   改成 `--install-dependency true` 由云端装依赖才正常。
+   另外 `tcb fn deploy --force` 实测**不会**冲掉环境变量。
+
+⚠️ 前端要连云端，须在构建／启动时给 `VITE_API_BASE=<网关地址>`（`src/api/http.ts`）；
+留空则走同源 `/api`，即本机开发者服务器。小程序侧的 `PULSE_CLOUD_ENV` 默认值也已从
+旧环境改为 `pulse-1-d0g880ydl8ddc57f6`（`taro/config/index.ts`）。
