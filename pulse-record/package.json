@@ -49,6 +49,7 @@
     "test:e2e:migration": "node scripts/e2e/migration.mjs",
     "test:e2e:auth": "node scripts/e2e/auth-isolation.mjs",
     "test:e2e:app": "node scripts/e2e/app-regression.mjs",
+    "test:e2e:app:break": "node scripts/e2e/app-nested-button-break-test.mjs",
     "test:e2e:desktop": "node scripts/e2e/desktop-smoke.mjs",
     "test:e2e:harmony": "node scripts/e2e/harmony-lint.mjs",
     "test:e2e:pg": "node scripts/e2e/pg-store.mjs",
