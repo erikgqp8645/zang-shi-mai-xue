@@ -172,37 +172,28 @@ const MUTATIONS = [
   },
   {
     id: 'M4',
-    title: 'p44 边界检查关掉（数据多一条而判定函数没有 → 前端启动就崩）',
+    title: 'p44 的「新增」边界检查关掉（数据多一条而判定函数没有 → 前端启动就崩）',
     files: [
       {
         path: LIB,
         replacements: [
           {
-            from: [
-              '    if (!baseIds.has(itemId)) {',
-              '      errors.push(',
-              '        `覆盖层新增了讲义 p44 条目「${itemId}」—— ` +',
-              '          `判定函数表里没有它，前端会起不来`,',
-              '      )',
-              '    }',
-            ].join('\n'),
-            to: [
-              '    if (false) {',
-              '      errors.push(',
-              '        `覆盖层新增了讲义 p44 条目「${itemId}」—— ` +',
-              '          `判定函数表里没有它，前端会起不来`,',
-              '      )',
-              '    }',
-            ].join('\n'),
+            from: '    if (known ? known.has(itemId) : baseIds.has(itemId)) continue',
+            to: '    if (true) continue // （故意写坏：新增也不拦了）',
           },
         ],
       },
     ],
     expectRed: [
-      'H5 覆盖层里混进 p44 新增 → apply 必须拒绝（否则前端起不来）',
-      'H6 塞进去的那条被 verify 抓到',
+      'H10 覆盖层里混进 p44 新增 → apply 必须拒绝（否则前端起不来）',
+      'H11 塞进去的那条被 verify 抓到',
     ],
-    expectGreen: [],
+    // 关键：只坏了「新增」那一侧 —— 删除这条路必须仍然通着，
+    // 否则说明 H10 那条是靠删除逻辑顺带变红的假阳性。
+    expectGreen: [
+      'H4 p44 可以删除',
+      'H5 删除后 apply：这条从 p44 里消失，别的条目一条不少',
+    ],
   },
   {
     id: 'M5',
@@ -272,6 +263,65 @@ const MUTATIONS = [
     expectRed: ['D5 删掉一条被 p44 引用的方剂 → p44 的 drugs[] 里那个 id 也被去掉'],
     // 关键：只坏了「讲稿方剂」那一半，成方的级联不该受影响。
     expectGreen: ['F1 删成方后 apply：p42 的 doseId 置空、doseBasis 写「未载」'],
+  },
+  {
+    id: 'M8',
+    title: 'revive 放不回来条目（墓碑翻不回来 → 删掉的条目永远回不去）',
+    files: [
+      {
+        path: CLI,
+        replacements: [
+          {
+            from: [
+              '  const ok = await putLibraryItem(db, kind, String(itemId), ov.payload, {',
+              '    deleted: 0,',
+              '    updatedBy: opts.by ?? \'cli\',',
+              '    note: opts.note ?? null,',
+              '  })',
+              '  if (!ok) fail(\'写进数据库失败了\')',
+              '  console.log(`✓ 已放回来：${kind} ${itemId}（apply 之后它回到基线）`)',
+            ].join('\n'),
+            to: [
+              '  const ok = await putLibraryItem(db, kind, String(itemId), ov.payload, {',
+              '    deleted: 1, // （故意写坏：墓碑没翻过来）',
+              '    updatedBy: opts.by ?? \'cli\',',
+              '    note: opts.note ?? null,',
+              '  })',
+              '  if (!ok) fail(\'写进数据库失败了\')',
+              '  console.log(`✓ 已放回来：${kind} ${itemId}（apply 之后它回到基线）`)',
+            ].join('\n'),
+          },
+        ],
+      },
+    ],
+    expectRed: ['H6 revive 把删掉的这一条放回来，内容一字不差'],
+    // 关键：只坏了「放回来」这一步，删除与墓碑本身不该受影响。
+    expectGreen: [
+      'H4 p44 可以删除',
+      'H5 删除后 apply：这条从 p44 里消失，别的条目一条不少',
+    ],
+  },
+  {
+    id: 'M9',
+    title: '墓碑不存原内容快照（删掉的条目再也放不回来）',
+    files: [
+      {
+        path: CLI,
+        replacements: [
+          {
+            from:
+              '  const snapshot = baselineEntryOf(baseline, spec, String(itemId)) ?? ov?.payload ?? eff.entry ?? {}',
+            to: '  const snapshot = {} // （故意写坏：原内容没存进墓碑）',
+          },
+        ],
+      },
+    ],
+    expectRed: ['H6 revive 把删掉的这一条放回来，内容一字不差'],
+    // 关键：只坏了「快照」那一半，删除本身照样该成功。
+    expectGreen: [
+      'H4 p44 可以删除',
+      'H5 删除后 apply：这条从 p44 里消失，别的条目一条不少',
+    ],
   },
 ]
 

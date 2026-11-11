@@ -78,7 +78,7 @@ export const LIBRARY_KINDS = {
     idField: 'id',
     idType: 'string',
     addable: false,
-    deletable: false,
+    deletable: true,
     fields: [
       { key: 'id', type: 'string', required: true },
       { key: 'route', type: 'string', required: true },
@@ -96,14 +96,9 @@ export const LIBRARY_KINDS = {
       add:
         '讲义 p44「依脉用方」不能在这里新增。\n' +
         '  原因：命中判定的逻辑写在代码里（pulse-record/src/domain/formulas.ts 的 EVALUATORS），\n' +
-        '        规则数据与判定函数必须一一对应，缺一个前端就起不来。\n' +
-        '  这属于前端改动，本轮不做。\n' +
+        '        一条规则要能被命中，就得有一份对应的判定函数 —— 数据能写，判定逻辑长不出来。\n' +
+        '  （**删除是可以的**：条目删掉后，残留的判定函数不会被加载、不命中、也不显示。）\n' +
         '  可以做的：先把这条作为「讲稿方剂」（kind=drug）加进来 —— 那部分是纯数据。',
-      del:
-        '讲义 p44「依脉用方」不能在这里删除。\n' +
-        '  原因：判定函数表（src/domain/formulas.ts 的 EVALUATORS）里还留着这一条，\n' +
-        '        数据没了而函数还在，前端启动就报错。\n' +
-        '  要下线这一条，得同时改那份代码 —— 属于前端改动，本轮不做。',
     },
   },
 
@@ -597,43 +592,73 @@ export function checkReferences(files) {
   return errors
 }
 
+/* ------------------------------------------------------------------ *
+ * p44 边界：**新增**要「有判定函数」，**删除**放行                          *
+ * ------------------------------------------------------------------ */
+
+/** 判定函数表所在文件（前端代码里的 EVALUATORS） */
+export const FORMULAS_TS = join(ROOT, 'src', 'domain', 'formulas.ts')
+
 /**
- * p44 边界检查：覆盖层里**不许**出现讲义 p44 的新增／删除。
+ * 从 `src/domain/formulas.ts` 里读出**有判定函数的规则 id 集合**。
  *
- * 为什么：讲义 p44 依脉用方的命中判定是**代码**（src/domain/formulas.ts 的 EVALUATORS），
- * `loadRules` 做 JSON↔函数的双向校验，缺一即抛错 ——
- * 数据多一条而函数没有（或反过来），前端**启动就崩**。
+ * 为什么读代码、而不另设一张登记表：
+ *   「哪些 id 能被命中」的真源就是那份 `EVALUATORS`。另设一张表，两边必然漂移，
+ *   而漂移的后果是「前端载入即报错」。所以这里直接读真源。
  *
- * 所以：
- *   · 覆盖层里出现「基线没有的 p44 条目」→ 等于新增 → 拒绝
- *   · 覆盖层里把「基线有的 p44 条目」标成删除 → 等于删除 → 拒绝
- * 改字段是允许的（数据与函数一一对应没变）。
+ * 读不到就返回 `null`（**不是**空集合）—— 调用方据此退回保守做法：
+ * 只认基线里已有的 id，宁可少放行，也不放行错的。
+ *
+ * @param {string} formulasPath
+ * @returns {Set<string>|null} 有判定函数的 id 集合；读不到返回 null
+ */
+export function readEvaluatorIds(formulasPath = FORMULAS_TS) {
+  try {
+    const src = readFileSync(formulasPath, 'utf8')
+    const start = src.indexOf('const EVALUATORS')
+    if (start < 0) return null
+    const end = src.indexOf('\n}', start)
+    const block = end > start ? src.slice(start, end) : src.slice(start)
+    const ids = new Set()
+    for (const m of block.matchAll(/'([A-Za-z0-9_-]+)':\s*\(/g)) ids.add(m[1])
+    return ids.size > 0 ? ids : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * p44 边界检查：**只管新增**。
+ *
+ * 删一条规则是数据层的事 —— 条目没了，判定函数作为**残留代码**留着，
+ * 前端不加载它（见 src/domain/formulas.ts 的 loadRules：判定函数有、数据没有 → 跳过），
+ * 所以删得干净；又因为函数还在，`library restore` 放回来时不用改一行代码。
+ *
+ * 新增则不行：一条**没有判定函数**的规则，前端载入时会直接报错（loadRules 抛错）。
+ * 所以这里拿「判定函数表里的 id」当白名单；读不到判定函数表就退回「只认基线里的 id」。
  *
  * @param {object} baselineFiles
  * @param {object} overrides
+ * @param {Set<string>|null} evaluatorIds  readEvaluatorIds() 的结果
  * @returns {string[]} 错误说明（空数组＝通过）
  */
-export function checkRuleBoundary(baselineFiles, overrides) {
+export function checkRuleAddBoundary(baselineFiles, overrides, evaluatorIds = null) {
   const errors = []
   const baseIds = new Set(
     (baselineFiles['formula-rules.json']?.rules ?? []).map((r) => String(r?.id ?? '')),
   )
+  const known = evaluatorIds ?? null
   for (const [itemId, ov] of Object.entries(overrides?.rule ?? {})) {
-    if (ov.deleted) {
-      if (baseIds.has(itemId)) {
-        errors.push(
-          `覆盖层把讲义 p44 条目「${itemId}」标成了删除 —— ` +
-            `判定函数表（src/domain/formulas.ts 的 EVALUATORS）里还留着它，前端会起不来`,
-        )
-      }
-      continue
-    }
-    if (!baseIds.has(itemId)) {
-      errors.push(
-        `覆盖层新增了讲义 p44 条目「${itemId}」—— ` +
-          `判定函数表里没有它，前端会起不来`,
-      )
-    }
+    if (ov.deleted) continue // 删除：放行（判定函数留着当残留代码）
+    if (known ? known.has(itemId) : baseIds.has(itemId)) continue
+    errors.push(
+      known
+        ? `覆盖层新增了讲义 p44 条目「${itemId}」—— ` +
+            `src/domain/formulas.ts 的 EVALUATORS 里没有它，前端载入时会报错` +
+            `（命中判定是代码，不是数据，命令行补不出来）`
+        : `覆盖层新增了讲义 p44 条目「${itemId}」—— 基线里没有它，` +
+            `而且读不到判定函数表（src/domain/formulas.ts），无法确认它能不能被载入`,
+    )
   }
   return errors
 }
@@ -643,9 +668,11 @@ export function checkRuleBoundary(baselineFiles, overrides) {
  *
  * @param {object} baselineFiles  readBaseline 的结果
  * @param {object} overrides      groupOverrides 的结果
+ * @param {object} [opts]
+ * @param {Set<string>|null} [opts.evaluatorIds]  readEvaluatorIds() 的结果（默认现读）
  * @returns {{ files: object, report: object, errors: string[], notes: string[] }}
  */
-export function mergeAll(baselineFiles, overrides) {
+export function mergeAll(baselineFiles, overrides, opts = {}) {
   // 深拷贝一份，改的是副本（基线对象不能被就地改掉）
   const files = JSON.parse(JSON.stringify(baselineFiles))
   const report = {}
@@ -664,8 +691,12 @@ export function mergeAll(baselineFiles, overrides) {
     }
   }
 
+  const evaluatorIds = opts.evaluatorIds === undefined ? readEvaluatorIds() : opts.evaluatorIds
   const notes = cascadeCleanup(files, removed)
-  const errors = [...checkRuleBoundary(baselineFiles, overrides), ...checkReferences(files)]
+  const errors = [
+    ...checkRuleAddBoundary(baselineFiles, overrides, evaluatorIds),
+    ...checkReferences(files),
+  ]
   return { files, report, errors, notes, bad }
 }
 

@@ -12,7 +12,7 @@
  *   ⑤ apply 幂等（跑两次，第二次一个字节都不变）；
  *   ⑥ 引用断了要**拒绝写盘**，不是写出半坏数据；
  *   ⑦ 删成方要**连带处理**引用它的地方（按「未载」写，不臆造）；
- *   ⑧ 讲义 p44 不能新增／删除（判定逻辑在代码里）—— 但**改字段可以**；
+ *   ⑧ 讲义 p44 **不能新增**（判定逻辑在代码里），但**可以删除** —— 改字段也可以；
  *   ⑨ 字段校验拦得住坏数据（必填、枚举、未知字段）；
  *   ⑩ 读接口形状对，未登录 401，**所有账号共享同一份**（公共资料）；
  *   ⑪ **仓库里真正的 src/content/*.json 一个字节都没被碰**。
@@ -385,24 +385,92 @@ await check('H1 p44 不能新增（判定逻辑在代码里）', async () => {
   return [r.code !== 0 && r.out.includes('EVALUATORS'), `exit=${r.code} ${r.out.slice(0, 200)}`]
 })
 
-await check('H2 p44 不能删除', async () => {
-  const r = cli(['del', 'rule', 'fx-bianmai-wuli'])
-  return [r.code !== 0 && r.out.includes('EVALUATORS'), `exit=${r.code} ${r.out.slice(0, 200)}`]
-})
-
-await check('H3 p44 改字段是可以的', async () => {
+await check('H2 p44 改字段是可以的', async () => {
   const r = cli(['set', 'rule', 'fx-bianmai-wuli', '--set', 'condition=变脉无力（管理员改）'])
   return [r.code === 0 && r.out.includes('已改'), `exit=${r.code} ${r.out.slice(0, 200)}`]
 })
 
-await check('H4 p44 改字段后 apply 能落进去', async () => {
+await check('H3 p44 改字段后 apply 能落进去', async () => {
   const r = applyFresh()
   const rules = tempJson('formula-rules.json').rules
   const hit = rules.find((x) => x.id === 'fx-bianmai-wuli')
   return [r.code === 0 && hit?.condition === '变脉无力（管理员改）', `exit=${r.code} ${hit?.condition}`]
 })
 
-await check('H5 覆盖层里混进 p44 新增 → apply 必须拒绝（否则前端起不来）', async () => {
+/* ------------------------------------------------------------------ */
+/* H' 段：p44 的删除（判定函数作为残留代码留着，前端不加载它）           */
+/* ------------------------------------------------------------------ */
+
+/** 用来做删除／恢复试验的条目（讲稿 2010 第二讲「一体疗法·冷热水」那条主线） */
+const DEL_RULE = 'fx2-yiti-lengreshui'
+
+/** 原始基线里 p44 的条数（删除／恢复前后都要拿它当尺子） */
+function originalCount() {
+  return JSON.parse(repoBefore.get('formula-rules.json').toString('utf8')).rules.length
+}
+
+await check('H4 p44 可以删除', async () => {
+  const r = cli(['del', 'rule', DEL_RULE])
+  return [r.code === 0 && r.out.includes('已标删'), `exit=${r.code} ${r.out.slice(0, 200)}`]
+})
+
+await check('H5 删除后 apply：这条从 p44 里消失，别的条目一条不少', async () => {
+  const baseCount = JSON.parse(repoBefore.get('formula-rules.json').toString('utf8')).rules.length
+  const r = applyFresh()
+  const rules = tempJson('formula-rules.json').rules
+  const gone = !rules.some((x) => x.id === DEL_RULE)
+  return [
+    r.code === 0 && gone && rules.length === baseCount - 1,
+    `exit=${r.code} 条数=${rules.length}/${baseCount}`,
+  ]
+})
+
+await check('H6 revive 把删掉的这一条放回来，内容一字不差', async () => {
+  const original = JSON.parse(repoBefore.get('formula-rules.json').toString('utf8')).rules.find(
+    (x) => x.id === DEL_RULE,
+  )
+  const r0 = cli(['revive', 'rule', DEL_RULE])
+  const r = applyFresh()
+  const rules = tempJson('formula-rules.json').rules
+  const back = rules.find((x) => x.id === DEL_RULE)
+  const same = !!back && JSON.stringify(back) === JSON.stringify(original)
+  return [
+    r0.code === 0 && r.code === 0 && same && rules.length === originalCount(),
+    `exit=${r0.code}/${r.code} same=${same} 条数=${rules.length}`,
+  ]
+})
+
+await check('H7 revive 之后 restore 撤掉覆盖行 → apply 回到原始基线', async () => {
+  const r0 = cli(['restore', 'rule', DEL_RULE])
+  const r = applyFresh()
+  const rules = tempJson('formula-rules.json').rules
+  return [
+    r0.code === 0 && r.code === 0 && rules.length === originalCount(),
+    `exit=${r0.code}/${r.code} 条数=${rules.length}`,
+  ]
+})
+
+await check('H8 删除后 restore 撤掉墓碑 → 已经写掉的基线撤不回来（命令行会提示用 revive）', async () => {
+  // 不重置基线地 apply 一次 —— 模拟生产流程：墓碑已经写进基线了
+  const d = cli(['del', 'rule', DEL_RULE])
+  apply()
+  const r0 = cli(['restore', 'rule', DEL_RULE])
+  const r = apply()
+  const rules = tempJson('formula-rules.json').rules
+  const gone = !rules.some((x) => x.id === DEL_RULE)
+  const hinted = r0.out.includes('revive')
+  return [
+    d.code === 0 && r0.code === 0 && r.code === 0 && gone && hinted,
+    `exit=${d.code}/${r0.code}/${r.code} gone=${gone} hinted=${hinted}`,
+  ]
+})
+
+await check('H9 删除／恢复之后 verify 通过', async () => {
+  const r = cli(['verify'])
+  return [r.code === 0 && r.out.includes('自检通过'), `exit=${r.code} ${r.out.slice(0, 200)}`]
+})
+
+await check('H10 覆盖层里混进 p44 新增 → apply 必须拒绝（否则前端起不来）', async () => {
   // 绕过 CLI 直接往库里塞一条 p44 新增（模拟导入／手改数据库）。
   // ⚠️ 这条 payload 必须是**完全合法**的 —— 否则字段校验会先拦下它，
   //    「H6 被 verify 抓到」那条就成了假阳性（抓的是缺字段，不是 p44 越界）。
@@ -437,7 +505,7 @@ await check('H5 覆盖层里混进 p44 新增 → apply 必须拒绝（否则前
   return [ok, `exit=${r.code} untouched=${untouched} ${r.out.slice(0, 250)}`]
 })
 
-await check('H6 塞进去的那条被 verify 抓到', async () => {
+await check('H11 塞进去的那条被 verify 抓到', async () => {
   const r = cli(['verify'])
   return [r.code !== 0 && r.out.includes('fx-sneaky'), `exit=${r.code}`]
 })

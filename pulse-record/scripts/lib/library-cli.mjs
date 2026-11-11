@@ -22,9 +22,10 @@
  *
  *   · **方名照录、剂量单位不换算、没写明的就留空** —— 由 server/library-schema.mjs
  *     的注册表与校验层强制，命令行改不坏。
- *   · **讲义 p44 依脉用方不能新增／删除** —— 判定逻辑在代码里
- *     （src/domain/formulas.ts 的 EVALUATORS），数据与函数必须一一对应。
- *     改字段可以。
+ *   · **讲义 p44 依脉用方可以改字段、可以删除，但不能新增** ——
+ *     新增一条要有对应的命中判定函数，那写在代码里
+ *     （src/domain/formulas.ts 的 EVALUATORS），命令行补不出来；
+ *     删除不用改代码：条目没了，判定函数作为**残留代码**留着，前端不加载它。
  *   · **不替读者臆造** —— 新增条目必须自己填 source／quote 等必填字段，
  *     后端不会替你生成出处。
  */
@@ -44,7 +45,8 @@ import {
   effectiveEntries,
   validateEntry,
   validatePrimaryKeys,
-  checkRuleBoundary,
+  checkRuleAddBoundary,
+  readEvaluatorIds,
 } from '../../server/library-schema.mjs'
 import { listLibraryItems, putLibraryItem, deleteLibraryItem } from '../../server/store.mjs'
 
@@ -215,6 +217,8 @@ export function runLibrary(argv, db) {
       return cmdDel(db, opts, positional)
     case 'restore':
       return cmdRestore(db, opts, positional)
+    case 'revive':
+      return cmdRevive(db, opts, positional)
     case 'export':
       return cmdExport(db, opts, positional)
     case 'import':
@@ -226,7 +230,7 @@ export function runLibrary(argv, db) {
     default:
       fail(
         `不认识的子命令「${sub}」。\n` +
-          `可用：list / show / set / add / del / restore / export / import / apply / verify\n` +
+          `可用：list / show / set / add / del / restore / revive / export / import / apply / verify\n` +
           `（npm run admin -- library --help 看完整用法）`,
       )
   }
@@ -253,6 +257,11 @@ function printHelp() {
   npm run admin -- library restore <kind> <id>
       撤销覆盖，回到内置基线。
 
+  npm run admin -- library revive <kind> <id>
+      把**删掉的**这一条放回来（撤销「那一次删除」）。
+      与 restore 的分工：restore 撤「覆盖层这一行」，revive 撤「那一次删除」。
+      靠墓碑里存着的原内容快照放回来 —— apply 已经写掉基线了也放得回。
+
   npm run admin -- library export [--kind K] [--out f.json]
       导出覆盖层（审计／备份／搬到另一台机器）。
 
@@ -268,9 +277,10 @@ function printHelp() {
 可选的类（kind）：
 ${describeKinds()}
 
-  提醒：讲义 p44「依脉用方」只能**改字段**，不能新增／删除 ——
-        命中判定写在代码里（src/domain/formulas.ts 的 EVALUATORS），
-        数据与函数必须一一对应，多一条少一条前端就起不来。
+  提醒：讲义 p44「依脉用方」可以**改字段**、可以**删除**，但**不能新增** ——
+        新增一条要有对应的命中判定函数，那写在代码里
+        （src/domain/formulas.ts 的 EVALUATORS），命令行补不出来。
+        删除不用改代码：条目没了，判定函数作为残留代码留着，前端不加载它。
 `)
 }
 
@@ -481,9 +491,20 @@ async function cmdDel(db, opts, positional) {
   const baseline = readBaseline(contentDirOf(opts))
   const overrides = groupOverrides(await listLibraryItems(db))
   const eff = effectiveEntry(baseline, overrides, kind, itemId)
+  const ov = overrides[kind]?.[String(itemId)]
   if (!eff.entry && !eff.deleted) fail(`没有「${kind} ${itemId}」这一条`)
 
-  const ok = await putLibraryItem(db, kind, String(itemId), eff.entry ?? {}, {
+  /**
+   * **原条目快照** —— 墓碑行里带着它，恢复时才有东西可放回去。
+   *
+   * 取哪个版本：
+   *   · 基线里还在 → 取基线那份（那才是「原条目」；覆盖层里改过的版本不算）
+   *   · 基线里已经没有了（apply 已经跑过）→ 取覆盖层里存着的那份
+   *   · 都没有 → 空对象（这一条恢复不了，只能手工加回去）
+   */
+  const snapshot = baselineEntryOf(baseline, spec, String(itemId)) ?? ov?.payload ?? eff.entry ?? {}
+
+  const ok = await putLibraryItem(db, kind, String(itemId), snapshot, {
     deleted: 1,
     updatedBy: opts.by ?? 'cli',
     note: opts.note ?? null,
@@ -492,6 +513,11 @@ async function cmdDel(db, opts, positional) {
 
   console.log(`✓ 已标删：${spec.label}「${itemId}」`)
   console.log('  （apply 之后这条从结果里消失；引用它的地方会按「未载」处理）')
+  if (Object.keys(snapshot).length === 0) {
+    console.log('  ⚠ 这一条没存下原内容快照 —— apply 之后就恢复不回来了（只能手工加回去）')
+  } else {
+    console.log('  （原内容已随墓碑存下，restore 可以把它放回去）')
+  }
   console.log('  （改动存在覆盖层里，还没进前端 —— 要跑 library apply）')
 }
 
@@ -499,14 +525,71 @@ async function cmdDel(db, opts, positional) {
  * restore
  * ------------------------------------------------------------------ */
 
+/**
+ * restore —— **撤销覆盖层里对这一条的改动**（删掉那一行）→ 回到基线的样子。
+ *
+ * ⚠️ 与 `revive` 的分工（别搞混）：
+ *   · `restore` 撤的是「覆盖层这一行」；
+ *   · `revive`   撤的是「**那一次删除**」，把删掉的条目放回来。
+ *
+ * 为什么需要 `revive`：apply 是**写进基线**的 —— 墓碑一旦 apply 过去，
+ * 基线里就没有这一条了；这时候光删墓碑撤不回来（基线里本来就没有）。
+ * `revive` 用墓碑里存着的**原内容快照**把它放回去。
+ */
 async function cmdRestore(db, opts, positional) {
   const [kind, itemId] = positional.slice(1)
   mustKind(kind)
   if (!itemId) fail(`用法：npm run admin -- library restore <kind> <id>`)
 
+  const overrides = groupOverrides(await listLibraryItems(db))
+  const ov = overrides[kind]?.[String(itemId)]
+  if (!ov) fail(`「${kind} ${itemId}」本来就没有被改过 —— 不用 restore`)
+
   const ok = await deleteLibraryItem(db, kind, String(itemId))
-  if (!ok) fail(`「${kind} ${itemId}」本来就没有被改过 —— 不用 restore`)
+  if (!ok) fail('写进数据库失败了')
   console.log(`✓ 已撤销覆盖：${kind} ${itemId}（回到内置基线）`)
+  if (ov.deleted) {
+    console.log('  ⚠ 这次是撤掉「删除」标记；如果这一条已经被 apply 写掉了，')
+    console.log('    撤标记撤不回来 —— 要把它放回来请用：library revive ' + kind + ' ' + itemId)
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * revive
+ * ------------------------------------------------------------------ */
+
+/**
+ * revive —— **把删掉的这一条放回来**（撤销「那一次删除」）。
+ *
+ * 与 `restore` 的分工见 cmdRestore 的注释。
+ *
+ * 靠什么放回来：墓碑行里存着**原内容快照**（`del` 当时从基线里取的）——
+ * 所以哪怕 apply 已经把基线写掉了，快照还在，放回来的内容一字不差。
+ */
+async function cmdRevive(db, opts, positional) {
+  const [kind, itemId] = positional.slice(1)
+  mustKind(kind)
+  if (!itemId) fail(`用法：npm run admin -- library revive <kind> <id>`)
+
+  const overrides = groupOverrides(await listLibraryItems(db))
+  const ov = overrides[kind]?.[String(itemId)]
+  if (!ov) fail(`「${kind} ${itemId}」没有覆盖记录 —— 它没被删过，不用 revive`)
+  if (!ov.deleted) fail(`「${kind} ${itemId}」没被删过（只是被改过）—— 那种情况用 restore`)
+
+  if (!ov.payload || Object.keys(ov.payload).length === 0) {
+    fail(
+      `「${kind} ${itemId}」的墓碑里没有原内容快照，放不回来。\n` +
+        `  只能手工加回去：library add ${kind} --file <条目>.json`,
+    )
+  }
+
+  const ok = await putLibraryItem(db, kind, String(itemId), ov.payload, {
+    deleted: 0,
+    updatedBy: opts.by ?? 'cli',
+    note: opts.note ?? null,
+  })
+  if (!ok) fail('写进数据库失败了')
+  console.log(`✓ 已放回来：${kind} ${itemId}（apply 之后它回到基线）`)
 }
 
 /* ------------------------------------------------------------------ *
@@ -564,7 +647,15 @@ async function cmdImport(db, opts, positional) {
         continue
       }
       const eff = effectiveEntry(baseline, overrides, kind, id)
-      await putLibraryItem(db, kind, id, eff.entry ?? {}, {
+      const ov = overrides[kind]?.[id]
+      // 墓碑要带着原内容快照 —— 不然恢复不回来
+      const snapshot =
+        (item?.payload && Object.keys(item.payload).length > 0 ? item.payload : null) ??
+        baselineEntryOf(baseline, spec, id) ??
+        ov?.payload ??
+        eff.entry ??
+        {}
+      await putLibraryItem(db, kind, id, snapshot, {
         deleted: 1,
         updatedBy: item?.updatedBy ?? 'import',
         note: item?.note ?? null,
@@ -572,8 +663,11 @@ async function cmdImport(db, opts, positional) {
       continue
     }
     // 新增？那一类必须允许新增，且不能撞基线
+    // ⚠️ 墓碑不算「新增」—— 那是「恢复」：本来就有过，只是被删了
     const eff = effectiveEntry(baseline, overrides, kind, id)
-    const isNew = !eff.entry || eff.deleted
+    const ov = overrides[kind]?.[id]
+    const isTombstone = Boolean(ov?.deleted)
+    const isNew = (!eff.entry || eff.deleted) && !isTombstone
     if (isNew && !spec.addable) {
       problems.push(spec.blocked?.add ?? `${spec.label}不能新增`)
       continue
@@ -688,8 +782,10 @@ async function cmdVerify(db, opts, positional) {
     }
   }
 
-  // p44 边界
-  for (const e of checkRuleBoundary(baseline, overrides)) problems.push(e)
+  // p44 边界（只管「新增」—— 删除放行）
+  for (const e of checkRuleAddBoundary(baseline, overrides, readEvaluatorIds())) {
+    problems.push(e)
+  }
 
   // 合并后的引用完整性
   const { errors: refErrors, bad } = mergeAll(baseline, overrides)

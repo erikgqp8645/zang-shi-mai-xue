@@ -96,7 +96,7 @@ export interface FormulaHit extends FormulaRule {
  * JSON import 的实际类型 —— 字面量字段（kind）被 TS 放宽成了 `string`。
  * 这里如实描述它，内部再收窄。
  */
-interface RuleDataJson {
+export interface RuleDataJson {
   id: string
   route: string
   condition: string
@@ -129,27 +129,27 @@ function narrowKind(id: string, kind: string): FormulaKind {
 /**
  * 把 JSON 里的规则数据与 TS 里的判定函数**按 id 合成**成完整规则。
  *
- * ⚠️ **宁可载入失败，也不要静默降级**：
- *   · JSON 里某条规则没有对应的判定函数 → 抛错（否则那条规则永远不命中，
- *     而界面上看不出来 —— 这是最坏的一种坏法）；
- *   · 判定函数表里有 JSON 里没有的 id → 抛错（说明两边不同步）。
+ * ## 两个方向**刻意不对称**
+ *
+ * · **数据有、判定函数没有 → 抛错**。
+ *   那条规则永远不命中，界面上却看不出来 —— 这是最坏的一种坏法，宁可载入失败。
+ *   （要新增一条规则，就得同时在 `EVALUATORS` 里写判定逻辑 —— 那是代码，不是数据。）
+ *
+ * · **判定函数有、数据没有 → 跳过**（不抛错）。
+ *   这是**管理员删掉了一条规则**之后的正常状态：条目没了，判定函数作为**残留代码**留着。
+ *   删条目是数据层的事（`npm run admin -- library del rule <id>`），
+ *   残留的判定函数不加载、不命中、也不显示 —— 删干净了。
+ *   而且因为函数还在，`library restore` 把条目放回来时**不用改一行代码**。
+ *
+ * @param data      规则数据（`src/content/formula-rules.json` 的 rules[]）
+ * @param evaluators 判定函数表（id → evaluate）
+ * @param patterns  脉象图表（id → 脉象图）
  */
-function loadRules(
+export function loadRules(
   data: RuleDataJson[],
   evaluators: Record<string, (ctx: RuleContext) => string[]>,
   patterns: Record<string, PulsePattern>,
 ): FormulaRule[] {
-  // 双向校验：JSON 与判定函数表必须一一对应
-  const dataIds = new Set(data.map((r) => r.id))
-  for (const id of Object.keys(evaluators)) {
-    if (!dataIds.has(id)) {
-      throw new Error(
-        `formulas.ts：判定函数「${id}」在 formula-rules.json 里没有对应的规则数据。` +
-          `（两边不同步 —— 数据在 JSON、判定逻辑在本文件）`,
-      )
-    }
-  }
-
   return data.map((r) => {
     const evaluate = evaluators[r.id]
     if (!evaluate) {
@@ -440,10 +440,14 @@ function youGuanChiZuoGuanFuDa(ctx: RuleContext): string[] {
  *    `src/content/formula-rules.json`（可由 Excel 编辑）；
  *    这里只保留**判定逻辑** —— 那是代码，不是数据。
  *
- * 一一对应：JSON 里每条规则的 id 必须在这里有同名的判定函数。
- * 少一条 → 载入时报错（见 `loadRules`）。
+ * 对应关系（见 `loadRules`）：
+ *   · JSON 里有、这里没有 → **载入报错**（那条规则永远不命中，界面却看不出来）；
+ *   · 这里有、JSON 里没有 → **跳过**（条目已被管理员删除，函数是残留代码）。
+ *
+ * ⚠️ 残留代码是**允许的、有意的**：删条目是数据层的事，
+ *    函数留着不影响结果，`library restore` 放回来时还能直接用。
  */
-const EVALUATORS: Record<string, (ctx: RuleContext) => string[]> = {
+export const EVALUATORS: Record<string, (ctx: RuleContext) => string[]> = {
   'fx-bianmai-wuli': (ctx) => bianMaiWuli(ctx),
   'fx-bianmai-youli': (ctx) => bianMaiYouli(ctx),
   'fx-shenyong-mubiao': (ctx) => [...bianMaiWuli(ctx), ...bianMaiYouli(ctx)],
@@ -721,6 +725,16 @@ const EVALUATORS: Record<string, (ctx: RuleContext) => string[]> = {
  *   · 判定函数 → 本文件的 `EVALUATORS`
  */
 export const FORMULA_RULES: FormulaRule[] = loadRules(RULE_DATA.rules, EVALUATORS, PATTERNS)
+
+/**
+ * 按**给定的**规则数据载入规则（判定函数与脉象图仍用本文件的那两份）。
+ *
+ * 给测试与工具用：管理员删掉一条规则后，前端要能用「少一条」的数据正常载入 ——
+ * 这个函数让断言不必去改磁盘上的 JSON。
+ */
+export function loadRulesFrom(data: RuleDataJson[]): FormulaRule[] {
+  return loadRules(data, EVALUATORS, PATTERNS)
+}
 
 /* ------------------------------------------------------------------ */
 /* 讲义 p46 附表一：体质分类（依脉拉个性）· 治疗列                      */
