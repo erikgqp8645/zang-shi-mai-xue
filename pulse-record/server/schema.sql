@@ -133,6 +133,25 @@ CREATE TABLE IF NOT EXISTS custom_symbols (
   FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
+-- 方剂脉象图的**覆盖层**（使用者手填，按人隔离）
+--
+-- 内置基线在 src/content/pulse-patterns.json（Excel 管线产出，只读）。
+-- 这里只存「改过的那些条目」，一条目一行序：按 (owner_id, formula_id) 整条接管 ——
+-- 只要这个键下有行，就用这几行；没有，就回落到内置基线。
+-- 删除某个条目 ＝ 没有行（DELETE 即回到基线）；删其中一张 ＝ 不写那一行 seq。
+CREATE TABLE IF NOT EXISTS formula_patterns (
+  owner_id   TEXT NOT NULL,
+  -- FormulaRule.id，如 'fx-dl2-zuoguan-fuwu'
+  formula_id TEXT NOT NULL,
+  -- 同一方剂下第几张（0 起，就是显示顺序）
+  seq        INTEGER NOT NULL,
+  -- 一张图的完整 JSON：{ title, layout, cells, groups, relations, note, source, origin }
+  payload    TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (owner_id, formula_id, seq),
+  FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
 -- 依赖 owner_id 的索引（patients_by_owner / visits_by_owner / medication_by_owner /
 -- symbols_by_owner）在 server/db.mjs 的 migrate() 里建：
 -- 老库要先 ALTER TABLE 补上 owner_id 列，才能建这些索引。

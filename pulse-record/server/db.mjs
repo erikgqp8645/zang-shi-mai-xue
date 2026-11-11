@@ -783,3 +783,96 @@ export async function deleteCustomSymbol(db, code, ownerId) {
   const info = db.prepare('DELETE FROM custom_symbols WHERE code = ? AND owner_id = ?').run(code, ownerId)
   return Number(info.changes) > 0
 }
+
+/* ------------------------------------------------------------------ */
+/* 方剂脉象图（使用者手填的覆盖层）                                      */
+/* ------------------------------------------------------------------ */
+
+/** 一张脉象图最多允许挂 20 张，单张 JSON 超过 32KB 直接拒绝（防止误粘贴整本书） */
+const MAX_PATTERNS_PER_FORMULA = 20
+const MAX_PATTERN_BYTES = 32 * 1024
+
+/**
+ * 「这个方剂已接管，但一张图都不挂」的标记行（`seq = -1`）。
+ *
+ * 为什么需要它：覆盖层是「有行就用、没行用基线」，
+ * 若「删掉全部图」只表现为没有行，就会被读成「没改过」→ 静默回落到基线，
+ * 使用者刚删掉的那张又冒出来。所以至少要留一行痕迹表达「我确认这里是空的」。
+ */
+const TAKEOVER_PAYLOAD = '{"__takeover__":true}'
+const TAKEOVER_SEQ = -1
+
+/**
+ * 该 owner 手改过的全部脉象图：`{ [formulaId]: entry[] }`。
+ *
+ * 只返回**覆盖层**，不含内置基线 —— 合并是前端的事（`src/state/patterns.tsx`），
+ * 这样「这一条有没有被改过」在数据层面是明确的（有键 = 改过），
+ * 界面才能给出「恢复默认」这个动作。被接管且为空的条目回一个**空数组**（不是缺失）。
+ */
+export async function listFormulaPatterns(db, ownerId) {
+  const rows = db
+    .prepare('SELECT formula_id, seq, payload FROM formula_patterns WHERE owner_id = ? ORDER BY formula_id, seq')
+    .all(ownerId)
+  const out = {}
+  for (const r of rows) {
+    // 先建键：接管标记行也要让这个条目「出现过」
+    if (!(r.formula_id in out)) out[r.formula_id] = []
+    if (r.seq === TAKEOVER_SEQ) continue
+    let entry
+    try {
+      entry = JSON.parse(r.payload)
+    } catch {
+      // 坏行不该拖垮整页：跳过它，该条目回落到内置基线（基线总是合法的）
+      console.warn(`formula_patterns: ${r.formula_id}#${r.seq} 的 JSON 解析失败，已跳过`)
+      continue
+    }
+    out[r.formula_id].push(entry)
+  }
+  return out
+}
+
+/**
+ * 整条替换某方剂的脉象图列表（事务：先删后插，中途失败整体回滚）。
+ *
+ * @param {string[]} entries 每张图一个对象，顺序即显示顺序
+ * @returns {Promise<boolean>} 数据不合规时返回 false（路由层回 400）
+ */
+export async function putFormulaPatterns(db, ownerId, formulaId, entries) {
+  if (typeof formulaId !== 'string' || formulaId.trim() === '') return false
+  if (!Array.isArray(entries) || entries.length > MAX_PATTERNS_PER_FORMULA) return false
+  const rows = []
+  for (const entry of entries) {
+    if (!entry || typeof entry !== 'object' || !Array.isArray(entry.cells)) return false
+    const payload = JSON.stringify(entry)
+    if (payload.length > MAX_PATTERN_BYTES) return false
+    rows.push(payload)
+  }
+  const now = Date.now()
+  const del = db.prepare('DELETE FROM formula_patterns WHERE owner_id = ? AND formula_id = ?')
+  const ins = db.prepare(
+    'INSERT INTO formula_patterns (owner_id, formula_id, seq, payload, updated_at) VALUES (?, ?, ?, ?, ?)',
+  )
+  db.exec('BEGIN')
+  try {
+    del.run(ownerId, formulaId)
+    if (rows.length === 0) {
+      // 「已接管、但一张不挂」—— 留标记行，否则读回来等于没改过（回落到基线）
+      ins.run(ownerId, formulaId, TAKEOVER_SEQ, TAKEOVER_PAYLOAD, now)
+    } else {
+      rows.forEach((payload, seq) => ins.run(ownerId, formulaId, seq, payload, now))
+    }
+    db.exec('COMMIT')
+  } catch (e) {
+    db.exec('ROLLBACK')
+    throw e
+  }
+  return true
+}
+
+/** 撤销某方剂的覆盖（回到内置基线） */
+export async function deleteFormulaPatterns(db, ownerId, formulaId) {
+  const info = db
+    .prepare('DELETE FROM formula_patterns WHERE owner_id = ? AND formula_id = ?')
+    .run(ownerId, formulaId)
+  return Number(info.changes) > 0
+}

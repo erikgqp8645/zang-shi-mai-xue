@@ -814,3 +814,70 @@ BEGIN
   RETURN jsonb_build_object('id', v_id, 'login_name', 'local',
                             'display_name', '本机用户', 'role', 'admin');
 END $$;
+
+-- ── 方剂脉象图（覆盖层）──────────────────────────────────────────────
+-- 内置基线在 src/content/pulse-patterns.json，这里只存「手改过的」。
+-- 返回形状与 SQLite 版一致：{ "<formula_id>": [entry, ...] }，seq 决定顺序。
+
+CREATE OR REPLACE FUNCTION pulse_list_formula_patterns(p_owner text, p_args jsonb)
+RETURNS jsonb LANGUAGE plpgsql AS $$
+BEGIN
+  -- 先按「出现过」取条目（含 seq = -1 的接管标记），再左连真正的图：
+  -- 被接管但一张不挂的条目要回**空数组**，不是缺失 —— 缺了就等于「没改过」，
+  -- 前端会回落基线，把使用者刚删掉的图又显示出来。
+  RETURN (
+    SELECT COALESCE(jsonb_object_agg(f.formula_id, COALESCE(t.entries, '[]'::jsonb)), '{}'::jsonb)
+    FROM (
+      SELECT DISTINCT formula_id FROM formula_patterns WHERE owner_id = p_owner
+    ) f
+    LEFT JOIN (
+      SELECT formula_id, jsonb_agg(payload ORDER BY seq) AS entries
+      FROM formula_patterns
+      WHERE owner_id = p_owner AND seq >= 0
+      GROUP BY formula_id
+    ) t ON t.formula_id = f.formula_id
+  );
+END $$;
+
+-- 整条替换：先删后插，函数体本身在一个事务里（要么全进要么全不进）
+CREATE OR REPLACE FUNCTION pulse_put_formula_patterns(p_owner text, p_args jsonb)
+RETURNS jsonb LANGUAGE plpgsql AS $$
+DECLARE
+  v_formula text  := coalesce(p_args->>'formulaId', '');
+  v_entries jsonb := coalesce(p_args->'patterns', '[]'::jsonb);
+  v_now     bigint := floor(extract(epoch from clock_timestamp()) * 1000)::bigint;
+BEGIN
+  IF v_formula = '' OR jsonb_typeof(v_entries) <> 'array' THEN
+    RETURN jsonb_build_object('ok', false);
+  END IF;
+  -- 与 SQLite 版同一个上限（20 张）
+  IF jsonb_array_length(v_entries) > 20 THEN
+    RETURN jsonb_build_object('ok', false);
+  END IF;
+
+  DELETE FROM formula_patterns WHERE owner_id = p_owner AND formula_id = v_formula;
+
+  IF jsonb_array_length(v_entries) = 0 THEN
+    -- 「已接管、但一张不挂」：留一行标记（seq = -1），与 SQLite 版一致
+    INSERT INTO formula_patterns (owner_id, formula_id, seq, payload, updated_at)
+    VALUES (p_owner, v_formula, -1, '{"__takeover__": true}'::jsonb, v_now);
+  ELSE
+    INSERT INTO formula_patterns (owner_id, formula_id, seq, payload, updated_at)
+    SELECT p_owner, v_formula, (t.ord - 1)::integer, t.value, v_now
+    FROM jsonb_array_elements(v_entries) WITH ORDINALITY AS t(value, ord);
+  END IF;
+
+  RETURN jsonb_build_object('ok', true);
+END $$;
+
+-- 撤销覆盖（回到内置基线）
+CREATE OR REPLACE FUNCTION pulse_delete_formula_patterns(p_owner text, p_args jsonb)
+RETURNS jsonb LANGUAGE plpgsql AS $$
+DECLARE
+  v_formula text := coalesce(p_args->>'formulaId', '');
+  v_count   integer;
+BEGIN
+  DELETE FROM formula_patterns WHERE owner_id = p_owner AND formula_id = v_formula;
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN jsonb_build_object('ok', v_count > 0);
+END $$;

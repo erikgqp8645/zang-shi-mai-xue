@@ -72,6 +72,14 @@ export interface FormulaRule {
    * 两者由 `scripts/e2e/pulse-pattern.mjs` 的不变量断言绑死。
    */
   pattern?: PulsePattern
+  /**
+   * 本条的**全部**脉象图（一个方剂可对应几种脉象）。
+   *
+   * 内置数据一条只有一张，加载时由 `pattern` 包成单元素数组；
+   * 使用者手填多张时由覆盖层给出。`pattern` 保留作兼容（= `patterns[0]`），
+   * 界面一律读 `patterns`。
+   */
+  patterns?: PulsePattern[]
   /** 命中的单元格；空数组表示未命中 */
   evaluate: (ctx: RuleContext) => string[]
 }
@@ -152,7 +160,8 @@ function loadRules(
     }
     const rule = { ...r, kind: narrowKind(r.id, r.kind), evaluate }
     const pattern = patterns[r.id]
-    return pattern ? { ...rule, pattern } : rule
+    // 一张 → 包成数组，界面统一读 `patterns`；`pattern` 留着给老代码与断言
+    return pattern ? { ...rule, pattern, patterns: [pattern] } : rule
   })
 }
 

@@ -3410,3 +3410,636 @@ button:disabled {
   font-weight: 400;
   color: var(--sage);
 }
+
+/* ------------------------------------------------------------------ */
+/* 方剂脉象图（PatternStrip / PatternSheet）                            */
+/* 体例同主记录表：部位列橙、组界 1.6px、格底色 #cce8cf                  */
+/* ------------------------------------------------------------------ */
+
+.pr-ps {
+  margin: 5px 0 4px;
+}
+
+.pr-ps-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--sage);
+}
+
+.pr-ps-title {
+  letter-spacing: 0.04em;
+}
+
+.pr-ps-count {
+  color: #a49a86;
+}
+
+.pr-ps-edit {
+  margin-left: auto;
+  font: inherit;
+  font-size: 11px;
+  padding: 1px 8px;
+  border: 1px solid var(--divider);
+  border-radius: 2px;
+  background: var(--card);
+  color: var(--clay);
+  cursor: pointer;
+}
+
+.pr-ps-edit:hover {
+  border-color: var(--clay);
+}
+
+.pr-ps-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* 缩略图容器：点开看大图 */
+.pr-ps-thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 4px;
+  border: 1px solid var(--divider);
+  border-radius: 3px;
+  background: #fdfbf7;
+  cursor: zoom-in;
+  font: inherit;
+}
+
+.pr-ps-thumb:hover {
+  border-color: var(--clay);
+}
+
+.pr-ps-thumb.is-note {
+  align-items: stretch;
+  cursor: pointer;
+}
+
+.pr-ps-thumb-label {
+  font-size: 10px;
+  color: var(--sage);
+  max-width: 128px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- 矩阵表（默认＝缩略尺寸） ---- */
+.pr-psheet {
+  border-collapse: collapse;
+  background: var(--cell);
+  font-size: 12px;
+}
+
+.pr-psheet th,
+.pr-psheet td {
+  border: 1px solid var(--line);
+  padding: 0;
+  text-align: center;
+  vertical-align: middle;
+  font-weight: 400;
+}
+
+.pr-psheet thead th {
+  height: 17px;
+  font-size: 10px;
+  color: #4a463c;
+  background: #f1eee2;
+}
+
+.pr-psheet .pr-ps-organ {
+  background: var(--organ);
+  width: 22px;
+  font-size: 14px;
+}
+
+.pr-psheet .pr-ps-depth {
+  width: 24px;
+  font-size: 11px;
+}
+
+.pr-psheet .pr-ps-cell {
+  width: 32px;
+  height: 19px;
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 13px;
+}
+
+.pr-psheet .pr-ps-cell.is-set {
+  font-weight: 600;
+}
+
+.pr-psheet .pr-ps-group-start {
+  border-top-width: 1.6px;
+}
+
+.pr-psheet .pr-ps-end {
+  border-right-width: 1.6px;
+}
+
+.pr-ps-gno {
+  font-size: 8px;
+  color: #8a6d3b;
+  vertical-align: super;
+  margin-left: 1px;
+}
+
+/* ---- 关系型注记卡（没有格位的那 20 条） ---- */
+.pr-ps-note-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 128px;
+  min-height: 64px;
+  padding: 6px 7px;
+  border: 1px dashed var(--divider);
+  border-radius: 3px;
+  background: #faf7f0;
+  font-size: 10px;
+  color: var(--ink);
+  text-align: left;
+}
+
+.pr-ps-note-card b {
+  font-size: 11px;
+}
+
+.pr-ps-note-tag {
+  font-size: 9px;
+  color: var(--clay);
+  letter-spacing: 0.06em;
+}
+
+.pr-ps-note-more {
+  color: var(--sage);
+}
+
+/* ---- 大图弹层 ---- */
+.pr-ps-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(30, 26, 20, 0.45);
+}
+
+.pr-ps-modal-box {
+  width: 100%;
+  max-width: 440px;
+  max-height: 86vh;
+  overflow: auto;
+  padding: 14px 16px 16px;
+  border-radius: 4px;
+  background: var(--paper);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+
+.pr-ps-modal-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.pr-ps-modal-head h4 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.pr-ps-close {
+  margin-left: auto;
+  border: none;
+  background: none;
+  font-size: 15px;
+  color: var(--sage);
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.pr-ps-close:hover {
+  color: var(--ink);
+}
+
+/* 大图尺寸：比缩略图放大一倍左右，格子里四个字也放得下 */
+.pr-ps-modal-box .pr-psheet {
+  width: 100%;
+  font-size: 15px;
+}
+
+.pr-ps-modal-box .pr-psheet thead th {
+  height: 24px;
+  font-size: 12px;
+}
+
+.pr-ps-modal-box .pr-psheet .pr-ps-organ {
+  width: 40px;
+  font-size: 18px;
+}
+
+.pr-ps-modal-box .pr-psheet .pr-ps-depth {
+  width: 40px;
+  font-size: 14px;
+}
+
+.pr-ps-modal-box .pr-psheet .pr-ps-cell {
+  width: auto;
+  height: 30px;
+  font-size: 16px;
+}
+
+.pr-ps-legend,
+.pr-ps-note,
+.pr-ps-src {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--sage);
+}
+
+.pr-ps-note {
+  color: var(--warn);
+}
+
+.pr-ps-relations {
+  margin: 8px 0 0;
+  padding-left: 16px;
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--ink);
+}
+
+.pr-ps-relations li {
+  margin-bottom: 4px;
+}
+
+.pr-ps-relations b {
+  display: block;
+  color: var(--clay);
+}
+
+/* ---- 脉象图：无图时的「加」入口、手填标记 ---- */
+.pr-ps-add {
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 10px;
+  border: 1px dashed var(--divider);
+  border-radius: 3px;
+  background: none;
+  color: var(--clay);
+  cursor: pointer;
+}
+
+.pr-ps-add:hover {
+  border-color: var(--clay);
+  background: #faf4ea;
+}
+
+.pr-ps-manual {
+  font-style: normal;
+  font-size: 9px;
+  padding: 0 3px;
+  margin-right: 3px;
+  border-radius: 2px;
+  background: #f0e6d8;
+  color: #8a6d3b;
+}
+
+/* ------------------------------------------------------------------ */
+/* 脉象图编辑器（PatternEditor）                                        */
+/* ------------------------------------------------------------------ */
+
+.pr-ps-modal-box.is-editor {
+  max-width: 760px;
+}
+
+.pr-ed-subject {
+  font-size: 12px;
+  color: var(--sage);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pr-ed-link {
+  margin-left: 6px;
+  border: none;
+  background: none;
+  color: var(--clay);
+  font: inherit;
+  font-size: 11px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.pr-ed-link:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pr-ed-body {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+/* 左：这个方剂已有的几张 */
+.pr-ed-list {
+  width: 186px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pr-ed-item {
+  display: flex;
+  align-items: center;
+  padding: 2px 4px;
+  border: 1px solid var(--divider);
+  border-radius: 3px;
+  background: #fff;
+}
+
+.pr-ed-item.is-on {
+  border-color: var(--clay);
+  background: #faf4ea;
+}
+
+.pr-ed-item-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 2px;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pr-ed-item-no {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--divider);
+  color: #5c5648;
+  font-size: 9px;
+}
+
+.pr-ed-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pr-ed-item-count {
+  font-size: 9px;
+  color: var(--sage);
+}
+
+.pr-ed-item-ops {
+  display: flex;
+  gap: 1px;
+}
+
+.pr-ed-item-ops button {
+  padding: 1px 2px;
+  border: none;
+  background: none;
+  color: var(--sage);
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.pr-ed-item-ops button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.pr-ed-add {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.pr-ed-add button {
+  padding: 3px;
+  border: 1px dashed var(--divider);
+  border-radius: 3px;
+  background: none;
+  color: var(--clay);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.pr-ed-add button:hover {
+  border-color: var(--clay);
+  background: #faf4ea;
+}
+
+/* 右：矩阵编辑器 */
+.pr-ed-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.pr-ed-fields {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.pr-ed-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 10px;
+  color: var(--sage);
+}
+
+.pr-ed-field.is-narrow {
+  flex: 0 0 150px;
+}
+
+.pr-ed-field.is-block {
+  margin-top: 8px;
+}
+
+.pr-ed-field input,
+.pr-ed-field select {
+  padding: 3px 6px;
+  border: 1px solid var(--divider);
+  border-radius: 2px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+}
+
+/* 编辑态：格子就是输入框，点进去直接打字 */
+.pr-psheet.is-edit {
+  width: 100%;
+}
+
+.pr-psheet.is-edit .pr-ps-organ {
+  width: 40px;
+  font-size: 17px;
+}
+
+.pr-psheet.is-edit .pr-ps-depth {
+  width: 42px;
+  font-size: 13px;
+}
+
+.pr-psheet.is-edit .pr-ed-cell {
+  height: 30px;
+  padding: 0;
+}
+
+.pr-ed-cell input {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: center;
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 15px;
+  color: var(--ink);
+  outline: none;
+}
+
+.pr-ed-cell input:focus {
+  background: #fffdf4;
+  box-shadow: inset 0 0 0 2px #1a73e8;
+}
+
+.pr-ed-cell.is-dirty input {
+  color: var(--high);
+}
+
+/* 符号条 */
+.pr-ed-palette {
+  margin-top: 8px;
+}
+
+.pr-ed-pal-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  margin-bottom: 5px;
+}
+
+.pr-ed-pal-title {
+  width: 100%;
+  font-size: 9px;
+  color: var(--sage);
+}
+
+.pr-ed-code {
+  min-width: 26px;
+  padding: 2px 5px;
+  border: 1px solid var(--divider);
+  border-radius: 2px;
+  background: #fff;
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pr-ed-code:hover {
+  border-color: var(--clay);
+  background: #faf4ea;
+}
+
+.pr-ed-code.is-wide {
+  min-width: auto;
+  font-size: 11px;
+}
+
+.pr-ed-pal-hint {
+  font-size: 9px;
+  color: var(--sage);
+}
+
+/* 底栏 */
+.pr-ed-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--divider);
+}
+
+.pr-ed-tip,
+.pr-ed-error {
+  flex: 1;
+  font-size: 11px;
+  color: var(--sage);
+}
+
+.pr-ed-error {
+  color: var(--high);
+}
+
+.pr-ed-foot button {
+  padding: 4px 14px;
+  border: 1px solid var(--divider);
+  border-radius: 3px;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pr-ed-foot button:last-child {
+  border-color: var(--clay);
+  background: var(--clay);
+  color: #fff;
+}
+
+.pr-ed-foot button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* 窄屏：左列表挪到上面 */
+@media (max-width: 620px) {
+  .pr-ed-body {
+    flex-direction: column;
+  }
+
+  .pr-ed-list {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .pr-ed-add {
+    flex-direction: row;
+  }
+}

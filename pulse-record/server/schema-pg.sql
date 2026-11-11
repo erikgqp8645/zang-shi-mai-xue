@@ -138,3 +138,22 @@ CREATE TABLE IF NOT EXISTS custom_symbols (
 );
 
 CREATE INDEX IF NOT EXISTS symbols_by_owner ON custom_symbols (owner_id);
+
+-- ── 方剂脉象图（覆盖层）──────────────────────────────────────────────
+-- 内置基线在 src/content/pulse-patterns.json（Excel 管线产出，只读）。
+-- 这里只存「使用者手改过的条目」：一条目一行，按 (owner_id, formula_id) 整条接管 ——
+-- 该键下有行就用这几行，没有就回落到内置基线。
+CREATE TABLE IF NOT EXISTS formula_patterns (
+  owner_id   text    NOT NULL,
+  -- FormulaRule.id，如 'fx-dl2-zuoguan-fuwu'
+  formula_id text    NOT NULL,
+  -- 同一方剂下第几张（0 起，就是显示顺序）
+  seq        integer NOT NULL,
+  -- 一张图的完整 JSON：{ title, layout, cells, groups, relations, note, source, origin }
+  payload    jsonb   NOT NULL,
+  updated_at bigint  NOT NULL,
+  PRIMARY KEY (owner_id, formula_id, seq),
+  FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS formula_patterns_by_owner ON formula_patterns (owner_id);

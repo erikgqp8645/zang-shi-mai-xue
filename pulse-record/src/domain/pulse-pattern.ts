@@ -103,8 +103,20 @@ export const PATTERN_TERMS: Record<string, PatternTerm> = (() => {
 export interface CellRequirement {
   /** 格键，如 'R|关|浮'（`cellKey(hand, organ, depth)`） */
   cell: string
-  /** 原文用字（`PATTERN_TERMS` 的键） */
+  /**
+   * 原文用字（`PATTERN_TERMS` 的键）。
+   *
+   * 与 `codes` 二选一：转录自讲稿／讲义的老数据写 `term`；
+   * 使用者手填的新数据直接写 `codes`（符号本身就是所见即所得，没有可查的原文用字）。
+   */
   term: string
+  /**
+   * 直接给出的符号（彼此是「或」关系）—— 手填脉象图用。
+   *
+   * 给了 `codes` 就以它为准，`term` 仅作说明性保留。
+   * 老数据没有这个字段，不受影响。
+   */
+  codes?: string[]
   /** 该格的补充说明（图上小注） */
   note?: string
   /**
@@ -133,6 +145,13 @@ export interface PatternRelation {
 
 /** 一条用方条目的脉象图 */
 export interface PulsePattern {
+  /**
+   * 图名（Excel 里就是矩阵 sheet 的 tab 名，如「清挡路」）。
+   *
+   * 50 条老数据都写了，但类型上一直没声明 —— 这里补上，
+   * 免得界面只能拿条件文字当标题。
+   */
+  title?: string
   /** 格位要求 */
   cells: CellRequirement[]
   /**
@@ -148,6 +167,14 @@ export interface PulsePattern {
   layout?: LayoutMode
   /** 出处（照抄原话所在处） */
   source: string
+  /**
+   * 这张图从哪来：
+   *   · `text`   —— 转录自讲稿／讲义（内置基线都是这一类）
+   *   · `manual` —— 使用者在网页上手动填的
+   *
+   * 界面上要能分开看：手填的图不是原文，读者不该拿它当「书上这么写」。
+   */
+  origin?: 'text' | 'manual'
   /**
    * **与 `condition` 文字的出入** —— 显式写出，不静默取一边。
    *

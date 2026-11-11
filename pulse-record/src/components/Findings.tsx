@@ -17,6 +17,7 @@ import {
 } from '../domain/formula-table'
 import { FlowPath } from './FlowPath'
 import { DoseLines } from './DoseLines'
+import { PatternStrip } from './PatternStrip'
 import {
   DIM_ORDER,
   groupByHand,
@@ -249,6 +250,8 @@ export function FormulaItem({
           ))}
         </p>
       )}
+      {/* 脉象图：紧贴方名，说明「什么脉象才用这个方」 */}
+      <PatternStrip formulaId={hit.id} formulaLabel={hit.condition} baseline={hit.patterns} />
       <p className="pr-formula-quote">{hit.quote}</p>
       {showAttr && <AttrBasis attr={attr} />}
       {hit.drugs && hit.drugs.length > 0 && (
@@ -571,6 +574,13 @@ export function Findings({
                           </span>
                         ))}
                       </p>
+                    )}
+                    {rule.patterns && rule.patterns.length > 0 && (
+                      <PatternStrip
+                        formulaId={rule.id}
+                        formulaLabel={rule.condition}
+                        baseline={rule.patterns}
+                      />
                     )}
                     <p className="pr-formula-quote">{rule.quote}</p>
                     <p className="pr-finding-src">〔{rule.source}〕</p>

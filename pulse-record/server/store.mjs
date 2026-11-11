@@ -102,6 +102,9 @@ export const {
   listCustomSymbols,
   putCustomSymbol,
   deleteCustomSymbol,
+  listFormulaPatterns,
+  putFormulaPatterns,
+  deleteFormulaPatterns,
 } = impl
 
 /**

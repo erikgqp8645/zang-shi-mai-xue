@@ -1762,3 +1762,60 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
   改了工作簿后跑 `npm run content:flowchart` 同步；
   `npm run content:flowchart:check` 校验页面与工作簿是否一致。
   生成器自带**结构自检**（行数、每行摊平后的列数），不合格就拒绝写进页面。
+
+### 3.21 方剂脉象图：网页上直接改，保存即同步（2026-11-11）
+
+**需求**：方剂要附脉象图；一个方剂可对应几种脉象；在方剂后面加编辑按钮，手动填写。
+
+**先查清的一件事**：`src/content/pulse-patterns.json` 里 50 条脉象图**早就写好了**
+（编译时已挂到 `FormulaRule.pattern`），但**全仓没有任何组件读过 `hit.pattern`** ——
+界面上从来没画出来过。所以这不是从零做，而是「把已有数据渲染出来 + 加一个能改的口」。
+
+**四个决定**（与维护者确认）：
+
+| 决策点 | 结论 |
+|---|---|
+| 挂在谁身上 | 用方条目（`FormulaRule.id`，61 条）。条件是脉象，天然对应 |
+| 存哪 | 服务端（`formula_patterns` 表）。不用浏览器 localStorage —— 目的就是换机器也看得见 |
+| 格里填什么 | 直接填符号；术语降级成「一键预设」 |
+| 多张 | `PulsePattern[]`，每张有图名、顺序、备注 |
+
+**分层：内置基线只读，手改写覆盖层**
+
+`pulse-patterns.json` 是 Excel 管线的产物（`scripts/excel_to_json.py` 从 `P0N-图名`
+矩阵 sheet 还原）。界面若直接写回它，下次 `npm run content:json` 会无声盖掉手改。
+所以：**JSON 只读基线 ＋ 服务端覆盖层**，合并规则只有一条 ——
+
+```
+有覆盖 → 整条接管（基线不再显示）
+无覆盖 → 用基线
+```
+
+「恢复默认」＝ `DELETE` 覆盖行，回落到基线。
+
+**⭐ 一个真 bug：保存「0 张」会静默回落到基线**
+
+覆盖层是「有行就用」，那么「把这个方剂的图全删了」＝没有行 ＝ 读起来像「没改过」，
+于是刚删掉的图又冒出来。已加**接管标记行**（`seq = -1`，payload `{"__takeover__":true}`）：
+读列表时它只负责让这个键「出现过」，返回**空数组**（不是缺失）。
+SQLite 与 PG 两套实现同时改了，e2e 里有一条专门守它。
+
+**落地清单**
+
+- 服务端：`schema.sql` / `schema-pg.sql` 加表；`db.mjs` / `db-pg.mjs` 各 3 个函数；
+  `pg-functions.sql` 加 3 个 RPC；`index.mjs` 加 3 条路由（GET/PUT/DELETE）。
+- 前端：`src/api/patterns.ts`、`src/state/patterns.tsx`（Context 合并层）、
+  `src/components/PatternSheet.tsx`（只读矩阵）、`PatternStrip.tsx`（缩略图／注记卡／入口）、
+  `PatternEditor.tsx`（编辑器）。
+- 编辑器：左列管这个方剂的几张（新增／复制／上下移／删），右侧矩阵每格是输入框
+  （点进去直接打字，或点符号条追加）；`parseCodes` 归一，`++` 不会被拆成两个 `+`。
+  ⚠️ 归一放在 blur／保存两处 —— 边打边解析会把 `TTT` 吃掉（打到 `T` 时还不确定）。
+- 测试：`npm run test:e2e:patterns`（11 项：保存回读、**重启进程后仍在**、上限与形状校验、
+  被拒后原数据不坏、空列表留痕、恢复默认、畸形编码、跨账号隔离、未登录 401）。
+- 回归：core 40 / auth 57 / app 28 全过；`tsc --noEmit` 无错。
+
+**⚠️ 云端 PG 尚未部署**：本机 `.secrets` 没有 PG 连接串，CloudBase MCP 当前指向的又是
+**已销毁的 `ambitious-parrot-d7ehh7x0fd9d680`**（`PG_NOT_READY`），所以只验证了 SQLite 路径。
+要在线上生效，需在 `pulse-1-d0g880ydl8ddc57f6` 执行两段 SQL（表 + 3 个函数），
+再重新部署云函数 `pulse-api`（新路由在包里）。语句见
+[`formula-pattern.md`](./formula-pattern.md) §8。

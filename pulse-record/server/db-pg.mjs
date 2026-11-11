@@ -329,3 +329,36 @@ export async function deleteCustomSymbol(db, code, ownerId) {
   const res = await dataRpc('pulse_delete_symbol', ownerId, { code })
   return res?.ok === true
 }
+
+/* ------------------------------------------------------------------ */
+/* 方剂脉象图（覆盖层）                                                 */
+/* ------------------------------------------------------------------ */
+
+/** 与 SQLite 版同一个上限 */
+const MAX_PATTERNS_PER_FORMULA = 20
+const MAX_PATTERN_BYTES = 32 * 1024
+
+/** 手改过的全部脉象图：`{ [formulaId]: entry[] }`（函数已按 seq 排好） */
+export async function listFormulaPatterns(db, ownerId) {
+  const res = await dataRpc('pulse_list_formula_patterns', ownerId, {})
+  if (!res || typeof res !== 'object' || Array.isArray(res)) return {}
+  return res
+}
+
+/** 整条替换某方剂的脉象图（PG 函数内是一个事务） */
+export async function putFormulaPatterns(db, ownerId, formulaId, entries) {
+  if (typeof formulaId !== 'string' || formulaId.trim() === '') return false
+  if (!Array.isArray(entries) || entries.length > MAX_PATTERNS_PER_FORMULA) return false
+  for (const entry of entries) {
+    if (!entry || typeof entry !== 'object' || !Array.isArray(entry.cells)) return false
+    if (JSON.stringify(entry).length > MAX_PATTERN_BYTES) return false
+  }
+  const res = await dataRpc('pulse_put_formula_patterns', ownerId, { formulaId, patterns: entries })
+  return res?.ok === true
+}
+
+/** 撤销覆盖（回到内置基线） */
+export async function deleteFormulaPatterns(db, ownerId, formulaId) {
+  const res = await dataRpc('pulse_delete_formula_patterns', ownerId, { formulaId })
+  return res?.ok === true
+}

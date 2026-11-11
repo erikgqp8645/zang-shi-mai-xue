@@ -25,6 +25,9 @@
  *   GET    /api/symbols             → { symbols: [...] }        自定义符号（使用者自建，如「涩」＝S）
  *   POST   /api/symbols             → { symbol }                新增／改名自定义符号
  *   DELETE /api/symbols/:code       → { ok: true }              删除自定义符号
+ *   GET    /api/formula-patterns    → { overrides }             手改过的方剂脉象图（只含覆盖层）
+ *   PUT    /api/formula-patterns/:formulaId → { formulaId, patterns }  整条替换该方剂的脉象图
+ *   DELETE /api/formula-patterns/:formulaId → { ok: true }      撤销覆盖，回到内置基线
  *   GET    /api/patients/:id       → { patient }                一位患者 ＋ 其全部就诊记录
  *   POST   /api/patients           → { patient }                整份保存（患者 ＋ 就诊记录 ＋ 用药记录）
  *   PATCH  /api/patients/:id       → { patient }                重命名／改体例（body: {name?} {layout?}）
@@ -65,6 +68,9 @@ import {
   renamePatient,
   updatePatientLayout,
   searchPatients,
+  listFormulaPatterns,
+  putFormulaPatterns,
+  deleteFormulaPatterns,
   DB_PATH,
   symbolInputError,
   getLocalUser,
@@ -520,6 +526,51 @@ export async function handleApi(req, res) {
       const ok = await deleteCustomSymbol(db, code, ownerId)
       sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: '没有这个自定义符号' })
       return
+    }
+
+    /* ---- 方剂脉象图：内置基线在 src/content/pulse-patterns.json（只读），   */
+    /*      这里只存使用者手改过的条目（覆盖层）。                             */
+
+    if (path === '/api/formula-patterns' && method === 'GET') {
+      sendJson(res, 200, { overrides: await listFormulaPatterns(db, ownerId) })
+      return
+    }
+
+    const fm = path.match(/^\/api\/formula-patterns\/([^/]+)$/)
+    if (fm) {
+      let formulaId = fm[1]
+      try {
+        formulaId = decodeURIComponent(formulaId)
+      } catch {
+        // 与 /api/symbols 一样：畸形编码回 400，别冒成 500
+        sendJson(res, 400, { error: '条目 id 的编码不对' })
+        return
+      }
+
+      if (method === 'PUT') {
+        const body = await readJson(req)
+        if (!Array.isArray(body?.patterns)) {
+          sendJson(res, 400, { error: 'patterns 必须是数组（每张图一个对象）' })
+          return
+        }
+        const ok = await putFormulaPatterns(db, ownerId, formulaId, body.patterns)
+        if (!ok) {
+          // 绝不回 200 + 假成功：那会变成「界面显示已保存、别的机器打开却没有」
+          sendJson(res, 400, {
+            error: '脉象图存不进去：一个方剂最多 20 张，单张不能超过 32KB，且每张必须有 cells 数组',
+          })
+          return
+        }
+        // 回这一条的最新结果，客户端用它替换本地那一项（不必整表重拉）
+        sendJson(res, 200, { formulaId, patterns: body.patterns })
+        return
+      }
+
+      if (method === 'DELETE') {
+        const ok = await deleteFormulaPatterns(db, ownerId, formulaId)
+        sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: '这条没有手改过的脉象图' })
+        return
+      }
     }
 
     if (path === '/api/patients' && method === 'POST') {

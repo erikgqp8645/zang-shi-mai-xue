@@ -22,6 +22,7 @@ import {
 } from './components/TriadFrame'
 import { TriadImage } from './components/TriadImage'
 import { FormulaLibrary } from './components/FormulaLibrary'
+import { PatternsProvider } from './state/patterns'
 import type { FormulaLink } from './domain/formula-links'
 import { prescriptionsOf, readTriadReference, therapyOf } from './domain/triad'
 import { HistoryPanel, type EditingRef } from './components/HistoryPanel'
@@ -755,7 +756,8 @@ export default function App() {
   }
 
   return (
-    <div className="pr-app">
+    <PatternsProvider>
+      <div className="pr-app">
       {/* ---- 讲义 p47 原图：整套工具的总纲，放在最顶端 ---- */}
       <TriadImage />
 
@@ -1073,6 +1075,7 @@ export default function App() {
           提示只标出讲稿明确点名的脉象组合，不构成诊断；临床判断请由持证医师作出。
         </p>
       </footer>
-    </div>
+      </div>
+    </PatternsProvider>
   )
 }
