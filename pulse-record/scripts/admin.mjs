@@ -13,12 +13,14 @@
  *   npm run admin -- bind-wechat <登录名> <openid>  把 openid 手动绑到账号上（运维兜底）
  *   npm run admin -- layout <登录名> <患者id或姓名> <nine|seven>
  *                                        改某位患者的体例（并顺带自检体例与格值是否自洽）
+ *   npm run admin -- library --help       用方知识库（改知识库内容；详见那条自己的帮助）
  *
  * 直接操作本机 SQLite（server/db.mjs），不经过 HTTP —— 所以服务器上也能用。
  */
 
 import { openDb, getLocalUser, getPatient } from '../server/db.mjs'
 import { checkPatientLayout, describeLayoutCheck } from './lib/layout-check.mjs'
+import { runLibrary } from './lib/library-cli.mjs'
 import {
   authenticate,
   bindWechatIdentity,
@@ -243,6 +245,17 @@ switch (cmd) {
     break
   }
 
+  case 'library': {
+    // 用方知识库 · 管理员命令行（改知识库覆盖层，落本机 SQLite）
+    // 细节与完整用法见：npm run admin -- library --help
+    try {
+      await runLibrary(args, db)
+    } catch (e) {
+      die(e?.message ?? String(e))
+    }
+    break
+  }
+
   default:
     console.log(`臧氏脉学 · 账号管理
 
@@ -257,6 +270,8 @@ switch (cmd) {
   npm run admin -- bind-wechat <登录名> <openid>  手动绑微信（运维兜底）
   npm run admin -- layout <登录名> <患者id或姓名> <nine|seven>  改体例（并自检）
   npm run admin -- verify <登录名> <密码>         自检密码
+
+  npm run admin -- library --help                用方知识库（改知识库内容，详见那条）
 `)
     break
 }

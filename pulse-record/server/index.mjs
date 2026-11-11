@@ -28,6 +28,9 @@
  *   GET    /api/formula-patterns    → { overrides }             手改过的方剂脉象图（只含覆盖层）
  *   PUT    /api/formula-patterns/:formulaId → { formulaId, patterns }  整条替换该方剂的脉象图
  *   DELETE /api/formula-patterns/:formulaId → { ok: true }      撤销覆盖，回到内置基线
+ *   GET    /api/library/overrides  → { overrides, meta }        用方知识库 · 管理员覆盖层
+ *                                                          （公共资料，所有登录账号共享一份；
+ *                                                            写入面是命令行 npm run admin -- library …）
  *   GET    /api/patients/:id       → { patient }                一位患者 ＋ 其全部就诊记录
  *   POST   /api/patients           → { patient }                整份保存（患者 ＋ 就诊记录 ＋ 用药记录）
  *   PATCH  /api/patients/:id       → { patient }                重命名／改体例（body: {name?} {layout?}）
@@ -71,6 +74,8 @@ import {
   listFormulaPatterns,
   putFormulaPatterns,
   deleteFormulaPatterns,
+  // 用方知识库覆盖层（公共资料，不按账号隔离）
+  listLibraryItems,
   DB_PATH,
   symbolInputError,
   getLocalUser,
@@ -90,6 +95,8 @@ import {
 // 与存储无关的纯逻辑（单机模式开关、会话有效期、登录名规则）
 import { SINGLE_USER, SESSION_TTL_MS, isValidLoginName } from './auth-core.mjs'
 import { code2Session } from './wechat.mjs'
+// 用方知识库：把覆盖层行按种类分组（前端将来合并时用的形状）
+import { groupOverrides } from './library-schema.mjs'
 
 const PORT = Number(process.env.PORT ?? 5178)
 /**
@@ -571,6 +578,28 @@ export async function handleApi(req, res) {
         sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: '这条没有手改过的脉象图' })
         return
       }
+    }
+
+    /* ---- 用方知识库 · 管理员覆盖层 ------------------------------------ */
+    /*      内置基线在 src/content/*.json（只读，编译期内联进前端）。      */
+    /*      这里只存管理员改过的那些条目 —— **公共资料**，所有账号共享一份。 */
+    /*      这一轮前端不接这个接口（等通知后另做）；先把后端底座备好。     */
+
+    if (path === '/api/library/overrides' && method === 'GET') {
+      const rows = await listLibraryItems(db)
+      const overrides = groupOverrides(rows)
+      let count = 0
+      let updatedAt = null
+      for (const kind of Object.keys(overrides)) {
+        for (const item of Object.values(overrides[kind])) {
+          count += 1
+          if (typeof item.updatedAt === 'number' && (updatedAt === null || item.updatedAt > updatedAt)) {
+            updatedAt = item.updatedAt
+          }
+        }
+      }
+      sendJson(res, 200, { overrides, meta: { count, updatedAt } })
+      return
     }
 
     if (path === '/api/patients' && method === 'POST') {

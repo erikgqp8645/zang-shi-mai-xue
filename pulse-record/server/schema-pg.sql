@@ -157,3 +157,22 @@ CREATE TABLE IF NOT EXISTS formula_patterns (
 );
 
 CREATE INDEX IF NOT EXISTS formula_patterns_by_owner ON formula_patterns (owner_id);
+
+-- ── 用方知识库 · 管理员覆盖层（全局共享，不按账号隔离）─────────────────
+-- 内置基线在 src/content/*.json（Excel 管线产出，只读）。
+-- 这里只存管理员改过的那些条目：一条目一行，按 (kind, item_id) 整条接管。
+--   · 有行且 deleted=0 → 用这一行的 payload 整条替换基线条目
+--   · 有行且 deleted=1 → 墓碑：该条目在结果里消失
+--   · 没有行           → 保持内置基线
+--
+-- ⚠️ 没有 owner_id：公共资料，管理员改一次所有账号看到同一份。
+CREATE TABLE IF NOT EXISTS library_items (
+  kind        text    NOT NULL,
+  item_id     text    NOT NULL,
+  payload     jsonb   NOT NULL,
+  deleted     integer NOT NULL DEFAULT 0,
+  updated_at  bigint  NOT NULL,
+  updated_by  text    NOT NULL DEFAULT 'cli',
+  note        text,
+  PRIMARY KEY (kind, item_id)
+);
