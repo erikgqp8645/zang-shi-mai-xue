@@ -14,7 +14,7 @@
 | **P0 多用户与数据隔离** | ✅ 已完成 | `users`＋`identities`＋`sessions` 三表；四张业务表下沉 `owner_id`；跨用户一律 404 | 随 `feat/wechat-miniprogram` 走，**不单独合进 `main`** |
 | **P1 网站上线** | ⏸ **卡在用户侧手续** | 脚本与文档已就绪，**域名／ICP 备案／服务器三样都没有** | 备案 7~20 工作日是整条时间线最长的一段 → **今天就去提交备案** |
 | **P2 微信小程序** | 🟡 **已迁 Taro ＋ 界面重排完成**；模拟器逐页截图已验，未真机验证 | 8 个平级页面 → **4 个 tab（病例／就诊／用方／我的）**，「就诊」是工作台页（吸顶上下文条 ＋ **4 个页内 tab（摸脉／体质／疗法／方药）** ＋ 底部操作条）；Taro 4.3.2 ＋ React 18，与网站**共用同一份 domain 源码**；鸿蒙 C-API 编译已通；**寸关尺关系图直接显示在页面上**（不提供导出 → 隐私接口 0 个）；微信「代码质量」两条已修（JS 压缩已开、图片 298 KB → 116.3 KB）；回归 **515 项全绿**（含网站端浏览器回归 28 项） | 真机跑一遍（备案前先用局域网 IP） |
-| **P3 后期迁 CloudBase** | 🟡 **云端已建成**（开发／试用环境） | 环境 `ambitious-parrot-d7ehh7x0fd9d680`（ap-shanghai 体验版）：PG 7 表 ＋ **35 个 `pulse_*` 函数**、云函数 `pulse-api`（**Event 类型**）、网关 `/pulse-api`、静态托管已上线；网站与小程序**同一套路由**（`handleApi`）；数据已从本机 SQLite 搬过去（29 患者／113 就诊／1 用药），**三条 owner 不变量全 0** | ① **微信后台把环境关联到小程序 appid**（`WxAppId` 还是空）② 换自定义域名（默认域名只许开发测试，有「风险提醒中间页」）③ 备案 |
+| **P3 后期迁 CloudBase** | 🟡 **云端已建成**（开发／试用环境） | 环境 `pulse-1-d0g880ydl8ddc57f6`（ap-shanghai 体验版，到期 2027-05-06）：PG 8 表 ＋ **38 个 `pulse_*` 函数**、云函数 `pulse-api`（**Event 类型**）、网关 `/pulse-api`、静态托管已开通；网站与小程序**同一套路由**（`handleApi`）；数据已从本机 SQLite 搬过去（29 患者／113 就诊／1 用药），**三条 owner 不变量全 0** | ① **微信后台把环境关联到小程序 appid**（`WxAppId` 还是空）② 换自定义域名（默认域名只许开发测试，有「风险提醒中间页」）③ 备案 |
 | **P4 Windows 桌面应用** | ✅ **已实现**，本机出包并实测 | Electron 44.10.2；复用现有 `server/`＋`dist/`，业务逻辑不重写 | 交给使用者安装使用；macOS 包另找 Mac 机器补 |
 | **P5 鸿蒙端** | 🟡 **已出 HAP**，未实测 | 同一套 Taro 源码走 `harmony_cpp`（C-API）；`pulse-record/harmony/` 是工程真源，编译时镜像到纯 ASCII 路径；9.1 MB unsigned 包 | DevEco 里下模拟器镜像 → 打开镜像目录 Run → 验四个 tab |
 
@@ -1689,9 +1689,9 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 本机库 | `pulse-record/local-data/history.sqlite`（已迁移到多用户结构：15 患者／57 就诊／1 自定义符号，归属归到 `local`；迁移前快照 `history.sqlite.bak-20261104102030`） |
 | 桌面版产物 | `pulse-record/release/`（安装包 ＋ 免安装版，已 gitignore） |
 | 桌面版数据 | 安装版 `%APPDATA%\臧氏脉学\`；**免安装版 exe 旁边的 `data\`** |
-| CloudBase 环境 | `ambitious-parrot-d7ehh7x0fd9d680`（ap-shanghai，**体验版 `baas_trial`，到期 2027-05-04**）；PG `postgres-l00fh7pm`（17.11）7 表 ＋ **35 个 `pulse_*` 函数**；云函数 `pulse-api`（Event）；静态托管已上线 |
+| CloudBase 环境 | `pulse-1-d0g880ydl8ddc57f6`（ap-shanghai，**体验版 `baas_trial`，到期 2027-05-06**）；PG `postgres-gi7xmyo4`（17.11）8 表 ＋ **38 个 `pulse_*` 函数**；云函数 `pulse-api`（Event）；静态托管已开通（仅平台默认文件） |
 | CloudBase 上的数据 | **3 账号**（`local` / `guoguo` / `mptest01`）＋ **29 患者／113 就诊／1 用药／0 自定义符号**（从本机 SQLite 搬的）；**三条 owner 不变量全 0** |
-| 云端环境变量 | `PULSE_STORE=pg`、`PULSE_CB_ENV=…`、`PULSE_API_PREFIX=/pulse-api`、`PULSE_CORS_ORIGINS=https://…-1257312696.tcloudbaseapp.com`、`PULSE_WX_APPID=wx3a21eb903a16cbc4`、`PULSE_WX_APPSECRET=…`（**必须用 `PULSE_WX_*`，`WX_` 前缀会被平台盖掉**） |
+| 云端环境变量 | `PULSE_STORE=pg`、`PULSE_SINGLE_USER=0`、`PULSE_API_PREFIX=/pulse-api`、`PULSE_CORS_ORIGINS=…`、`PULSE_WX_APPID=wx3a21eb903a16cbc4`、`PULSE_WX_APPSECRET=…`（**必须用 `PULSE_WX_*`，`WX_` 前缀会被平台盖掉**）；写变量用 `scripts/cf-admin.mjs`，**别用 `tcb config update`**（它会把键名大小写改坏） |
 | 本地 PG/云端工具 | `scripts/pg-admin.mjs`（`tcb/ExecutePGSql` CAPI，绕开 MCP 的 PG 缓存缺陷）、`scripts/cf-admin.mjs`（云函数环境变量，**密钥不进对话**）、`scripts/lib/tcb-capi.mjs`（TC3 签名，两者共用）、`scripts/migrate-sqlite-to-pg.mjs`（搬数据）、`scripts/build-cloudfunction.mjs`（打包云函数）、`scripts/e2e/pg-store.mjs`（对真库回归 49 项） |
 | 鸿蒙工程 | `pulse-record/harmony/`（DevEco 工程真源，27 个文件）；镜像目录 `~/AiCoding/harmony-pulse-record`（纯 ASCII，不入库）；HAP `entry/build/default/outputs/default/default-default-unsigned.hap`（9.1 MB） |
 
@@ -1836,6 +1836,15 @@ CloudBase CLI 连上 `pulse-1-d0g880ydl8ddc57f6` 之后全部补齐：
    改成 `--install-dependency true` 由云端装依赖才正常。
    另外 `tcb fn deploy --force` 实测**不会**冲掉环境变量。
 
-⚠️ 前端要连云端，须在构建／启动时给 `VITE_API_BASE=<网关地址>`（`src/api/http.ts`）；
-留空则走同源 `/api`，即本机开发者服务器。小程序侧的 `PULSE_CLOUD_ENV` 默认值也已从
-旧环境改为 `pulse-1-d0g880ydl8ddc57f6`（`taro/config/index.ts`）。
+**怎么用起来（本机开发，但数据存云端）**
+
+```bash
+cd pulse-record
+VITE_API_BASE="https://pulse-1-d0g880ydl8ddc57f6-1257312696.ap-shanghai.app.tcloudbase.com/pulse-api" npm run dev
+```
+
+不给 `VITE_API_BASE` 时走同源 `/api`，即本机 `server/` + SQLite（`src/api/http.ts`）。
+连云端的账号要登录（`PULSE_SINGLE_USER=0`），换机器用同一个账号登录就是同一份数据。
+跨域已放行（`PULSE_CORS_ORIGINS` 含 `localhost:5180`／`127.0.0.1:5180`，
+Vite 实际端口取自 `scripts/dev.mjs` 的 `WEB_PORT`）。小程序侧的 `PULSE_CLOUD_ENV`
+默认值也已从旧环境改为 `pulse-1-d0g880ydl8ddc57f6`（`taro/config/index.ts`）。

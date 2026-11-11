@@ -17,7 +17,7 @@
  *     export TCLOUD_SECRET_ID=...
  *     export TCLOUD_SECRET_KEY=...
  *     export TCLOUD_SESSION_TOKEN=...     # 用临时凭证时带上
- *     export PULSE_ENV_ID=ambitious-parrot-d7ehh7x0fd9d680
+ *     export PULSE_ENV_ID=pulse-1-d0g880ydl8ddc57f6
  *
  *     node scripts/pg-admin.mjs run server/pg-functions.sql
  *     node scripts/pg-admin.mjs exec "SELECT count(*) FROM patients"
@@ -36,7 +36,7 @@ const ROOT = resolve(HERE, '..')
 
 const ACTION = 'ExecutePGSql'
 
-const ENV_ID = process.env.PULSE_ENV_ID || 'ambitious-parrot-d7ehh7x0fd9d680'
+const ENV_ID = process.env.PULSE_ENV_ID || 'pulse-1-d0g880ydl8ddc57f6'
 const ROLE = process.env.PULSE_PG_ROLE || 'cloudbase_postgres'
 const REGION = process.env.TCLOUD_REGION || 'ap-shanghai'
 

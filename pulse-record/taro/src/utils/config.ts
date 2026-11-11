@@ -64,7 +64,7 @@ export const CLOUD_FUNCTION_NAME = 'pulse-api'
  * 编译期注入（`PULSE_CLOUD_ENV`），不注入就用下面这个默认值 ——
  * 即 `ambitious-parrot` 环境（ap-shanghai）。
  */
-export const CLOUD_ENV_ID = process.env.PULSE_CLOUD_ENV || 'ambitious-parrot-d7ehh7x0fd9d680'
+export const CLOUD_ENV_ID = process.env.PULSE_CLOUD_ENV || 'pulse-1-d0g880ydl8ddc57f6'
 
 /**
  * 规范化一个地址：只认 http/https，去掉末尾斜杠
