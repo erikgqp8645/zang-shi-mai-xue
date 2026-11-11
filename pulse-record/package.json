@@ -61,7 +61,8 @@
     "content:flowchart": "python3 scripts/make_flowchart.py",
     "content:flowchart:check": "python3 scripts/make_flowchart.py --check",
     "test:e2e:exercise": "python3 scripts/e2e/excel_exercise_roundtrip.py",
-    "test:e2e:patterns": "node scripts/e2e/formula-patterns.mjs"
+    "test:e2e:patterns": "node scripts/e2e/formula-patterns.mjs",
+    "test:e2e:library": "node scripts/e2e/library-search.mjs"
   },
   "dependencies": {
     "@cloudbase/node-sdk": "^3.18.7",

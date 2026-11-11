@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { FORMULA_RULES, FORMULA_ROUTE_ORDER, type FormulaRule } from '../domain/formulas'
 import { DRUGS, DRUG_GROUPS, type Drug } from '../domain/drugs'
+import { FORMULA_REFERENCE } from '../domain/medication'
 import { formulaAnchor, formulaAnchorId, type FormulaLink } from '../domain/formula-links'
+import {
+  buildDrugIndex,
+  buildRefIndex,
+  buildRuleIndex,
+  searchEntries,
+} from '../domain/library-search'
 import {
   DIM_ORDER,
   groupByHand,
@@ -9,6 +16,7 @@ import {
   groupShortLabel,
   type Group,
 } from '../domain/grouping'
+import { usePatterns } from '../state/patterns'
 import { DrugCard, FormulaItem, type SessionFormulaHit } from './Findings'
 
 /**
@@ -39,6 +47,16 @@ import { DrugCard, FormulaItem, type SessionFormulaHit } from './Findings'
  *
  * 锚点 id 在整页**唯一**：本区块是页面里唯一给这些卡片发 id 的地方
  * （② 的命中区不给 id），所以不会出现两个元素抢同一个锚点。
+ *
+ * ## 搜索与滚动
+ *
+ * 检索规则在 `src/domain/library-search.ts`（纯函数，网站与小程序共用），
+ * 这里只管**把命中的筛出来渲染**。
+ *
+ * 三处细节，都是踩过的：
+ *   1. 搜索框放在**头部**、不在滚动区里 —— 滚到一半还得滚回去改词很难用；
+ *   2. 有搜索词就**自动展开** —— 折叠着搜，看不见结果等于没搜；
+ *   3. `focus` 进来先**清空搜索** —— 目标可能正被筛掉，锚点元素不在 DOM 里就滚不过去。
  */
 
 interface Props {
@@ -70,9 +88,14 @@ function libraryRule(rule: FormulaRule): SessionFormulaHit {
 export function FormulaLibrary({ focus }: Props) {
   const [open, setOpen] = useState(false)
   const [dim, setDim] = useState<Dim>('route')
+  const [query, setQuery] = useState('')
+  /** 合并层读数：手填的脉象图也要能被搜到 */
+  const { patternsOf } = usePatterns()
 
-  /** 有 focus 时**强制展开** —— 不展开就没法滚到里面 */
-  const expanded = open || !!focus
+  const searching = query.trim() !== ''
+
+  /** 有 focus 或正在搜索时**强制展开** —— 不展开就没法滚到里面／看见结果 */
+  const expanded = open || !!focus || searching
 
   /** 当前要高亮的锚点 id（由 focus 推出，不用另外存 state） */
   const focusId = focus ? formulaAnchorId(focus) : ''
@@ -83,12 +106,16 @@ export function FormulaLibrary({ focus }: Props) {
 
   useEffect(() => {
     if (!focus) return
-    const anchor = formulaAnchorId(focus)
+    // 目标可能被当前筛选词挡在 DOM 外 —— 先清词，等下一次 effect 再滚
+    if (query !== '') {
+      setQuery('')
+      return
+    }
     // 本区块此时已是展开状态（expanded 含 focus），锚点元素已进 DOM
-    const el = document.getElementById(anchor)
+    const el = document.getElementById(formulaAnchorId(focus))
     if (!el) return
     el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }, [focus])
+  }, [focus, query])
 
   /* ------------------------------------------------------------------ */
   /* 数据：p44 依脉用方（全量）＋ 讲稿方剂（全量）                          */
@@ -135,6 +162,34 @@ export function FormulaLibrary({ focus }: Props) {
   /** 按五行／左右手时的分组顺序（与 ② 面板同一套） */
   const groupOrder = dim === 'wuxing' ? DIM_ORDER.wuxing : dim === 'hand' ? DIM_ORDER.hand : []
 
+  /* ------------------------------------------------------------------ */
+  /* 检索                                                                */
+  /* ------------------------------------------------------------------ */
+
+  const ruleIndex = useMemo(
+    () => buildRuleIndex(FORMULA_RULES, (rule) => patternsOf(rule.id, rule.patterns)),
+    [patternsOf],
+  )
+  const drugIndex = useMemo(() => buildDrugIndex(DRUGS), [])
+  const refIndex = useMemo(() => buildRefIndex(FORMULA_REFERENCE), [])
+
+  /** 命中 id 集合 —— 查询为空时是全集，所以渲染侧只有一套过滤逻辑 */
+  const hitRules = useMemo(
+    () => new Set(searchEntries(ruleIndex, query).map((e) => e.item.id)),
+    [ruleIndex, query],
+  )
+  const hitDrugs = useMemo(
+    () => new Set(searchEntries(drugIndex, query).map((e) => e.item.id)),
+    [drugIndex, query],
+  )
+  const hitRefs = useMemo(
+    () => (searching ? searchEntries(refIndex, query).map((e) => e.item) : []),
+    [refIndex, query, searching],
+  )
+
+  const hitCount = hitRules.size + hitDrugs.size
+  const nothing = searching && hitCount === 0 && hitRefs.length === 0
+
   return (
     <section className={`pr-flib${expanded ? ' is-open' : ''}`} id="pr-flib">
       <header className="pr-flib-head">
@@ -150,84 +205,165 @@ export function FormulaLibrary({ focus }: Props) {
             讲义 p44 依脉用方 {FORMULA_RULES.length} 条 · 讲稿方剂 {DRUGS.length} 方
           </span>
         </button>
+
+        <div className="pr-flib-search">
+          <input
+            type="text"
+            className="pr-flib-input"
+            value={query}
+            placeholder="搜方名 · 脉象（如 五味异功散、右寸）"
+            aria-label="搜索用方知识库"
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {query !== '' && (
+            <button
+              type="button"
+              className="pr-flib-input-clear"
+              onClick={() => setQuery('')}
+              aria-label="清空搜索"
+            >
+              ×
+            </button>
+          )}
+        </div>
+
         <p className="pr-flib-hint">
           ③ 里的方名点得进来：对照讲义 p44 与讲稿第二讲，讲得清的给出依据，讲不清的明说「用方页未载」。
+          搜索按**方名／脉位／取法／原文用字**匹配，空格分隔多个词即「同时满足」。
         </p>
       </header>
 
       {expanded && (
-        <div className="pr-flib-body">
-          <div className="pr-dim">
-            <span className="pr-dim-label">用方知识库 · 分组维度</span>
-            {(Object.keys(DIM_LABEL) as Dim[]).map((d) => (
-              <button
-                key={d}
-                type="button"
-                className={`pr-dim-btn${dim === d ? ' is-on' : ''}`}
-                onClick={() => setDim(d)}
-              >
-                {DIM_LABEL[d]}
-              </button>
-            ))}
+        <>
+          <div className="pr-flib-tools">
+            <div className="pr-dim">
+              <span className="pr-dim-label">用方知识库 · 分组维度</span>
+              {(Object.keys(DIM_LABEL) as Dim[]).map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  className={`pr-dim-btn${dim === d ? ' is-on' : ''}`}
+                  onClick={() => setDim(d)}
+                >
+                  {DIM_LABEL[d]}
+                </button>
+              ))}
+            </div>
+            {searching && (
+              <p className="pr-flib-hit">
+                命中 <strong>{hitCount}</strong> 条
+                {hitRefs.length > 0 && <>，另见讲义 p42 表 {hitRefs.length} 条</>}
+                <button type="button" className="pr-flib-hit-clear" onClick={() => setQuery('')}>
+                  清空
+                </button>
+              </p>
+            )}
           </div>
 
-          {/* ---- 讲义 p44 依脉用方（全量） ---- */}
-          <section className="pr-formula-group">
-            <h3 className="pr-formula-route">讲义 p44「依脉用方」· 全量条目</h3>
-            <p className="pr-target-line">
-              {dim === 'route'
-                ? '按讲稿原序排列：讲义 p44 四个挡路 → 讲稿第四~六讲「清挡路一~六」→ 讲稿第二讲「叁、用方」「肆、依脉辨证论治」。'
-                : '同一条按脏腑／左右手归位；条件、治法、原文仍照讲义原样转录。'}
-            </p>
-            {ruleGroups.map((g) => (
-              <div key={g.key} className="pr-flib-group">
-                <h4 className="pr-drug-group-title">
-                  {dim === 'route' ? g.label : groupShortLabel(dim, g.key)}
-                </h4>
-                {dim !== 'route' && <p className="pr-target-line">{g.note}</p>}
-                {g.items.map((r) => (
-                  <div
-                    key={r.id}
-                    id={formulaAnchor('rule', r.id)}
-                    className={`pr-flib-anchor${focusId === formulaAnchor('rule', r.id) ? ' is-focus' : ''}`}
-                  >
-                    <FormulaItem item={libraryRule(r)} srcNote=" · 全量条目（知识库）" />
-                  </div>
-                ))}
-              </div>
-            ))}
-          </section>
+          <div className="pr-flib-body">
+            {nothing ? (
+              <p className="pr-flib-empty">
+                没有匹配的条目。可试方名（五味异功散）、脉位（右寸）、取法（浮／沉）、
+                原文用字（浮大）或关系型说法（尺脉不平衡）。
+              </p>
+            ) : (
+              <>
+                {/* ---- 讲义 p44 依脉用方（全量） ---- */}
+                <section className="pr-formula-group">
+                  <h3 className="pr-formula-route">讲义 p44「依脉用方」· 全量条目</h3>
+                  <p className="pr-target-line">
+                    {dim === 'route'
+                      ? '按讲稿原序排列：讲义 p44 四个挡路 → 讲稿第四~六讲「清挡路一~六」→ 讲稿第二讲「叁、用方」「肆、依脉辨证论治」。'
+                      : '同一条按脏腑／左右手归位；条件、治法、原文仍照讲义原样转录。'}
+                  </p>
+                  {ruleGroups.map((g) => {
+                    const items = g.items.filter((r) => hitRules.has(r.id))
+                    // 整组都被筛掉就整组不渲染 —— 留个空标题只会让人以为下面还有东西
+                    if (items.length === 0) return null
+                    return (
+                      <div key={g.key} className="pr-flib-group">
+                        <h4 className="pr-drug-group-title">
+                          {dim === 'route' ? g.label : groupShortLabel(dim, g.key)}
+                          {searching && <span className="pr-flib-group-hit">{items.length}</span>}
+                        </h4>
+                        {dim !== 'route' && <p className="pr-target-line">{g.note}</p>}
+                        {items.map((r) => (
+                          <div
+                            key={r.id}
+                            id={formulaAnchor('rule', r.id)}
+                            className={`pr-flib-anchor${focusId === formulaAnchor('rule', r.id) ? ' is-focus' : ''}`}
+                          >
+                            <FormulaItem item={libraryRule(r)} srcNote=" · 全量条目（知识库）" />
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })}
+                </section>
 
-          {/* ---- 讲稿 2010 方剂（全量） ---- */}
-          <section className="pr-formula-group">
-            <h3 className="pr-formula-route">
-              {dim === 'route' ? '讲稿 2010·第二讲「叁、用方」· 全量方剂' : `讲稿方剂 · ${DIM_LABEL[dim]}`}
-            </h3>
-            <p className="pr-target-line">
-              组成、服法、科学中药、加减与禁忌**原样转录**，不替读者加减方。
-            </p>
-            {drugGroups.map((g) => (
-              <div key={g.key} className="pr-flib-group">
-                <h4 className="pr-drug-group-title">
-                  {dim === 'route' ? g.label : groupShortLabel(dim, g.key)}
-                </h4>
-                {dim !== 'route' && <p className="pr-target-line">{g.note}</p>}
-                {g.items.map((d) => (
-                  <div
-                    key={d.id}
-                    id={formulaAnchor('drug', d.id)}
-                    className={`pr-flib-anchor${focusId === formulaAnchor('drug', d.id) ? ' is-focus' : ''}`}
-                  >
-                    <DrugCard drug={d} showAttr={dim !== 'route'} />
-                  </div>
-                ))}
-              </div>
-            ))}
-            {dim !== 'route' && groupOrder.length > 0 && drugGroups.length === 0 && (
-              <p className="pr-empty">当前维度下没有方剂。</p>
+                {/* ---- 讲稿 2010 方剂（全量） ---- */}
+                <section className="pr-formula-group">
+                  <h3 className="pr-formula-route">
+                    {dim === 'route'
+                      ? '讲稿 2010·第二讲「叁、用方」· 全量方剂'
+                      : `讲稿方剂 · ${DIM_LABEL[dim]}`}
+                  </h3>
+                  <p className="pr-target-line">
+                    组成、服法、科学中药、加减与禁忌**原样转录**，不替读者加减方。
+                  </p>
+                  {drugGroups.map((g) => {
+                    const items = g.items.filter((d) => hitDrugs.has(d.id))
+                    if (items.length === 0) return null
+                    return (
+                      <div key={g.key} className="pr-flib-group">
+                        <h4 className="pr-drug-group-title">
+                          {dim === 'route' ? g.label : groupShortLabel(dim, g.key)}
+                          {searching && <span className="pr-flib-group-hit">{items.length}</span>}
+                        </h4>
+                        {dim !== 'route' && <p className="pr-target-line">{g.note}</p>}
+                        {items.map((d) => (
+                          <div
+                            key={d.id}
+                            id={formulaAnchor('drug', d.id)}
+                            className={`pr-flib-anchor${focusId === formulaAnchor('drug', d.id) ? ' is-focus' : ''}`}
+                          >
+                            <DrugCard drug={d} showAttr={dim !== 'route'} />
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })}
+                  {dim !== 'route' && groupOrder.length > 0 && drugGroups.length === 0 && (
+                    <p className="pr-empty">当前维度下没有方剂。</p>
+                  )}
+                </section>
+
+                {/*
+                  讲义 p42「依脉用方表」的另一份转录 —— 它渲染在下方「用药记录」里，
+                  不在本区块。搜方名时不该因为「在另一块」就搜不到，所以命中时列出来。
+                  只列命中的行，不当成第三套全量视图（那会与备查表重复）。
+                */}
+                {hitRefs.length > 0 && (
+                  <section className="pr-flib-extra">
+                    <h3 className="pr-formula-route">另见 · 讲义 p42「依脉用方表」</h3>
+                    <p className="pr-target-line">
+                      这 {hitRefs.length} 条在下方「用药记录 · 方剂备查」里，此处只列命中的原表行。
+                    </p>
+                    <ul className="pr-flib-extra-list">
+                      {hitRefs.map((ref) => (
+                        <li key={ref.no}>
+                          <span className="pr-flib-extra-no">{ref.no}</span>
+                          <strong className="pr-flib-extra-name">{ref.name}</strong>
+                          <span className="pr-flib-extra-ind">{ref.indication}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+              </>
             )}
-          </section>
-        </div>
+          </div>
+        </>
       )}
     </section>
   )

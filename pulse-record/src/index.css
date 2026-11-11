@@ -3382,9 +3382,191 @@ button:disabled {
   color: var(--sage);
 }
 
-.pr-flib-body {
-  padding: 4px 12px 14px;
+/* ---------- 搜索框（在头部，不随内容滚动） ---------- */
+
+.pr-flib-search {
+  position: relative;
+  margin: 6px 0 0;
+}
+
+.pr-flib-input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 12.5px;
+  padding: 6px 28px 6px 10px;
+  border: 1px solid var(--divider);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.pr-flib-input::placeholder {
+  color: #b3a894;
+}
+
+.pr-flib-input:focus {
+  outline: none;
+  border-color: var(--clay);
+  background: var(--card);
+}
+
+.pr-flib-input-clear {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--sage);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.pr-flib-input-clear:hover {
+  background: var(--divider);
+  color: var(--ink);
+}
+
+/* ---------- 工具条（分组维度 ＋ 命中数）：固定在滚动区之外 ---------- */
+
+.pr-flib-tools {
+  padding: 8px 12px 0;
   border-top: 1px solid var(--divider);
+  background: var(--card);
+}
+
+.pr-flib-hit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 11px;
+  color: var(--sage);
+}
+
+.pr-flib-hit strong {
+  color: var(--clay);
+  font-size: 12px;
+}
+
+.pr-flib-hit-clear {
+  font: inherit;
+  font-size: 11px;
+  padding: 1px 8px;
+  border: 1px solid var(--divider);
+  border-radius: 2px;
+  background: var(--card);
+  color: var(--sage);
+  cursor: pointer;
+}
+
+.pr-flib-hit-clear:hover {
+  border-color: var(--clay);
+  color: var(--clay);
+}
+
+/* ---------- 内容区：内部滚动 ---------- */
+
+.pr-flib-body {
+  padding: 8px 12px 14px;
+  /*
+   * 内部滚动而不是整页拉长：这里有两套全量视图（p44 条目 ＋ 讲稿方剂），
+   * 展开后能把整页撑到几千像素，③ 档下面的「用药记录」要滚很久才见得到。
+   */
+  max-height: min(70vh, 720px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 108, 88, 0.35) transparent;
+}
+
+.pr-flib-body::-webkit-scrollbar {
+  width: 10px;
+}
+
+.pr-flib-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pr-flib-body::-webkit-scrollbar-thumb {
+  background: rgba(120, 108, 88, 0.28);
+  border: 3px solid transparent;
+  border-radius: 6px;
+  background-clip: content-box;
+}
+
+.pr-flib-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(120, 108, 88, 0.48);
+  background-clip: content-box;
+}
+
+/* 分组标题上的命中条数（只在搜索时出现） */
+.pr-flib-group-hit {
+  margin-left: 6px;
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--clay);
+}
+
+.pr-flib-empty {
+  margin: 10px 0;
+  padding: 14px 12px;
+  border: 1px dashed var(--divider);
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--sage);
+}
+
+/* ---------- 另见：讲义 p42 依脉用方表（只在搜索命中时出现） ---------- */
+
+.pr-flib-extra {
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--divider);
+}
+
+.pr-flib-extra-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.pr-flib-extra-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.pr-flib-extra-no {
+  flex: 0 0 auto;
+  min-width: 16px;
+  text-align: right;
+  font-size: 10.5px;
+  color: #a49a86;
+}
+
+.pr-flib-extra-name {
+  flex: 0 0 auto;
+  font-weight: 600;
+}
+
+.pr-flib-extra-ind {
+  color: var(--sage);
+  font-size: 11.5px;
 }
 
 .pr-flib-group {
