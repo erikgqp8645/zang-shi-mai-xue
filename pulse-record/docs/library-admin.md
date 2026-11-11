@@ -2,7 +2,9 @@
 
 > 「整个用方知识库都可以编辑」这件事的**唯一写入面**。
 > 管理员在命令行里改 → 改动落本机 SQLite → `library apply` 合并回内容文件 → 重新构建 → 前端生效。
-> **这一轮前端代码一行都没改**（内容是编译期内联的）。
+>
+> 前端**没有编辑界面**（管理员用命令行改）；前端代码只动过一处：
+> `src/domain/formulas.ts` 的装载器放宽了一个方向，好让「删掉一条 p44 条目」不会把前端搞崩（见 §3）。
 
 ---
 
@@ -41,7 +43,7 @@ src/content/*.json                    本机 SQLite 的 library_items 表
 
 | kind | 是什么 | 基线位置 | 可改字段 | 可增 | 可删 |
 |---|---|---|---|---|---|
-| `rule` | 讲义 p44 依脉用方（61 条） | `formula-rules.json` → `rules[]` | id / route / condition / therapy / formulas / adds / drugs / source / quote / kind / always | ❌ | ❌ |
+| `rule` | 讲义 p44 依脉用方（61 条） | `formula-rules.json` → `rules[]` | id / route / condition / therapy / formulas / adds / drugs / source / quote / kind / always | ❌ | ✅ |
 | `drug` | 讲稿 2010 方剂（30 方） | `drugs.json` → `drugs[]` | id / name / therapy / composition / usage / science / adjustments / indication / contraindication / source / quote | ✅ | ✅ |
 | `ref` | 讲义 p42 对照表（28 行） | `formula-reference.json` → `rows[]` | no / name / indication / doseId / doseBasis / draftName / draftNote | ✅ | ✅ |
 | `dose` | 同和堂版成方（克）（49 方） | `doses.json` → `doses[]` | id / name / composition / notes / page | ✅ | ✅ |
@@ -58,7 +60,7 @@ src/content/*.json                    本机 SQLite 的 library_items 表
 
 ---
 
-## 3. 讲义 p44 为什么不能新增／删除（唯一的架构边界）
+## 3. 讲义 p44：能改、能删，不能新增（唯一的架构边界）
 
 讲义 p44 依脉用方的**命中判定是代码**，不是数据：
 
@@ -67,23 +69,30 @@ src/content/formula-rules.json   ← 数据（每条一个 id）
 src/domain/formulas.ts           ← 判定函数（EVALUATORS，id → evaluate）
 ```
 
-`loadRules` 对这两边做**双向校验，缺一即抛错**：
+前端装载器（`loadRules`）对这两边的规矩是**刻意不对称**的：
 
-- 数据里有、`EVALUATORS` 里没有 → 前端启动就崩（那条规则永远不命中，界面却看不出来）；
-- `EVALUATORS` 里有、数据里没有 → 同样崩。
+| 方向 | 现在的行为 | 为什么 |
+|---|---|---|
+| 数据里有、`EVALUATORS` 里没有 | **抛错**（前端起不来） | 那条规则永远不命中，界面却看不出来 —— 这是最坏的一种坏法，宁可载入失败 |
+| `EVALUATORS` 里有、数据里没有 | **跳过**（不加载） | 这是**条目被管理员删掉**之后的正常状态：判定函数作为**残留代码**留着 |
 
 所以：
 
 | 操作 | 行不行 | 原因 |
 |---|---|---|
 | 改 p44 条目的字段 | ✅ 行 | 数据与函数还是一一对应 |
-| **新增** p44 条目 | ❌ 不行 | 必须同时在 `EVALUATORS` 加同名判定函数 → **那是前端改动** |
-| **删除** p44 条目 | ❌ 不行 | 必须同时删 `EVALUATORS` 里那一项 → 同上 |
+| **删除** p44 条目 | ✅ 行 | 条目没了，残留的判定函数不会被加载、不命中、也不显示 —— 删干净了 |
+| **新增** p44 条目 | ❌ 不行 | 要新增就得同时在 `EVALUATORS` 写判定函数 —— 那是代码，命令行补不出来 |
 
-命令行会直接拒绝并说明原因，并给出可执行的替代：先把这条作为**讲稿方剂**（`kind=drug`）加进去 —— 那部分是纯数据。
+命令行会直接拒绝新增并说明原因，并给出可执行的替代：先把这条作为**讲稿方剂**（`kind=drug`）加进去 —— 那部分是纯数据。
 
-> 覆盖层里要是**绕过命令行**混进了 p44 的新增／删除（比如手改数据库、导入外部文件），
-> `library apply` 也会**拒绝写盘**，`library verify` 会点名报出来。
+> **删除之后能放回来**：墓碑行里存着**原内容快照**，所以 `library revive <kind> <id>`
+> 能把删掉的条目原样放回去，**一行代码都不用改**（判定函数还在，只是没被加载）。
+>
+> **覆盖层里要是绕过命令行混进了 p44 的新增**（比如手改数据库、导入外部文件），
+> `library apply` 也会**拒绝写盘**，`library verify` 会点名报出来 ——
+> 后端是拿 `src/domain/formulas.ts` 的 `EVALUATORS` 当白名单的，
+> 没有判定函数的 id 一律拦下。
 
 ---
 
@@ -103,7 +112,8 @@ npm run admin -- library --help          # 完整用法
 | `set <kind> <id> [--file f.json \| --set k=v …] [--note "…"] [--by 管理员]` | **改**一条。按字段改，不会连带丢掉别的字段 |
 | `add <kind> --file f.json [--note] [--by]` | **新增**一条（只有纯数据的类才行） |
 | `del <kind> <id> [--note] [--by]` | **删**一条（写墓碑；apply 之后从结果里消失） |
-| `restore <kind> <id>` | 撤销覆盖，回到内置基线 |
+| `restore <kind> <id>` | 撤销覆盖层里对这一条的改动（删掉那一行），回到内置基线 |
+| `revive <kind> <id>` | 把**删掉的**这一条放回来（撤销「那一次删除」）—— 靠墓碑里的原内容快照 |
 | `export [--kind K] [--out f.json]` | 导出覆盖层（审计／备份／搬到另一台机器） |
 | `import --file f.json` | 从导出的 JSON 导入覆盖层 |
 | `apply [--dry-run] [--content-dir <目录>]` | 把覆盖层合并回 `src/content/*.json`（**前端唯一能看到的出口**） |
@@ -148,6 +158,32 @@ npm run admin -- library add drug --file /tmp/new.json --by 张三
 
 ⚠️ **必填字段（`source`／`quote` 等）必须自己填** —— 后端不会替你编出处。
 新条目会落进「未归类」兜底组（不会崩），五行／左右手的归类依据要另外补。
+
+### 怎么删一条、怎么放回来
+
+```bash
+# 删一条（写墓碑；apply 之后这条从知识库里消失）
+npm run admin -- library del rule fx2-yiti-lengreshui --note "这条讲稿没写清，先下线" --by 张三
+
+# 看看现在是什么状态（墓碑会标成「已删除（墓碑）」）
+npm run admin -- library list --kind rule
+
+# 删错了 → 放回来（靠墓碑里存着的原内容快照，一字不差）
+npm run admin -- library revive rule fx2-yiti-lengreshui
+```
+
+三个动作的分工（别搞混）：
+
+| 命令 | 撤的是 | 结果 |
+|---|---|---|
+| `set` | — | 改内容 |
+| `restore` | 覆盖层里**这一行** | 回到内置基线的样子 |
+| `revive` | **那一次删除** | 把删掉的条目原样放回来 |
+
+⚠️ `restore` 与 `revive` 的差别只在**删除已经 apply 过去**的时候才看得出：
+`apply` 是写进基线的，墓碑一旦 apply 过去，基线里就没有这一条了 ——
+这时候光撤墓碑（`restore`）撤不回来，得用 `revive` 把内容放回去。
+命令行遇到这种情况会提示你用 `revive`。
 
 ---
 
@@ -211,9 +247,11 @@ GET /api/library/overrides
 | 现象 | 多半是 |
 |---|---|
 | `✗ 合并没有通过检查，**没有写盘**` | 引用断了（悬空引用／p44 越界）。错误信息里点名了是哪一条，照着改或 `restore` 掉 |
-| `✗ 讲义 p44「依脉用方」不能在这里新增／删除` | 架构边界，见 §3。想加的话先加成 `kind=drug` |
+| `✗ 讲义 p44「依脉用方」不能在这里新增` | 架构边界，见 §3。想加的话先加成 `kind=drug` |
+| `✗ 「xxx」的墓碑里没有原内容快照，放不回来` | 这一条在删之前就没有存下内容（比如老版本留下的墓碑）。只能手工 `add` 回去 |
 | `✗ 「xxx」不是…的可编辑字段` | 该字段不在注册表里。注册表在 `server/library-schema.mjs` 的 `LIBRARY_KINDS` |
 | `✗ 缺少必填字段「source」` | 新增条目必须自己填出处 —— 后端不替你编 |
+| 删了之后 `restore` 撤不回来 | `restore` 撤的是「覆盖层这一行」；已经被 apply 写掉的条目要用 `revive` 放回来 |
 | 改了但前端没变 | 改了之后**还要** `library apply` → `content:excel` → `npm run build` → 重新部署 |
 | `npm run admin -- library list` 是空的 | 覆盖层是空的 —— 知识库还是内置基线，一字未改 |
 
@@ -229,5 +267,7 @@ GET /api/library/overrides
 | `server/schema.sql` / `server/schema-pg.sql` | `library_items` 表 |
 | `scripts/lib/library-cli.mjs` | 命令行本体 |
 | `scripts/admin.mjs` | `library` 子命令的入口 |
-| `scripts/e2e/library-admin.mjs` | 端到端测试（47 项） |
-| `scripts/e2e/library-admin-break-test.mjs` | break-test（7 条 mutation，逐条证明断言不是恒绿） |
+| `scripts/e2e/library-admin.mjs` | 端到端测试（52 项） |
+| `scripts/e2e/library-admin-break-test.mjs` | break-test（9 条 mutation，逐条证明断言不是恒绿） |
+| `scripts/e2e/rule-delete-loader.mjs` | 端到端测试（13 项）：删掉一条 p44 条目之后，前端装载器照样起得来 |
+| `scripts/e2e/rule-delete-loader-break-test.mjs` | break-test（2 条 mutation）：证明上一条不是恒绿 |

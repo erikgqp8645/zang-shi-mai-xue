@@ -775,7 +775,8 @@ npm run admin -- library --help       # 用方知识库（改知识库内容，�
 
 「整个用方知识库都可以编辑」这件事的**唯一写入面**。管理员在命令行里改 →
 改动落**本机 SQLite** → `library apply` 合并回内容文件 → 重新构建 → 前端生效。
-**这一轮前端代码一行都没改**（内容是编译期内联的）。
+前端**没有编辑界面**；前端代码只动过一处：`src/domain/formulas.ts` 的装载器
+（放宽一个方向，好让「删掉一条 p44 条目」不会把前端搞崩 —— 见下）。
 
 完整手册在 **`pulse-record/docs/library-admin.md`**；这里记最容易违反的几条。
 
@@ -801,9 +802,17 @@ npm run admin -- library --help       # 用方知识库（改知识库内容，�
 
 - **方名照录、剂量单位不换算、没写明的就留空** —— 由注册表与校验层强制，命令行改不坏。
 - **不许凭空加字段**：注册表里没列的字段，管理员加不进去。
-- **讲义 p44 只能改字段，不能新增／删除** —— 命中判定写在代码里
-  （`src/domain/formulas.ts` 的 `EVALUATORS`），数据与函数必须一一对应，缺一个**前端启动就崩**。
-  命令行直接拒绝并说明；覆盖层里绕过命令行混进来的，`apply` 也会拒绝写盘、`verify` 会点名报出来。
+- **讲义 p44 能改字段、能删除，但不能新增** —— 命中判定写在代码里
+  （`src/domain/formulas.ts` 的 `EVALUATORS`）：新增一条要有一份对应的判定函数，
+  那是代码，命令行补不出来。
+  **删除不用改代码**：条目没了，判定函数作为**残留代码**留着，前端装载器
+  （`loadRules`）对「判定函数有、数据没有」这一向是**跳过**而不是抛错；
+  另一向（「数据有、判定函数没有」）仍然**抛错** —— 不许静默降级。
+  后端拿 `EVALUATORS` 当白名单：覆盖层里绕过命令行混进来的**新增**，
+  `apply` 也会拒绝写盘、`verify` 会点名报出来。
+- **删掉的条目放得回来**：墓碑行里存着**原内容快照**，`library revive <kind> <id>`
+  能把它原样放回去（`restore` 撤的是「覆盖层这一行」，`revive` 撤的是「那一次删除」——
+  两者在「删除已经 apply 过去」时才分得出差别）。
 - **apply 是叠加不是替换**：人工在 Excel 里的改动要先 `content:json` 拉进 JSON 推进基线，
   顺序反了会被盖掉。完整顺序：`content:json` → `library apply` → `content:excel` → `npm run build`。
 - **引用断了宁可什么都不写** —— `apply` 拒绝写盘，绝不写出半坏数据。
@@ -824,8 +833,9 @@ npm run admin -- library list [--kind K] [--all]   # 覆盖层（改过的条目
 npm run admin -- library show <kind> <id>          # 基线 ＋ 覆盖层 ＋ 当前有效值
 npm run admin -- library set  <kind> <id> --set k=v # 改一条（按字段改）
 npm run admin -- library add  <kind> --file f.json # 新增一条
-npm run admin -- library del  <kind> <id>          # 删一条（写墓碑）
-npm run admin -- library restore <kind> <id>       # 撤销覆盖，回到基线
+npm run admin -- library del  <kind> <id>          # 删一条（写墓碑，带原内容快照）
+npm run admin -- library restore <kind> <id>       # 撤销覆盖层这一行，回到基线
+npm run admin -- library revive <kind> <id>        # 把删掉的放回来（撤销那一次删除）
 npm run admin -- library export [--out f.json]     # 导出（审计／备份／搬机）
 npm run admin -- library import --file f.json      # 导入
 npm run admin -- library apply [--dry-run]         # 合并回 src/content/*.json
@@ -1165,7 +1175,9 @@ npm run test:e2e:harmony                     # 57 项：鸿蒙工程静态检查
 - [ ] 桌面端代码里有没有混进 `wal_checkpoint` 或 `copyFileSync` 拷库？（备份只能是 `VACUUM INTO`）
 - [ ] 升了 Electron 版本后，是否跑过 `node scripts/e2e/electron-probe.mjs`（确认 `node:sqlite` 还在）？
 - [ ] 网页端导出行为有没有被桌面端改动波及？（`downloadBlob` 的兜底分支必须与原来逐字节一致）
-- [ ] 改过**用方知识库覆盖层**（`server/library-schema.mjs` / `scripts/lib/library-cli.mjs` / `library_items` 表）后：删除是不是写了**墓碑**（靠「没有行」表达删除会被读成「没改过」→ 静默回落基线，刚删的条目又冒出来）？`library apply` 在**引用断了**时有没有拒绝写盘（不能写出半坏数据）？**讲义 p44 能不能被绕过命令行新增／删除**（判定函数表里没有它 → 前端启动就崩）？`apply` 是不是**幂等**、有没有往内容文件里塞自己的键（写入时间戳之类）？`library-admin` 与 `library-admin-break-test` 是否都跑过？
+- [ ] 改过**用方知识库覆盖层**（`server/library-schema.mjs` / `scripts/lib/library-cli.mjs` / `library_items` 表）后：删除是不是写了**墓碑**（靠「没有行」表达删除会被读成「没改过」→ 静默回落基线，刚删的条目又冒出来）？墓碑里有没有带**原内容快照**（没有的话 `revive` 放不回来）？`library apply` 在**引用断了**时有没有拒绝写盘（不能写出半坏数据）？**讲义 p44 能不能被绕过命令行新增**（判定函数表里没有它 → 前端启动就崩；**删除是放开的**）？`apply` 是不是**幂等**、有没有往内容文件里塞自己的键（写入时间戳之类）？`library-admin` 与 `library-admin-break-test` 是否都跑过？
+- [ ] 改过 `src/domain/formulas.ts` 的装载器（`loadRules`）后：两个方向还**刻意不对称**吗 ——「数据有、判定函数没有」必须**抛错**（不许静默降级：那条规则永远不命中，界面却看不出来），「判定函数有、数据没有」必须**跳过**（条目被管理员删了，判定函数是残留代码）？`npm run test:e2e:rule-delete-loader` 与 `npm run test:e2e:rule-delete-loader:break` 是否都跑过？
+- [ ] 改过 `src/domain/formula-links.ts` 的对照表后：指向的规则**被删掉**之后，链接是不是降级成「用方页未载」（而不是点过去没反应）？
 - [ ] 知识库改完之后：人工在 Excel 里的改动是不是**先** `content:json` 拉进 JSON 推进基线**再** `library apply`（顺序反了会被盖掉）？`library apply` → `content:excel` → `npm run build` 三步都走了吗（只改 SQLite 的话前端看不到）？
 
 ## Git 约定
