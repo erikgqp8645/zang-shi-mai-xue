@@ -4,7 +4,9 @@
 
 用法::
 
-    python3 scripts/excel_to_json.py [工作簿路径] [--out 目录] [--check]
+    npm run content:json
+    （Windows 上 `python3` 可能只是 Microsoft Store 的空壳别名 —— 用上面这条 npm 命令，
+      仓库会自己找能用的解释器，不会卡在「python3 不是内部或外部命令」上）
 
 默认读 ``content/臧氏脉学-用方知识库.xlsx``，写回 ``src/content/*.json``。
 
@@ -141,7 +143,7 @@ def main() -> int:
         print(
             f"[excel] 这是**练习／示范工作簿**（{wb_path.name}），不写回真源。\n"
             f"        里面有故意留空的格子，还原后写回 JSON 会把内容丢掉。\n"
-            f"        验收请用：python3 scripts/e2e/excel_exercise.py {wb_path}\n"
+            f"        验收请用：npm run content:exercise:check\n"
             f"        要真的写回，请用主工作簿：{DEFAULT_WB}",
             file=sys.stderr,
         )

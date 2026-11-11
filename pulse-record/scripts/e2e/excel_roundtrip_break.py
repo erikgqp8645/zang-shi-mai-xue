@@ -4,7 +4,9 @@
 
 用法::
 
-    python3 scripts/e2e/excel_roundtrip_break.py
+    npm run test:e2e:excel:break
+    （Windows 上 `python3` 可能只是 Microsoft Store 的空壳别名 —— 用上面这条 npm 命令，
+      仓库会自己找能用的解释器，不会卡在「python3 不是内部或外部命令」上）
 
 ## 为什么要有这个
 
