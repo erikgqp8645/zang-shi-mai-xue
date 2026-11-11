@@ -29,10 +29,10 @@
       "id": "th-liushen",
       "name": "六神散",
       "composition": "党参6 白术12 茯苓18 甘草3 山药12 扁豆10 陈皮3 黄芪6 大枣12 干姜3 粳米15 克",
+      "page": 1,
       "notes": [
         "原文末味写作「粳米 15 克」——本表唯一显式标出「克」的一行"
-      ],
-      "page": 1
+      ]
     },
     {
       "id": "th-zengye",
@@ -74,19 +74,19 @@
       "id": "th-jiawei-lizhong",
       "name": "加味理中汤",
       "composition": "党参6 白术15~20 生姜5片 炙甘草3 黄芪6~15 茯苓12 陈皮4 柴葛12 小茴香3 当归5",
+      "page": 1,
       "notes": [
         "原文「白术15~20」「黄芪6~15」为区间值，照录不改"
-      ],
-      "page": 1
+      ]
     },
     {
       "id": "th-lizhong-shujiangqi",
       "name": "理中术姜芪",
       "composition": "党参6g 当归4g 小茴香6g 白术40 甘草3 陈皮3 乾姜20 黄芪8",
+      "page": 1,
       "notes": [
         "原文前三味写「6g／4g／6g」，后五味只写数字，照录不改"
-      ],
-      "page": 1
+      ]
     },
     {
       "id": "th-guipi",
@@ -116,10 +116,10 @@
       "id": "th-muxiang",
       "name": "木香顺气",
       "composition": "当归9 木香3 厚朴9 陈皮3 青皮3 苍术9 半夏6 吴茱萸6 草豆蔻9 益智仁6 升麻6 柴胡6 茯苓卷12 泽泻6 甘草3 干姜6",
+      "page": 1,
       "notes": [
         "原文作「茯苓卷 12」——照录，不改作「茯苓12」"
-      ],
-      "page": 1
+      ]
     },
     {
       "id": "th-shuangguan",
@@ -131,10 +131,10 @@
       "id": "th-shuangguan-ganfei",
       "name": "双关+肝肺",
       "composition": "双关+地骨皮9 秦艽9 鳖甲15 乌梅3 紫菀9 半夏6 桔梗6 五味子3",
+      "page": 2,
       "notes": [
         "「双关」指双关同治（补中益气）方；原文照此加法写法，未展开"
-      ],
-      "page": 2
+      ]
     },
     {
       "id": "th-shuangguan-ganfei-tianwang",
@@ -224,10 +224,10 @@
       "id": "th-qinjiaobiejia",
       "name": "秦艽鳖甲散",
       "composition": "醋鳖甲15 地骨皮9 秦艽6 知母6 当归6 柴胡6 黄芪6 乌梅一个 青蒿6（关火前五分钟）",
+      "page": 2,
       "notes": [
         "原文「乌梅一个」不写克数；「青蒿6（关火前五分钟）」"
-      ],
-      "page": 2
+      ]
     },
     {
       "id": "th-cansuyin",
@@ -251,10 +251,10 @@
       "id": "th-zhibai",
       "name": "知柏六味桂",
       "composition": "知母4~6 黄柏4~6（不很大可不加。顶手加羌活）+六味桂天味（熟地20 茯苓12 山药10 丹皮10 泽泻10 山茱萸10+肉桂（出锅前5分钟下）5 天冬6 五味子4）",
+      "page": 3,
       "notes": [
         "原文「知母4~6 黄柏4~6」为区间值；括号内为原文注文"
-      ],
-      "page": 3
+      ]
     },
     {
       "id": "th-mingmu-liuwei",
@@ -278,10 +278,10 @@
       "id": "th-dabuyin",
       "name": "大补阴丸",
       "composition": "熟地15 醋龟甲15 知母6 黄柏6",
+      "page": 3,
       "notes": [
         "原文附：「食疗炖猪骨髓半斤空腹服用」"
-      ],
-      "page": 3
+      ]
     },
     {
       "id": "th-huanshaodan",
@@ -299,10 +299,10 @@
       "id": "th-jiangcong",
       "name": "姜葱水",
       "composition": "姜半两切片煮15分钟。大葱葱白连须一段竖着劈开四份放入煮5分钟。（也可以用9根小葱的连须葱白代替不吃葱用黄芪8~12克替代）捞出姜葱分两次喝水。",
+      "page": 3,
       "notes": [
         "原文附注：1 药性太热所以温服或冷服即可。2 增加口感可加红糖"
-      ],
-      "page": 3
+      ]
     },
     {
       "id": "th-mofang",
@@ -314,10 +314,10 @@
       "id": "th-xifang",
       "name": "洗方",
       "composition": "浮萍30 苍耳子15 羌活15 香附9 荆芥9 防风6",
+      "page": 3,
       "notes": [
         "原文注：「防风为李志贞据 2017 版讲义添加」"
-      ],
-      "page": 3
+      ]
     },
     {
       "id": "th-fufang",
@@ -437,14 +437,14 @@
     "th-yijian": "易简",
     "th-lizhong-shujiangqi": "理中术姜芪",
     "th-shuangguan": "双关",
-    "th-tianwang": "天王芪",
     "th-ganxin": "肝心",
     "th-ganfei": "肝肺",
     "th-huangqibiejia": "黄芪鳖甲",
     "th-longdan": "加味龙胆",
-    "th-xiajiao": "下焦方",
+    "th-tianwang": "天王芪",
     "th-liuwei": "六味桂天味",
     "th-zhibai": "知柏（桂天味）",
-    "th-mingmu-zhibai": "明目知柏（桂天味）"
+    "th-mingmu-zhibai": "明目知柏（桂天味）",
+    "th-xiajiao": "下焦方"
   }
 }
