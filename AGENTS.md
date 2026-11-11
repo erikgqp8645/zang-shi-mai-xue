@@ -766,7 +766,74 @@ npm run admin -- create <登录名>      # 建号
 npm run admin -- reset <登录名>       # 重置密码
 npm run admin -- role <登录名> admin  # 改角色
 npm run admin -- wechat <登录名>      # 查微信绑定
+npm run admin -- library --help       # 用方知识库（改知识库内容，详见下面那一节）
 ```
+
+---
+
+## 用方知识库 · 管理员覆盖层（pulse-record · 后端）
+
+「整个用方知识库都可以编辑」这件事的**唯一写入面**。管理员在命令行里改 →
+改动落**本机 SQLite** → `library apply` 合并回内容文件 → 重新构建 → 前端生效。
+**这一轮前端代码一行都没改**（内容是编译期内联的）。
+
+完整手册在 **`pulse-record/docs/library-admin.md`**；这里记最容易违反的几条。
+
+### 两层结构
+
+| 层 | 位置 | 谁能动 |
+|---|---|---|
+| 内置基线 | `src/content/*.json`（Excel 管线产物，已入库） | **只读** |
+| 管理员覆盖层 | 本机 SQLite 的 `library_items` 表 | 管理员（命令行） |
+| 合并结果 | `library apply` 写回 `src/content/*.json`（**数据层**） | — |
+
+**覆盖层语义**（与 `formula_patterns` 同一套）：按 `(kind, item_id)` **整条接管**；
+`deleted=1` 是**墓碑**（这条被删了）。
+⚠️ 删除**必须**写墓碑 —— 用「没有行」表达删除会被读成「没改过」→ 静默回落到基线，刚删的条目又冒出来。
+
+### 六类内容
+
+`rule`（讲义 p44 依脉用方）／`drug`（讲稿 2010 方剂）／`ref`（讲义 p42 对照表）／
+`dose`（同和堂版成方）／`science`（科中）／`sciencemap`（科中↔成方映射）。
+注册表（能改哪些字段、能不能增删）在 **`server/library-schema.mjs` 的 `LIBRARY_KINDS`** —— 那份是唯一真源。
+
+### 硬规矩
+
+- **方名照录、剂量单位不换算、没写明的就留空** —— 由注册表与校验层强制，命令行改不坏。
+- **不许凭空加字段**：注册表里没列的字段，管理员加不进去。
+- **讲义 p44 只能改字段，不能新增／删除** —— 命中判定写在代码里
+  （`src/domain/formulas.ts` 的 `EVALUATORS`），数据与函数必须一一对应，缺一个**前端启动就崩**。
+  命令行直接拒绝并说明；覆盖层里绕过命令行混进来的，`apply` 也会拒绝写盘、`verify` 会点名报出来。
+- **apply 是叠加不是替换**：人工在 Excel 里的改动要先 `content:json` 拉进 JSON 推进基线，
+  顺序反了会被盖掉。完整顺序：`content:json` → `library apply` → `content:excel` → `npm run build`。
+- **引用断了宁可什么都不写** —— `apply` 拒绝写盘，绝不写出半坏数据。
+- **级联按「宁可留空并写『未载』」**：删讲稿方剂 → p44 的 `drugs[]` 去掉该 id；
+  删成方 → p42 的 `doseId` 置空并标「未载」、科中映射里那一项删掉；删科中 → 科中映射的值写成「未载」。
+
+### ⚠️ 一个有意例外：`library_items` 没有 `owner_id`
+
+`store.mjs` 的硬规则是「`ownerId` 必填」，**这三条函数是唯一的例外**：
+用方知识库是**公共资料**不是个人数据 —— 管理员改一次，所有账号共享同一份
+（用户 2026-11-11 拍板）。例外理由写在 `server/store.mjs` 的契约表里。
+**别顺手扩散到别的表** —— patients / visits / medication / custom_symbols 仍严格按 owner 隔离。
+
+### 命令
+
+```bash
+npm run admin -- library list [--kind K] [--all]   # 覆盖层（改过的条目）
+npm run admin -- library show <kind> <id>          # 基线 ＋ 覆盖层 ＋ 当前有效值
+npm run admin -- library set  <kind> <id> --set k=v # 改一条（按字段改）
+npm run admin -- library add  <kind> --file f.json # 新增一条
+npm run admin -- library del  <kind> <id>          # 删一条（写墓碑）
+npm run admin -- library restore <kind> <id>       # 撤销覆盖，回到基线
+npm run admin -- library export [--out f.json]     # 导出（审计／备份／搬机）
+npm run admin -- library import --file f.json      # 导入
+npm run admin -- library apply [--dry-run]         # 合并回 src/content/*.json
+npm run admin -- library verify                    # 自检（合规／引用／p44 边界）
+```
+
+**只读接口**（为将来的前端同步预留，本轮前端不接）：
+`GET /api/library/overrides` → `{ overrides, meta }`；未登录 401，所有登录账号可读。
 
 ---
 
@@ -1098,6 +1165,8 @@ npm run test:e2e:harmony                     # 57 项：鸿蒙工程静态检查
 - [ ] 桌面端代码里有没有混进 `wal_checkpoint` 或 `copyFileSync` 拷库？（备份只能是 `VACUUM INTO`）
 - [ ] 升了 Electron 版本后，是否跑过 `node scripts/e2e/electron-probe.mjs`（确认 `node:sqlite` 还在）？
 - [ ] 网页端导出行为有没有被桌面端改动波及？（`downloadBlob` 的兜底分支必须与原来逐字节一致）
+- [ ] 改过**用方知识库覆盖层**（`server/library-schema.mjs` / `scripts/lib/library-cli.mjs` / `library_items` 表）后：删除是不是写了**墓碑**（靠「没有行」表达删除会被读成「没改过」→ 静默回落基线，刚删的条目又冒出来）？`library apply` 在**引用断了**时有没有拒绝写盘（不能写出半坏数据）？**讲义 p44 能不能被绕过命令行新增／删除**（判定函数表里没有它 → 前端启动就崩）？`apply` 是不是**幂等**、有没有往内容文件里塞自己的键（写入时间戳之类）？`library-admin` 与 `library-admin-break-test` 是否都跑过？
+- [ ] 知识库改完之后：人工在 Excel 里的改动是不是**先** `content:json` 拉进 JSON 推进基线**再** `library apply`（顺序反了会被盖掉）？`library apply` → `content:excel` → `npm run build` 三步都走了吗（只改 SQLite 的话前端看不到）？
 
 ## Git 约定
 
