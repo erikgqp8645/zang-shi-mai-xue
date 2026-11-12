@@ -89,8 +89,18 @@ async function up() {
     console.log('  node scripts/content-seed.mjs')
   }
 
-  console.log(`拉镜像 ${IMAGE}（首次约 1 GB）…`)
-  docker('pull', IMAGE)
+  // ⚠️ **本地已有镜像就不拉** —— 机器重启（或网络不通）时 `docker pull` 会去
+  //    auth.docker.io 换 token，网络一断就整条命令失败，容器根本起不来
+  //    （实测 2026-11-12 重启后：镜像在本地 1.11 GB，pull 却报
+  //    `failed to authorize: failed to fetch anonymous token`）。
+  //    镜像在 ⇒ 直接用；不在 ⇒ 才拉。
+  const hasImage = dockerTry('image', 'inspect', IMAGE).ok
+  if (hasImage) {
+    console.log(`镜像 ${IMAGE} 本地已有，跳过 pull`)
+  } else {
+    console.log(`拉镜像 ${IMAGE}（首次约 1 GB）…`)
+    docker('pull', IMAGE)
+  }
 
   docker(
     'run',
