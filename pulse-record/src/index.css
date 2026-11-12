@@ -2482,6 +2482,20 @@ button:disabled {
   opacity: 0.5;
   text-decoration: line-through;
 }
+
+/*
+  常驻条目开关 —— 它不是「这一组被关掉」，是「这一类内容要不要显示」，
+  所以不画删除线，只把字压淡（删除线会读成「这个功能没了」）。
+*/
+.pr-standing-toggle:not(.is-on) {
+  opacity: 0.75;
+  text-decoration: none;
+}
+
+/* 口径说明：紧跟在筛选 chip 行下面，说明两个数字各指什么 */
+.pr-filter-note {
+  margin: -4px 0 10px;
+}
 .pr-filter-key {
   font-family: 'Songti SC', 'STSong', serif;
   letter-spacing: 0.04em;
@@ -3564,6 +3578,20 @@ button:disabled {
   padding: 8px 12px 0;
   border-top: 1px solid var(--divider);
   background: var(--card);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pr-flib-tools .pr-dim {
+  margin: 0;
+}
+
+/* 知识库头部那行「已隐藏常驻条目 N 条」 —— 在按钮外面，别混进按钮里的数字 */
+.pr-flib-standing-note {
+  font-size: 11px;
+  color: var(--sage);
 }
 
 .pr-flib-hit {

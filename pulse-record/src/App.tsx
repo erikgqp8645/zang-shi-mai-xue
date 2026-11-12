@@ -213,6 +213,19 @@ export default function App() {
   }
 
   /**
+   * 常驻条目（用药禁忌：三不用／上盛用白虎汤·下虚用肾气丸）显不显示。
+   *
+   * 这两条**不依脉象**，永远都在 —— 所以默认显示。
+   * 但它们会混进「按五行／按左右手」的分组，让「本组有几条」这个数看着不对
+   * （例如「水·肾 2 条」其实两条全是常驻，没有一条是命中）。
+   * 所以给一个开关，让读者自己决定要不要看。
+   *
+   * ② 命中区与 ③ 用方知识库**共用这一个开关** —— 一个开关一个含义。
+   */
+  const [showStanding, setShowStanding] = useState(true)
+  const toggleStanding = useCallback(() => setShowStanding((v) => !v), [])
+
+  /**
    * ③（或 ②）里的方名点进来 → 要定位到「用方知识库」里的哪一条。
    *
    * 定位由 `FormulaLibrary` 自己完成（展开 → 滚到锚点 → 高亮），
@@ -1025,6 +1038,8 @@ export default function App() {
             wuxingFilter={groupFilter.wuxing}
             handFilter={groupFilter.hand}
             onFilterChange={changeFilter}
+            showStanding={showStanding}
+            onToggleStanding={toggleStanding}
           />
         </div>
       </TriadSection>
@@ -1040,7 +1055,11 @@ export default function App() {
         <RxList prescriptions={manualPrescriptions} onOpenFormula={openFormula} />
 
         {/* 用方知识库：③ 的方名点得进来（组成／服法／加减／禁忌） */}
-        <FormulaLibrary focus={formulaFocus} />
+        <FormulaLibrary
+          focus={formulaFocus}
+          showStanding={showStanding}
+          onToggleStanding={toggleStanding}
+        />
 
         {/* 用药记录（使用者自己填实际用了什么方、加减、服法） */}
         <MedicationPanel

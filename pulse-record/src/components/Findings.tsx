@@ -50,6 +50,9 @@ interface Props {
   wuxingFilter: string[]
   handFilter: string[]
   onFilterChange: (dim: 'wuxing' | 'hand', keys: string[]) => void
+  /** 常驻条目（用药禁忌）显不显示 —— 与③ 用方知识库共用同一个开关 */
+  showStanding: boolean
+  onToggleStanding: () => void
 }
 
 const SEVERITY_LABEL: Record<RuleHit['severity'], string> = {
@@ -476,6 +479,8 @@ export function Findings({
   wuxingFilter,
   handFilter,
   onFilterChange,
+  showStanding,
+  onToggleStanding,
 }: Props) {
   const [tab, setTab] = useState<Tab>('risk')
   const [dim, setDim] = useState<Dim>('route')
@@ -495,13 +500,35 @@ export function Findings({
     return order.filter((r) => map.has(r)).map((r) => ({ route: r, items: map.get(r)! }))
   }, [formulaHits])
 
-  /** 按五行 / 按左右手分组（含常驻条目） */
+  /**
+   * 按五行 / 按左右手分组。
+   *
+   * 常驻条目（三不用／白虎汤·肾气丸）不依脉象，**关掉开关就不并进来** ——
+   * 否则「本组几条」这个数会被常驻条目顶起来，看着像命中了很多。
+   */
   const dimGroups = useMemo<Group<SessionFormulaHit>[]>(() => {
-    const all = [...formulaHits, ...standingHits()]
+    const all = showStanding ? [...formulaHits, ...standingHits()] : [...formulaHits]
     if (dim === 'wuxing') return groupByWuxing(all, (h) => h.hit.id)
     if (dim === 'hand') return groupByHand(all, (h) => h.hit.id)
     return []
-  }, [dim, formulaHits])
+  }, [dim, formulaHits, showStanding])
+
+  /**
+   * 各组里的**常驻条目数** —— chip 上要单独标出来。
+   *
+   * 归属口径与 `groupByWuxing` / `groupByHand` 完全一致：
+   * 没标归属的进「未归类」兜底组。
+   */
+  const standingByGroup = useMemo(() => {
+    const map = new Map<string, number>()
+    if (!showStanding) return map
+    for (const h of standingHits()) {
+      const attrib = RULE_OR_DRUG_ATTRIB[h.hit.id]
+      const key = dim === 'hand' ? (attrib?.side ?? '未归类') : (attrib?.wuxing ?? '未归类')
+      map.set(key, (map.get(key) ?? 0) + 1)
+    }
+    return map
+  }, [dim, showStanding])
 
   /** 方剂备查：讲稿原序按三种疗法；五行／左右手按归属重排 */
   const drugGroups = useMemo<Group<Drug>[]>(() => {
@@ -514,7 +541,14 @@ export function Findings({
   const activeKeys = dim === 'wuxing' ? wuxingFilter : handFilter
   const groupOrder = dim === 'wuxing' ? DIM_ORDER.wuxing : DIM_ORDER.hand
 
-  /** 筛选开关上的分组按钮：名称 ＋ 本组条目数 ＋ 方剂数（未命中的组显示 0，仍可打开） */
+  /**
+   * 筛选开关上的分组按钮：名称 ＋ 本组条目数 ＋ 方剂数（未命中的组显示 0，仍可打开）。
+   *
+   * ⚠️ 两个数字量的**不是同一样东西**，所以必须把口径写出来：
+   *   · 「条」＝本组在② 命中区里的**依脉用方条目数**（命中的规则；常驻条目另标）
+   *   · 「方」＝**讲稿方剂 30 方**里归到本组的方剂数（渲染在下方「方剂备查」）
+   * 不写清楚的话，「土·脾 10 方」与屏上「只有 2 条」看着就是对不上。
+   */
   const filterChips = useMemo(() => {
     if (dim === 'route') return []
     return groupOrder.map((key) => {
@@ -524,10 +558,11 @@ export function Findings({
         key,
         label: groupShortLabel(dim, key),
         rules: g ? mergeByRule(g.items).length : 0,
+        standing: standingByGroup.get(key) ?? 0,
         drugs: d ? d.items.length : 0,
       }
     })
-  }, [dim, groupOrder, dimGroups, drugGroups])
+  }, [dim, groupOrder, dimGroups, drugGroups, standingByGroup])
 
   /** 依筛选后要显示的分组（「未归类」为异常兜底组，始终保留） */
   const shownGroups = useMemo(
@@ -632,7 +667,7 @@ export function Findings({
                   >
                     <span className="pr-filter-key">{c.label}</span>
                     <span className="pr-filter-num">
-                      {c.rules}条 · {c.drugs}方
+                      {c.rules} 条用方{c.standing > 0 ? `（含常驻 ${c.standing}）` : ''} · {c.drugs} 方备查
                     </span>
                   </button>
                 )
@@ -651,14 +686,44 @@ export function Findings({
               >
                 清空
               </button>
+              <button
+                type="button"
+                className={`pr-filter-chip pr-standing-toggle${showStanding ? ' is-on' : ''}`}
+                aria-pressed={showStanding}
+                onClick={onToggleStanding}
+                title="这两条不依脉象（讲稿第一讲：三不用／上盛用白虎汤·下虚用肾气丸），默认一直在；关掉后② 命中区与③ 用方知识库一起不再列它"
+              >
+                <span className="pr-filter-key">常驻条目（禁忌）</span>
+                <span className="pr-filter-num">{showStanding ? '显示中' : '已隐藏'}</span>
+              </button>
             </div>
           )}
 
-          {grouped.length === 0 && STANDING_FORMULA_RULES.length === 0 ? (
-            <p className="pr-empty">
-              暂无命中的用方条目。录入脉象后，按讲义 p44 的六个方框与讲稿第四讲「清挡路一~四」自动比对。
+          {/*
+            口径说明 —— 两个数字量的不是同一样东西，不写出来读者只能猜。
+            放在 chip 行的正下方，挨着它，别塞进别处。
+            ⚠️ 只在按五行／按左右手维度下出现（讲稿原序没有分组 chip）。
+          */}
+          {dim !== 'route' && (
+            <p className="pr-target-line pr-filter-note">
+              「条」＝本组在② 命中区里的依脉用方条目（命中的规则；常驻条目另标在括号里）；
+              「方」＝讲稿方剂 30 方里归到本组的方数，渲染在下方「方剂备查」。
+              开关只管<strong>不依脉象的常驻条目</strong>（三不用／白虎汤·肾气丸）——
+              依脉象的禁忌条目（如「寸关浮大…下焦方进不去」）不在其中。
             </p>
-          ) : null}
+          )}
+
+          {/*
+            没有命中、又把关掉的常驻条目藏起来时，面板会空着 —— 给一句话。
+            ⚠️ 原来写的是 `grouped.length === 0 && STANDING_FORMULA_RULES.length === 0`，
+            后半个条件恒为 false（常驻条目恒有 2 条），所以这句话从来没出现过。
+          */}
+          {dim === 'route' && grouped.length === 0 && !showStanding && (
+            <p className="pr-empty">
+              暂无命中的用方条目（常驻条目已隐藏）。录入脉象后，按讲义 p44
+              的六个方框与讲稿第四讲「清挡路一~四」自动比对。
+            </p>
+          )}
 
           {dim !== 'route' && shownGroups.length === 0 && (
             <p className="pr-empty">当前筛选下没有分组，请在「筛选分组」里至少打开一组。</p>
@@ -691,7 +756,7 @@ export function Findings({
                   </section>
                 ))}
 
-            {dim === 'route' && STANDING_FORMULA_RULES.length > 0 && (
+            {dim === 'route' && showStanding && STANDING_FORMULA_RULES.length > 0 && (
               <section className="pr-formula-group">
                 <h3 className="pr-formula-route">用药禁忌（常驻）</h3>
                 {STANDING_FORMULA_RULES.map((rule) => (

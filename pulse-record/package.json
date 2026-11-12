@@ -51,6 +51,7 @@
     "test:e2e:app": "node scripts/e2e/app-regression.mjs",
     "test:e2e:app:break": "node scripts/e2e/app-nested-button-break-test.mjs",
     "test:e2e:app:compact:break": "node scripts/e2e/app-library-compact-break-test.mjs",
+    "test:e2e:app:standing:break": "node scripts/e2e/app-standing-toggle-break-test.mjs",
     "test:e2e:library-admin": "node scripts/e2e/library-admin.mjs",
     "test:e2e:library-admin:break": "node scripts/e2e/library-admin-break-test.mjs",
     "test:e2e:rule-delete-loader": "node scripts/e2e/rule-delete-loader.mjs",

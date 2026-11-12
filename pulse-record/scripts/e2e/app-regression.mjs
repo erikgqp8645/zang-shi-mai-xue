@@ -362,6 +362,150 @@ try {
     JSON.stringify(pickHit),
   )
 
+  /* ---- ⑩ 常驻条目（用药禁忌）开关 ---- */
+  console.log('\n【⑩】常驻条目（用药禁忌）开关 ＋ 筛选分组上的计数口径')
+  //
+  // 这两条（三不用／上盛用白虎汤·下虚用肾气丸）**不依脉象**，默认一直在。
+  // 它们会混进「按五行／按左右手」的分组 —— 于是「水·肾 2 条」其实两条全是常驻，
+  // 一条命中都没有。读者只能靠开关自己把它们摘掉。
+  //
+  // ⚠️ 计数口径必须一起断言：chip 上两个数字量的不是同一样东西
+  //   「条」＝依脉用方条目数　「方」＝讲稿方剂 30 方的归属数
+  // 不写清楚，读者只会以为「10 方」和屏上「2 条」对不上。
+  //
+  // 筛选 chip 只在「按五行／按左右手」维度下出现 ⇒ 先把② 面板切过去。
+  await chrome.ev(
+    `(()=>{const b=[...document.querySelectorAll('.pr-dim-btn')].find(b=>!b.closest('#pr-flib')&&b.textContent.trim()==='按五行');b&&b.click();return 1})()`,
+  )
+  await sleep(700)
+
+  const standingStat = async () =>
+    chrome.ev(
+      `(()=>{
+        const cls=(e)=>[...e.classList].join(' ');
+        // ② 面板：常驻条目的出处行写着「常驻条目（不依脉象）」—— 按这个认，别按 kind 认。
+        // ⚠️ kind=禁忌 一共 3 条，其中 1 条（寸关浮大…下焦方进不去）是**依脉象**的挡路规则，
+        //    它不归这个开关管，也不该被藏掉。
+        const inPanel=[...document.querySelectorAll('.pr-formula:not(.pr-formula-compact)')]
+          .filter(e=>(e.querySelector('.pr-finding-src')?.textContent||'').includes('常驻条目'));
+        // ③ 知识库：kind=禁忌 的紧凑行（紧凑态没有徽章，按 class 认）
+        const libJinji=[...document.querySelectorAll('#pr-flib .pr-formula-compact')]
+          .filter(e=>cls(e).includes('is-禁忌'));
+        const chip=[...document.querySelectorAll('.pr-filter-chip')]
+          .find(b=>(b.querySelector('.pr-filter-key')?.textContent||'').includes('水'));
+        const note=document.querySelector('.pr-filter-note')?.textContent||'';
+        const toggles=[...document.querySelectorAll('.pr-standing-toggle')];
+        const panelToggle=toggles.find(b=>!b.closest('#pr-flib'));
+        const libToggle=toggles.find(b=>b.closest('#pr-flib'));
+        const num=(b)=>(b&&b.querySelector('.pr-filter-num')?.textContent||'').trim();
+        const chipText=chip?num(chip):'';
+        const m=chipText.match(/(\\d+)\\s*条用方/);
+        const head=document.querySelector('#pr-flib .pr-flib-count');
+        const hm=head?head.textContent.match(/(\\d+)\\s*条/):null;
+        return {
+          panel: inPanel.length,
+          libJinji: libJinji.length,
+          chip: chipText,
+          chipRules: m?Number(m[1]):-1,
+          libRules: hm?Number(hm[1]):-1,
+          note,
+          panelToggleOn: panelToggle?panelToggle.classList.contains('is-on'):null,
+          panelToggleText: num(panelToggle),
+          libToggleOn: libToggle?libToggle.classList.contains('is-on'):null,
+          libToggleText: num(libToggle),
+          libNote: (document.querySelector('.pr-flib-standing-note')?.textContent||'').trim(),
+        };
+      })()`,
+    )
+
+  const stOn = await standingStat()
+  console.log(`  ${JSON.stringify(stOn)}`)
+  c.check(
+    '默认显示：② 命中区列着 2 条常驻条目',
+    stOn.panel === 2,
+    `② ${stOn.panel} 条`,
+  )
+  c.check(
+    'chip 写明口径（「条用方」／「方备查」），常驻条数单独标出来',
+    stOn.chip.includes('条用方') &&
+      stOn.chip.includes('方备查') &&
+      stOn.chip.includes('含常驻 2'),
+    stOn.chip,
+  )
+  c.check(
+    'chip 下方有一行口径说明（两个数字各指什么）',
+    stOn.note.includes('条') &&
+      stOn.note.includes('方') &&
+      stOn.note.includes('常驻条目') &&
+      stOn.note.length > 20,
+    stOn.note,
+  )
+  c.check(
+    '口径说明里没有没渲染的 Markdown（** 直接露在页面上）',
+    !stOn.note.includes('**') && stOn.note.includes('不依脉象的常驻条目'),
+    stOn.note.includes('**') ? '说明里残留了 ** ' : stOn.note,
+  )
+  c.check(
+    '② ③ 两处都有这个开关，且都处于「显示中」',
+    stOn.panelToggleOn === true &&
+      stOn.libToggleOn === true &&
+      stOn.panelToggleText === '显示中' &&
+      stOn.libToggleText === '显示中',
+    `② ${stOn.panelToggleText} / ③ ${stOn.libToggleText}`,
+  )
+
+  // 关掉开关 —— ② ③ 一起不列常驻条目
+  await chrome.ev(
+    `(()=>{const b=[...document.querySelectorAll('.pr-standing-toggle')].find(b=>b.closest('#pr-flib'));b&&b.click();return 1})()`,
+  )
+  await sleep(700)
+  const stOff = await standingStat()
+  console.log(`  ${JSON.stringify(stOff)}`)
+  c.check(
+    '关掉后② 命中区不再列常驻条目',
+    stOff.panel === 0,
+    `还有 ${stOff.panel} 条`,
+  )
+  c.check(
+    '关掉后③ 知识库的常驻条目也没了（同一个开关）',
+    stOff.libJinji === stOn.libJinji - 2 && stOff.libRules === stOn.libRules - 2,
+    `③ 禁忌 ${stOn.libJinji} → ${stOff.libJinji} 条｜总条数 ${stOn.libRules} → ${stOff.libRules}`,
+  )
+  c.check(
+    '依脉象的禁忌条目不被这个开关藏掉（挡路条件要留着）',
+    stOff.libJinji === 1,
+    `③ 还剩 ${stOff.libJinji} 条禁忌`,
+  )
+  c.check(
+    '关掉后 chip 的「条」数正好少掉常驻那几条',
+    stOff.chip.includes('条用方') &&
+      !stOff.chip.includes('含常驻') &&
+      stOff.chipRules === stOn.chipRules - 2,
+    `${stOn.chip} → ${stOff.chip}`,
+  )
+  c.check(
+    '关掉后开关显示「已隐藏」，③ 头部注明藏了几条',
+    stOff.panelToggleText === '已隐藏' &&
+      stOff.libToggleText === '已隐藏' &&
+      stOff.libNote.includes('已隐藏常驻条目'),
+    `开关 ${stOff.panelToggleText} / ③ ${stOff.libNote}`,
+  )
+
+  // 再打开 —— 东西得回来
+  await chrome.ev(
+    `(()=>{const b=[...document.querySelectorAll('.pr-standing-toggle')].find(b=>b.closest('#pr-flib'));b&&b.click();return 1})()`,
+  )
+  await sleep(700)
+  const stBack = await standingStat()
+  console.log(`  ${JSON.stringify(stBack)}`)
+  c.check(
+    '再打开，常驻条目回到② ③（开关没把东西弄丢）',
+    stBack.panel === 2 &&
+      stBack.libJinji === stOn.libJinji &&
+      stBack.libRules === stOn.libRules,
+    `② ${stBack.panel} 条 / ③ 禁忌 ${stBack.libJinji} 条｜总条数 ${stBack.libRules}`,
+  )
+
   /* ---- ⑤ 控制台 ---- */
   console.log('\n【⑤】控制台异常')
   console.log('  ', chrome.errors.length ? chrome.errors : '（无）')

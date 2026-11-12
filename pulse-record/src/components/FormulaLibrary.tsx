@@ -62,6 +62,9 @@ import { DrugCard, FormulaItem, type SessionFormulaHit } from './Findings'
 interface Props {
   /** 要定位到哪一条（③ 的方名点进来时传） */
   focus?: FormulaLink | null
+  /** 常驻条目（用药禁忌）显不显示 —— 与② 命中区共用同一个开关 */
+  showStanding: boolean
+  onToggleStanding: () => void
 }
 
 /** 依脉开方的分组维度：讲稿原序 / 按五行 / 按左右手（与 ② 面板同一套） */
@@ -85,7 +88,7 @@ function libraryRule(rule: FormulaRule): SessionFormulaHit {
   }
 }
 
-export function FormulaLibrary({ focus }: Props) {
+export function FormulaLibrary({ focus, showStanding, onToggleStanding }: Props) {
   const [open, setOpen] = useState(false)
   const [dim, setDim] = useState<Dim>('route')
   const [query, setQuery] = useState('')
@@ -121,20 +124,31 @@ export function FormulaLibrary({ focus }: Props) {
   /* 数据：p44 依脉用方（全量）＋ 讲稿方剂（全量）                          */
   /* ------------------------------------------------------------------ */
 
+  /**
+   * 讲义 p44 依脉用方里**要显示的**那部分。
+   *
+   * 常驻条目（三不用／白虎汤·肾气丸，route＝「用药禁忌」）不依脉象，
+   * 关掉开关就不列 —— 与② 命中区同一个开关（状态在 App 里）。
+   */
+  const visibleRules = useMemo(
+    () => (showStanding ? FORMULA_RULES : FORMULA_RULES.filter((r) => !r.always)),
+    [showStanding],
+  )
+
   /** 讲义 p44 依脉用方：按维度分组（全量，不是只列命中的） */
   const ruleGroups = useMemo<Group<FormulaRule>[]>(() => {
-    if (dim === 'wuxing') return groupByWuxing(FORMULA_RULES, (r) => r.id)
-    if (dim === 'hand') return groupByHand(FORMULA_RULES, (r) => r.id)
+    if (dim === 'wuxing') return groupByWuxing(visibleRules, (r) => r.id)
+    if (dim === 'hand') return groupByHand(visibleRules, (r) => r.id)
     // 讲稿原序：按 route 分组，顺序依 FORMULA_ROUTE_ORDER
     const map = new Map<string, FormulaRule[]>()
-    for (const r of FORMULA_RULES) {
+    for (const r of visibleRules) {
       const list = map.get(r.route) ?? []
       list.push(r)
       map.set(r.route, list)
     }
     const order = [
       ...FORMULA_ROUTE_ORDER,
-      ...Array.from(map.keys()).filter((k) => !FORMULA_ROUTE_ORDER.includes(k)),
+      ...Array.from(map.keys()).filter((route) => !FORMULA_ROUTE_ORDER.includes(route)),
     ]
     return order
       .filter((route) => map.has(route))
@@ -144,7 +158,7 @@ export function FormulaLibrary({ focus }: Props) {
         note: '讲义 2026-10·p44「依脉用方」全量条目（按讲稿原序排列）',
         items: map.get(route)!,
       }))
-  }, [dim])
+  }, [dim, visibleRules])
 
   /** 讲稿 2010 方剂：按维度分组（全量） */
   const drugGroups = useMemo<Group<Drug>[]>(() => {
@@ -167,8 +181,10 @@ export function FormulaLibrary({ focus }: Props) {
   /* ------------------------------------------------------------------ */
 
   const ruleIndex = useMemo(
-    () => buildRuleIndex(FORMULA_RULES, (rule) => patternsOf(rule.id, rule.patterns)),
-    [patternsOf],
+    // 用 visibleRules（不是 FORMULA_RULES）—— 关掉常驻条目后，它也不该被搜出来，
+    // 否则「命中 N 条」会比实际列出来的多。
+    () => buildRuleIndex(visibleRules, (rule) => patternsOf(rule.id, rule.patterns)),
+    [visibleRules, patternsOf],
   )
   const drugIndex = useMemo(() => buildDrugIndex(DRUGS), [])
   const refIndex = useMemo(() => buildRefIndex(FORMULA_REFERENCE), [])
@@ -202,9 +218,15 @@ export function FormulaLibrary({ focus }: Props) {
           <span className="pr-flib-caret">{expanded ? '▾' : '▸'}</span>
           <span className="pr-flib-title">用方知识库</span>
           <span className="pr-flib-count">
-            讲义 p44 依脉用方 {FORMULA_RULES.length} 条 · 讲稿方剂 {DRUGS.length} 方
+            讲义 p44 依脉用方 {visibleRules.length} 条 · 讲稿方剂 {DRUGS.length} 方
           </span>
         </button>
+        {/* 计数说明放在按钮外面 —— 按钮里的数字是「现在显示了多少」 */}
+        {!showStanding && (
+          <span className="pr-flib-standing-note">
+            已隐藏常驻条目（用药禁忌）{FORMULA_RULES.length - visibleRules.length} 条
+          </span>
+        )}
 
         <div className="pr-flib-search">
           <input
@@ -249,6 +271,20 @@ export function FormulaLibrary({ focus }: Props) {
                 </button>
               ))}
             </div>
+            {/*
+              常驻条目开关 —— 与② 命中区共用同一个（状态在 App 里）。
+              常驻条目不依脉象，关掉后知识库里那一组（「用药禁忌」）整组消失。
+            */}
+            <button
+              type="button"
+              className={`pr-filter-chip pr-standing-toggle${showStanding ? ' is-on' : ''}`}
+              aria-pressed={showStanding}
+              onClick={onToggleStanding}
+              title="这两条不依脉象（讲稿第一讲：三不用／上盛用白虎汤·下虚用肾气丸），默认一直在；关掉后② 命中区与③ 用方知识库一起不再列它"
+            >
+              <span className="pr-filter-key">常驻条目（禁忌）</span>
+              <span className="pr-filter-num">{showStanding ? '显示中' : '已隐藏'}</span>
+            </button>
             {searching && (
               <p className="pr-flib-hit">
                 命中 <strong>{hitCount}</strong> 条
