@@ -182,6 +182,14 @@ parentItem$1[parentRelationField].push(nestedItem$1);      // ← 挂在字符�
 
 ⇒ 关系数从 11 条变成 **10 条关系 ＋ 1 个普通文本字段**。
 
+> ⚠️ **连「以前配过、现在不配了」的残留关系也要抹平。**
+> `content_alias.target` 那条关系以前配了 `one_field='name'`，虽然 Directus 只为
+> 「外键指向主键」的关系建 `schema.relations` 条目（所以它当时**没有**炸），
+> 但那是**依赖 Directus 的内部行为**才安全 —— 留着不抹平，哪天它改了行为就中招。
+> 而 `DELETE /relations/{集合}/{字段}` 对**内省出来的**关系**删不掉 meta**（删完 GET 还在），
+> 只能用 `PATCH` 把 `one_field` 置 null。断言 **A7** 因此改成**全量**检查
+> （`GET /relations` 里所有 `content_` 开头的），不只查计划内那几条。
+
 ### 3.5 ⚠️ `--check` 原来会真写
 
 `content-admin-init.mjs --check` 无论有没有 `--check` 都发 `PATCH` ——
@@ -241,14 +249,15 @@ parentItem$1[parentRelationField].push(nestedItem$1);      // ← 挂在字符�
 
 | id | 断言 |
 |---|---|
-| **A6** | 每张内容表的列表接口（`?limit=1` 与 `?fields=*`）都是 200 |
-| **A7** | 每条关系的 `meta.one_field` 都是 `null` |
+| **A6** | 每张内容表的列表接口都是 200 —— 三种形态各测一次：`?limit=1`、`?fields=*`、**显式点名每一列**（最后一种才是最容易踩中 o2m 误判的形态） |
+| **A7** | **所有** content 关系的 `meta.one_field` 都是 `null`（全量查，不只计划内那几条） |
 | **A8** | 关系字段是 `select-dropdown-m2o`；指向非主键的字段是普通文本 `input` |
 | **A9** | 被引用集合的 `display_template` ＝ schema 声明的显示列 |
 
 「故意写坏」的验证（`scripts/e2e/content-admin-break.mjs`）：把 `one_field` 填回去 → **必须被 A6／A7 抓到**；
-把界面改坏 → A8；把 `display_template` 改错 → A9；恢复后必须重新全绿。
-实测 **7/7 通过**（含反向「好配置一条都不报」的防假绿检查）。
+把界面改坏 → A8；把 `display_template` 改错 → A9；给**计划外的残留关系**填 `one_field` → A7；
+恢复后必须重新全绿。
+实测 **9/9 通过**（含反向「好配置一条都不报」的防假绿检查）。
 
 ### 5.2 验收项 ④ 的结论：**多值下拉在当前 schema 下做不到，但当前内容也不需要**
 

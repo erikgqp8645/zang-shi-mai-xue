@@ -1678,7 +1678,7 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`chore/desktop-electron` = `8bc151f`；`feat/wechat-miniprogram` = `623aca8`（小程序／鸿蒙／桌面端／CloudBase 线，**历史原样保留**）；**`feat/web-site` = `845b339`（网站端线，2026-11-06 从 `6ebc881` 切出）** |
 | 分支纪律 | **两条长期开发线**（2026-11-06 起）：网站端新改动走 `feat/web-site`，小程序／鸿蒙／桌面端走 `feat/wechat-miniprogram`；同源于 `6ebc881`，都**不开 PR**、都不**改写已推送的历史**。详见 `AGENTS.md`「Git 约定」 |
 | PR | #6 `chore/multi-user → main`，**OPEN**；#7 `chore/desktop-electron → chore/multi-user`，**OPEN**；`feat/wechat-miniprogram` **永不开 PR**（2026-11-06 拍板：**永不合并进 `main`**） |
-| 全量回归 | **755 项全绿**（core 40 ＋ excel 27 ＋ excel-break 28 ＋ exercise 13 ＋ taro-lint 202 ＋ taro-api 58 ＋ migration 53 ＋ auth 57 ＋ app 32 ＋ 桌面端 33 ＋ content 16 ＋ **后台核对 62（新增）** ＋ library-admin 52 ＋ rule-delete-loader 13 ＋ 鸿蒙 69）。后台那 62 项需要本地 Directus 容器在跑，**没起时明确打印「跳过」并 exit 0**（`PULSE_E2E_REQUIRE=1` 时缺容器才 exit 1 —— 跳过必须能区分于通过） |
+| 全量回归 | **772 项全绿**（core 40 ＋ excel 27 ＋ excel-break 28 ＋ exercise 13 ＋ taro-lint 202 ＋ taro-api 58 ＋ migration 53 ＋ auth 57 ＋ app 32 ＋ 桌面端 33 ＋ content 16 ＋ **后台核对 79（新增）** ＋ library-admin 52 ＋ rule-delete-loader 13 ＋ 鸿蒙 69）。后台那 62 项需要本地 Directus 容器在跑，**没起时明确打印「跳过」并 exit 0**（`PULSE_E2E_REQUIRE=1` 时缺容器才 exit 1 —— 跳过必须能区分于通过） |
 | 教程与练习册 | **`docs/教程-如何填写用方知识库.md`**（面向审核者：分表细则 ＋ 三个完整例子 ＋ 报错对照）；**`content/示例-填写示范.xlsx`**（练习册：5 格故意留空 ＋ 标黄 ＋ 批注）＋ `npm run content:exercise:check` 逐格验收。练习册的正确答案**从真源现取**，不写死；文件名含「示例／练习／示范」的工作簿**拒绝写回真源**（详见 §3.20） |
 | 数据层 | **JSON 为唯一真源**（`src/content/*.json` **8 个文件**，新增 `symbols.json`）；**Excel 为人工编辑层**（`content/臧氏脉学-用方知识库.xlsx`，**65 个 sheet** ＝ 15 通用表 ＋ **50 张脉象图矩阵**）；TS 只留逻辑。**矩阵是脉象图的唯一编辑面**，长表由它派生。往返 20 项 ＋ 故意写坏 22 项都挂在 `npm test`。用法见 [`content-layer.md`](./content-layer.md)（详见 §3.18／§3.19） |
 | 内容层（新版 · 进行中） | **本地 `local-data/content.sqlite` ＝ 编辑真源**（17 张表 1472 行，Directus 后台可编辑）→ 发布命令 → 远端 PG `content` schema ＋ 仓库 `src/content/*.json` 快照。**M0～M3 已完成**（选型／落库／远端通路／发布命令），**M4（Excel 退役）起未做**。⭐ 2026-11-12 补完后台人眼确认：**抓出并修掉一个让「被引用方整张表点不开」的 500**（Directus 的 `meta.one_field` 反向 o2m 误判），新增断言 A6~A9 ＋「故意写坏」7/7。见 §3.26 与 [`content-publish.md`](./content-publish.md) |
@@ -2207,10 +2207,17 @@ relation.collection === collection && relation.field === field                  
 - 17 张内容表的列表接口（`?limit=1` 与 `?fields=*`）**全部 200**（修复前 4 张 500）。
 - 人眼：下拉展开**正好 18 条用字**，当前值显示**「大或顶」**；`Pattern ID` 显示**「增液（安卫）」**（图名）。
   截图见 [`content-admin-选型.md` §5.1](./content-admin-选型.md)。
-- 新增断言 **A6**（各表可读）／**A7**（`one_field` 必须 null）／**A8**（字段界面）／**A9**（显示模板），
+- 新增断言 **A6**（各表可读：三种请求形态各测一次，含**显式点名每一列**）／
+  **A7**（**全量**关系的 `one_field` 必须 null）／**A8**（字段界面）／**A9**（显示模板），
   按**结构解析**（看状态码与 `meta` 字段值，不搜关键词）。
-- **「故意写坏」验证 7/7 通过**（`npm run test:e2e:content:admin`）：把 `one_field` 填回去 ⇒ 被 A6／A7 抓到；
-  改界面 ⇒ A8；改 `display_template` ⇒ A9；恢复后必须重新全绿（防假绿）。
+- **「故意写坏」验证 9/9 通过**（`npm run test:e2e:content:admin`）：把 `one_field` 填回去 ⇒ 被 A6／A7 抓到；
+  改界面 ⇒ A8；改 `display_template` ⇒ A9；给**计划外的残留关系**填 `one_field` ⇒ A7；
+  恢复后必须重新全绿（防假绿）。
+- **顺手清掉一颗地雷**：`content_alias.target` 那条关系以前配了 `one_field='name'`。
+  Directus 只为「外键指向主键」的关系建 `schema.relations` 条目，所以它当时**没炸** ——
+  但那是靠 Directus 的内部行为才安全。而且 `DELETE /relations/{集合}/{字段}`
+  对**内省出来的**关系**删不掉 meta**（删完 GET 还在）⇒ 只能用 `PATCH` 置 null。
+  断言 **A7** 因此改成**全量**检查（`GET /relations` 里所有 `content_` 开头的）。
 - 顺手修掉一个隐患：`content-admin-init.mjs --check` 原来**无论有没有 `--check` 都发 PATCH**
   （「核对」却真改了远端）⇒ 现在 `--check` 走 GET，纯只读。
 
