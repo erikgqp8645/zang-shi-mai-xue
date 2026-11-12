@@ -1678,7 +1678,7 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`chore/desktop-electron` = `8bc151f`；`feat/wechat-miniprogram` = `623aca8`（小程序／鸿蒙／桌面端／CloudBase 线，**历史原样保留**）；**`feat/web-site` = `845b339`（网站端线，2026-11-06 从 `6ebc881` 切出）** |
 | 分支纪律 | **两条长期开发线**（2026-11-06 起）：网站端新改动走 `feat/web-site`，小程序／鸿蒙／桌面端走 `feat/wechat-miniprogram`；同源于 `6ebc881`，都**不开 PR**、都不**改写已推送的历史**。详见 `AGENTS.md`「Git 约定」 |
 | PR | #6 `chore/multi-user → main`，**OPEN**；#7 `chore/desktop-electron → chore/multi-user`，**OPEN**；`feat/wechat-miniprogram` **永不开 PR**（2026-11-06 拍板：**永不合并进 `main`**） |
-| 全量回归 | **725 项全绿**（core 40 ＋ taro-lint 202 ＋ taro-api 58 ＋ migration 53 ＋ auth 57 ＋ **app 61** ＋ 桌面端 33 ＋ 鸿蒙 69 ＋ content 17 ＋ library-admin 61 ＋ library-runtime-edit 15 ＋ rule-delete-loader 13 ＋ **excel-retired 14** ＋ **unified-editor 32**）。后台核对 210 项需要本地 Directus 容器在跑，**没起时明确打印「跳过」并 exit 0**（`PULSE_E2E_REQUIRE=1` 时缺容器才 exit 1 —— 跳过必须能区分于通过）；容器起来时合计 **935**。⚠️ **2026-11-12 Excel 退役**：主链里的 excel 27 ＋ excel-break 28 ＋ exercise 13 已摘掉，换成 excel-retired 14（详见 §3.35）。⚠️ **2026-11-12 统一编辑弹层**：主链再添 unified-editor 32（详见 §3.36） |
+| 全量回归 | **740 项全绿**（core 40 ＋ taro-lint 202 ＋ taro-api 58 ＋ migration 53 ＋ auth 57 ＋ **app 61** ＋ 桌面端 33 ＋ 鸿蒙 69 ＋ content 17 ＋ library-admin 61 ＋ library-runtime-edit 15 ＋ rule-delete-loader 13 ＋ **excel-retired 14** ＋ **unified-editor 32** ＋ **pattern-groups 15**）。后台核对 210 项需要本地 Directus 容器在跑，**没起时明确打印「跳过」并 exit 0**（`PULSE_E2E_REQUIRE=1` 时缺容器才 exit 1 —— 跳过必须能区分于通过）；容器起来时合计 **950**。⚠️ **2026-11-12 Excel 退役**：主链里的 excel 27 ＋ excel-break 28 ＋ exercise 13 已摘掉，换成 excel-retired 14（详见 §3.35）。⚠️ **2026-11-12 统一编辑弹层**：主链再添 unified-editor 32（详见 §3.36） ⚠️ **2026-11-12 脉象图去角标**：主链再添 pattern-groups 15（详见 §3.37） |
 | 教程与练习册 | ⛔ **2026-11-12 已随 Excel 一起退役** —— `docs/教程-如何填写用方知识库.md`、`content/示例-填写示范.xlsx`、`npm run content:exercise*` 全部删除（详见 §3.35）。内容怎么改现在看 [`content-layer.md`](./content-layer.md) 的「三条编辑路线」 |
 | 数据层 | **真源不是 JSON**：编辑真源＝本地 `local-data/content.sqlite`（17 张表）→ 发布命令 → 线上真源＝远端 PG `content.*` → 仓库快照＝`src/content/*.json`（**9 个文件**）；TS 只留逻辑。⛔ **Excel 人工编辑层已于 2026-11-12 退役**（工作簿 ＋ 双向转换 ＋ 练习册 ＋ 教程 ＋ 流程图 全部删除）。改内容有**三条路**：网站端**统一编辑器**（条目 ＋ 脉象图一个界面）／本地后台 Directus／管理员命令行。用法见 [`content-layer.md`](./content-layer.md)（详见 §3.25／§3.35） |
 | 内容层（新版 · 进行中） | **本地 `local-data/content.sqlite` ＝ 编辑真源**（18 张表 1473 行，Directus 后台可编辑）→ 发布命令 → 远端 PG `content` schema ＋ 仓库 `src/content/*.json` 快照。**M0～M4 已完成**（选型／落库／远端通路／发布命令／**Excel 退役**），**M5（前端改从 `GET /api/content` 取数）起未做**。⭐ 2026-11-12 补完后台人眼确认：**抓出并修掉一个让「被引用方整张表点不开」的 500**（Directus 的 `meta.one_field` 反向 o2m 误判）。⭐ 同日**统一了断言编号**（计划 §10.2 的 A1~A19 为准，计划外续 A20+）＋ **后台补三项配置**（枚举下拉／必填／只读）＋ 补上「一个格位只能属于一个组」这条真实缺口。⭐ 再同日加了**知识库的「是否显示」**（每条一个勾 ＋ 知识库显示模式，**共享层**，详见 §3.32）。⭐⭐ 再同日**Excel 整体退役**（M4）：工作簿／双向转换／练习册／教程／流程图全删，改为「后台 ＋ 发布命令 ＋ 覆盖层」一条路（详见 §3.35）。编号对照表见 [`content-assertions.md`](./content-assertions.md)，详见 §3.26／§3.27／§3.32／§3.35 与 [`content-admin-选型.md`](./content-admin-选型.md) |
@@ -3205,6 +3205,17 @@ cells  = R关浮(无或弱) / R关中(＋) / R关沉(＋)   ← **左手三格�
 ⚠️ 还有一条**平台坑**：改 `src/domain/*.ts` 的 mutation **必须重编译 core**
 （那个产物**不在版本库里**）—— 改坏后编译一次、还原后再编译一次。
 不这么做，后面每一轮都在测旧代码且**不报错**（本轮已按纪律做）。
+
+#### 实测
+
+* 浏览器实测（本地 5178 单机模式，**刷新后**才读到覆盖层 —— 页面在写库之前就加载过，
+  不会自动重取）：缩略图与弹层大图都显示「组 1：左关浮；组 2：右关浮」；
+  关·浮行左右都是 `0`；格内只有脉象符号、没有角标；脉象图计数显示「**2 张**」。
+* `node scripts/e2e/pattern-groups.mjs` → **15 项全绿**。
+* `node scripts/e2e/pattern-groups-break-test.mjs` → **46 项全绿**（7 条 mutation 全被抓）。
+* `npm test` → exit 0，合计 **740 项全绿**（`content-admin-check` 因本地后台没起是「跳过」，
+  跳过不计通过；容器起来时合计 950）。
+* `npm run typecheck` → exit 0；`npm run build` → exit 0。
 
 #### 纪律
 
