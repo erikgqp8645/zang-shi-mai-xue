@@ -109,8 +109,8 @@ const MERGE = 'src/domain/library-merge.mjs'
 const CHIPS = 'src/domain/library-chips.mjs'
 /** 合并与级联的共享纯逻辑 */
 const CORE = 'src/domain/library-core.mjs'
-/** 知识库条目的编辑弹层（「恢复默认」在这） */
-const EDITOR = 'src/components/LibraryEditor.tsx'
+/** 知识库条目的统一编辑弹层（「恢复默认」在这） */
+const EDITOR = 'src/components/RuleEditor.tsx'
 
 const MUTATIONS = [
   {
@@ -267,8 +267,8 @@ const MUTATIONS = [
         path: EDITOR,
         replacements: [
           {
-            from: '  async function doRestore() {\n    setConfirmRestore(true)\n  }',
-            to: "  async function doRestore() {\n    if (!window.confirm('（故意写坏：换回原生 confirm）')) return\n    setConfirmRestore(true)\n  }",
+            from: "                  onClick={() => setConfirmRestore('entry')}",
+            to: "                  onClick={() => {\n                    if (!window.confirm('（故意写坏：换回原生 confirm）')) return\n                    setConfirmRestore('entry')\n                  }}",
           },
         ],
       },

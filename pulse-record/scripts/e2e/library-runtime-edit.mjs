@@ -33,7 +33,7 @@ import { createRequire } from 'node:module'
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { makeChecker, startApi, ROOT, runNpm } from './lib.mjs'
+import { makeChecker, startApi, stripComments, ROOT, runNpm } from './lib.mjs'
 
 /* 浏览器侧的生效集合并（与网站端跑的是同一份代码） */
 import { mergeLibrary } from '../../src/domain/library-merge.mjs'
@@ -579,49 +579,18 @@ await check('RE12 仓库里的 src/content/*.json 逐字节未变（不自动固
 /*    （不然源码里写着「不用 window.confirm」的注释会把自己判成红的）。     */
 /* ------------------------------------------------------------------ */
 
-/**
- * 剥掉注释，**保留字符串字面量**。
- *
- * ⚠️ 为什么要剥：源码里到处写着「ⓘ 不用 `window.confirm`」这种注释 ——
- *    直接全文搜 `window.confirm` 会把注释本身当成违规。
- *
- * ⓘ 为什么保留字符串：`from './ConfirmDialog'` 和 `className="pr-ps-modal is-confirm"`
- *    都是字符串 —— 剥掉它们就查不到「有没有 import／有没有用那个样式类」了。
- */
-function stripComments(src) {
-  let out = ''
-  let i = 0
-  let mode = 'code'
-  const n = src.length
-  while (i < n) {
-    const c = src[i]
-    const d = src[i + 1]
-    if (mode === 'code') {
-      if (c === '/' && d === '/') { mode = 'line'; i += 2; continue }
-      if (c === '/' && d === '*') { mode = 'block'; i += 2; continue }
-      out += c
-      i += 1
-      continue
-    }
-    if (mode === 'line') {
-      if (c === '\n') { mode = 'code'; out += c }
-      i += 1
-      continue
-    }
-    if (mode === 'block') {
-      if (c === '*' && d === '/') { mode = 'code'; i += 2; continue }
-      i += 1
-      continue
-    }
-  }
-  return out
-}
 
 /** 三个「要问一下再动手」的入口 —— 都要走站内确认框 */
 const CONFIRM_SITES = [
   'src/components/FormulaLibrary.tsx',
-  'src/components/LibraryEditor.tsx',
-  'src/components/PatternEditor.tsx',
+  'src/components/RuleEditor.tsx',
+]
+
+/** 被动面板（不自己弹确认框）—— 但也不许用 window.confirm */
+const NO_CONFIRM_SITES = [
+  'src/components/LibraryFields.tsx',
+  'src/components/PatternPanel.tsx',
+  'src/components/PatternStrip.tsx',
 ]
 
 await check('RE14 删除／恢复默认的确认走站内确认框：不用 window.confirm（不冻住整页）', async () => {
@@ -637,6 +606,17 @@ await check('RE14 删除／恢复默认的确认走站内确认框：不用 wind
     if (code.includes('window.confirm')) problems.push(`${rel} 里还有 window.confirm(`)
     if (!code.includes("from './ConfirmDialog'")) problems.push(`${rel} 没有 import ConfirmDialog`)
     if (!code.includes('<ConfirmDialog')) problems.push(`${rel} 没有渲染 <ConfirmDialog>`)
+  }
+
+  for (const rel of NO_CONFIRM_SITES) {
+    const abs = join(ROOT, rel)
+    if (!existsSync(abs)) {
+      problems.push(`${rel} 不存在`)
+      continue
+    }
+    if (stripComments(readFileSync(abs, 'utf8')).includes('window.confirm')) {
+      problems.push(`${rel} 里还有 window.confirm(`)
+    }
   }
 
   // 确认框本身只有一处（不另发明一套）

@@ -272,6 +272,47 @@ export async function launchChrome({ url, width = 1500, height = 1200, port = 93
 
 /* ------------------------------ 断言 ------------------------------ */
 
+/**
+ * 剥掉注释，**保留字符串字面量**。
+ *
+ * ⚠️ 为什么要剥：源码里到处写着「ⓘ 不用 `window.confirm`」这种注释 ——
+ *    直接全文搜 `window.confirm` 会把注释本身当成违规。
+ *
+ * ⓘ 为什么保留字符串：`from './ConfirmDialog'` 与 `className="pr-ps-modal is-confirm"`
+ *    都是字符串 —— 剥掉它们就查不到「有没有 import／有没有用那个样式类」了。
+ *
+ * @param {string} src
+ * @returns {string}
+ */
+export function stripComments(src) {
+  let out = ''
+  let i = 0
+  let mode = 'code'
+  const n = src.length
+  while (i < n) {
+    const c = src[i]
+    const d = src[i + 1]
+    if (mode === 'code') {
+      if (c === '/' && d === '/') { mode = 'line'; i += 2; continue }
+      if (c === '/' && d === '*') { mode = 'block'; i += 2; continue }
+      out += c
+      i += 1
+      continue
+    }
+    if (mode === 'line') {
+      if (c === '\n') { mode = 'code'; out += c }
+      i += 1
+      continue
+    }
+    if (mode === 'block') {
+      if (c === '*' && d === '/') { mode = 'code'; i += 2; continue }
+      i += 1
+      continue
+    }
+  }
+  return out
+}
+
 export function makeChecker() {
   const failures = []
   let pass = 0

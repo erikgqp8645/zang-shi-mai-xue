@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { PulsePattern } from '../domain/pulse-pattern'
 import { usePatterns } from '../state/patterns'
 import { PatternSheet, hasCells } from './PatternSheet'
-import { PatternEditor } from './PatternEditor'
+import { RuleEditor } from './RuleEditor'
 
 /**
  * 方剂条目的「脉象图」一栏
@@ -59,10 +59,12 @@ export function PatternStrip({ formulaId, formulaLabel, baseline }: Props) {
           ＋ 加脉象图
         </button>
         {editing && (
-          <PatternEditor
-            formulaId={formulaId}
-            formulaLabel={formulaLabel}
-            current={patterns}
+          <RuleEditor
+            kind="rule"
+            id={formulaId}
+            title={formulaLabel}
+            initialTab="pattern"
+            baseline={baseline}
             onClose={() => setEditing(false)}
           />
         )}
@@ -152,10 +154,12 @@ export function PatternStrip({ formulaId, formulaLabel, baseline }: Props) {
       )}
 
       {editing && (
-        <PatternEditor
-          formulaId={formulaId}
-          formulaLabel={formulaLabel}
-          current={patterns}
+        <RuleEditor
+          kind="rule"
+          id={formulaId}
+          title={formulaLabel}
+          initialTab="pattern"
+          baseline={baseline}
           onClose={() => setEditing(false)}
         />
       )}

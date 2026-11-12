@@ -12,8 +12,8 @@ import type { ReactNode } from 'react'
  *
  * ⓘ 样式沿用编辑器那套（`pr-ps-modal`／`pr-ed-foot`）—— 同一套弹层，不另发明一套。
  *
- * ⓘ **只有一处**：删除条目（`FormulaLibrary.tsx`）与恢复默认（`LibraryEditor.tsx`）
- *   都用它 ⇒ 确认框的样子和措辞只有一个来源。
+ * ⓘ **只有一处**：删除条目（`FormulaLibrary.tsx`）与恢复默认（`RuleEditor.tsx`
+ *   的统一编辑弹层 —— 条目与脉象图都在这儿）都用它 ⇒ 确认框的样子和措辞只有一个来源。
  */
 
 export type ConfirmDialogProps = {

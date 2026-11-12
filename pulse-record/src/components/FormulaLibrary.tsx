@@ -31,7 +31,7 @@ import {
 } from '../state/library'
 import { getEffectiveDrugRaw, getEffectiveRuleRaw } from '../domain/library-store'
 import { DrugCard, FormulaItem, type SessionFormulaHit } from './Findings'
-import { LibraryEditor } from './LibraryEditor'
+import { RuleEditor } from './RuleEditor'
 import { ConfirmDialog } from './ConfirmDialog'
 
 /**
@@ -642,9 +642,9 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding, canEdit 
         </>
       )}
 
-      {/* 编辑弹层 */}
+      {/* 编辑弹层（条目 ＋ 脉象图，一个界面两个页签） */}
       {editing && (
-        <LibraryEditor
+        <RuleEditor
           kind={editing.kind}
           id={editing.id}
           entry={editing.entry}

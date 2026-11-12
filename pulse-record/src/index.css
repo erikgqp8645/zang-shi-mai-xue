@@ -4070,7 +4070,7 @@ button:disabled {
 }
 
 /* ------------------------------------------------------------------ */
-/* 脉象图编辑器（PatternEditor）                                        */
+/* 统一编辑弹层（RuleEditor：条目 ＋ 脉象图两个页签）                   */
 /* ------------------------------------------------------------------ */
 
 .pr-ps-modal-box.is-editor {
@@ -4100,6 +4100,93 @@ button:disabled {
 .pr-ed-link:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* ------------------------------------------------------------------ *
+ * 统一编辑弹层（RuleEditor）：条目 ＋ 脉象图，一个界面两个页签        *
+ * ------------------------------------------------------------------ */
+
+/* 页签条 */
+.pr-ed-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--divider);
+  background: #fbf8f2;
+}
+
+.pr-ed-tab {
+  position: relative;
+  padding: 7px 12px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--sage);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pr-ed-tab:hover {
+  color: var(--ink);
+}
+
+.pr-ed-tab.is-on {
+  color: var(--clay);
+  border-bottom-color: var(--clay);
+  font-weight: 600;
+}
+
+/* 「这一条被手改过」的小圆点 */
+.pr-ed-tab-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 4px;
+  border-radius: 50%;
+  background: var(--clay);
+  vertical-align: middle;
+}
+
+/* 页签条右侧（「恢复默认」） */
+.pr-ed-tabs-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 只读字段（不再另编一份的地方：图名、出处） */
+.pr-ed-field.is-readonly .pr-ed-fixed {
+  padding: 3px 0;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+/* 本图出处（只读） */
+.pr-ed-src {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--sage);
+}
+
+.pr-ed-src-diff {
+  margin-left: 6px;
+  color: var(--clay);
+}
+
+/* 空态 */
+.pr-ed-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+/* 错误（显示在弹层内容区里） */
+.pr-ed-error-out {
+  margin: 8px 14px 0;
 }
 
 .pr-ed-body {
