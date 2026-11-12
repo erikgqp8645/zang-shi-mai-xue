@@ -363,15 +363,15 @@ try {
   )
 
   /* ---- ⑩ 常驻条目（用药禁忌）开关 ---- */
-  console.log('\n【⑩】常驻条目（用药禁忌）开关 ＋ 筛选分组上的计数口径')
+  console.log('\n【⑩】常驻条目（用药禁忌）开关 ＋ ②③ 不再重复渲染讲稿方剂')
   //
   // 这两条（三不用／上盛用白虎汤·下虚用肾气丸）**不依脉象**，默认一直在。
   // 它们会混进「按五行／按左右手」的分组 —— 于是「水·肾 2 条」其实两条全是常驻，
   // 一条命中都没有。读者只能靠开关自己把它们摘掉。
   //
-  // ⚠️ 计数口径必须一起断言：chip 上两个数字量的不是同一样东西
-  //   「条」＝依脉用方条目数　「方」＝讲稿方剂 30 方的归属数
-  // 不写清楚，读者只会以为「10 方」和屏上「2 条」对不上。
+  // ⚠️ 计数口径：chip 上只剩一个数字了 ——「条」＝本组在② 命中区里的条目数。
+  //   原来的「· K 方备查」已删（那个「方」是讲稿方剂 30 方的归属数，
+  //   而那 30 方原来在② 面板底部又渲染了一遍，与③ 知识库重复）。
   //
   // 筛选 chip 只在「按五行／按左右手」维度下出现 ⇒ 先把② 面板切过去。
   await chrome.ev(
@@ -426,10 +426,13 @@ try {
     `② ${stOn.panel} 条`,
   )
   c.check(
-    'chip 写明口径（「条用方」／「方备查」），常驻条数单独标出来',
-    stOn.chip.includes('条用方') &&
-      stOn.chip.includes('方备查') &&
-      stOn.chip.includes('含常驻 2'),
+    'chip 写明口径（「条用方」），常驻条数单独标出来',
+    stOn.chip.includes('条用方') && stOn.chip.includes('含常驻 2'),
+    stOn.chip,
+  )
+  c.check(
+    'chip 上只剩「条用方（含常驻 M）」，没有「· K 方备查」那个数',
+    /^\d+ 条用方(（含常驻 \d+）)?$/.test(stOn.chip.trim()),
     stOn.chip,
   )
   c.check(
@@ -504,6 +507,66 @@ try {
       stBack.libJinji === stOn.libJinji &&
       stBack.libRules === stOn.libRules,
     `② ${stBack.panel} 条 / ③ 禁忌 ${stBack.libJinji} 条｜总条数 ${stBack.libRules}`,
+  )
+
+  /* ---- ⑩-补 ②③ 不再重复渲染讲稿方剂 ---- */
+  console.log('\n【⑩-补】② 面板不再整份列讲稿方剂（那 30 方与③ 知识库重复）')
+  //
+  // 2026-11-12 用户问：「判读提示和方药知识库是不是重复显示了？」
+  // 实测：**是**，而且重复的是「全量对全量」——
+  //   ② 面板底部「方剂备查（讲稿 2010·第二讲 叁、用方）」＝讲稿方剂**全量 30 方**
+  //   ③ 用方知识库「讲稿方剂 30 方」＝**同一份数据、同一个全集**
+  // （依脉用方那部分**不是**重复：② 只列命中的 35 条，③ 是全量 61 条，是子集⊆全集。）
+  //
+  // 处置：删掉② 那一节，讲稿方剂一律去③ 查；chip 上的「· K 方备查」也一并删掉。
+  // ⚠️ 同和堂版成方**保留** —— ③ 知识库里没有这一份，不重复。
+  //
+  // ③ 知识库默认是折着的 ⇒ 先把它展开，否则数不到那 30 条。
+  await chrome.ev(
+    `(()=>{const t=document.querySelector('#pr-flib .pr-flib-toggle');if(t&&!document.getElementById('pr-flib').classList.contains('is-open'))t.click();return 1})()`,
+  )
+  await sleep(700)
+  const dupStat = await chrome.ev(
+    `(()=>{
+      // ⚠️ 范围要卡在② 判读提示面板里（.pr-findings-row 只此一处用）——
+      // 页面上「用药记录」「③开方药清单」里也有 DrugCard，那是「本次用了什么方」，不算重复。
+      const panel=document.querySelector('.pr-findings-row');
+      const heads=[...panel.querySelectorAll('h3.pr-formula-route')].map(h=>h.textContent.trim());
+      // 「讲稿方剂全量」那一节的标题有两种讲法（讲稿原序／按维度）
+      const scriptSection=heads.filter(t=>t.includes('讲稿 2010·第二讲 叁、用方')||t.startsWith('方剂备查 ·'));
+      // 讲稿方剂卡（DrugCard）的 therapy 是**三个疗法名**之一；
+      // 同和堂版成方卡写的是「同和堂版」，同和堂版「科中」行写的是「科中」—— 两者都排除。
+      const SCRIPT_THERAPY=['一体疗法','三焦疗法','五脏疗法'];
+      const isScript=(e)=>{const t=e.querySelector('.pr-drug-therapy');return t&&SCRIPT_THERAPY.indexOf(t.textContent.trim())>=0};
+      const panelScript=[...panel.querySelectorAll('.pr-drug')].filter(isScript);
+      const panelTonghe=[...panel.querySelectorAll('.pr-drug')].filter(e=>!isScript(e));
+      const libScript=[...document.querySelectorAll('#pr-flib .pr-drug-compact')];
+      // ② 里出现的讲稿方剂**去重后**有几个？—— 命中条目内嵌的只是「这次用到的那些」，
+      // 不该是全部 30 方（全部 30 方在③ 知识库里）。
+      const panelNames=new Set(panelScript.map(e=>{const s=e.querySelector('.pr-drug-head strong');return s?s.textContent.trim():''}));
+      return {scriptSection,panelScript:panelScript.length,panelNames:panelNames.size,panelTonghe:panelTonghe.length,libScript:libScript.length};
+    })()`,
+  )
+  console.log(`  ${JSON.stringify(dupStat)}`)
+  c.check(
+    '② 面板里没有「讲稿方剂全量」那一节了',
+    dupStat.scriptSection.length === 0,
+    dupStat.scriptSection.join(' ｜ ') || '（没有）',
+  )
+  c.check(
+    '③ 知识库里 30 条讲稿方剂一条不少（没把内容删了，只是换了地方放）',
+    dupStat.libScript === 30,
+    `③ ${dupStat.libScript} 条`,
+  )
+  c.check(
+    '② 里只出现「这次用到」的讲稿方剂，不是全部 30 方（全部那 30 方在③ 里）',
+    dupStat.panelNames > 0 && dupStat.panelNames < 30,
+    `② 去重后 ${dupStat.panelNames} 个方名（卡片 ${dupStat.panelScript} 张）`,
+  )
+  c.check(
+    '② 的同和堂版成方保留（③ 知识库里没有这一份，不重复）',
+    dupStat.panelTonghe > 0,
+    `② 同和堂版 ${dupStat.panelTonghe} 张`,
   )
 
   /* ---- ⑤ 控制台 ---- */

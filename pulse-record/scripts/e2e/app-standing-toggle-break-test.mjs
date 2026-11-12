@@ -7,10 +7,12 @@
  * 2026-11-12：② 面板「筛选分组」上的两个数字（X条 · Y方）量的是**两套东西** ——
  * 「条」是依脉用方条目数，「方」是讲稿方剂 30 方里的归属数，
  * 放在一起看着永远对不上（「土·脾 10 方」vs 屏上「2 条」）。
- * 于是：chip 改成写明口径（「N 条用方（含常驻 M）· K 方备查」），
+ * 于是：chip 改成写明口径（「N 条用方（含常驻 M）」），
  * 并加一个**常驻条目（用药禁忌）开关** —— ② 命中区与③ 用方知识库共用同一个开关。
  *
- * 对应的断言在 `app-regression.mjs` 的【⑩】段。
+ * 同日又删掉了 chip 上的「· K 方备查」：那个「方」数的 30 方
+ * 当时在② 面板底部**整份又渲染了一遍**（与③ 知识库重复）⇒ 两处一起删。
+ * 对应的断言在 `app-regression.mjs` 的【⑩】段与【⑩-补】段。
  *
  * ## 这个脚本干什么
  *
@@ -34,6 +36,10 @@
  *   I —— 口径说明里的强调写成 Markdown 的 `**`（JSX 不解析 ⇒ 页面直接露出两个星号）
  *        期望：「口径说明里没有没渲染的 Markdown」变红，
  *             而开关与计数的几条断言**仍然绿**（只是排版写坏，不是功能坏了）
+ *   J —— 把删掉的「讲稿方剂全量」那一节**加回来**（②③ 又重复渲染一遍）
+ *        期望：「② 面板里没有『讲稿方剂全量』那一节了」与
+ *             「② 里只出现『这次用到』的讲稿方剂」变红，
+ *             而「③ 知识库里 30 条讲稿方剂一条不少」「② 的同和堂版成方保留」**仍然绿**
  *
  * ## 为什么要留「依脉象的禁忌条目」这一条断言
  *
@@ -89,11 +95,25 @@ const RE_PANEL_ALL = /const all = showStanding \? \[\.\.\.formulaHits, \.\.\.sta
 /** FormulaLibrary.tsx：知识库要显示的规则集 */
 const RE_VISIBLE_RULES = /\(\) => \(showStanding \? FORMULA_RULES : FORMULA_RULES\.filter\(\(r\) => !r\.always\)\)/
 
-/** Findings.tsx：chip 上的数字文案 */
-const RE_CHIP_NUM = /\{c\.rules\} 条用方\{c\.standing > 0 \? `（含常驻 \$\{c\.standing\}）` : ''\} · \{c\.drugs\} 方备查/
+/**
+ * Findings.tsx：chip 上的数字文案
+ *
+ * ⚠️ 2026-11-12 改过一次：原来的「N 条用方（含常驻 M）· K 方备查」里那个「K 方」
+ * 讲的是**讲稿方剂 30 方**的归属数，而那 30 方当时在② 面板底部又整份渲染了一遍
+ * （与③ 知识库重复）⇒ 两处一起删，现在 chip 上只剩一个数字。
+ */
+const RE_CHIP_NUM = /\{c\.rules\} 条用方\{c\.standing > 0 \? `（含常驻 \$\{c\.standing\}）` : ''\}/
 
 /** Findings.tsx：口径说明里强调「不依脉象的常驻条目」的那句 */
 const RE_NOTE_STRONG = /开关只管<strong>不依脉象的常驻条目<\/strong>（三不用／白虎汤·肾气丸）/
+
+/**
+ * Findings.tsx：② 面板里「讲稿方剂全量」那一节的锚点（已删）。
+ *
+ * 用来做 mutation J —— 把这一节**加回来**，验证断言真能抓到重复渲染。
+ */
+const RE_DRUG_SECTION_ANCHOR =
+  /\{\/\*\n            ⭐ 这里原来还有一节「方剂备查（讲稿 2010·第二讲 叁、用方）」/
 
 /* ------------------------------ 跑回归 ------------------------------ */
 
@@ -158,13 +178,16 @@ const MUTATIONS = [
     title: "chip 的数字退回旧口径（不写明数的是什么）",
     file: 'findings',
     apply(src) {
-      return src.replace(RE_CHIP_NUM, '{c.rules}条 · {c.drugs}方')
+      // 旧口径是「X条 · Y方」；Y（方数）已经随② 那节一起删了，
+      // 所以这里只把「条用方（含常驻 M）」打回「X条」。
+      return src.replace(RE_CHIP_NUM, '{c.rules}条')
     },
     expectRed: [
-      'chip 写明口径（「条用方」／「方备查」），常驻条数单独标出来',
+      'chip 写明口径（「条用方」），常驻条数单独标出来',
+      'chip 上只剩「条用方（含常驻 M）」，没有「· K 方备查」那个数',
       '关掉后 chip 的「条」数正好少掉常驻那几条',
     ],
-    // 关键：chip 文案跟数据无关 ⇒ 这两条不该被 H 顺手带红
+    // 关键：chip 文案跟数据无关 ⇒ 这三条不该被 H 顺手带红
     expectGreen: ['默认显示：② 命中区列着 2 条常驻条目'],
   },
   {
@@ -181,6 +204,44 @@ const MUTATIONS = [
       '默认显示：② 命中区列着 2 条常驻条目',
       '关掉后② 命中区不再列常驻条目',
       '关掉后③ 知识库的常驻条目也没了（同一个开关）',
+    ],
+  },
+  {
+    id: 'J',
+    title: '把删掉的「讲稿方剂全量」那一节加回来（②③ 又重复了）',
+    file: 'findings',
+    apply(src) {
+      // 2026-11-12 用户问「判读提示和方药知识库是不是重复显示了？」——
+      // 重复的就是这一节：② 面板底部整份列讲稿方剂 30 方，③ 知识库里也是这 30 方。
+      //
+      // ⚠️ 这段代码用了 DRUGS，而 DRUGS 的 import 也被一并删了 ⇒ mutation 必须把 import 一起加回来，
+      //    否则 TS 编译失败、回归根本跑不到断言那条（测的就不是东西了）。
+      const withImport = src.replace(
+        "import { DRUG_BY_ID, type Drug } from '../domain/drugs'",
+        "import { DRUG_BY_ID, DRUGS, type Drug } from '../domain/drugs'",
+      )
+      return withImport.replace(
+        RE_DRUG_SECTION_ANCHOR,
+        `{/* mutation J：把删掉的那一节加回来 */}
+          <section className="pr-formula-group">
+            <h3 className="pr-formula-route">方剂备查（讲稿 2010·第二讲 叁、用方）</h3>
+            {DRUGS.map((d) => (
+              <DrugCard key={d.id} drug={d} />
+            ))}
+          </section>
+
+          {/*`,
+      )
+    },
+    expectRed: [
+      '② 面板里没有「讲稿方剂全量」那一节了',
+      '② 里只出现「这次用到」的讲稿方剂，不是全部 30 方（全部那 30 方在③ 里）',
+    ],
+    // 关键：③ 知识库那一份**本来就在**，不受这次 mutation 影响 ⇒ 必须仍然绿
+    expectGreen: [
+      '③ 知识库里 30 条讲稿方剂一条不少（没把内容删了，只是换了地方放）',
+      '② 的同和堂版成方保留（③ 知识库里没有这一份，不重复）',
+      '默认显示：② 命中区列着 2 条常驻条目',
     ],
   },
 ]

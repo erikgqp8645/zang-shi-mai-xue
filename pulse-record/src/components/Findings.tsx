@@ -6,7 +6,7 @@ import {
   STANDING_FORMULA_RULES,
   type FormulaHit,
 } from '../domain/formulas'
-import { DRUG_BY_ID, DRUG_GROUPS, DRUGS, type Drug } from '../domain/drugs'
+import { DRUG_BY_ID, type Drug } from '../domain/drugs'
 import {
   DOSE_SCIENCE_NAME,
   FORMULA_DOSES,
@@ -530,48 +530,35 @@ export function Findings({
     return map
   }, [dim, showStanding])
 
-  /** 方剂备查：讲稿原序按三种疗法；五行／左右手按归属重排 */
-  const drugGroups = useMemo<Group<Drug>[]>(() => {
-    if (dim === 'wuxing') return groupByWuxing(DRUGS, (d) => d.id)
-    if (dim === 'hand') return groupByHand(DRUGS, (d) => d.id)
-    return []
-  }, [dim])
-
   /** 当前维度打开的分组；讲稿原序不分组筛选 */
   const activeKeys = dim === 'wuxing' ? wuxingFilter : handFilter
   const groupOrder = dim === 'wuxing' ? DIM_ORDER.wuxing : DIM_ORDER.hand
 
   /**
-   * 筛选开关上的分组按钮：名称 ＋ 本组条目数 ＋ 方剂数（未命中的组显示 0，仍可打开）。
+   * 筛选开关上的分组按钮：名称 ＋ 本组条目数（未命中的组显示 0，仍可打开）。
    *
-   * ⚠️ 两个数字量的**不是同一样东西**，所以必须把口径写出来：
-   *   · 「条」＝本组在② 命中区里的**依脉用方条目数**（命中的规则；常驻条目另标）
-   *   · 「方」＝**讲稿方剂 30 方**里归到本组的方剂数（渲染在下方「方剂备查」）
-   * 不写清楚的话，「土·脾 10 方」与屏上「只有 2 条」看着就是对不上。
+   * ⚠️ 只剩一个数字了 —— 2026-11-12 删掉了原来的「· K 方备查」：
+   * 那个「方」数的是**讲稿方剂 30 方**里归到本组的方数，而那 30 方
+   * 原来在② 面板底部又渲染了一遍（与③ 知识库重复）⇒ 一并删掉。
+   * 现在 chip 上的数只有一个含义：本组在② 命中区里的依脉用方条目数。
    */
   const filterChips = useMemo(() => {
     if (dim === 'route') return []
     return groupOrder.map((key) => {
       const g = dimGroups.find((x) => x.key === key)
-      const d = drugGroups.find((x) => x.key === key)
       return {
         key,
         label: groupShortLabel(dim, key),
         rules: g ? mergeByRule(g.items).length : 0,
         standing: standingByGroup.get(key) ?? 0,
-        drugs: d ? d.items.length : 0,
       }
     })
-  }, [dim, groupOrder, dimGroups, drugGroups, standingByGroup])
+  }, [dim, groupOrder, dimGroups, standingByGroup])
 
   /** 依筛选后要显示的分组（「未归类」为异常兜底组，始终保留） */
   const shownGroups = useMemo(
     () => dimGroups.filter((g) => g.key === '未归类' || activeKeys.includes(g.key)),
     [dimGroups, activeKeys],
-  )
-  const shownDrugGroups = useMemo(
-    () => drugGroups.filter((g) => g.key === '未归类' || activeKeys.includes(g.key)),
-    [drugGroups, activeKeys],
   )
 
   /** 点一下开／关一组；全关时页面给出提示，不留空白 */
@@ -667,7 +654,7 @@ export function Findings({
                   >
                     <span className="pr-filter-key">{c.label}</span>
                     <span className="pr-filter-num">
-                      {c.rules} 条用方{c.standing > 0 ? `（含常驻 ${c.standing}）` : ''} · {c.drugs} 方备查
+                      {c.rules} 条用方{c.standing > 0 ? `（含常驻 ${c.standing}）` : ''}
                     </span>
                   </button>
                 )
@@ -700,14 +687,14 @@ export function Findings({
           )}
 
           {/*
-            口径说明 —— 两个数字量的不是同一样东西，不写出来读者只能猜。
+            口径说明 —— chip 上那个数量的不是「方」，是「本组在② 命中区里的条目数」。
             放在 chip 行的正下方，挨着它，别塞进别处。
             ⚠️ 只在按五行／按左右手维度下出现（讲稿原序没有分组 chip）。
           */}
           {dim !== 'route' && (
             <p className="pr-target-line pr-filter-note">
-              「条」＝本组在② 命中区里的依脉用方条目（命中的规则；常驻条目另标在括号里）；
-              「方」＝讲稿方剂 30 方里归到本组的方数，渲染在下方「方剂备查」。
+              「条」＝本组在② 命中区里的依脉用方条目（命中的规则；常驻条目另标在括号里）。
+              讲稿方剂一律在下方「用方知识库」里查（可搜索、可点开看组成服法加减禁忌）。
               开关只管<strong>不依脉象的常驻条目</strong>（三不用／白虎汤·肾气丸）——
               依脉象的禁忌条目（如「寸关浮大…下焦方进不去」）不在其中。
             </p>
@@ -815,39 +802,17 @@ export function Findings({
             </table>
           </section>
 
-          <section className="pr-formula-group">
-            <h3 className="pr-formula-route">
-              {dim === 'route'
-                ? '方剂备查（讲稿 2010·第二讲 叁、用方）'
-                : `方剂备查 · ${DIM_LABEL[dim]}`}
-            </h3>
-            <p className="pr-target-line">
-              {dim === 'route'
-                ? '三种疗法与讲稿写明的方剂组成、服法、加减与禁忌，原样转录，不替读者加减方。'
-                : '同一方剂按脏腑／左右手归位；组成、服法、加减与禁忌仍照讲稿原样转录。'}
-            </p>
-            {dim === 'route'
-              ? DRUG_GROUPS.map((g) => (
-                  <div key={g.therapy} className="pr-drug-group">
-                    <h4 className="pr-drug-group-title">{g.title}</h4>
-                    {DRUGS.filter((d) => d.therapy === g.therapy).map((d) => (
-                      <DrugCard key={d.id} drug={d} />
-                    ))}
-                  </div>
-                ))
-              : shownDrugGroups.map((g) => (
-                  <div key={g.key} className="pr-drug-group">
-                    <h4 className="pr-drug-group-title">{g.label}</h4>
-                    <p className="pr-target-line">{g.note}</p>
-                    {g.items.map((d) => (
-                      <DrugCard key={d.id} drug={d} showAttr />
-                    ))}
-                  </div>
-                ))}
-            {dim !== 'route' && shownDrugGroups.length === 0 && (
-              <p className="pr-empty">当前筛选下没有方剂，请在「筛选分组」里至少打开一组。</p>
-            )}
-          </section>
+          {/*
+            ⭐ 这里原来还有一节「方剂备查（讲稿 2010·第二讲 叁、用方）」——
+            讲稿方剂 **全量 30 方**，与 ③ 用方知识库里的「讲稿方剂 30 方」
+            **同一份数据、同一个全集**，只是这里用厚卡片、那里用紧凑行。
+            ⇒ 同一份内容渲染两遍（2026-11-12 用户提出「判读提示和方药知识库
+            是不是重复显示了」）。
+            已删：讲稿方剂一律去 ③ 知识库查（那里可搜索、可点开看详情）；
+            ② 命中条目本身已内嵌该条的组成／服法／加减／禁忌，判读不受影响。
+
+            ⚠️ 同和堂版成方（下一节）**保留** —— ③ 知识库里没有这一份，不重复。
+          */}
 
           {/* 同和堂版成方：三个维度都显示（它没有五行／左右手归属，不参与分组筛选） */}
           <section className="pr-formula-group">
