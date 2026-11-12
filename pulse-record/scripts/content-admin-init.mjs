@@ -7,13 +7,18 @@
  * Directus 能自动**内省**数据库里的表和外键，但它只把外键当成「数据库层的约束」，
  * 不会替我们决定「这个字段在后台里长什么样」。
  *
- * 这个脚本按 schema 里的声明补齐两件事：
+ * 这个脚本按 schema 里的声明补齐四件事：
  *
  *  ① **关系元数据**（`directus_relations`）
  *     把外键升级成 Directus 关系 —— 这样 `content_pulse_cells.term_id`
  *     在后台里就是个能点选的 M2O 下拉框。
+ *     ⚠️ `meta.one_field` 必须留 **null**，原因见 `main()` 里的长注释
+ *     （填了会让「被引用方」集合的接口整个 500）。
  *  ② **字段界面**（`directus_fields.interface`）
  *     关系字段的界面设成 `select-dropdown-m2o`，其余按列类型给默认界面。
+ *  ③ **普通文本字段**：外键指向的不是主键（存的是名字）时不做下拉，按文本填。
+ *  ④ **显示字段**（`directus_collections.display_template`）
+ *     下拉里显示人看得懂的那一列（科中名、方名、图名、用字名），而不是 id。
  *
  * ⭐ **全部从 `src/content/schema/*.schema.json` 推导** —— 外键声明在 schema 里，
  *    这里不另写一份关系清单（铁律：能合成一个来源的，绝不留在两处）。
@@ -33,90 +38,33 @@
  */
 
 import { tableDefs } from './lib/content-schema.mjs'
+import { ADMIN_URL, createAdminClient } from './lib/content-admin-client.mjs'
+import {
+  displayTemplate,
+  plannedDisplayFields,
+  plannedRelations,
+} from './lib/content-admin-plan.mjs'
 
-const ADMIN_URL = (process.env.PULSE_ADMIN_URL || 'http://localhost:8055').replace(/\/$/, '')
-const ADMIN_EMAIL = process.env.PULSE_ADMIN_EMAIL || 'admin@example.com'
-const ADMIN_PASSWORD = process.env.PULSE_ADMIN_PASSWORD || 'PulseLocal2026'
 const CHECK = process.argv.includes('--check')
+const client = createAdminClient()
+const api = client.api
 
-/* ------------------------------------------------------------------ *
- * HTTP
- * ------------------------------------------------------------------ */
-
-let token = null
-
-async function api(path, { method = 'GET', body } = {}) {
-  const res = await fetch(`${ADMIN_URL}${path}`, {
-    method,
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  })
-  const text = await res.text()
-  let json = null
-  try {
-    json = JSON.parse(text)
-  } catch {
-    /* 非 JSON 响应，留在 json=null */
-  }
-  return { ok: res.ok, status: res.status, json, text }
-}
-
-async function login() {
-  const r = await api('/auth/login', {
-    method: 'POST',
-    body: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
-  })
-  if (!r.ok || !r.json?.data?.access_token) {
-    throw new Error(`登录失败（${r.status}）：${r.text.slice(0, 300)}`)
-  }
-  token = r.json.data.access_token
+/**
+ * 写（或只读核对）。
+ *
+ * ⚠️ `--check` 必须是**纯只读**的。
+ *    原实现不管有没有 `--check` 都发 PATCH —— 「核对」却真的改了远端，
+ *    跑一次 `--check` 就等于改了一次配置，没法当验收用。
+ *    现在：check 模式走 GET，比对远端现状；正常模式才 PATCH。
+ */
+async function writeOrCheck(path, body, readPath = path) {
+  if (CHECK) return api(readPath)
+  return api(path, { method: 'PATCH', body })
 }
 
 /* ------------------------------------------------------------------ *
  * 从 schema 推导「要配什么」
  * ------------------------------------------------------------------ */
-
-/**
- * 某张表的唯一列（主键，或显式 `unique` 的列）。
- *
- * ⚠️ 外键**不一定指向主键** —— `content_alias.target` 指向 `content_drugs.name`
- *    （方名，唯一列）。关系必须绑到**外键实际指向的那一列**，
- *    绑到主键上会让下拉框显示 id、数据里存的却是名字 ⇒ 整个对不上。
- */
-function uniqueColumnsOf(defs, table) {
-  const def = defs.find((d) => d.table === table)
-  if (!def) return []
-  return def.columns.filter((c) => c.pk || c.unique).map((c) => c.name)
-}
-
-/**
- * 要配的关系清单。
- *
- * 每条 = { manyCollection, manyField, oneCollection, oneField }。
- * ⚠️ 被引用方的主键必须是**单列**（Directus 的硬限制）：
- *    复合主键的表在 Directus 里会被整表忽略 —— 所以 schema 里那些表
- *    都带了派生的单列代理键 `id`（见 `x-tables.derivedId`）。
- */
-export function plannedRelations(defs) {
-  const out = []
-  for (const def of defs) {
-    for (const col of def.columns) {
-      if (!col.fk) continue
-      const oneField = col.fk.column
-      if (!uniqueColumnsOf(defs, col.fk.table).includes(oneField)) continue
-      out.push({
-        manyCollection: def.table,
-        manyField: col.name,
-        oneCollection: col.fk.table,
-        oneField,
-      })
-    }
-  }
-  return out
-}
 
 /**
  * 要预置的**视图预设**。
@@ -179,38 +127,59 @@ export const VIEW_PRESETS = [
  * ------------------------------------------------------------------ */
 
 const defs = tableDefs()
-const relations = plannedRelations(defs)
+const { relations, plainText } = plannedRelations(defs)
+const displayFields = plannedDisplayFields(defs, relations)
 
 let changed = 0
 let failed = 0
 
 async function main() {
-  await login()
+  await client.login()
   console.log(`已登录 ${ADMIN_URL}`)
-  console.log(`schema 里声明了 ${relations.length} 条关系\n`)
+  console.log(`schema 里声明了 ${relations.length} 条关系（另有 ${plainText.length} 个外键按普通文本处理）\n`)
 
   for (const rel of relations) {
     const label = `${rel.manyCollection}.${rel.manyField} → ${rel.oneCollection}.${rel.oneField}`
 
     // ① 关系元数据
-    const relRes = await api(`/relations/${rel.manyCollection}/${rel.manyField}`, {
-      method: 'PATCH',
-      body: { meta: { one_field: rel.oneField, one_deselect_action: 'nullify' } },
-    })
+    //
+    // ⚠️⚠️ **`one_field` 必须是 null，不能填被引用表的主键名。**
+    //
+    // Directus 12 的 `getRelation()` 是**双向匹配**的
+    // （`@directus/utils` 的 `getRelation` / `getRelationType`）：
+    //   关系.collection === 本集合 && 关系.field === 字段名      → m2o（正向）
+    //   关系.related_collection === 本集合 && meta.one_field === 字段名 → o2m（反向）
+    // 读「被引用方」集合时，如果请求的**列名恰好等于某条关系的 one_field**
+    // （one_field 就是主键名，所以必然命中），Directus 会把这个标量列
+    // **误判成反向 o2m 关系**，然后在 `merge-with-parent-items.js` 的 o2m 分支里
+    // 把父行的该列当成「子项数组」→ `parentItem[id].push(...)` 挂在字符串上
+    // → **整个接口 500**（`parentItem$1[parentRelationField].push is not a function`）。
+    //
+    // 后果实测：`GET /items/content_sciences?fields=id,name` 500，
+    // 而 `?fields=name,ratio`（去掉 id）200 —— 后台里连「科中」这张表都打不开。
+    //
+    // 正向 m2o **不需要** one_field（靠 collection+field 匹配），
+    // 下拉框照常工作；反向 o2m 展开我们用不到 ⇒ 一律置 null。
+    const relRes = await writeOrCheck(
+      `/relations/${rel.manyCollection}/${rel.manyField}`,
+      { meta: { one_field: null, one_deselect_action: 'nullify' } },
+      `/relations/${rel.manyCollection}/${rel.manyField}`,
+    )
 
     // ② 字段界面（M2O 下拉）
-    const fieldRes = await api(`/fields/${rel.manyCollection}/${rel.manyField}`, {
-      method: 'PATCH',
-      body: {
+    const fieldRes = await writeOrCheck(
+      `/fields/${rel.manyCollection}/${rel.manyField}`,
+      {
         meta: {
           interface: 'select-dropdown-m2o',
           special: ['m2o'],
           note: `关联「${rel.oneCollection}」`,
         },
       },
-    })
+      `/fields/${rel.manyCollection}/${rel.manyField}`,
+    )
 
-    const relOk = relRes.ok && relRes.json?.data?.meta?.one_field === rel.oneField
+    const relOk = relRes.ok && relRes.json?.data?.meta?.one_field === null
     const fieldOk =
       fieldRes.ok && fieldRes.json?.data?.meta?.interface === 'select-dropdown-m2o'
 
@@ -225,16 +194,66 @@ async function main() {
     if (!CHECK) changed++
   }
 
+  // ③ 外键指向非主键列的字段：按普通文本处理（存的是名字，不是主键值）
+  for (const pt of plainText) {
+    const label = `${pt.manyCollection}.${pt.manyField} → ${pt.oneCollection}.${pt.oneField}`
+    const fieldRes = await writeOrCheck(
+      `/fields/${pt.manyCollection}/${pt.manyField}`,
+      {
+        meta: {
+          interface: 'input',
+          special: null,
+          note: `存的是「${pt.oneCollection}」的 ${pt.oneField}（原文用字），不是它的主键 ${pt.targetPk} ⇒ 没法做成下拉，按文本填`,
+        },
+      },
+      `/fields/${pt.manyCollection}/${pt.manyField}`,
+    )
+    const ok = fieldRes.ok && fieldRes.json?.data?.meta?.interface === 'input'
+    if (ok) {
+      console.log(`  ✅ ${label}（普通文本：值不是主键）`)
+    } else {
+      failed++
+      console.log(`  ❌ ${label}（普通文本）`)
+      console.log(`     界面：${fieldRes.status} ${fieldRes.text.slice(0, 200)}`)
+    }
+    if (!CHECK) changed++
+  }
+
+  // ④ 显示字段：下拉里显示人看得懂的那一列，而不是 id
+  //
+  // Directus 的集合级 `display_template`（`directus_collections.display_template`）
+  // 决定关系字段下拉里的标签，例如 `{{name}}` ⇒ 显示科中名「六神」而不是 `kc-liushen`。
+  // 取值来自 schema 的 `x-tables[].displayField`（唯一来源）。
+  console.log('')
+  for (const df of displayFields) {
+    const template = displayTemplate(df.field)
+    const collRes = await writeOrCheck(
+      `/collections/${df.collection}`,
+      { meta: { display_template: template } },
+      `/collections/${df.collection}`,
+    )
+    const ok =
+      collRes.ok && collRes.json?.data?.meta?.display_template === template
+    if (ok) {
+      console.log(`  ✅ ${df.collection} 的显示字段 = ${df.field}`)
+    } else {
+      failed++
+      console.log(`  ❌ ${df.collection} 的显示字段 = ${df.field}`)
+      console.log(`     集合：${collRes.status} ${collRes.text.slice(0, 200)}`)
+    }
+    if (!CHECK) changed++
+  }
+
   console.log('')
   if (failed) {
-    console.error(`❌ ${failed}/${relations.length} 条没配上`)
+    console.error(`❌ ${failed} 处没配上`)
     process.exitCode = 1
     return
   }
   console.log(
     CHECK
-      ? `✅ ${relations.length} 条关系全部就位`
-      : `✅ ${relations.length} 条关系全部就位（处理 ${changed} 条）`,
+      ? `✅ ${relations.length} 条关系 ＋ ${plainText.length} 个文本字段 ＋ ${displayFields.length} 个显示字段 全部就位`
+      : `✅ 全部就位（处理 ${changed} 处）`,
   )
 
   await syncViewPresets()

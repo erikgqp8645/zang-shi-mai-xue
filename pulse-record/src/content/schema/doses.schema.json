@@ -58,6 +58,7 @@
     {
       "name": "content_doses",
       "comment": "同和堂版成方（克）",
+      "displayField": "name",
       "columns": [
         { "name": "id", "type": "text", "notNull": true, "pk": true, "json": "doses.items.id" },
         { "name": "name", "type": "text", "notNull": true, "json": "doses.items.name" },
@@ -76,6 +77,7 @@
     {
       "name": "content_sciences",
       "comment": "科学中药比例（第 4 页「科中」）",
+      "displayField": "name",
       "columns": [
         { "name": "id", "type": "text", "notNull": true, "pk": true, "json": "sciences.items.id" },
         { "name": "name", "type": "text", "notNull": true, "json": "sciences.items.name" },

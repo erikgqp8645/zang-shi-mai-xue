@@ -42,6 +42,7 @@
     {
       "name": "content_drugs",
       "comment": "讲稿方剂条目（组成＝比例制）",
+      "displayField": "name",
       "columns": [
         { "name": "id", "type": "text", "notNull": true, "pk": true, "json": "drugs.items.id" },
         { "name": "name", "type": "text", "notNull": true, "unique": true, "json": "drugs.items.name" },

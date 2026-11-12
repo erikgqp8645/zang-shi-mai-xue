@@ -129,11 +129,29 @@ export function tableDefs(dir = SCHEMA_DIR) {
         // ⭐ 派生代理主键规则（复合键 → 单列 id）。
         //   规则写在 schema 里（唯一来源），落库/导出/断言都从这里读。
         derivedId: t.derivedId || null,
+        // ⭐ 下拉框里显示哪一列（Directus 的「显示字段」）。
+        //   本表被别的表当外键指向时，后台下拉要显示人看得懂的那一列
+        //   （科中名、方名、图名、用字名），而不是 id。
+        displayField: t.displayField || null,
         source: f.name,
       })
     }
   }
   return orderByDependency(defs)
+}
+
+/**
+ * 某张表的「显示字段」—— 后台下拉框里给人看的那一列。
+ *
+ * 声明在 schema 的 `x-tables[].displayField`（唯一来源）。
+ * 没声明就回落到主键 —— 主键本身就是人话时（如 `content_pulse_terms.key`
+ * 存的就是「大或顶」「虚脏」），不需要额外指定。
+ */
+export function displayFieldOf(defs, table) {
+  const def = defs.find((d) => d.table === table)
+  if (!def) return null
+  if (def.displayField) return def.displayField
+  return def.columns.find((c) => c.pk)?.name || null
 }
 
 /** 拓扑排序：被外键引用的表排在前面 */

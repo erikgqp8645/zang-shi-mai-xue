@@ -55,6 +55,7 @@
     {
       "name": "content_pulse_groups",
       "comment": "脉位组",
+      "displayField": "name",
       "columns": [
         {
           "name": "id",

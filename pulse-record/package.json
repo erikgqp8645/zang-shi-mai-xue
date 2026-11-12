@@ -29,7 +29,7 @@
     "pg:admin": "node scripts/pg-admin.mjs",
     "pg:migrate": "node scripts/migrate-sqlite-to-pg.mjs",
     "cloudfn:build": "node scripts/build-cloudfunction.mjs",
-    "test": "npm run build:core && npm run test:e2e:core && npm run test:e2e:excel && npm run test:e2e:excel:break && npm run test:e2e:exercise && npm run test:e2e:mp && npm run test:e2e:mp:api && npm run test:e2e:migration && npm run test:e2e:auth && npm run test:e2e:app && npm run test:e2e:desktop && npm run test:e2e:harmony && npm run test:e2e:content && npm run test:e2e:library-admin && npm run test:e2e:rule-delete-loader",
+    "test": "npm run build:core && npm run test:e2e:core && npm run test:e2e:excel && npm run test:e2e:excel:break && npm run test:e2e:exercise && npm run test:e2e:mp && npm run test:e2e:mp:api && npm run test:e2e:migration && npm run test:e2e:auth && npm run test:e2e:app && npm run test:e2e:desktop && npm run test:e2e:harmony && npm run test:e2e:content && npm run content:admin:check && npm run test:e2e:library-admin && npm run test:e2e:rule-delete-loader",
     "test:e2e:core": "node scripts/e2e/core-smoke.mjs",
     "test:e2e:excel": "node scripts/run-python.mjs scripts/e2e/excel_roundtrip.py",
     "test:e2e:excel:break": "node scripts/run-python.mjs scripts/e2e/excel_roundtrip_break.py",
@@ -72,6 +72,7 @@
     "content:seed:check": "node scripts/content-seed.mjs --check",
     "content:admin": "node scripts/content-admin.mjs",
     "content:admin:init": "node scripts/content-admin-init.mjs",
+    "content:admin:check": "node scripts/content-admin-check.mjs",
     "content:publish": "node scripts/content-publish.mjs",
     "content:snapshot": "node scripts/content-snapshot.mjs",
     "content:status": "node scripts/content-status.mjs",
@@ -80,6 +81,7 @@
     "content:pg:check": "node scripts/content-pg-setup.mjs --check",
     "content:creds": "node scripts/cb-credentials.mjs --",
     "test:e2e:content": "node scripts/e2e/content-schema-break.mjs",
+    "test:e2e:content:admin": "node scripts/e2e/content-admin-break.mjs",
     "test:e2e:content:pg": "node scripts/e2e/content-pg.mjs"
   },
   "dependencies": {

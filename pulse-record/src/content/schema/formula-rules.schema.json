@@ -96,6 +96,7 @@
     {
       "name": "content_formula_rules",
       "comment": "用方条目本体",
+      "displayField": "condition",
       "columns": [
         {
           "name": "id",

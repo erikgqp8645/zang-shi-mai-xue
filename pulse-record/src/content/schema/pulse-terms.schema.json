@@ -56,6 +56,7 @@
     {
       "name": "content_pulse_terms",
       "comment": "原文用字",
+      "displayField": "key",
       "columns": [
         {
           "name": "key",

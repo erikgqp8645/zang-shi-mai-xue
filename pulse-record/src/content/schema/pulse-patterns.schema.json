@@ -145,6 +145,7 @@
     {
       "name": "content_pulse_patterns",
       "comment": "脉象图本体",
+      "displayField": "title",
       "columns": [
         {
           "name": "id",
