@@ -381,3 +381,13 @@ CLI 在 `/Users/applemima1111/.workbuddy/binaries/node/cli-connector-packages/bi
 
 ⚠️ `tcb fn deploy --force` **不会**冲掉环境变量（实测 5 个变量部署前后完全一致），
 但 `--install-dependency false` 也不会把本地 `node_modules` 带上去 —— 见 8.3 那个坑。
+
+### 8.6 方剂卡上的「母方」块（2026-11-12 补记）
+
+方剂卡（`MedicationPanel`）里现在会多出一块「**母方 · 同和堂版 · 克**」——
+它**不是脉象图的一部分**，而是内容层的**母方关系**（讲稿写明「以理中汤为母方」那一类）。
+它在 `src/content/formula-reference.json` 的行上登记（`parentDoseId`），
+数据模型与库结构见 [`content-layer.md` §2.1](./content-layer.md#21-母方关系parentdoseid)，改动记录见 [`progress.md` §3.38](./progress.md)。
+
+⚠️ 编辑面（本文档管的那部分）**只管脉象图**，**不管母方** —— 母方是内容层的字段，
+要走内容层的发布流程改，不是在网页上填脉象图时顺手写的。

@@ -115,6 +115,33 @@ npm run admin -- library apply                          # 合并回 src/content/
 > `formula_patterns` 表（覆盖层），**不写回 JSON**。规则：某条目有覆盖就整条接管，
 > 没有就用基线；「恢复默认」＝删掉覆盖行。
 
+### 2.1 母方关系（`parentDoseId`）
+
+有些方是**从另一张方改出来的** —— 讲稿把它写成「母方」（例：「加味理中」的母方是「理中汤」）。
+这层关系登记在**讲义 p42 用方表的行上**：
+
+| 字段 | 在哪 | 意思 |
+|---|---|---|
+| `parentDoseId` | `src/content/formula-reference.json` 每一行（可空） | 这一行的母方是哪张成方（指向 `doses.json` 的 `id`） |
+| `parent_dose_id` | PG 表 `content.content_formula_reference` 的列 | 同一件事的落库形态（外键 → `content_doses.id`） |
+
+**母方只从「讲义 p42 方名」这条有据的通路出来** —— 只有当 p42 里那一行有登记的成方时，
+它才带得出母方；**没登记就不给**（界面上就是没有）。
+**不做「讲稿方条名 → p42 行」的泛化反查** —— 讲稿方条名与 p42 行名不是一对一，
+泛化反查会把不相干的方挂上去（例：讲稿的「中焦方（加味理中）」必须仍然是「未载」）。
+
+⚠️ **改这层要同时改三处**：内容层 JSON → JSON Schema（`$defs` ＋ `x-tables` 列）→ `server/content-schema.mjs` 的**正反两处**投影。
+漏了反投影 ⇒ 落库有母方、回灌就丢（LZ20 盯着）。
+
+**库结构的落地方式**（实测）：
+
+* **PG（云端）**：`content:pg:setup` 走 `createAllSql('pg')` ⇒ 建表 **＋ 幂等补列**
+  （`ALTER TABLE … ADD COLUMN IF NOT EXISTS`，只补可空或有默认值的列）
+  ⇒ **已建环境重跑 `npm run content:pg:setup` 就自动加上**，不用手写迁移。
+* **SQLite（本地内容库）**：`alterColumnsSql` 对 sqlite 返回空（SQLite 不支持 `ADD COLUMN IF NOT EXISTS`）
+  ⇒ **老表不会自动加列**，要 `npm run content:seed -- --rebuild`（删表重建，只动 `content_*` 表）。
+* **本机业务库**（`local-data/history.sqlite`）与内容层无关 —— 本地单机模式直接读 `src/content/*.json` 快照 ⇒ **不用重灌**。
+
 ---
 
 ## 3. 覆盖层语义（① ② ④ 共用一套）
