@@ -20,7 +20,7 @@
 ```
 内置基线（只读）                      管理员覆盖层（可写）
 src/content/*.json                    本机／云端 SQLite 的 library_items 表
-  · Excel 管线的产物                    · 一条目一行，按 (kind, item_id) 整条接管
+  · 内容层快照（发布命令的产物）          · 一条目一行，按 (kind, item_id) 整条接管
   · 已经提交进 git                       · 墓碑（deleted=1）＝ 这条被删了
   · 前端编译期内联的就是它                · 所有账号共享同一份（公共资料）
         └──────────► library apply ◄────┘
@@ -33,7 +33,7 @@ src/content/*.json                    本机／云端 SQLite 的 library_items �
 > 前端把「基线 ⊕ 覆盖层」算成**生效集**，界面显示的、② 命中的、导出的都是它（§7.4）。
 > apply 是**固化**（把改动写进基线），不是「生效」的前提。
 
-**为什么分两层**：内置基线是**资料**（有出处、有原文、有 Excel 人工编辑层），
+**为什么分两层**：内置基线是**资料**（有出处、有原文、有 JSON Schema 约束），
 不能被随手改坏；覆盖层是**管理员的改动记录**（谁改的、什么时候、为什么，都留着）。
 两层分开，改错了能撤销、能审计、能导出到别的机器。
 
@@ -205,21 +205,19 @@ npm run admin -- library revive rule fx2-yiti-lengreshui
 > 两者不冲突：想固化时才走。
 
 ```bash
-# ①（如果人工在 Excel 里也改了）先把 Excel 的改动拉进 JSON，推进基线
-npm run content:json
-
-# ② 把管理员的覆盖层叠加上去 —— 这一步才写 src/content/*.json
+# ① 把管理员的覆盖层叠加上去 —— 这一步才写 src/content/*.json
 npm run admin -- library apply --dry-run    # 先看看要改什么
 npm run admin -- library apply
 
-# ③ 重建人工编辑层（Excel），让两边对得上
-npm run content:excel
-
-# ④ 重出前端
+# ② 重出前端
 npm run build
 ```
 
-⚠️ **顺序反了会把人工还没拉进 JSON 的改动盖掉**。
+⚠️ **别手改 `src/content/*.json`** —— 它是**内容层的快照**，手改会被
+下一次 `npm run content:publish` 无声盖掉。内容层自己的改动走
+`npm run content:publish`（自检→对拍→原子发布→快照→三方对拍），
+见 [`content-publish.md`](./content-publish.md)。
+
 `apply` 是**叠加**在「内容文件当前的样子」上的 —— 生产里那一份就是基线。
 
 `apply` 的几条性质：
@@ -346,7 +344,7 @@ src/content/*.json        library_items 表            基线 ⊕ 覆盖层
 | `✗ 「xxx」不是…的可编辑字段` | 该字段不在注册表里。注册表在 `server/library-schema.mjs` 的 `LIBRARY_KINDS` |
 | `✗ 缺少必填字段「source」` | 新增条目必须自己填出处 —— 后端不替你编 |
 | 删了之后 `restore` 撤不回来 | `restore` 撤的是「覆盖层这一行」；已经被 apply 写掉的条目要用 `revive` 放回来 |
-| 改了但前端没变 | **命令行**那条路：改了之后**还要** `library apply` → `content:excel` → `npm run build` → 重新部署 |
+| 改了但前端没变 | **命令行**那条路：改了之后**还要** `library apply` → `npm run build` → 重新部署 |
 | 网站端 ③ 改了，刷新后又变回去 | 刷新会重新拉覆盖层 —— 那一条多半被**恢复默认**过（覆盖层里没有它了 ⇒ 回基线） |
 | 网站端 ③ 看不到「编辑／删除」按钮 | 当前账号不是管理员（`users.role === 'admin'`）；单机模式下本机账号就是 admin |
 | 网站端 ③ 改完报「只有管理员能改」 | 同上 —— 写接口仅 admin，读接口人人可读（知识库是公共资料） |

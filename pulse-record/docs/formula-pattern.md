@@ -31,16 +31,16 @@
 
 ### 1.1 为什么手改不能写回 JSON
 
-`pulse-patterns.json` 是 **Excel 管线的产物**：
+`pulse-patterns.json` 是**内容层快照**（发布命令的产物）：
 
 ```
-content/臧氏脉学-用方知识库.xlsx  ──excel_to_json──▶  src/content/*.json  ──import──▶  src/domain/*.ts
-        （矩阵 sheet，tab 名 = P序号-图名）
+local-data/content.sqlite  ──content:publish──▶  src/content/*.json  ──import──▶  src/domain/*.ts
+        （编辑真源，17 张表）                              （只读快照）
 ```
 
-`scripts/excel_to_json.py` L360 起从「脉象图矩阵 sheet」还原，`--check` 模式还会逐字段比对。
-若界面手改直接写回该 JSON，下次 `npm run content:json` 就会**无声盖掉**；
-反过来，界面若能覆盖 Excel 的内容，则管线唯一的真源被破坏。
+`npm run content:publish` 的第 ④ 步会从本地库生成这份快照。
+若界面手改直接写回该 JSON，下次 `content:publish` 就会**无声盖掉**；
+反过来，界面若能覆盖内容层的真源，发布模型的唯一真源就被破坏了。
 
 结论：**两层数据**。内置 JSON 是只读基线，界面编辑写进服务端覆盖层（§3）。
 
@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS formula_patterns (
 **整条接管**而不是逐张合并，原因：逐张合并说不清「我删掉了基线第 2 张」该怎么表达
 （要有墓碑位）。整条接管让删除天然成立（覆盖里不放它），也让「恢复默认」= `DELETE` 一行。
 
-代价（**必须写进界面提示**）：某条目一旦被手改，就不再跟随上游 Excel 的更新。
+代价（**必须写进界面提示**）：某条目一旦被手改，就不再跟随上游内容层的更新。
 
 ### 3.3 PatternEntry（`payload` 的形状）
 
@@ -332,10 +332,10 @@ tcb fn deploy pulse-api --dir .cloudfn/pulse-api --force --install-dependency tr
 
 | 改什么 | 在哪改 | 会不会被覆盖 |
 |---|---|---|
-| 内置的 50 张基线（转录原文） | Excel 矩阵 sheet → `npm run content:json` | — |
+| 内置的 50 张基线（转录原文） | 内容层（本地后台／JSON Schema）→ `npm run content:publish` | — |
 | 网页上手动填／改的 | 方剂卡上的「编辑」 | 不会（存 `formula_patterns`，不写 JSON） |
 
-⚠️ 某条目一旦在网页上改过，就**不再跟随** Excel 里这块基线的新内容。
+⚠️ 某条目一旦在网页上改过，就**不再跟随**内容层基线的新内容。
 想重新跟随：点「恢复默认」，覆盖层删除，回落基线。
 
 ### 8.5 CloudBase CLI 连不上新环境的坑（记一次）

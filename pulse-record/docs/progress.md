@@ -1678,10 +1678,10 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`chore/desktop-electron` = `8bc151f`；`feat/wechat-miniprogram` = `623aca8`（小程序／鸿蒙／桌面端／CloudBase 线，**历史原样保留**）；**`feat/web-site` = `845b339`（网站端线，2026-11-06 从 `6ebc881` 切出）** |
 | 分支纪律 | **两条长期开发线**（2026-11-06 起）：网站端新改动走 `feat/web-site`，小程序／鸿蒙／桌面端走 `feat/wechat-miniprogram`；同源于 `6ebc881`，都**不开 PR**、都不**改写已推送的历史**。详见 `AGENTS.md`「Git 约定」 |
 | PR | #6 `chore/multi-user → main`，**OPEN**；#7 `chore/desktop-electron → chore/multi-user`，**OPEN**；`feat/wechat-miniprogram` **永不开 PR**（2026-11-06 拍板：**永不合并进 `main`**） |
-| 全量回归 | **942 项全绿**（core 40 ＋ excel 27 ＋ excel-break 28 ＋ exercise 13 ＋ taro-lint 202 ＋ taro-api 58 ＋ migration 53 ＋ auth 57 ＋ **app 61** ＋ 桌面端 33 ＋ content 17 ＋ **后台核对 210（新增）** ＋ library-admin 61 ＋ rule-delete-loader 13 ＋ 鸿蒙 69）。后台那 210 项需要本地 Directus 容器在跑，**没起时明确打印「跳过」并 exit 0**（`PULSE_E2E_REQUIRE=1` 时缺容器才 exit 1 —— 跳过必须能区分于通过） |
-| 教程与练习册 | **`docs/教程-如何填写用方知识库.md`**（面向审核者：分表细则 ＋ 三个完整例子 ＋ 报错对照）；**`content/示例-填写示范.xlsx`**（练习册：5 格故意留空 ＋ 标黄 ＋ 批注）＋ `npm run content:exercise:check` 逐格验收。练习册的正确答案**从真源现取**，不写死；文件名含「示例／练习／示范」的工作簿**拒绝写回真源**（详见 §3.20） |
-| 数据层 | **JSON 为唯一真源**（`src/content/*.json` **9 个文件**，新增 `library-settings.json`）；**Excel 为人工编辑层**（`content/臧氏脉学-用方知识库.xlsx`，**65 个 sheet** ＝ 15 通用表 ＋ **50 张脉象图矩阵**）；TS 只留逻辑。**矩阵是脉象图的唯一编辑面**，长表由它派生。往返 20 项 ＋ 故意写坏 22 项都挂在 `npm test`。用法见 [`content-layer.md`](./content-layer.md)（详见 §3.18／§3.19） |
-| 内容层（新版 · 进行中） | **本地 `local-data/content.sqlite` ＝ 编辑真源**（18 张表 1473 行，Directus 后台可编辑）→ 发布命令 → 远端 PG `content` schema ＋ 仓库 `src/content/*.json` 快照。**M0～M3 已完成**（选型／落库／远端通路／发布命令），**M4（Excel 退役）起未做**。⭐ 2026-11-12 补完后台人眼确认：**抓出并修掉一个让「被引用方整张表点不开」的 500**（Directus 的 `meta.one_field` 反向 o2m 误判）。⭐ 同日**统一了断言编号**（计划 §10.2 的 A1~A19 为准，计划外续 A20+）＋ **后台补三项配置**（枚举下拉／必填／只读）＋ 补上「一个格位只能属于一个组」这条真实缺口。⭐ 再同日加了**知识库的「是否显示」**（每条一个勾 ＋ 知识库显示模式，**共享层**，详见 §3.32）。编号对照表见 [`content-assertions.md`](./content-assertions.md)，详见 §3.26／§3.27／§3.32 与 [`content-admin-选型.md`](./content-admin-选型.md) |
+| 全量回归 | **693 项全绿**（core 40 ＋ taro-lint 202 ＋ taro-api 58 ＋ migration 53 ＋ auth 57 ＋ **app 61** ＋ 桌面端 33 ＋ 鸿蒙 69 ＋ content 17 ＋ library-admin 61 ＋ library-runtime-edit 15 ＋ rule-delete-loader 13 ＋ **excel-retired 14**）。后台核对 210 项需要本地 Directus 容器在跑，**没起时明确打印「跳过」并 exit 0**（`PULSE_E2E_REQUIRE=1` 时缺容器才 exit 1 —— 跳过必须能区分于通过）；容器起来时合计 **903**。⚠️ **2026-11-12 Excel 退役**：主链里的 excel 27 ＋ excel-break 28 ＋ exercise 13 已摘掉，换成 excel-retired 14（详见 §3.35） |
+| 教程与练习册 | ⛔ **2026-11-12 已随 Excel 一起退役** —— `docs/教程-如何填写用方知识库.md`、`content/示例-填写示范.xlsx`、`npm run content:exercise*` 全部删除（详见 §3.35）。内容怎么改现在看 [`content-layer.md`](./content-layer.md) 的「四条编辑路线」 |
+| 数据层 | **真源不是 JSON**：编辑真源＝本地 `local-data/content.sqlite`（17 张表）→ 发布命令 → 线上真源＝远端 PG `content.*` → 仓库快照＝`src/content/*.json`（**9 个文件**）；TS 只留逻辑。⛔ **Excel 人工编辑层已于 2026-11-12 退役**（工作簿 ＋ 双向转换 ＋ 练习册 ＋ 教程 ＋ 流程图 全部删除）。改内容有**四条路**：网站端 ③ 编辑器／脉象图编辑器／本地后台 Directus／管理员命令行。用法见 [`content-layer.md`](./content-layer.md)（详见 §3.25／§3.35） |
+| 内容层（新版 · 进行中） | **本地 `local-data/content.sqlite` ＝ 编辑真源**（18 张表 1473 行，Directus 后台可编辑）→ 发布命令 → 远端 PG `content` schema ＋ 仓库 `src/content/*.json` 快照。**M0～M4 已完成**（选型／落库／远端通路／发布命令／**Excel 退役**），**M5（前端改从 `GET /api/content` 取数）起未做**。⭐ 2026-11-12 补完后台人眼确认：**抓出并修掉一个让「被引用方整张表点不开」的 500**（Directus 的 `meta.one_field` 反向 o2m 误判）。⭐ 同日**统一了断言编号**（计划 §10.2 的 A1~A19 为准，计划外续 A20+）＋ **后台补三项配置**（枚举下拉／必填／只读）＋ 补上「一个格位只能属于一个组」这条真实缺口。⭐ 再同日加了**知识库的「是否显示」**（每条一个勾 ＋ 知识库显示模式，**共享层**，详见 §3.32）。⭐⭐ 再同日**Excel 整体退役**（M4）：工作簿／双向转换／练习册／教程／流程图全删，改为「后台 ＋ 发布命令 ＋ 覆盖层」一条路（详见 §3.35）。编号对照表见 [`content-assertions.md`](./content-assertions.md)，详见 §3.26／§3.27／§3.32／§3.35 与 [`content-admin-选型.md`](./content-admin-选型.md) |
 | 小程序工程 | `pulse-record/taro/`（Taro 4.3.2 ＋ React 18）；**原生 `miniprogram/` 原样保留作回退** |
 | 网站端 | `pulse-record/src/`（Vite ＋ React ＋ TS，单页 `App.tsx`）；③ 框内有**可折叠「用方知识库」**（p44 依脉用方全量 61 条 ＋ 讲稿方剂全量 30 方，**紧凑一行一条**：折叠只留「标题 ｜ 疗法 ｜ 方名」，**不挂 kind 徽章**，点开才见脉象图／原文／方剂卡），③ 的方名**可点进去定位 ＋ 高亮 ＋ 落点自动展开**（详见 §3.17／§3.29）；② 面板的「筛选分组」chip **写明口径**（「N 条用方（含常驻 M）」—— 2026-11-12 起**删掉了原来的「· K 方备查」**，那个「方」数的 30 方在② 面板已不再渲染，留着就是无落点的数字）＋ 下方一行说明，并带一个**「常驻条目（禁忌）」显示开关** —— **② 命中区与③ 知识库共用同一个开关**，默认显示、可关掉（详见 §3.30）；**② 面板不再整份渲染讲稿方剂 30 方**（与③ 知识库是同一份数据、全量对全量重复，已删；讲稿方剂一律去③ 查，② 只留命中条目，详见 §3.31）；③ 知识库的**「分组标题」与「每条是否显示」已落到共享层**（后台改完发布，全站一致；前端只**只读回显**当前模式，不另做本机开关，详见 §3.32）；后端**仍跑本机 SQLite**（`local-data/history.sqlite`），**未接 CloudBase PG** |
 | 小程序包体 | 媒体资源 **119.0 KB**（底图 JPEG 116.3 KB ＋ 8 个 tabbar 图标 ≤0.4 KB）；**微信「图片和音频 > 200 K」已通过**（详见 §3.12） |
@@ -1708,7 +1708,7 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 |---|---|---|
 | 🔴 1 | **域名注册 → 个人实名 → 提交 ICP 备案** | 7~20 工作日，是整条时间线最长的一段；不今天提交，后面小程序、CloudBase 全在等。**且自定义域名是 CloudBase 默认域名的唯一出路**（默认域名只许开发测试，有「风险提醒中间页」，流量异常还可能被风控关停） |
 | 🔴 1b | **微信侧把 CloudBase 环境关联到小程序 appid** | 环境 `ambitious-parrot-d7ehh7x0fd9d680` 的 `WxAppId` **还是空** → 小程序的 `wx.cloud.callFunction` 走不通（代码已兜底退回 `wx.request`，不会白屏，但等于没迁）。**公开 API 做不到**（已逐个查过 `tcb` 服务的环境类接口，没有关联 appid 的 Action）→ 只能在**微信开发者工具「云开发」面板**或 **CloudBase 控制台「环境配置 → 安全配置 → 小程序关联」**里填 `wx3a21eb903a16cbc4`。详见 `docs/cloudbase-migration.md` §5.2 |
-| 🔴 1c | **两条「知识库怎么改」的路子并存，取哪条要拍板** | ① **本地后台 ＋ 发布管道**（§3.25：本地 SQLite ＋ Directus 后台 → 发布命令 → 远端 PG ＋ JSON 快照，**Excel 退役**）② **服务端管理员覆盖层**（§3.23：命令行 `library` ＋ 服务端表，**Excel 保留**）。两条都已在 `feat/web-site` 上（合并提交 `79cb2db`），功能都能用，但**长期只留一条**才是答案 —— 拍板方向定下来之前，M4（Excel 退役）不动 |
+| ✅ 1c | ~~**两条「知识库怎么改」的路子并存，取哪条要拍板**~~ | ✅ **2026-11-12 已拍板并落地**：「让我们废除掉 excel」⇒ **M4（Excel 退役）完成**（详见 §3.35），现在统一走「本地后台 ＋ 发布命令 ＋ 服务端覆盖层」；**M5（前端改从 `GET /api/content` 取数）** 仍未做（前端当前是编译期内联，取数方式等维护者拍板） |
 | 🔴 1d | **`tcb login` 一次**（扫码，十几秒） | 发布命令要连远端 PG，凭证只从环境变量读。`scripts/cb-credentials.mjs` 会调 `tcb secrets get` 取临时密钥注入子进程 —— 但 **CLI 登录态会过期**，过期时命令报「无有效身份信息」。**不登录就验证不了端到端发布**（M3 的远端断言 A5／A6／A7 需要真连） |
 | 🔴 2 | ~~**后台声明《用户隐私保护指引》两项隐私类型**~~ | ✅ **2026-11-05 已不需要** —— 小程序不提供导出，隐私接口降到 **0 个**，后台**一项都不用勾**（详见 §3.11）。剩下要填的只有「用户信息收集」那一栏（用户输入内容／账号信息，见上线清单 §1.3） |
 | 🔴 2c | **填运营者主体与联系邮箱** | 隐私政策**第八**节现在是占位文字（`运营者：（待填写）`），审核会看 |
@@ -1734,37 +1734,32 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 - **表格优先**：状态一律用表格写，行尾标注实测日期，别写「大概」「应该」。
 - ⭐ **数据住在 JSON，不住在 TS 源码里（2026-11-07）**：照抄原文的数据一律进
   `src/content/*.json`；`src/domain/*.ts` 只留**逻辑**（判定、查表、视图组装）。
-  想改内容走 **Excel**（`content/臧氏脉学-用方知识库.xlsx`）→
-  `npm run content:json` 转回 JSON → `npm test`。
-  摊平规则（数组用换行、嵌套用外键、稀疏字段用 `omit_empty`）的**唯一真源**是
-  `scripts/excel_schema.py` —— 改列必须回来改它，否则往返测试会红。
   详见 [`content-layer.md`](./content-layer.md)。
-- ⭐ **脉象图的唯一编辑面是矩阵 sheet**（`P04-清挡路` … `P50-肝心同治·挡路六`，
-  讲义 p34 体例：左列部位／取法 ＋ 左右两列 ＋ 9 行）。「脉象图·格位」长表**由矩阵派生**，
-  在长表里改脉象会被覆盖 —— 两条都写就有两处真源。
-  矩阵 sheet 名里的**序号是权威的**（条目 ID 超 31 字符会被 Excel 截断），
-  表头区的「条目ID」只用来校验，别改。
-- ⭐ **矩阵 sheet 按方剂名命名（2026-11-10）**：sheet 名＝`P序号-图名`
-  （`P04-清挡路`、`P05-引火归元·上盛下虚`）—— 翻 tab 栏一眼就知道那张表是哪个方子的，
-  不用背 `fx-ssx-qingdanglu` 这类内部 ID。
-  **图名的单一真源是 `src/content/pulse-patterns.json` 的 `title` 字段**，
-  显示面有两个：矩阵 sheet 的 tab 名 ＋「脉象图·条目」表的「图名」列（可编辑，审核者能自己改）。
-  ⚠️ **序号仍是权威** —— 读回照旧靠 `P{NN}` 定位条目，后缀纯导航。
-  ⚠️ **防死锁**：sheet 名与图名不一致**不能在 `content:json`（转移）时报错**
-  （改了名→报错→新名进不了 JSON→没法重生成→卡死），改为**只在 `content:check` 里报**，
-  提示重跑 `npm run content:excel`。破坏性用例 ⑪ 守着这条。
+- ⭐⭐ **Excel 已于 2026-11-12 整体退役**：**不要再提「改 Excel」这条路** ——
+  工作簿、双向转换脚本、练习册、填写教程、填写流程图**全部删除**，
+  `content:excel`／`content:json`／`content:check`／`content:exercise*`／`content:flowchart*`／
+  `test:e2e:excel*` 这些脚本名**也不存在了**（守卫 `scripts/e2e/excel-retired.mjs` 盯着，
+  已进主 `test` 链）。
+  ⇒ **改内容走四条路**（详见 [`content-layer.md`](./content-layer.md)）：
+  ① 网站端 ③ 编辑器 ② 脉象图编辑器 ③ 本地后台 Directus ④ 管理员命令行。
+  ⇒ **`src/content/*.json` 是「内容层快照」不是编辑面** —— 手改会被下一次
+  `content:publish` 无声盖掉；要固化走 `library apply`（命令行那条路）
+  或 `content:publish`（内容层那条路），**两条路别混**。
+- ⭐ **脉象图的编辑面有两个（2026-11-12 改）**：网页上的**脉象图编辑器**（写覆盖层，
+  逐格勾选，改完刷新即生效 ＋ 可「恢复默认」）与**本地后台**里那张表。
+  ⚠️ 覆盖层里被改过的条目**不再跟随基线**（有覆盖就整条接管）——
+  这条规则从 Excel 时代沿用至今，没变。
+  ⚠️ 图名的单一真源仍是 `src/content/pulse-patterns.json` 的 `title` 字段。
 - ⭐ **数据进了 JSON 就不许在 TS 里再抄一份**（2026-11-10）。
   `src/domain/*.ts` 只能 `import` `src/content/*.json`，
   再写一份字面量就是两处真源，改了一处另一处悄悄对不上。
   （`symbols.ts` 的 14 个符号就是这么从硬编码改成读 `symbols.json` 的。）
-- ⭐ **流程图里的矩阵示意是从工作簿生成的**（2026-11-10）。
-  [`填写流程图.html`](./填写流程图.html) 第 03 节那张「一个矩阵 sheet 长什么样」，
-  由 `scripts/make_flowchart.py` 直接读 `content/臧氏脉学-用方知识库.xlsx`
-  的 P04 sheet（清挡路）渲染，**不是手画的** —— 手绘那版已经漂移过一次
-  （画成 7 列、2 行表头区，还多一条竖线，表头与数值对不上同一套列定义）。
-  改了工作簿后跑 `npm run content:flowchart` 同步；
-  `npm run content:flowchart:check` 校验页面与工作簿是否一致。
-  生成器自带**结构自检**（行数、每行摊平后的列数），不合格就拒绝写进页面。
+- ⭐ **注册表登记的字段类型必须与基线数据的真实形状一致**（2026-11-12）。
+  `server/library-schema.mjs` 里 `drug.adjustments`／`dose.notes` 曾登记成 `string`
+  而数据是**数组** ⇒ `library set` 直接校验失败，而且**报错信息完全不提「数组」**
+  ⇒ 12 个方剂 ＋ 10 个成方连改名字都改不了。
+  ⇒ 守卫 `scripts/e2e/excel-retired.mjs` 做**全量交叉比对**（登记类型 ↔ 每条基线数据的真实形状），
+  人眼盯不住的事交给断言。
 
 ### 3.21 方剂脉象图：网页上直接改，保存即同步（2026-11-11）
 
@@ -2957,3 +2952,88 @@ src/content/*.json        library_items 表            基线 ⊕ 覆盖层
   ⇒ ③ 里这条消失 ⇒ 底部出现「已删除的条目（可撤销）」⇒ 点「撤销删除」放回来。
 - 恢复默认 → 站内确认框弹出 ⇒ 点「恢复默认」⇒ 覆盖层那一行撤掉 ⇒ ③ 回到基线。
 - 全程页面**不卡**；控制台 error／warn **0 条**。
+
+### 3.35 Excel 退役 —— 「中间人工编辑层」整个拿掉（2026-11-12 · M4）
+
+#### 用户的要求
+
+**「让我们废除掉 excel」** ＋「json 后端这里，后端这里我们主要来处理数据」。
+
+原来的链路是「改 Excel → `content:json` 转回 JSON → 编译」。Excel 是**给人看的工作簿**，
+**不是数据库**：多一层摊平规则、sheet 名与图名要手工对齐、sheet 名 31 字符上限会把
+条目 ID 截断、每改一列都要跑一遍 Python 往返。
+
+内容层（§3.25）落地后，「改内容」已经有正式编辑面了 ⇒ Excel 变成**双管道**，
+两条路迟早打架。⇒ **整个删掉，不是「不推荐用」。**
+
+> ⚠️ **「还在但不用了」是最坏的状态** —— 下次有人看到 `content:excel`
+> 就会以为那还是条能走的路，双管道又长出来。⇒ 做成**断言**（文件真的不存在）。
+
+#### 删了什么（15 个文件 ＋ 10 个脚本）
+
+| 类别 | 文件 |
+|---|---|
+| 双向转换 | `scripts/excel_from_json.py`、`scripts/excel_to_json.py`、`scripts/excel_schema.py` |
+| 练习册 | `scripts/make_exercise_workbook.py`、`scripts/exercise_points.py`、`scripts/e2e/excel_exercise.py`、`scripts/e2e/excel_exercise_roundtrip.py` |
+| 填写流程图 | `scripts/make_flowchart.py`、`docs/填写流程图.html` |
+| 教材 | `docs/教程-如何填写用方知识库.md` |
+| **人工编辑层本体** | `content/臧氏脉学-用方知识库.xlsx`、`content/示例-填写示范.xlsx` |
+| Excel 回归 | `scripts/e2e/excel_roundtrip.py`、`scripts/e2e/excel_roundtrip_break.py` |
+| Python 运行器 | `scripts/run-python.mjs`（删完上面这些，仓库再无 Python 用途） |
+
+`package.json` 摘掉 10 个脚本：`content:excel`／`content:json`／`content:check`／
+`content:exercise`／`content:exercise:check`／`content:flowchart`／`content:flowchart:check`／
+`test:e2e:excel`／`test:e2e:excel:break`／`test:e2e:exercise`；主 `test` 链里那三项也去掉。
+
+⚠️ **删掉 Excel 不丢数据**：新内容层已完整覆盖 Excel 时代的 15 张表
+（rules／drugs／doses／sciences／scienceByDoseId／rows／alias／draftExtra／terms／
+symbols／groups／patterns ＋ cells ＋ relations）；远端给 `drugs`／`formula-rules`
+加的 `visible` 列（Excel 时代留下的最后一块）也已接进
+`src/content/schema/*.schema.json` 与 `server/content-schema.mjs`。
+⇒ **技术上零数据损失。**
+
+#### 顺手修掉一个活 bug（实测坐实）
+
+`server/library-schema.mjs` 的字段注册表把 `drug.adjustments`（讲稿方剂的「加减」）
+与 `dose.notes`（成方的「附注」）登记成 `string`，**基线数据里它们是数组** ⇒
+`library set` 改这些条目**在校验那一步就被拒**（报「字段「adjustments」必须是文字」，
+**报错信息完全不提「数组」两个字**）⇒ 12 个带加减的方剂 ＋ 10 个带附注的成方
+**连改个名字都改不了**。改成 `type: 'string[]'` 后 5 个用例全通。
+
+教训：**「登记的类型」与「数据的真实形状」必须对得上，而人眼盯不住** ⇒ 做成断言。
+
+#### 断言（守卫 14 项 ＋ break-test 22 项）
+
+| 脚本 | 抓什么 | 项数 |
+|---|---|---|
+| `scripts/e2e/excel-retired.mjs` | 15 个文件真的不存在／仓库无 .py+.xlsx／package.json 无 Excel 脚本／主链无 Excel 回归／**守卫自己还在主链上**／代码无死引用／**注册表类型 ↔ 基线真实形状全量交叉一致**／带数组的条目改得动／改完仍是数组／新内容层命令 ＋ 9 份 Schema ＋ 9 份快照都在 | **14（已进主 `test` 链）** |
+| `scripts/e2e/excel-retired-break-test.mjs` | 四种坏法：**M1** `adjustments` 又登记成 string／**M2** `content:excel` 加回 package.json／**M3** 工作簿又放回 `content/`／**M4** 主链里又把 `test:e2e:excel` 塞回来 | **22**（4×mutation ＋ 还原逐字节核对） |
+
+ⓘ **这条守卫自己先红过一次（假阳），已修**：`test:e2e:excel` 是
+`test:e2e:excel-retired`（**守卫自己**）的子串 —— 用子串正则比对，
+守卫进了主链立刻把自己判成红的（14 项里第 4 项假阳）。
+⇒ 改成**按脚本名全等**比对（先按 `&&` 拆、再逐条比），
+并把这条教训写成 **M4** 这条 mutation 当反证：真把 Excel 回归塞回主链，它必须红。
+
+#### 数据层现在长什么样
+
+[`content-layer.md`](./content-layer.md)（整篇重写）：四个位置
+（**编辑真源**＝本地 `content.sqlite` ／ **发布面**＝`content:publish` 五步 ／
+**线上真源**＝远端 PG ／ **快照**＝`src/content/*.json`）
+＋ **四条编辑路线**（① 网站端 ③ 编辑器 ② 脉象图编辑器 ③ 本地后台 Directus ④ 管理员命令行）
+＋ 覆盖层语义（`set`／`restore`／`revive` 分工）＋ 8 条纪律。
+
+⚠️ **`src/content/*.json` 是「内容层快照」不是编辑面** —— 手改会被下一次
+`content:publish` 无声盖掉。命令行那条路用 `library apply` 叠加回快照；
+内容层那条路用 `content:publish`（自检→对拍→原子发布→快照→三方对拍）。
+**两条路别混。**
+
+#### 实测
+
+| 项 | 结果 |
+|---|---|
+| 全量 `npm test` | **各套件合计 693 项全绿**（core 40 ＋ taro-lint 202 ＋ taro-api 58 ＋ migration 53 ＋ auth 57 ＋ app 61 ＋ 桌面端 33 ＋ 鸿蒙 69 ＋ content 17 ＋ library-admin 61 ＋ library-runtime-edit 15 ＋ rule-delete-loader 13 ＋ **excel-retired 14**）；**后台核对 210 项跳过**（本地 Directus 容器没起 ⇒ 打印「跳过」并 exit 0 —— **跳过不是通过**；容器起来时合计 903） |
+| `npm run typecheck` | 无错 |
+| `npm run build` | 通过 |
+| break-test | **22 项全绿，4 条 mutation 全被抓**；每条 mutation 后还原并**逐字节核对** |
+| 仓库残留 | 仓库里再无任何 `.py`／`.xlsx`（`node_modules` 除外） |

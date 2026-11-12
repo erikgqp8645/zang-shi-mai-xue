@@ -786,7 +786,7 @@ npm run admin -- library --help       # 用方知识库（改知识库内容，�
 
 | 层 | 位置 | 谁能动 |
 |---|---|---|
-| 内置基线 | `src/content/*.json`（Excel 管线产物，已入库） | **只读** |
+| 内置基线 | `src/content/*.json`（内容层快照，已入库） | **只读** |
 | 管理员覆盖层 | 本机 SQLite 的 `library_items` 表 | 管理员（命令行） |
 | 合并结果 | `library apply` 写回 `src/content/*.json`（**数据层**） | — |
 
@@ -815,8 +815,9 @@ npm run admin -- library --help       # 用方知识库（改知识库内容，�
 - **删掉的条目放得回来**：墓碑行里存着**原内容快照**，`library revive <kind> <id>`
   能把它原样放回去（`restore` 撤的是「覆盖层这一行」，`revive` 撤的是「那一次删除」——
   两者在「删除已经 apply 过去」时才分得出差别）。
-- **apply 是叠加不是替换**：人工在 Excel 里的改动要先 `content:json` 拉进 JSON 推进基线，
-  顺序反了会被盖掉。完整顺序：`content:json` → `library apply` → `content:excel` → `npm run build`。
+- **apply 是叠加不是替换**：改动先落在覆盖层，`library apply` 叠加回 `src/content/*.json`。
+  完整顺序：`library set/item …` → `library apply` → `npm run build`。
+  （改**内容层**（后台／JSON Schema）是另一条路：`content:publish`，别手改快照。）
 - **引用断了宁可什么都不写** —— `apply` 拒绝写盘，绝不写出半坏数据。
 - **级联按「宁可留空并写『未载』」**：删讲稿方剂 → p44 的 `drugs[]` 去掉该 id；
   删成方 → p42 的 `doseId` 置空并标「未载」、科中映射里那一项删掉；删科中 → 科中映射的值写成「未载」。
@@ -1270,7 +1271,7 @@ npm run test:e2e:harmony                     # 57 项：鸿蒙工程静态检查
 - [ ] 改过**用方知识库覆盖层**（`server/library-schema.mjs` / `scripts/lib/library-cli.mjs` / `library_items` 表）后：删除是不是写了**墓碑**（靠「没有行」表达删除会被读成「没改过」→ 静默回落基线，刚删的条目又冒出来）？墓碑里有没有带**原内容快照**（没有的话 `revive` 放不回来）？`library apply` 在**引用断了**时有没有拒绝写盘（不能写出半坏数据）？**讲义 p44 能不能被绕过命令行新增**（判定函数表里没有它 → 前端启动就崩；**删除是放开的**）？`apply` 是不是**幂等**、有没有往内容文件里塞自己的键（写入时间戳之类）？`library-admin` 与 `library-admin-break-test` 是否都跑过？
 - [ ] 改过 `src/domain/formulas.ts` 的装载器（`loadRules`）后：两个方向还**刻意不对称**吗 ——「数据有、判定函数没有」必须**抛错**（不许静默降级：那条规则永远不命中，界面却看不出来），「判定函数有、数据没有」必须**跳过**（条目被管理员删了，判定函数是残留代码）？`npm run test:e2e:rule-delete-loader` 与 `npm run test:e2e:rule-delete-loader:break` 是否都跑过？
 - [ ] 改过 `src/domain/formula-links.ts` 的对照表后：指向的规则**被删掉**之后，链接是不是降级成「用方页未载」（而不是点过去没反应）？
-- [ ] 知识库改完之后：人工在 Excel 里的改动是不是**先** `content:json` 拉进 JSON 推进基线**再** `library apply`（顺序反了会被盖掉）？`library apply` → `content:excel` → `npm run build` 三步都走了吗（只改 SQLite 的话前端看不到）？
+- [ ] 知识库改完之后：覆盖层里的改动是不是跑过 `library apply`（合并回 `src/content/*.json`）**再** `npm run build`（只改 SQLite 的话前端看不到）？若改的是**内容层**（本地后台／JSON Schema），是不是走 `content:publish`（自检→对拍→原子发布→快照→三方对拍），而不是手改快照？
 
 ## Git 约定
 
