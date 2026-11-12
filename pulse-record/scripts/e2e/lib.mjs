@@ -75,7 +75,10 @@ export function chromePath() {
 export async function startApi({ single = true, db, port } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'pulse-api-'))
   const DB = db ?? join(dir, 'test.sqlite')
-  const PORT = port ?? 5300 + Math.floor(Math.random() * 400)
+  // ⚠️ **必须挑一个没人占的端口** —— 随机端口的范围（5300~5699）里含着
+  //    **5432**，那正是本机 PostgreSQL 的端口 ⇒ 撞上了就「后端没起来」，
+  //    而且是**偶发**的（看运气）⇒ 比固定端口更难查。
+  const PORT = port ?? (await freePort(5300 + Math.floor(Math.random() * 400)))
   const child = spawn(process.execPath, ['server/index.mjs'], {
     cwd: ROOT,
     env: {

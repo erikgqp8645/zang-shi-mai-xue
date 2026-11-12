@@ -4398,3 +4398,242 @@ button:disabled {
     flex-direction: row;
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * ③ 用方知识库 · 管理员的编辑／删除                                     *
+ * ------------------------------------------------------------------ */
+
+/** 条目行的工具区（编辑／删除）—— 在行 button **外面** */
+.pr-formula-tools {
+  display: flex;
+  gap: 6px;
+  margin-top: 3px;
+  padding-left: 2px;
+}
+
+.pr-led-btn {
+  padding: 1px 8px;
+  border: 1px solid var(--divider);
+  border-radius: 2px;
+  background: #fff;
+  color: var(--sage);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+.pr-led-btn:hover {
+  border-color: var(--clay);
+  color: var(--clay);
+}
+
+.pr-led-btn.is-danger:hover {
+  border-color: var(--high);
+  color: var(--high);
+}
+
+/** 方名 chip 上的 ✎／✕ —— 默认低调，悬停／聚焦才显形 */
+.pr-led-chip-ops {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: 3px;
+  opacity: 0.35;
+  transition: opacity 0.12s;
+}
+
+.pr-formula-chip:hover .pr-led-chip-ops,
+.pr-led-chip-ops:focus-within {
+  opacity: 1;
+}
+
+.pr-led-chip-ops button {
+  padding: 0 3px;
+  border: none;
+  background: transparent;
+  color: var(--sage);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.pr-led-chip-ops button:hover {
+  color: var(--clay);
+}
+
+/** 就地改方名的输入框 */
+.pr-led-chip-input {
+  width: 8em;
+  padding: 0 3px;
+  border: 1px solid var(--clay);
+  border-radius: 2px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+}
+
+/** ③ 顶部的操作提示条 */
+.pr-flib-toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 4px 10px;
+  border: 1px solid var(--divider);
+  border-radius: 3px;
+  background: #fff;
+  color: var(--sage);
+  font-size: 12px;
+}
+
+.pr-flib-toast.is-error {
+  border-color: var(--high);
+  color: var(--high);
+}
+
+/* ---- 编辑弹层：字段表单 ---- */
+
+.pr-led-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px 14px;
+  align-items: start;
+}
+
+.pr-led-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.pr-led-field.is-long {
+  grid-column: 1 / -1;
+}
+
+.pr-led-label {
+  font-size: 11px;
+  color: var(--sage);
+}
+
+.pr-led-label em {
+  color: var(--high);
+  font-style: normal;
+  margin-left: 2px;
+}
+
+.pr-led-hint {
+  font-size: 10px;
+  color: var(--sage);
+}
+
+.pr-led-field input,
+.pr-led-field select,
+.pr-led-field textarea {
+  padding: 3px 6px;
+  border: 1px solid var(--divider);
+  border-radius: 2px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.pr-led-field textarea {
+  resize: vertical;
+}
+
+.pr-led-field input:disabled,
+.pr-led-field select:disabled,
+.pr-led-field textarea:disabled {
+  background: #f6f4ee;
+  color: var(--sage);
+}
+
+.pr-led-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.pr-led-arr {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pr-led-arr-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pr-led-arr-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.pr-led-arr-row button,
+.pr-led-add {
+  padding: 1px 7px;
+  border: 1px solid var(--divider);
+  border-radius: 2px;
+  background: #fff;
+  color: var(--sage);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.pr-led-add {
+  align-self: flex-start;
+}
+
+/* ------------------------------------------------------------------ */
+/* 站内确认框（ConfirmDialog.tsx）                                      */
+/*                                                                     */
+/* ⓘ 不用 `window.confirm`：原生弹窗在 Electron 桌面端会冻住整个渲染进程。  */
+/* ⓘ 样式沿用编辑器那套（`pr-ps-modal`／`pr-ed-foot`），只多加一个层级。    */
+/* ------------------------------------------------------------------ */
+
+/* 确认框要压在编辑弹层（z-index: 60）上面 */
+.pr-ps-modal.is-confirm {
+  z-index: 70;
+}
+
+.pr-ps-modal-box.is-confirm {
+  max-width: 380px;
+}
+
+.pr-confirm-body {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+.pr-confirm-body p {
+  margin: 0 0 6px;
+}
+
+.pr-confirm-body ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--sage);
+  font-size: 12px;
+}
+
+.pr-confirm-body li {
+  margin: 2px 0;
+}
+
+/* 危险操作（删条目）用红色确定按钮 —— 与 `.pr-ed-foot button:last-child` 同权重，靠后写覆盖 */
+.pr-confirm-foot button.is-danger {
+  border-color: var(--high);
+  background: var(--high);
+  color: #fff;
+}

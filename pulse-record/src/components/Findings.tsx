@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { RuleHit } from '../domain/rules'
 import {
   CONSTITUTION_TABLE,
   FORMULA_ROUTE_ORDER,
-  STANDING_FORMULA_RULES,
+  getStandingRules,
   type FormulaHit,
 } from '../domain/formulas'
-import { DRUG_BY_ID, type Drug } from '../domain/drugs'
+import { getDrugById, type Drug } from '../domain/drugs'
+import { removeChip, setChip } from '../domain/library-chips.mjs'
+import { useLibrary } from '../state/library'
 import {
   DOSE_SCIENCE_NAME,
   FORMULA_DOSES,
@@ -104,6 +106,20 @@ function AttrBasis({ attr }: { attr: Attribution | undefined }) {
 }
 
 /**
+ * ③ 知识库里管理员的编辑能力。
+ *
+ * ⚠️ ② 命中区**不传**这个 ⇒ 那边一个编辑／删除按钮都不出现。
+ * ⓘ 「方名标签」（chip）的改／删走 `onFormulasChange` —— 与命令行改 `formulas[]`
+ *   是同一件事、同一口径（服务端 PATCH 的 `patch: { formulas: [...] }`）。
+ */
+export interface LibraryTools {
+  /** 改方名数组（chip 上的 ✎／✕ 走这个） */
+  onFormulasChange?: (next: string[]) => void
+  /** 条目级的「编辑」／「删除」按钮 */
+  actions?: ReactNode
+}
+
+/**
  * 方剂卡片：组成／服法／科学中药／加减／适用脉象／禁忌，全部照抄讲稿原文
  *
  * ## 两种版式（`compact`）
@@ -118,6 +134,7 @@ export function DrugCard({
   showAttr,
   compact,
   autoOpen,
+  tools,
 }: {
   drug: Drug
   showAttr?: boolean
@@ -125,6 +142,8 @@ export function DrugCard({
   compact?: boolean
   /** 紧凑态默认展开（从 ③ 的方名跳进来时用，落在哪一条就展开哪一条） */
   autoOpen?: boolean
+  /** ③ 知识库里的管理员工具（② 命中区不传） */
+  tools?: LibraryTools
 }) {
   const attr = RULE_OR_DRUG_ATTRIB[drug.id]
   const [open, setOpen] = useState(!!autoOpen)
@@ -198,6 +217,8 @@ export function DrugCard({
           <strong className="pr-drug-row-name">{drug.name}</strong>
           {showAttr && <AttrChip attr={attr} />}
         </button>
+        {/* ⚠️ 工具区在 button **外面** —— button 里不能套 button */}
+        {tools?.actions && <div className="pr-formula-tools">{tools.actions}</div>}
         {open && <div className="pr-formula-detail">{detail}</div>}
       </div>
     )
@@ -301,6 +322,7 @@ export function FormulaItem({
   srcNote,
   compact,
   autoOpen,
+  tools,
 }: {
   item: SessionFormulaHit
   showAttr?: boolean
@@ -314,10 +336,15 @@ export function FormulaItem({
   compact?: boolean
   /** 紧凑态默认展开（从 ③ 的方名跳进来时用，落在哪一条就展开哪一条） */
   autoOpen?: boolean
+  /** ③ 知识库里的管理员工具（② 命中区不传） */
+  tools?: LibraryTools
 }) {
   const { sessionLabel, hit } = item
   const attr = RULE_OR_DRUG_ATTRIB[hit.id]
   const [open, setOpen] = useState(!!autoOpen)
+  /** 正在**就地编辑**的方名 chip（③ 管理员用；② 命中区没有 tools ⇒ 不会进这个态） */
+  const [editingChip, setEditingChip] = useState<number | null>(null)
+  const [chipDraft, setChipDraft] = useState('')
 
   /**
    * 焦点落在这一条时就展开。
@@ -330,6 +357,23 @@ export function FormulaItem({
   useEffect(() => {
     if (autoOpen) setOpen(true)
   }, [autoOpen])
+
+  /**
+   * 方名 chip 改完了 —— 交给上层落库（`patch: { formulas: [...] }`）。
+   *
+   * ⚠️ 改的是**方名数组**（`formulas[]`）；「添加药」（`adds[]`）在编辑弹层里改 ——
+   *    两者语义不同（一个是「用哪些方」，一个是「加哪几味」），别混。
+   */
+  function commitChip(index: number) {
+    if (editingChip !== index) return
+    const next = setChip(hit.formulas, index, chipDraft)
+    setEditingChip(null)
+    // 文字没变（或改空了）⇒ 什么都不做 —— 别白跑一趟落库
+    const same =
+      next.length === hit.formulas.length && next.every((v, i) => v === hit.formulas[i])
+    if (same) return
+    tools?.onFormulasChange?.(next)
+  }
 
   /**
    * 详情区 —— 两种版式共用。
@@ -354,7 +398,7 @@ export function FormulaItem({
       {hit.drugs && hit.drugs.length > 0 && (
         <div className="pr-drugs">
           {hit.drugs.map((id) => {
-            const d = DRUG_BY_ID[id]
+            const d = getDrugById(id)
             return d ? <DrugCard key={id} drug={d} /> : null
           })}
         </div>
@@ -407,16 +451,65 @@ export function FormulaItem({
             {hit.therapy}
           </span>
           {showAttr && <AttrChip attr={attr} />}
-          {hit.formulas.length > 0 && (
-            <span className="pr-formula-list-inline">
-              {hit.formulas.map((f) => (
-                <span key={f} className="pr-formula-chip">
-                  {f}
-                </span>
-              ))}
-            </span>
-          )}
         </button>
+        {/*
+          ⚠️ 方名 chip 在 button **外面** —— chip 上有「✎／✕」按钮，
+          button 里不能套 button（HTML 无效 ＋ 点击会冒泡）。
+        */}
+        {hit.formulas.length > 0 && (
+          <div className="pr-formula-list-inline">
+            {hit.formulas.map((f, i) => (
+              <span key={`${f}-${i}`} className="pr-formula-chip">
+                {editingChip === i ? (
+                  <input
+                    className="pr-led-chip-input"
+                    value={chipDraft}
+                    autoFocus
+                    aria-label="改这个方名"
+                    onChange={(e) => setChipDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        commitChip(i)
+                      }
+                      if (e.key === 'Escape') {
+                        e.preventDefault()
+                        setEditingChip(null)
+                      }
+                    }}
+                    onBlur={() => commitChip(i)}
+                  />
+                ) : (
+                  <>
+                    {f}
+                    {tools?.onFormulasChange ? (
+                      <span className="pr-led-chip-ops">
+                        <button
+                          type="button"
+                          title="改这个标签"
+                          onClick={() => {
+                            setEditingChip(i)
+                            setChipDraft(f)
+                          }}
+                        >
+                          ✎
+                        </button>
+                        <button
+                          type="button"
+                          title="删这个标签"
+                          onClick={() => tools.onFormulasChange?.(removeChip(hit.formulas, i))}
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ) : null}
+                  </>
+                )}
+              </span>
+            ))}
+          </div>
+        )}
+        {tools?.actions && <div className="pr-formula-tools">{tools.actions}</div>}
         {open && <div className="pr-formula-detail">{detail}</div>}
       </div>
     )
@@ -464,7 +557,7 @@ const STANDING_LABEL = '常驻'
 
 /** 把常驻条目并入维度分组，避免在五行／左右手视图里丢失 */
 function standingHits(): SessionFormulaHit[] {
-  return STANDING_FORMULA_RULES.map((rule) => ({
+  return getStandingRules().map((rule) => ({
     sessionId: '__standing__',
     sessionLabel: STANDING_LABEL,
     hit: { ...rule, condition: STANDING_DISPLAY[rule.id] ?? rule.therapy, cells: [] },
@@ -484,6 +577,14 @@ export function Findings({
 }: Props) {
   const [tab, setTab] = useState<Tab>('risk')
   const [dim, setDim] = useState<Dim>('route')
+
+  /**
+   * 运行期生效集（基线 ⊕ 服务端覆盖层）。
+   *
+   * ⚠️ 必须订阅：管理员在 ③ 里改过／删过条目 ⇒ 生效集变了 ⇒
+   *    ② 命中区要跟着变（常驻条目、方剂卡都从生效集里取）。
+   */
+  const { ruleData } = useLibrary()
 
   /** 依脉用方命中的路线名（供流程骨架标示位置用） */
   const hitRoutes = useMemo(() => Array.from(new Set(formulaHits.map((h) => h.hit.route))), [formulaHits])
@@ -511,7 +612,8 @@ export function Findings({
     if (dim === 'wuxing') return groupByWuxing(all, (h) => h.hit.id)
     if (dim === 'hand') return groupByHand(all, (h) => h.hit.id)
     return []
-  }, [dim, formulaHits, showStanding])
+    // ⚠️ `ruleData` 在依赖里：覆盖层变了 ⇒ 生效集变了 ⇒ 常驻条目要重算
+  }, [dim, formulaHits, showStanding, ruleData])
 
   /**
    * 各组里的**常驻条目数** —— chip 上要单独标出来。
@@ -743,10 +845,10 @@ export function Findings({
                   </section>
                 ))}
 
-            {dim === 'route' && showStanding && STANDING_FORMULA_RULES.length > 0 && (
+            {dim === 'route' && showStanding && getStandingRules().length > 0 && (
               <section className="pr-formula-group">
                 <h3 className="pr-formula-route">用药禁忌（常驻）</h3>
-                {STANDING_FORMULA_RULES.map((rule) => (
+                {getStandingRules().map((rule) => (
                   <div key={rule.id} className={`pr-formula is-${rule.kind}`}>
                     <div className="pr-formula-head">
                       <span className="pr-formula-kind">{rule.kind}</span>

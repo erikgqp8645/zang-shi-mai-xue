@@ -3,8 +3,8 @@ import { cellKey } from '../domain/types'
 import { groupRows } from '../domain/layout'
 import { formatCodes, buildCustomLegend, collectUsedCodes, type CustomSymbol } from '../domain/symbols'
 import { evaluateRules, type RuleContext } from '../domain/rules'
-import { evaluateFormulas, STANDING_FORMULA_RULES, CONSTITUTION_TABLE, type FormulaHit } from '../domain/formulas'
-import { DRUG_BY_ID, DRUG_GROUPS, DRUGS } from '../domain/drugs'
+import { evaluateFormulas, getStandingRules, CONSTITUTION_TABLE, type FormulaHit } from '../domain/formulas'
+import { getDrugById, getEffectiveDrugs, DRUG_GROUPS } from '../domain/drugs'
 import {
   DOSE_SCIENCE_NAME,
   FORMULA_DOSES,
@@ -187,7 +187,7 @@ export function toMarkdown(
       lines.push(`- **${hit.condition}** → ${hit.therapy}${f}　〔${hit.source}〕· 记录 ${session}`)
       if (hit.drugs && hit.drugs.length > 0) {
         for (const id of hit.drugs) {
-          const d = DRUG_BY_ID[id]
+          const d = getDrugById(id)
           if (!d) continue
           lines.push(`  - **${d.name}**（${d.therapy}）`)
           if (d.composition) lines.push(`    - 组成：${d.composition}`)
@@ -204,9 +204,10 @@ export function toMarkdown(
   }
 
   /* ---- 依脉用方 · 按五行 / 按左右手 ---- */
-  if (formulaHits.length > 0 || STANDING_FORMULA_RULES.length > 0) {
+  const standingRules = getStandingRules()
+  if (formulaHits.length > 0 || standingRules.length > 0) {
     // 常驻条目（三不用、白虎汤／肾气丸）不依脉象，一并并入维度分组，避免丢失
-    const standing = STANDING_FORMULA_RULES.map((rule) => ({
+    const standing = standingRules.map((rule) => ({
       session: '常驻',
       hit: { ...rule, condition: STANDING_DISPLAY[rule.id] ?? rule.therapy } as FormulaHit,
     }))
@@ -253,10 +254,10 @@ export function toMarkdown(
     }
   }
 
-  if (STANDING_FORMULA_RULES.length > 0) {
+  if (standingRules.length > 0) {
     lines.push('**用药禁忌（常驻）**')
     lines.push('')
-    for (const rule of STANDING_FORMULA_RULES) {
+    for (const rule of standingRules) {
       const f = rule.formulas.length > 0 ? `　方：${rule.formulas.join('、')}` : ''
       lines.push(`- ${rule.therapy}${f}　〔${rule.source}〕`)
     }
@@ -335,7 +336,7 @@ export function toMarkdown(
   lines.push('')
   for (const g of DRUG_GROUPS) {
     lines.push(`- **${g.title}**`)
-    for (const d of DRUGS.filter((x) => x.therapy === g.therapy)) {
+    for (const d of getEffectiveDrugs().filter((x) => x.therapy === g.therapy)) {
       lines.push(`  - **${d.name}**`)
       if (d.composition) lines.push(`    - 组成：${d.composition}`)
       if (d.usage) lines.push(`    - 服法：${d.usage}`)
@@ -352,7 +353,9 @@ export function toMarkdown(
   for (const dim of ['wuxing', 'hand'] as const) {
     const keys = filterKeysFor(dim, filters)
     const groups = (
-      dim === 'wuxing' ? groupByWuxing(DRUGS, (d) => d.id) : groupByHand(DRUGS, (d) => d.id)
+      dim === 'wuxing'
+        ? groupByWuxing(getEffectiveDrugs(), (d) => d.id)
+        : groupByHand(getEffectiveDrugs(), (d) => d.id)
     ).filter((g) => g.key === '未归类' || keys.includes(g.key))
     lines.push(`#### 方剂备查 · ${dim === 'wuxing' ? '按五行' : '按左右手'}`)
     lines.push('')

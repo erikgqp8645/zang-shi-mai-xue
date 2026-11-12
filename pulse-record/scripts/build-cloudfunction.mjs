@@ -82,6 +82,29 @@ function main() {
     console.log(`  · src/content/schema/ 拷了 ${n} 个（内容包读取层要靠它）`)
   }
 
+  // 2.6) 拷「合并与级联」的纯逻辑
+  //
+  //      `server/library-schema.mjs` 用 `join(HERE, '..', '..')` 定位根目录：
+  //        仓库里 → `pulse-record/`      ⇒ `pulse-record/src/domain/library-core.mjs`
+  //        包里   → `.cloudfn/pulse-api/` ⇒ `.cloudfn/pulse-api/src/domain/library-core.mjs`
+  //      同一个相对位置 ⇒ 同一份代码在两处都找得到它，不需要任何路径分支。
+  //
+  //      为什么必须带：它**零 import**（自包含），但服务端与浏览器要算
+  //      出**同一个**合并结果 —— 网站端 ③ 显示的那一份，与命令行
+  //      `library apply` 写进基线的那一份，必须一致。
+  //
+  //      ⚠️ 为什么是 `.mjs` 而不是 `.ts`：云函数跑 Node 16／18／20，
+  //         **不能 import `.ts`**；`.mjs` 谁都能跑。
+  const coreSrc = join(ROOT, 'src', 'domain', 'library-core.mjs')
+  if (existsSync(coreSrc)) {
+    const coreOut = join(OUT, 'src', 'domain', 'library-core.mjs')
+    mkdirSync(dirname(coreOut), { recursive: true })
+    cpSync(coreSrc, coreOut)
+    console.log('  · src/domain/library-core.mjs 拷了 1 个（合并与级联的纯逻辑）')
+  } else {
+    console.warn('  · ⚠️ 找不到 src/domain/library-core.mjs —— 服务端会 import 失败')
+  }
+
   // 3) 入口（CommonJS）
   cpSync(join(SERVER, 'cloudfunction', 'index.js'), join(OUT, 'index.js'))
   console.log('  · index.js（入口）')

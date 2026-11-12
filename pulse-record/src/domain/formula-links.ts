@@ -28,8 +28,8 @@
  *   对不上 → 再看讲义 p44 的规则条目（清挡路就是这种）
  *   都没有 → 明说未载
  */
-import { DRUGS } from './drugs'
-import { FORMULA_RULES } from './formulas'
+import { getEffectiveDrugs } from './drugs'
+import { getEffectiveRules } from './formulas'
 import { FORMULA_ALIAS } from './medication'
 
 /** 锚点种类：`drug`＝讲稿方剂条目，`rule`＝讲义 p44 依脉用方条目 */
@@ -95,11 +95,12 @@ export function resolveFormulaLink(name: string): FormulaLink | null {
   //    那就不能再跳过去：锚点不存在，点了没反应。
   //    这里查一下还在不在，不在就往下走，最后落到「用方页未载」。
   const rl = RULE_LINKS[q]
-  if (rl && FORMULA_RULES.some((r) => r.id === rl.id)) return { kind: 'rule', ...rl }
+  if (rl && getEffectiveRules().some((r) => r.id === rl.id)) return { kind: 'rule', ...rl }
 
   // ②③ 讲稿方剂：完全同名 → 方名后括号不算方名
   const drug =
-    DRUGS.find((d) => d.name === q) || DRUGS.find((d) => baseName(d.name) === q)
+    getEffectiveDrugs().find((d) => d.name === q) ||
+    getEffectiveDrugs().find((d) => baseName(d.name) === q)
   if (drug) {
     return {
       kind: 'drug',
@@ -115,7 +116,7 @@ export function resolveFormulaLink(name: string): FormulaLink | null {
   // ④ 讲义用名 → 讲稿条目名（别名表里有依据的对照）
   const alias = FORMULA_ALIAS[q]
   if (alias) {
-    const d = DRUGS.find((x) => x.name === alias)
+    const d = getEffectiveDrugs().find((x) => x.name === alias)
     if (d) {
       return {
         kind: 'drug',
@@ -127,7 +128,7 @@ export function resolveFormulaLink(name: string): FormulaLink | null {
   }
 
   // ⑤ 讲义 p44 规则条目：方名完全相等
-  const rule = FORMULA_RULES.find((r) => r.formulas.includes(q))
+  const rule = getEffectiveRules().find((r) => r.formulas.includes(q))
   if (rule) {
     return {
       kind: 'rule',

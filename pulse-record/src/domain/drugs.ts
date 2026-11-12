@@ -12,6 +12,7 @@
 
 import { toRecord } from './to-record'
 import { isVisible } from './visibility'
+import { getLibraryState } from './library-store'
 import DRUG_DATA from '../content/drugs.json'
 
 export type Therapy = '一体疗法' | '三焦疗法' | '五脏疗法'
@@ -66,3 +67,39 @@ export const DRUG_GROUPS: { therapy: Therapy; title: string }[] = [
   { therapy: '三焦疗法', title: '三焦疗法（上焦方／中焦方／下焦方）' },
   { therapy: '五脏疗法', title: '五脏疗法（引火归元等 22 方）' },
 ]
+
+/* ------------------------------------------------------------------ *
+ * 运行期生效集（基线 ⊕ 服务端覆盖层）                                   *
+ * ------------------------------------------------------------------ */
+
+/**
+ * **当前生效的方剂** —— 管理员在 ③ 里改过／删过的那些，都算数。
+ *
+ * ⓘ `DRUGS` 是**内置基线**（编译期内联的 `src/content/drugs.json`），它不随管理员的改动变。
+ * ⓘ 覆盖层没加载时 ⇒ 生效集＝基线 ⇒ 小程序端（不设覆盖层）行为**零变化**。
+ */
+let effectiveCache: { data: Drug[]; drugs: Drug[]; byId: Record<string, Drug> } | null = null
+
+/** 当前生效的方剂（覆盖层没加载时＝基线） */
+export function getEffectiveDrugs(): Drug[] {
+  const data = getLibraryState().drugData
+  if (!data) return DRUGS
+  if (effectiveCache && effectiveCache.data === data) return effectiveCache.drugs
+  const drugs = data
+  const byId = toRecord(drugs.map((d) => [d.id, d] as [string, Drug]))
+  effectiveCache = { data, drugs, byId }
+  return drugs
+}
+
+/** 当前生效的方剂里**要显示**的那些（`visible=false` 的不列） */
+export function getVisibleDrugs(): Drug[] {
+  return getEffectiveDrugs().filter(isVisible)
+}
+
+/** 按 id 取当前生效的方剂（查不到＝undefined） */
+export function getDrugById(id: string): Drug | undefined {
+  const data = getLibraryState().drugData
+  if (!data) return DRUG_BY_ID[id]
+  if (effectiveCache && effectiveCache.data === data) return effectiveCache.byId[id]
+  return getEffectiveDrugs().find((d) => d.id === id)
+}

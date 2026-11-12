@@ -102,6 +102,11 @@ function isGreen(out, name) {
 
 const LIB = 'server/library-schema.mjs'
 const CLI = 'scripts/lib/library-cli.mjs'
+/**
+ * 「合并与级联」的纯逻辑搬到了 `src/domain/library-core.mjs`（浏览器与 Node 共用一份）
+ * ⇒ 改到 `mergeKind`／`cascadeCleanup` **函数体**的坏法，路径也跟着搬。
+ */
+const CORE = 'src/domain/library-core.mjs'
 
 const MUTATIONS = [
   {
@@ -126,7 +131,7 @@ const MUTATIONS = [
     title: '墓碑当成「没改过」（删掉的条目又冒出来）',
     files: [
       {
-        path: LIB,
+        path: CORE,
         replacements: [
           {
             from: [
@@ -231,7 +236,7 @@ const MUTATIONS = [
     title: '删成方的级联清理去掉（引用它的地方会指向一个不存在的方）',
     files: [
       {
-        path: LIB,
+        path: CORE,
         replacements: [
           {
             from: [
@@ -254,7 +259,7 @@ const MUTATIONS = [
     title: '删讲稿方剂的级联清理去掉（p44 的 drugs[] 里会留下一个不存在的方）',
     files: [
       {
-        path: LIB,
+        path: CORE,
         replacements: [
           {
             from: '      rule.drugs = rule.drugs.filter((d) => String(d) !== String(drugId))',
@@ -336,7 +341,7 @@ const MUTATIONS = [
           {
             from:
               '      // 不写＝按显示算（缺省显示），所以它不是必填。\n' +
-              '      { key: \'visible\', type: \'boolean\' },\n' +
+              '      { key: \'visible\', label: \'是否在知识库里显示\', type: \'boolean\' },\n' +
               '    ],',
             to:
               '      // 不写＝按显示算（缺省显示），所以它不是必填。\n' +

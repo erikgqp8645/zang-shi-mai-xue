@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { ConfirmDialog } from './ConfirmDialog'
 import { groupRows } from '../domain/layout'
 import { cellKey, type Hand, type LayoutMode } from '../domain/types'
 import { COMMON_GROUPS, SYMBOL_BY_CODE, parseCodes } from '../domain/symbols'
@@ -83,19 +84,31 @@ export function PatternEditor({ formulaId, formulaLabel, current, onClose }: Pro
   const [focused, setFocused] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /**
+   * 待确认的「恢复默认」（站内确认框用）。
+   *
+   * ⓘ 不用 `window.confirm`：原生弹窗在 Electron 桌面端会把整个渲染进程冻住
+   *   （点了「恢复默认」，页面就再也不响应，连刷新都救不回来）。
+   */
+  const [confirmReset, setConfirmReset] = useState(false)
 
   const entry = draft[active] as PulsePattern | undefined
   const layout = entry?.layout ?? 'nine'
   const groups = useMemo(() => groupRows(layout), [layout])
 
-  /* Esc 关闭 */
+  /* Esc 关闭（确认框开着时先关确认框，别把编辑器一起关了） */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !saving) onClose()
+      if (e.key !== 'Escape' || saving) return
+      if (confirmReset) {
+        setConfirmReset(false)
+        return
+      }
+      onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [saving, onClose])
+  }, [saving, confirmReset, onClose])
 
   function textOf(cell: string): string {
     const pending = raw[cell]
@@ -203,8 +216,13 @@ export function PatternEditor({ formulaId, formulaLabel, current, onClose }: Pro
     }
   }
 
-  async function doReset() {
-    if (!window.confirm('恢复成内置基线？你手改的这几张会被删掉（这台机器和其他机器都会回到基线）。')) return
+  /** 恢复默认（先问一句） */
+  function doReset() {
+    setConfirmReset(true)
+  }
+
+  /** 真的恢复（确认框点了「恢复默认」才走这里） */
+  async function confirmResetNow() {
     setSaving(true)
     setError(null)
     try {
@@ -214,201 +232,217 @@ export function PatternEditor({ formulaId, formulaLabel, current, onClose }: Pro
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setSaving(false)
+      setConfirmReset(false)
     }
   }
 
   return (
-    <div className="pr-ps-modal" onClick={() => !saving && onClose()}>
-      <div
-        className="pr-ps-modal-box is-editor"
-        role="dialog"
-        aria-label="编辑脉象图"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <header className="pr-ps-modal-head">
-          <h4>编辑脉象图</h4>
-          <span className="pr-ed-subject" title={formulaLabel}>
-            {formulaLabel}
-          </span>
-          {isOverridden(formulaId) && (
-            <button type="button" className="pr-ed-link" onClick={() => void doReset()} disabled={saving}>
-              恢复默认
-            </button>
-          )}
-          <button type="button" className="pr-ps-close" onClick={onClose} disabled={saving}>
-            ✕
-          </button>
-        </header>
-
-        <div className="pr-ed-body">
-          {/* ---- 左：这个方剂的几张图 ---- */}
-          <aside className="pr-ed-list">
-            {draft.map((p, i) => (
-              <div key={i} className={`pr-ed-item${i === active ? ' is-on' : ''}`}>
-                <button type="button" className="pr-ed-item-main" onClick={() => switchTo(i)}>
-                  <span className="pr-ed-item-no">{i + 1}</span>
-                  <span className="pr-ed-item-name">{p.title || `脉象 ${i + 1}`}</span>
-                  <span className="pr-ed-item-count">{p.cells.length} 格</span>
-                </button>
-                <span className="pr-ed-item-ops">
-                  <button type="button" title="上移" onClick={() => move(i, -1)} disabled={i === 0}>
-                    ▲
-                  </button>
-                  <button type="button" title="下移" onClick={() => move(i, 1)} disabled={i === draft.length - 1}>
-                    ▼
-                  </button>
-                  <button type="button" title="删除这张" onClick={() => removePattern(i)}>
-                    ✕
-                  </button>
-                </span>
-              </div>
-            ))}
-            <div className="pr-ed-add">
-              <button type="button" onClick={() => addPattern(false)}>
-                + 新增一张
+    <>
+      <div className="pr-ps-modal" onClick={() => !saving && onClose()}>
+        <div
+          className="pr-ps-modal-box is-editor"
+          role="dialog"
+          aria-label="编辑脉象图"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <header className="pr-ps-modal-head">
+            <h4>编辑脉象图</h4>
+            <span className="pr-ed-subject" title={formulaLabel}>
+              {formulaLabel}
+            </span>
+            {isOverridden(formulaId) && (
+              <button type="button" className="pr-ed-link" onClick={() => doReset()} disabled={saving}>
+                恢复默认
               </button>
-              {entry && <button type="button" onClick={() => addPattern(true)}>复制这张</button>}
-            </div>
-          </aside>
+            )}
+            <button type="button" className="pr-ps-close" onClick={onClose} disabled={saving}>
+              ✕
+            </button>
+          </header>
 
-          {/* ---- 右：矩阵编辑器 ---- */}
-          <section className="pr-ed-main">
-            {entry ? (
-              <>
-                <div className="pr-ed-fields">
-                  <label className="pr-ed-field">
-                    <span>图名</span>
+          <div className="pr-ed-body">
+            {/* ---- 左：这个方剂的几张图 ---- */}
+            <aside className="pr-ed-list">
+              {draft.map((p, i) => (
+                <div key={i} className={`pr-ed-item${i === active ? ' is-on' : ''}`}>
+                  <button type="button" className="pr-ed-item-main" onClick={() => switchTo(i)}>
+                    <span className="pr-ed-item-no">{i + 1}</span>
+                    <span className="pr-ed-item-name">{p.title || `脉象 ${i + 1}`}</span>
+                    <span className="pr-ed-item-count">{p.cells.length} 格</span>
+                  </button>
+                  <span className="pr-ed-item-ops">
+                    <button type="button" title="上移" onClick={() => move(i, -1)} disabled={i === 0}>
+                      ▲
+                    </button>
+                    <button type="button" title="下移" onClick={() => move(i, 1)} disabled={i === draft.length - 1}>
+                      ▼
+                    </button>
+                    <button type="button" title="删除这张" onClick={() => removePattern(i)}>
+                      ✕
+                    </button>
+                  </span>
+                </div>
+              ))}
+              <div className="pr-ed-add">
+                <button type="button" onClick={() => addPattern(false)}>
+                  + 新增一张
+                </button>
+                {entry && <button type="button" onClick={() => addPattern(true)}>复制这张</button>}
+              </div>
+            </aside>
+
+            {/* ---- 右：矩阵编辑器 ---- */}
+            <section className="pr-ed-main">
+              {entry ? (
+                <>
+                  <div className="pr-ed-fields">
+                    <label className="pr-ed-field">
+                      <span>图名</span>
+                      <input
+                        value={entry.title ?? ''}
+                        onChange={(e) => patchEntry({ title: e.target.value })}
+                        placeholder="如「浮大版」「兼尺弱」"
+                      />
+                    </label>
+                    <label className="pr-ed-field is-narrow">
+                      <span>体例</span>
+                      <select
+                        value={layout}
+                        onChange={(e) => {
+                          setRaw({})
+                          patchEntry({ layout: e.target.value as LayoutMode })
+                        }}
+                      >
+                        <option value="nine">9 行（尺含浮中沉）</option>
+                        <option value="seven">7 行（尺只沉）</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <table className="pr-psheet is-edit">
+                    <thead>
+                      <tr>
+                        <th className="pr-ps-corner" colSpan={2}>
+                          部位·取法
+                        </th>
+                        <th>左</th>
+                        <th className="pr-ps-end">右</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {groups.map((g, gi) =>
+                        g.rows.map((row, ri) => (
+                          <tr key={`${g.organ}-${row.depth}`}>
+                            {ri === 0 && (
+                              <th
+                                className={`pr-ps-organ${gi > 0 ? ' pr-ps-group-start' : ''}`}
+                                rowSpan={g.rows.length}
+                              >
+                                {g.organ}
+                              </th>
+                            )}
+                            <th className="pr-ps-depth">{row.depth}</th>
+                            {(['L', 'R'] as Hand[]).map((hand) => {
+                              const key = cellKey(hand, row.organ, row.depth)
+                              const dirty = raw[key] !== undefined
+                              return (
+                                <td key={hand} className={`pr-ed-cell${dirty ? ' is-dirty' : ''}`}>
+                                  <input
+                                    value={textOf(key)}
+                                    onChange={(e) => setRaw((prev) => ({ ...prev, [key]: e.target.value }))}
+                                    onFocus={() => setFocused(key)}
+                                    onBlur={(e) => commitCell(key, e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault()
+                                        e.currentTarget.blur()
+                                      }
+                                    }}
+                                    title={`${hand === 'L' ? '左' : '右'}${row.organ}${row.depth}`}
+                                    aria-label={`${hand === 'L' ? '左' : '右'}${row.organ}${row.depth}`}
+                                  />
+                                </td>
+                              )
+                            })}
+                          </tr>
+                        )),
+                      )}
+                    </tbody>
+                  </table>
+
+                  <div className="pr-ed-palette">
+                    {COMMON_GROUPS.map((group) => (
+                      <div key={group.title} className="pr-ed-pal-row">
+                        <span className="pr-ed-pal-title">{group.title}</span>
+                        {group.codes.map((code) => (
+                          <button
+                            key={code}
+                            type="button"
+                            className="pr-ed-code"
+                            title={SYMBOL_BY_CODE[code]?.label ?? code}
+                            onClick={() => appendCode(code)}
+                          >
+                            {code}
+                          </button>
+                        ))}
+                      </div>
+                    ))}
+                    <div className="pr-ed-pal-row">
+                      <span className="pr-ed-pal-title">操作</span>
+                      <button type="button" className="pr-ed-code is-wide" onClick={clearFocused}>
+                        清空这格
+                      </button>
+                      <span className="pr-ed-pal-hint">
+                        点格子 → 直接打字，或点上面的符号追加。`++` 要打两次 `+`，`TTT` 打三次。
+                      </span>
+                    </div>
+                  </div>
+
+                  <label className="pr-ed-field is-block">
+                    <span>备注（可选）</span>
                     <input
-                      value={entry.title ?? ''}
-                      onChange={(e) => patchEntry({ title: e.target.value })}
-                      placeholder="如「浮大版」「兼尺弱」"
+                      value={entry.note ?? ''}
+                      onChange={(e) => patchEntry({ note: e.target.value })}
+                      placeholder="如「按讲稿原文，未分左右」"
                     />
                   </label>
-                  <label className="pr-ed-field is-narrow">
-                    <span>体例</span>
-                    <select
-                      value={layout}
-                      onChange={(e) => {
-                        setRaw({})
-                        patchEntry({ layout: e.target.value as LayoutMode })
-                      }}
-                    >
-                      <option value="nine">9 行（尺含浮中沉）</option>
-                      <option value="seven">7 行（尺只沉）</option>
-                    </select>
-                  </label>
-                </div>
+                </>
+              ) : (
+                <p className="pr-empty">这个方剂现在没有脉象图。点左边「+ 新增一张」开始。</p>
+              )}
+            </section>
+          </div>
 
-                <table className="pr-psheet is-edit">
-                  <thead>
-                    <tr>
-                      <th className="pr-ps-corner" colSpan={2}>
-                        部位·取法
-                      </th>
-                      <th>左</th>
-                      <th className="pr-ps-end">右</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {groups.map((g, gi) =>
-                      g.rows.map((row, ri) => (
-                        <tr key={`${g.organ}-${row.depth}`}>
-                          {ri === 0 && (
-                            <th
-                              className={`pr-ps-organ${gi > 0 ? ' pr-ps-group-start' : ''}`}
-                              rowSpan={g.rows.length}
-                            >
-                              {g.organ}
-                            </th>
-                          )}
-                          <th className="pr-ps-depth">{row.depth}</th>
-                          {(['L', 'R'] as Hand[]).map((hand) => {
-                            const key = cellKey(hand, row.organ, row.depth)
-                            const dirty = raw[key] !== undefined
-                            return (
-                              <td key={hand} className={`pr-ed-cell${dirty ? ' is-dirty' : ''}`}>
-                                <input
-                                  value={textOf(key)}
-                                  onChange={(e) => setRaw((prev) => ({ ...prev, [key]: e.target.value }))}
-                                  onFocus={() => setFocused(key)}
-                                  onBlur={(e) => commitCell(key, e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                      e.preventDefault()
-                                      e.currentTarget.blur()
-                                    }
-                                  }}
-                                  title={`${hand === 'L' ? '左' : '右'}${row.organ}${row.depth}`}
-                                  aria-label={`${hand === 'L' ? '左' : '右'}${row.organ}${row.depth}`}
-                                />
-                              </td>
-                            )
-                          })}
-                        </tr>
-                      )),
-                    )}
-                  </tbody>
-                </table>
-
-                <div className="pr-ed-palette">
-                  {COMMON_GROUPS.map((group) => (
-                    <div key={group.title} className="pr-ed-pal-row">
-                      <span className="pr-ed-pal-title">{group.title}</span>
-                      {group.codes.map((code) => (
-                        <button
-                          key={code}
-                          type="button"
-                          className="pr-ed-code"
-                          title={SYMBOL_BY_CODE[code]?.label ?? code}
-                          onClick={() => appendCode(code)}
-                        >
-                          {code}
-                        </button>
-                      ))}
-                    </div>
-                  ))}
-                  <div className="pr-ed-pal-row">
-                    <span className="pr-ed-pal-title">操作</span>
-                    <button type="button" className="pr-ed-code is-wide" onClick={clearFocused}>
-                      清空这格
-                    </button>
-                    <span className="pr-ed-pal-hint">
-                      点格子 → 直接打字，或点上面的符号追加。`++` 要打两次 `+`，`TTT` 打三次。
-                    </span>
-                  </div>
-                </div>
-
-                <label className="pr-ed-field is-block">
-                  <span>备注（可选）</span>
-                  <input
-                    value={entry.note ?? ''}
-                    onChange={(e) => patchEntry({ note: e.target.value })}
-                    placeholder="如「按讲稿原文，未分左右」"
-                  />
-                </label>
-              </>
+          <footer className="pr-ed-foot">
+            {error ? (
+              <span className="pr-ed-error">{error}</span>
             ) : (
-              <p className="pr-empty">这个方剂现在没有脉象图。点左边「+ 新增一张」开始。</p>
+              <span className="pr-ed-tip">
+                保存后写入服务端，其他机器／浏览器打开就是这一份。
+              </span>
             )}
-          </section>
+            <button type="button" className="pr-ghost" onClick={onClose} disabled={saving}>
+              取消
+            </button>
+            <button type="button" onClick={() => void doSave()} disabled={saving}>
+              {saving ? '保存中…' : '保存'}
+            </button>
+          </footer>
         </div>
-
-        <footer className="pr-ed-foot">
-          {error ? (
-            <span className="pr-ed-error">{error}</span>
-          ) : (
-            <span className="pr-ed-tip">
-              保存后写入服务端，其他机器／浏览器打开就是这一份。
-            </span>
-          )}
-          <button type="button" className="pr-ghost" onClick={onClose} disabled={saving}>
-            取消
-          </button>
-          <button type="button" onClick={() => void doSave()} disabled={saving}>
-            {saving ? '保存中…' : '保存'}
-          </button>
-        </footer>
       </div>
-    </div>
+
+      {/* 「恢复默认」的确认框（站内，不用 `window.confirm` —— 原生弹窗会冻住整页） */}
+      {confirmReset && (
+        <ConfirmDialog
+          title="恢复成内置基线？"
+          body={
+            <p>你手改的这几张会被删掉（这台机器和其他机器都会回到基线）。</p>
+          }
+          okText="恢复默认"
+          onOk={() => void confirmResetNow()}
+          onCancel={() => setConfirmReset(false)}
+        />
+      )}
+    </>
   )
 }

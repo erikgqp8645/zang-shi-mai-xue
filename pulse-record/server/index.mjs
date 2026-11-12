@@ -31,8 +31,19 @@
  *   PUT    /api/formula-patterns/:formulaId → { formulaId, patterns }  整条替换该方剂的脉象图
  *   DELETE /api/formula-patterns/:formulaId → { ok: true }      撤销覆盖，回到内置基线
  *   GET    /api/library/overrides  → { overrides, meta }        用方知识库 · 管理员覆盖层
- *                                                          （公共资料，所有登录账号共享一份；
- *                                                            写入面是命令行 npm run admin -- library …）
+ *                                                          （公共资料，所有登录账号共享一份）
+ *   GET    /api/library/kinds      → { kinds }                 「什么能改」的注册表（前端表单由它驱动）
+ *   PATCH  /api/library/entries/:kind/:id → { entry, changed }  改一条（字段级；body: { patch }）
+ *   DELETE /api/library/entries/:kind/:id → { ok, snapshot }   **删一条**（写墓碑，带原内容快照）
+ *   POST   /api/library/entries/:kind/:id/restore → { ok }     **恢复默认**（撤覆盖层这一行 → 回基线）
+ *   POST   /api/library/entries/:kind/:id/revive  → { ok }     **撤销删除**（把墓碑里的快照放回来）
+ *                                                          上面四个写接口：**仅 admin**；
+ *                                                          读接口不设闸门 —— 知识库是公共资料，
+ *                                                          不同账号看到的必须是同一份。
+ *                                                          ⚠️ DELETE 在这里是「删除条目」，
+ *                                                          不是「删覆盖行」；后两者见 restore/revive。
+ *                                                          语义与命令行 `npm run admin -- library …`
+ *                                                          一一对应（set/del/restore/revive）。
  *   GET    /api/patients/:id       → { patient }                一位患者 ＋ 其全部就诊记录
  *   POST   /api/patients           → { patient }                整份保存（患者 ＋ 就诊记录 ＋ 用药记录）
  *   PATCH  /api/patients/:id       → { patient }                重命名／改体例（body: {name?} {layout?}）
@@ -101,6 +112,15 @@ import { code2Session } from './wechat.mjs'
 import { readContent, CONTENT_SOURCE } from './content-store.mjs'
 // 用方知识库：把覆盖层行按种类分组（前端将来合并时用的形状）
 import { groupOverrides } from './library-schema.mjs'
+// 用方知识库 · 运行时编辑（网站端 ③ 的「编辑／删除」按钮走这里）
+import {
+  LibraryError,
+  deleteLibraryEntry,
+  libraryKindsPayload,
+  patchLibraryEntry,
+  restoreLibraryEntry,
+  reviveLibraryEntry,
+} from './library-service.mjs'
 
 const PORT = Number(process.env.PORT ?? 5178)
 /**
@@ -223,6 +243,17 @@ function publicUser(user) {
     displayName: user.display_name ?? user.displayName,
     role: user.role,
   }
+}
+
+/**
+ * 是不是管理员。
+ *
+ * ⓘ `users.role` 只有两个值：`user`／`admin`（`server/schema-pg.sql` 的 CHECK 约束）。
+ * ⓘ 单机模式下 `currentUser` 直接返回内置本机账号，它的 role 就是 `admin`
+ *   （`server/db.mjs` 建号时写死的）⇒ 本机直接可用。
+ */
+function isAdmin(user) {
+  return String(user?.role ?? '') === 'admin'
 }
 
 function serveStatic(req, res) {
@@ -612,7 +643,6 @@ export async function handleApi(req, res) {
     /* ---- 用方知识库 · 管理员覆盖层 ------------------------------------ */
     /*      内置基线在 src/content/*.json（只读，编译期内联进前端）。      */
     /*      这里只存管理员改过的那些条目 —— **公共资料**，所有账号共享一份。 */
-    /*      这一轮前端不接这个接口（等通知后另做）；先把后端底座备好。     */
 
     if (path === '/api/library/overrides' && method === 'GET') {
       const rows = await listLibraryItems(db)
@@ -628,6 +658,60 @@ export async function handleApi(req, res) {
         }
       }
       sendJson(res, 200, { overrides, meta: { count, updatedAt } })
+      return
+    }
+
+    /* ---- 用方知识库 · 运行时编辑（网站端 ③ 的编辑／删除按钮） ------------ */
+    /*      写接口：**仅 admin**。读接口不设闸门 —— 知识库是公共资料，      */
+    /*      不同账号看到的必须是同一份（否则一个设置两处真源）。            */
+    /*      ⚠️ 语义与命令行 `npm run admin -- library …` 一一对应：        */
+    /*         PATCH＝set、DELETE＝del、restore＝restore、revive＝revive。  */
+
+    if (path === '/api/library/kinds' && method === 'GET') {
+      sendJson(res, 200, { kinds: libraryKindsPayload() })
+      return
+    }
+
+    const libEntry = path.match(/^\/api\/library\/entries\/([^/]+)\/([^/]+)(\/(restore|revive))?$/)
+    if (libEntry) {
+      if (!isAdmin(user)) {
+        sendJson(res, 403, {
+          error: '只有管理员能改用方知识库（这一份是所有账号共享的公共资料）。',
+        })
+        return
+      }
+      const kind = decodeURIComponent(libEntry[1])
+      const id = decodeURIComponent(libEntry[2])
+      const action = libEntry[3] ? libEntry[3].slice(1) : ''
+      const by = String(user.login_name ?? user.loginName ?? user.id ?? 'admin')
+      try {
+        if (method === 'PATCH' && !action) {
+          const body = await readJson(req)
+          const out = await patchLibraryEntry(db, kind, id, body?.patch, by)
+          sendJson(res, 200, { ok: true, ...out })
+          return
+        }
+        if (method === 'DELETE' && !action) {
+          const out = await deleteLibraryEntry(db, kind, id, by)
+          sendJson(res, 200, { ok: true, ...out })
+          return
+        }
+        if (method === 'POST' && action === 'restore') {
+          const out = await restoreLibraryEntry(db, kind, id)
+          sendJson(res, 200, { ok: true, ...out })
+          return
+        }
+        if (method === 'POST' && action === 'revive') {
+          const out = await reviveLibraryEntry(db, kind, id, by)
+          sendJson(res, 200, { ok: true, ...out })
+          return
+        }
+        sendJson(res, 405, { error: '这个地址不支持这个方法。' })
+      } catch (err) {
+        const status = err instanceof LibraryError ? err.status : 500
+        if (status >= 500) console.error('[臧氏脉学] 用方知识库写入失败：', err)
+        sendJson(res, status, { error: err?.message ?? String(err) })
+      }
       return
     }
 

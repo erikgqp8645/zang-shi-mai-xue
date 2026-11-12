@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  FORMULA_RULES,
+  getEffectiveRules,
   FORMULA_ROUTE_ORDER,
   LIBRARY_SETTINGS,
   type FormulaRule,
 } from '../domain/formulas'
-import { DRUG_GROUPS, VISIBLE_DRUGS, type Drug } from '../domain/drugs'
+import { DRUG_GROUPS, getVisibleDrugs, type Drug } from '../domain/drugs'
 import { isVisible } from '../domain/visibility'
 import { FORMULA_REFERENCE } from '../domain/medication'
 import { formulaAnchor, formulaAnchorId, type FormulaLink } from '../domain/formula-links'
@@ -23,7 +23,16 @@ import {
   type Group,
 } from '../domain/grouping'
 import { usePatterns } from '../state/patterns'
+import {
+  removeLibraryEntry,
+  saveLibraryPatch,
+  undoLibraryDelete,
+  useLibrary,
+} from '../state/library'
+import { getEffectiveDrugRaw, getEffectiveRuleRaw } from '../domain/library-store'
 import { DrugCard, FormulaItem, type SessionFormulaHit } from './Findings'
+import { LibraryEditor } from './LibraryEditor'
+import { ConfirmDialog } from './ConfirmDialog'
 
 /**
  * 用方知识库 —— ③「开方药」档里的一块**可折叠**全量视图
@@ -71,6 +80,14 @@ interface Props {
   /** 常驻条目（用药禁忌）显不显示 —— 与② 命中区共用同一个开关 */
   showStanding: boolean
   onToggleStanding: () => void
+  /**
+   * 是不是管理员 —— **只有管理员看得到编辑／删除按钮**。
+   *
+   * ⚠️ 非管理员**不渲染**按钮（不做禁用态）：一个灰着的「删除」只会让人
+   *    反复去试为什么点不动。
+   * ⓘ 非管理员看到的**内容**与管理员完全一样（知识库是公共资料）。
+   */
+  canEdit: boolean
 }
 
 /** 依脉开方的分组维度：讲稿原序 / 按五行 / 按左右手（与 ② 面板同一套） */
@@ -94,12 +111,123 @@ function libraryRule(rule: FormulaRule): SessionFormulaHit {
   }
 }
 
-export function FormulaLibrary({ focus, showStanding, onToggleStanding }: Props) {
+export function FormulaLibrary({ focus, showStanding, onToggleStanding, canEdit }: Props) {
   const [open, setOpen] = useState(false)
   const [dim, setDim] = useState<Dim>('route')
   const [query, setQuery] = useState('')
   /** 合并层读数：手填的脉象图也要能被搜到 */
   const { patternsOf } = usePatterns()
+
+  /**
+   * 运行期生效集（基线 ⊕ 服务端覆盖层）。
+   *
+   * ⚠️ 必须订阅：管理员在 ③ 里改过／删过条目 ⇒ 生效集变了 ⇒
+   *    ③ 的列表、计数、搜索都要跟着变（刷新页面才变是不行的）。
+   */
+  const { ruleData, drugData, overrides } = useLibrary()
+
+  /* ------------------------------------------------------------------ */
+  /* 管理员的编辑／删除（只有管理员看得到）                                 */
+  /* ------------------------------------------------------------------ */
+
+  /** 正在编辑的那一条 */
+  const [editing, setEditing] = useState<{
+    kind: string
+    id: string
+    entry: Record<string, unknown>
+    title: string
+  } | null>(null)
+  /** 顶部提示（操作结果／出错原因） */
+  const [toast, setToast] = useState<string | null>(null)
+  /** 刚删掉的那一条 —— 提示条上的「撤销」用它 */
+  const [lastDeleted, setLastDeleted] = useState<{ kind: string; id: string; title: string } | null>(null)
+  /**
+   * 待确认的删除（站内确认框用）。
+   *
+   * ⓘ 不用 `window.confirm`：原生弹窗在 Electron 桌面端会把整个渲染进程冻住
+   *   （点了「删除」，页面就再也不响应，连刷新都救不回来）。
+   */
+  const [pendingRemove, setPendingRemove] = useState<{ kind: string; id: string; title: string } | null>(null)
+
+  /** 打开编辑弹层 */
+  function openEditor(kind: string, id: string, title: string) {
+    const entry = kind === 'rule' ? getEffectiveRuleRaw(id) : getEffectiveDrugRaw(id)
+    if (!entry) {
+      setToast('这一条现在取不到（可能刚被删掉）—— 刷新页面再试。')
+      return
+    }
+    setToast(null)
+    setEditing({ kind, id, entry, title })
+  }
+
+  /** 删一条（写墓碑）⇒ 先问一句，确认了才写墓碑 */
+  function doRemove(kind: string, id: string, title: string) {
+    setPendingRemove({ kind, id, title })
+  }
+
+  /** 真的删（确认框点了「删掉」才走这里） */
+  async function confirmRemove() {
+    if (!pendingRemove) return
+    const { kind, id, title } = pendingRemove
+    try {
+      await removeLibraryEntry(kind, id)
+      setLastDeleted({ kind, id, title })
+      setToast(null)
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : String(e))
+    } finally {
+      setPendingRemove(null)
+    }
+  }
+
+  /** 撤销刚才那次删除 */
+  async function doUndo() {
+    if (!lastDeleted) return
+    try {
+      await undoLibraryDelete(lastDeleted.kind, lastDeleted.id)
+      setToast(null)
+      setLastDeleted(null)
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  /** 改方名数组（chip 上的 ✎／✕ 走这里） */
+  async function patchFormulas(kind: string, id: string, next: string[]) {
+    try {
+      await saveLibraryPatch(kind, id, { formulas: next })
+      setToast(null)
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  /** 覆盖层里被删掉的那些（墓碑）—— 管理员可以撤销 */
+  const deletedEntries = useMemo(() => {
+    const out: { kind: string; id: string; title: string }[] = []
+    for (const kind of ['rule', 'drug']) {
+      for (const [id, row] of Object.entries(overrides?.[kind] ?? {})) {
+        if (!row.deleted) continue
+        const payload = (row.payload ?? {}) as Record<string, unknown>
+        out.push({ kind, id, title: String(payload.condition ?? payload.name ?? id) })
+      }
+    }
+    return out
+  }, [overrides])
+
+  /** 条目级的「编辑／删除」按钮 */
+  function entryActions(kind: string, id: string, title: string) {
+    return (
+      <>
+        <button type="button" className="pr-led-btn" onClick={() => openEditor(kind, id, title)}>
+          编辑
+        </button>
+        <button type="button" className="pr-led-btn is-danger" onClick={() => doRemove(kind, id, title)}>
+          删除
+        </button>
+      </>
+    )
+  }
 
   const searching = query.trim() !== ''
 
@@ -144,8 +272,9 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding }: Props)
    */
   const visibleRules = useMemo(
     () =>
-      FORMULA_RULES.filter((r) => isVisible(r) && (showStanding || !r.always)),
-    [showStanding],
+      getEffectiveRules().filter((r) => isVisible(r) && (showStanding || !r.always)),
+    // ⚠️ `ruleData` 在依赖里：覆盖层变了 ⇒ 生效集变了 ⇒ 这一组要重算
+    [showStanding, ruleData],
   )
 
   /** 讲义 p44 依脉用方：按维度分组（全量，不是只列命中的） */
@@ -175,16 +304,18 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding }: Props)
 
   /** 讲稿 2010 方剂：按维度分组（全量里**要显示**的那些） */
   const drugGroups = useMemo<Group<Drug>[]>(() => {
-    if (dim === 'wuxing') return groupByWuxing(VISIBLE_DRUGS, (d) => d.id)
-    if (dim === 'hand') return groupByHand(VISIBLE_DRUGS, (d) => d.id)
+    const visible = getVisibleDrugs()
+    if (dim === 'wuxing') return groupByWuxing(visible, (d) => d.id)
+    if (dim === 'hand') return groupByHand(visible, (d) => d.id)
     // 讲稿原序：按讲稿第二讲「叁、用方」的三种疗法
     return DRUG_GROUPS.map((g) => ({
       key: g.therapy,
       label: g.title,
       note: '讲稿 2010·第二讲「叁、用方」',
-      items: VISIBLE_DRUGS.filter((d) => d.therapy === g.therapy),
+      items: visible.filter((d) => d.therapy === g.therapy),
     })).filter((g) => g.items.length > 0)
-  }, [dim])
+    // ⚠️ `drugData` 在依赖里：覆盖层变了 ⇒ 生效集变了 ⇒ 这一组要重算
+  }, [dim, drugData])
 
   /** 按五行／左右手时的分组顺序（与 ② 面板同一套） */
   const groupOrder = dim === 'wuxing' ? DIM_ORDER.wuxing : dim === 'hand' ? DIM_ORDER.hand : []
@@ -211,7 +342,7 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding }: Props)
     () => buildRuleIndex(visibleRules, (rule) => patternsOf(rule.id, rule.patterns)),
     [visibleRules, patternsOf],
   )
-  const drugIndex = useMemo(() => buildDrugIndex(VISIBLE_DRUGS), [])
+  const drugIndex = useMemo(() => buildDrugIndex(getVisibleDrugs()), [drugData])
   const refIndex = useMemo(() => buildRefIndex(FORMULA_REFERENCE), [])
 
   /** 命中 id 集合 —— 查询为空时是全集，所以渲染侧只有一套过滤逻辑 */
@@ -243,13 +374,13 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding }: Props)
           <span className="pr-flib-caret">{expanded ? '▾' : '▸'}</span>
           <span className="pr-flib-title">用方知识库</span>
           <span className="pr-flib-count">
-            讲义 p44 依脉用方 {visibleRules.length} 条 · 讲稿方剂 {VISIBLE_DRUGS.length} 方
+            讲义 p44 依脉用方 {visibleRules.length} 条 · 讲稿方剂 {getVisibleDrugs().length} 方
           </span>
         </button>
         {/* 计数说明放在按钮外面 —— 按钮里的数字是「现在显示了多少」 */}
         {!showStanding && (
           <span className="pr-flib-standing-note">
-            已隐藏常驻条目（用药禁忌）{FORMULA_RULES.length - visibleRules.length} 条
+            已隐藏常驻条目（用药禁忌）{getEffectiveRules().length - visibleRules.length} 条
           </span>
         )}
 
@@ -337,6 +468,18 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding }: Props)
             )}
           </div>
 
+          {/* 操作提示：出错原因／刚删掉的那一条（带「撤销」） */}
+          {(toast || lastDeleted) && (
+            <p className={`pr-flib-toast${toast ? ' is-error' : ''}`}>
+              {toast ?? `已删除「${lastDeleted?.title}」—— ③ 里不再显示，② 也不再命中。`}
+              {lastDeleted && !toast && (
+                <button type="button" className="pr-led-btn" onClick={() => void doUndo()}>
+                  撤销
+                </button>
+              )}
+            </p>
+          )}
+
           <div className="pr-flib-body">
             {nothing ? (
               <p className="pr-flib-empty">
@@ -383,6 +526,14 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding }: Props)
                               srcNote=" · 全量条目（知识库）"
                               compact
                               autoOpen={focusId === formulaAnchor('rule', r.id)}
+                              tools={
+                                canEdit
+                                  ? {
+                                      onFormulasChange: (next) => void patchFormulas('rule', r.id, next),
+                                      actions: entryActions('rule', r.id, r.condition),
+                                    }
+                                  : undefined
+                              }
                             />
                           </div>
                         ))}
@@ -425,6 +576,7 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding }: Props)
                               showAttr={dim !== 'route'}
                               compact
                               autoOpen={focusId === formulaAnchor('drug', d.id)}
+                              tools={canEdit ? { actions: entryActions('drug', d.id, d.name) } : undefined}
                             />
                           </div>
                         ))}
@@ -461,7 +613,65 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding }: Props)
               </>
             )}
           </div>
+
+          {/*
+            已删除的条目（管理员可撤销）。
+            ⓘ 墓碑里带着**原内容快照** ⇒ 撤销放回来时内容一字不差，
+               刷新页面也还在（不依赖前端的内存）。
+          */}
+          {canEdit && deletedEntries.length > 0 && (
+            <section className="pr-flib-extra">
+              <h3 className="pr-formula-route">已删除的条目（可撤销）</h3>
+              <ul className="pr-flib-extra-list">
+                {deletedEntries.map((d) => (
+                  <li key={`${d.kind}-${d.id}`}>
+                    <span className="pr-flib-extra-no">{d.kind === 'rule' ? 'p44' : '方剂'}</span>
+                    <strong className="pr-flib-extra-name">{d.title}</strong>
+                    <button
+                      type="button"
+                      className="pr-led-btn"
+                      onClick={() => void undoLibraryDelete(d.kind, d.id)}
+                    >
+                      撤销删除
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </>
+      )}
+
+      {/* 编辑弹层 */}
+      {editing && (
+        <LibraryEditor
+          kind={editing.kind}
+          id={editing.id}
+          entry={editing.entry}
+          title={editing.title}
+          onClose={() => setEditing(null)}
+        />
+      )}
+
+      {/* 删条目的确认框（站内，不用 `window.confirm` —— 原生弹窗会冻住整页） */}
+      {pendingRemove && (
+        <ConfirmDialog
+          title="删掉这一条？"
+          body={
+            <>
+              <p>删掉「{pendingRemove.title}」？</p>
+              <ul>
+                <li>③ 知识库里不再显示这一条</li>
+                <li>② 命中区也不再命中它</li>
+                <li>之后可以在这里撤销</li>
+              </ul>
+            </>
+          }
+          okText="删掉"
+          danger
+          onOk={() => void confirmRemove()}
+          onCancel={() => setPendingRemove(null)}
+        />
       )}
     </section>
   )

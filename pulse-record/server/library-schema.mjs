@@ -36,6 +36,26 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+/**
+ * 合并与级联的**纯逻辑**在 `src/domain/library-core.mjs` —— 浏览器与 Node 共用同一份。
+ *
+ * ⓘ 为什么不是 `.ts`：云函数跑 Node 16／18／20，**不能 import `.ts`**；
+ *   `.mjs` 谁都能跑。小程序那边只编译 `src/domain` 下的 `.ts` ⇒ 它进不了小程序产物。
+ *
+ * ⓘ 为什么「合并」要共用：网站端 ③ 显示的那一份，与命令行 `library apply`
+ *   写进基线的那一份，必须**算出同一个结果** ⇒ 两边各写一份必然漂移。
+ */
+import {
+  NOT_CARRIED,
+  stableStringify,
+  sameEntry,
+  mergeKind,
+  cascadeCleanup,
+} from '../src/domain/library-core.mjs'
+
+/** 纯逻辑的再导出 —— 既有 import 路径不变（CLI、断言脚本都从这里取） */
+export { NOT_CARRIED, stableStringify, sameEntry, mergeKind, cascadeCleanup }
+
 const here = dirname(fileURLToPath(import.meta.url))
 
 /** pulse-record/ 根目录（与 server/db.mjs 同一个算法） */
@@ -43,15 +63,6 @@ export const ROOT = join(here, '..')
 
 /** 内置基线所在目录：src/content/ */
 export const DEFAULT_CONTENT_DIR = join(ROOT, 'src', 'content')
-
-/**
- * 「未载」哨兵 —— 某套资料里没有这一项时的标准写法。
- *
- * AGENTS.md 引用纪律第 3 条：「没有写明的就不对照，宁可留空并写『未载』」。
- * 它同时是**引用校验里的合法值**：值等于「未载」表示「原来有、现在没有了」，
- * 不算悬空引用。
- */
-export const NOT_CARRIED = '未载'
 
 /* ------------------------------------------------------------------ *
  * 注册表
@@ -80,22 +91,22 @@ export const LIBRARY_KINDS = {
     addable: false,
     deletable: true,
     fields: [
-      { key: 'id', type: 'string', required: true },
-      { key: 'route', type: 'string', required: true },
-      { key: 'condition', type: 'string', required: true },
-      { key: 'therapy', type: 'string', required: true },
-      { key: 'formulas', type: 'string[]', required: true },
-      { key: 'adds', type: 'string[]' },
-      { key: 'drugs', type: 'string[]' },
-      { key: 'source', type: 'string', required: true },
-      { key: 'quote', type: 'string', required: true },
-      { key: 'kind', type: 'enum', values: ['主线', '挡路', '加味', '禁忌'], required: true },
-      { key: 'always', type: 'boolean' },
+      { key: 'id', label: '条目 id', type: 'string', required: true },
+      { key: 'route', label: '所属讲次／路线', type: 'string', required: true },
+      { key: 'condition', label: '条件', type: 'string', required: true },
+      { key: 'therapy', label: '治法', type: 'string', required: true },
+      { key: 'formulas', label: '方名（用哪些方）', type: 'string[]', required: true },
+      { key: 'adds', label: '添加药', type: 'string[]' },
+      { key: 'drugs', label: '关联的讲稿方剂 id', type: 'string[]' },
+      { key: 'source', label: '出处', type: 'string', required: true },
+      { key: 'quote', label: '原文', type: 'string', required: true, long: true },
+      { key: 'kind', label: '类别', type: 'enum', values: ['主线', '挡路', '加味', '禁忌'], required: true },
+      { key: 'always', label: '是否常驻条目', type: 'boolean' },
       // 「这一条要不要在用方知识库里显示」——
       // 2026-11-12 用户标注2：「这里每一条都可以单独编辑文字和是否显示」。
       // true＝显示；false＝知识库列表里不列这一条（**判读命中不受影响**）。
       // 不写＝按显示算（缺省显示），所以它不是必填。
-      { key: 'visible', type: 'boolean' },
+      { key: 'visible', label: '是否在知识库里显示', type: 'boolean' },
     ],
     blocked: {
       add:
@@ -117,19 +128,19 @@ export const LIBRARY_KINDS = {
     addable: true,
     deletable: true,
     fields: [
-      { key: 'id', type: 'string', required: true },
-      { key: 'name', type: 'string', required: true },
-      { key: 'therapy', type: 'enum', values: ['一体疗法', '三焦疗法', '五脏疗法'], required: true },
-      { key: 'composition', type: 'string' },
-      { key: 'usage', type: 'string' },
-      { key: 'science', type: 'string' },
-      { key: 'adjustments', type: 'string' },
-      { key: 'indication', type: 'string' },
-      { key: 'contraindication', type: 'string' },
-      { key: 'source', type: 'string', required: true },
-      { key: 'quote', type: 'string' },
+      { key: 'id', label: '条目 id', type: 'string', required: true },
+      { key: 'name', label: '方名（讲稿原名）', type: 'string', required: true },
+      { key: 'therapy', label: '所属疗法', type: 'enum', values: ['一体疗法', '三焦疗法', '五脏疗法'], required: true },
+      { key: 'composition', label: '组成', type: 'string', long: true },
+      { key: 'usage', label: '服法', type: 'string', long: true },
+      { key: 'science', label: '科学中药', type: 'string', long: true },
+      { key: 'adjustments', label: '加减', type: 'string' },
+      { key: 'indication', label: '适用脉象', type: 'string', long: true },
+      { key: 'contraindication', label: '禁忌', type: 'string', long: true },
+      { key: 'source', label: '出处', type: 'string', required: true },
+      { key: 'quote', label: '原文', type: 'string' },
       // 「这一方要不要在用方知识库里显示」—— 同 rule 的 visible，语义一样。
-      { key: 'visible', type: 'boolean' },
+      { key: 'visible', label: '是否在知识库里显示', type: 'boolean' },
     ],
   },
 
@@ -143,13 +154,13 @@ export const LIBRARY_KINDS = {
     addable: true,
     deletable: true,
     fields: [
-      { key: 'no', type: 'positiveInt', required: true },
-      { key: 'name', type: 'string', required: true },
-      { key: 'indication', type: 'string', required: true },
-      { key: 'doseId', type: 'string' },
-      { key: 'doseBasis', type: 'string' },
-      { key: 'draftName', type: 'string' },
-      { key: 'draftNote', type: 'string' },
+      { key: 'no', label: '序号', type: 'positiveInt', required: true },
+      { key: 'name', label: '讲义用名', type: 'string', required: true },
+      { key: 'indication', label: '对应条件', type: 'string', required: true },
+      { key: 'doseId', label: '同和堂版成方 id', type: 'string' },
+      { key: 'doseBasis', label: '对照依据', type: 'string' },
+      { key: 'draftName', label: '讲稿方剂名', type: 'string' },
+      { key: 'draftNote', label: '对照备注', type: 'string', long: true },
     ],
   },
 
@@ -163,11 +174,11 @@ export const LIBRARY_KINDS = {
     addable: true,
     deletable: true,
     fields: [
-      { key: 'id', type: 'string', required: true },
-      { key: 'name', type: 'string', required: true },
-      { key: 'composition', type: 'string', required: true },
-      { key: 'notes', type: 'string' },
-      { key: 'page', type: 'page', required: true },
+      { key: 'id', label: '成方 id', type: 'string', required: true },
+      { key: 'name', label: '成方名', type: 'string', required: true },
+      { key: 'composition', label: '组成（克）', type: 'string', required: true, long: true },
+      { key: 'notes', label: '附注', type: 'string', long: true },
+      { key: 'page', label: '页码', type: 'page', required: true },
     ],
   },
 
@@ -181,10 +192,10 @@ export const LIBRARY_KINDS = {
     addable: true,
     deletable: true,
     fields: [
-      { key: 'id', type: 'string', required: true },
-      { key: 'name', type: 'string', required: true },
-      { key: 'ratio', type: 'string', required: true },
-      { key: 'page', type: 'page', required: true },
+      { key: 'id', label: '科中 id', type: 'string', required: true },
+      { key: 'name', label: '科中名', type: 'string', required: true },
+      { key: 'ratio', label: '比例', type: 'string', required: true },
+      { key: 'page', label: '页码', type: 'page', required: true },
     ],
   },
 
@@ -198,8 +209,8 @@ export const LIBRARY_KINDS = {
     addable: true,
     deletable: true,
     fields: [
-      { key: 'doseId', type: 'string', required: true },
-      { key: 'science', type: 'string', required: true },
+      { key: 'doseId', label: '成方 id', type: 'string', required: true },
+      { key: 'science', label: '科中名', type: 'string', required: true },
     ],
   },
 }
@@ -230,27 +241,6 @@ export function describeKinds() {
 /* ------------------------------------------------------------------ *
  * 校验
  * ------------------------------------------------------------------ */
-
-/** 键顺序无关的稳定序列化（用来判断「这条到底改了没有」） */
-export function stableStringify(value) {
-  if (Array.isArray(value)) return '[' + value.map(stableStringify).join(',') + ']'
-  if (value && typeof value === 'object') {
-    return (
-      '{' +
-      Object.keys(value)
-        .sort()
-        .map((k) => JSON.stringify(k) + ':' + stableStringify(value[k]))
-        .join(',') +
-      '}'
-    )
-  }
-  return JSON.stringify(value)
-}
-
-/** 两个条目是否「一样」（键顺序不算差别） */
-export function sameEntry(a, b) {
-  return stableStringify(a) === stableStringify(b)
-}
 
 /**
  * 字段层校验。
@@ -431,121 +421,15 @@ export function groupOverrides(rows) {
 }
 
 /* ------------------------------------------------------------------ *
- * 合并
- * ------------------------------------------------------------------ */
-
-/**
- * 合并一类：基线容器 ＋ 覆盖层 → 新容器。
+ * 合并与级联                                                             *
+ * ------------------------------------------------------------------ *
  *
- * @returns {{ container: any, added: string[], changed: string[], removed: string[], bad: string[] }}
+ * 这两段（`mergeKind`／`cascadeCleanup`）在 `src/domain/library-core.mjs` ——
+ * 浏览器与 Node 共用**同一份**：网站端 ③ 显示的那一份，与命令行
+ * `library apply` 写进基线的那一份，必须算出同一个结果。
+ *
+ * 本文件再导出一次 ⇒ 既有 import 路径不变（CLI、断言脚本都从这里取）。
  */
-export function mergeKind(spec, container, overridesForKind) {
-  const added = []
-  const changed = []
-  const removed = []
-  const bad = []
-
-  if (spec.container === 'object') {
-    const map = new Map(Object.entries(container ?? {}))
-    for (const [itemId, ov] of Object.entries(overridesForKind ?? {})) {
-      if (ov.deleted) {
-        map.delete(itemId)
-        removed.push(itemId)
-        continue
-      }
-      if (!ov.payload || typeof ov.payload !== 'object') {
-        bad.push(itemId)
-        continue
-      }
-      const before = map.get(itemId)
-      const value = String(ov.payload.science ?? '')
-      if (before === undefined) added.push(itemId)
-      else if (before !== value) changed.push(itemId)
-      map.set(itemId, value)
-    }
-    return { container: Object.fromEntries(map), added, changed, removed, bad }
-  }
-
-  const map = new Map()
-  for (const entry of Array.isArray(container) ? container : []) {
-    const id = String(entry?.[spec.idField] ?? '')
-    map.set(id, entry)
-  }
-  for (const [itemId, ov] of Object.entries(overridesForKind ?? {})) {
-    if (ov.deleted) {
-      map.delete(itemId)
-      removed.push(itemId)
-      continue
-    }
-    if (!ov.payload || typeof ov.payload !== 'object' || Array.isArray(ov.payload)) {
-      bad.push(itemId)
-      continue
-    }
-    const before = map.get(itemId)
-    if (before === undefined) added.push(itemId)
-    else if (!sameEntry(before, ov.payload)) changed.push(itemId)
-    map.set(itemId, ov.payload)
-  }
-  return { container: [...map.values()], added, changed, removed, bad }
-}
-
-/**
- * 级联清理：删掉一个东西，引用它的那些怎么办。
- *
- * 全部按 AGENTS.md 的规矩来 —— **宁可留空并写「未载」，不臆造**：
- *   · 删了讲稿方剂 → 讲义 p44 里引用它的 drugs[] 移除该 id
- *   · 删了成方     → 讲义 p42 的 doseId 置空、doseBasis 标「未载」；科中映射里那一项删掉
- *   · 删了科中     → 科中映射里的值写成「未载」
- *
- * @param {object} files     合并后的文件内容（就地改）
- * @param {object} removed   `{ [kind]: string[] }`
- * @returns {string[]} 这次级联做了什么（给人看的说明）
- */
-export function cascadeCleanup(files, removed) {
-  const notes = []
-  const rules = files['formula-rules.json']?.rules ?? []
-  const rows = files['formula-reference.json']?.rows ?? []
-  const dosesFile = files['doses.json'] ?? {}
-  const scienceMap = dosesFile.scienceByDoseId ?? {}
-
-  // 删了讲稿方剂 → p44 的 drugs[] 里去掉这个 id
-  for (const drugId of removed.drug ?? []) {
-    for (const rule of rules) {
-      if (!Array.isArray(rule.drugs)) continue
-      const before = rule.drugs.length
-      rule.drugs = rule.drugs.filter((d) => String(d) !== String(drugId))
-      if (rule.drugs.length !== before) {
-        notes.push(`讲义 p44「${rule.id}」的 drugs[] 去掉了已被删除的讲稿方剂「${drugId}」`)
-      }
-    }
-  }
-
-  // 删了成方 → p42 的 doseId 置空并标「未载」；科中映射里那一项删掉
-  for (const doseId of removed.dose ?? []) {
-    for (const row of rows) {
-      if (String(row.doseId ?? '') !== String(doseId)) continue
-      row.doseId = ''
-      const mark = `未载（原 doseId=${doseId} 已删除）`
-      row.doseBasis = row.doseBasis ? `${mark}；${row.doseBasis}` : mark
-      notes.push(`讲义 p42 第 ${row.no} 行的 doseId 已置空并标「未载」（成方「${doseId}」被删除）`)
-    }
-    if (Object.prototype.hasOwnProperty.call(scienceMap, doseId)) {
-      delete scienceMap[doseId]
-      notes.push(`科中映射里的「${doseId}」已删除（成方被删除）`)
-    }
-  }
-
-  // 删了科中 → 科中映射里的值写成「未载」
-  for (const scienceName of removed.science ?? []) {
-    for (const [doseId, value] of Object.entries(scienceMap)) {
-      if (String(value) !== String(scienceName)) continue
-      scienceMap[doseId] = NOT_CARRIED
-      notes.push(`科中映射「${doseId}」的科中名已写成「未载」（科中「${scienceName}」被删除）`)
-    }
-  }
-
-  return notes
-}
 
 /**
  * 引用层校验（悬空引用）。

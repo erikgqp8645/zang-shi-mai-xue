@@ -23,6 +23,7 @@ import {
 import { TriadImage } from './components/TriadImage'
 import { FormulaLibrary } from './components/FormulaLibrary'
 import { PatternsProvider } from './state/patterns'
+import { LibraryProvider, useLibrary } from './state/library'
 import type { FormulaLink } from './domain/formula-links'
 import { prescriptionsOf, readTriadReference, therapyOf } from './domain/triad'
 import { HistoryPanel, type EditingRef } from './components/HistoryPanel'
@@ -267,6 +268,13 @@ export default function App() {
     })
   }, [set, groups])
 
+  /**
+   * 运行期生效集（基线 ⊕ 服务端覆盖层）。
+   *
+   * ⚠️ 管理员在 ③ 里删掉一条 ⇒ 这里要立刻不再命中它 ⇒ 依赖里必须有 `ruleData`。
+   */
+  const { ruleData } = useLibrary()
+
   /** 依脉用方命中（跨所有记录） */
   const formulaHits = useMemo<SessionFormulaHit[]>(() => {
     return set.sessions.flatMap((s) => {
@@ -281,7 +289,8 @@ export default function App() {
         hit,
       }))
     })
-  }, [set, groups])
+    // ⚠️ `ruleData` 在依赖里：覆盖层变了 ⇒ 生效集变了 ⇒ 命中要重算
+  }, [set, groups, ruleData])
 
   /**
    * 当前选中那一次记录（①判体质、②定疗法、参考判据都针对它）。
@@ -769,6 +778,7 @@ export default function App() {
   }
 
   return (
+    <LibraryProvider>
     <PatternsProvider>
       <div className="pr-app">
       {/* ---- 讲义 p47 原图：整套工具的总纲，放在最顶端 ---- */}
@@ -1059,6 +1069,8 @@ export default function App() {
           focus={formulaFocus}
           showStanding={showStanding}
           onToggleStanding={toggleStanding}
+          // ⓘ 只有管理员看得到编辑／删除按钮（知识库是公共资料，内容人人都看得见）
+          canEdit={user?.role === 'admin'}
         />
 
         {/* 用药记录（使用者自己填实际用了什么方、加减、服法） */}
@@ -1096,5 +1108,6 @@ export default function App() {
       </footer>
       </div>
     </PatternsProvider>
+    </LibraryProvider>
   )
 }

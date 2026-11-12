@@ -36,6 +36,7 @@ import type { PulsePattern } from './pulse-pattern'
 import { isDa, strengthOf } from './symbols'
 import RULE_DATA from '../content/formula-rules.json'
 import LIBRARY_DATA from '../content/library-settings.json'
+import { getLibraryState } from './library-store'
 
 export type FormulaKind = '主线' | '挡路' | '加味' | '禁忌'
 
@@ -763,6 +764,46 @@ export function loadRulesFrom(data: RuleDataJson[]): FormulaRule[] {
   return loadRules(data, EVALUATORS, PATTERNS)
 }
 
+/* ------------------------------------------------------------------ *
+ * 运行期生效集（基线 ⊕ 服务端覆盖层）                                   *
+ * ------------------------------------------------------------------ */
+
+/**
+ * **运行期生效的规则集** —— 管理员在 ③ 里改过／删过的那些，都算数。
+ *
+ * ⓘ `FORMULA_RULES` 是**内置基线**（编译期内联的 `src/content/formula-rules.json`），
+ *   它**不**随管理员的改动变 —— 改动在服务端的覆盖层里。
+ * ⓘ 生效集 = 基线 ⊕ 覆盖层，**在前端合并**：
+ *   命中判定是代码（`EVALUATORS`），服务端整份下发的话，
+ *   那份内容里可能有这版代码没有判定函数的规则 id ⇒ `loadRules` 抛错 ⇒ 整站崩。
+ *   ⇒ 必须以「前端自己那份基线」为底合并 ⇒ id 永远是基线的子集。
+ *
+ * ⚠️ 合并结果按**数据引用**缓存：覆盖层没变 ⇒ 同一个数组 ⇒ 不重复重建。
+ */
+let effectiveCache: { data: RuleDataJson[]; rules: FormulaRule[] } | null = null
+
+/** 当前生效的规则集（覆盖层没加载时＝基线） */
+export function getEffectiveRules(): FormulaRule[] {
+  const data = getLibraryState().ruleData
+  if (!data) return FORMULA_RULES
+  if (effectiveCache && effectiveCache.data === data) return effectiveCache.rules
+  try {
+    const rules = loadRulesFrom(data)
+    effectiveCache = { data, rules }
+    return rules
+  } catch (e) {
+    // 生效集装不起来（多半是覆盖层里塞了没有判定函数的 id）⇒ 退回基线，**不崩**
+    console.error('[臧氏脉学] 生效规则集载入失败，改用内置基线：', e)
+    effectiveCache = { data, rules: FORMULA_RULES }
+    return FORMULA_RULES
+  }
+}
+
+/** 当前生效的常驻条目（三不用／白虎汤·肾气丸等，不依脉象） */
+export function getStandingRules(rules: FormulaRule[] = getEffectiveRules()): FormulaRule[] {
+  return rules.filter((r) => r.always)
+}
+
 /* ------------------------------------------------------------------ */
 /* 讲义 p46 附表一：体质分类（依脉拉个性）· 治疗列                      */
 /* ------------------------------------------------------------------ */
@@ -796,10 +837,15 @@ export const CONSTITUTION_TABLE: ConstitutionRow[] = [
 /* 执行                                                                */
 /* ------------------------------------------------------------------ */
 
-/** 对一份记录执行全部依脉用方规则（不含常驻条目） */
-export function evaluateFormulas(ctx: RuleContext): FormulaHit[] {
+/**
+ * 对一份记录执行全部依脉用方规则（不含常驻条目）
+ *
+ * ⚠️ 遍历的是**当前生效**的规则集（基线 ⊕ 覆盖层）——
+ *    管理员在 ③ 里删掉一条 ⇒ 这里就不遍历它 ⇒ ② 命中区也不再出现它。
+ */
+export function evaluateFormulas(ctx: RuleContext, rules: FormulaRule[] = getEffectiveRules()): FormulaHit[] {
   const hits: FormulaHit[] = []
-  for (const rule of FORMULA_RULES) {
+  for (const rule of rules) {
     const cells = rule.evaluate(ctx)
     if (cells.length > 0) hits.push({ ...rule, cells })
   }
