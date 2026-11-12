@@ -863,9 +863,9 @@ npm run admin -- library verify                    # 自检（合规／引用／
 
 | 层 | 位置 | 谁能动 |
 |---|---|---|
-| **编辑面** | 本机 `local-data/content.sqlite`（17 张表 1472 行，**DELETE 模式**，不是 WAL） | 管理员（Directus 页面） |
+| **编辑面** | 本机 `local-data/content.sqlite`（18 张表 1473 行，**DELETE 模式**，不是 WAL） | 管理员（Directus 页面） |
 | **结构描述** | `src/content/schema/*.schema.json` 的 `x-tables`（含 `fk`／`enum`／`notNull`／`derivedId`／`displayField`） | 只读，**唯一来源** |
-| **只读快照** | `src/content/*.json`（8 个） | 发布命令生成，不手改 |
+| **只读快照** | `src/content/*.json`（**9 个** —— 8 个内容 ＋ `library-settings.json`） | 发布命令生成，不手改 |
 | **远端真源** | CloudBase PG `content` schema（17 张表 ＋ `content_meta` 3 张账本表 ＋ 6 个 RPC） | **只由发布命令写** |
 
 ### 硬规矩
@@ -879,6 +879,23 @@ npm run admin -- library verify                    # 自检（合规／引用／
   **新增/修改断言必须先用「故意写坏」验证能抓到**。
 - ⭐ **后台类交付物必须留一道人眼确认**（登录真机走一遍 ＋ 截图回填文档）——
   2026-11-12 证明：自动化断言全绿时，界面是**坏的**（某张表点开就 500）。
+- ⭐ **「显示／隐藏」这类开关一律走共享层**（内容层字段 → 后台改 → 发布 → 全站一致），
+  **不许在网站端另做一份本机开关**（同一件事两个真源，迟早不一致）。
+  现状：`content_formula_rules.visible`／`content_drugs.visible`（每条显不显示）
+  ＋ `content_library_settings.hide_group_titles`（知识库「分组标题」显不显示）。
+- ⭐ **SQLite 的布尔列要声明成 `BOOLEAN`**（不是 `INTEGER`）——
+  Directus 靠**声明类型**判定字段类型：声明成 INTEGER 时它在后台显示成**数字框**（填 0／1），
+  声明成 BOOLEAN 才是**开关**（断言 A30 盯着）。
+- ⭐ **改了内容 schema（加了表／列）必须先跑 `node scripts/content-pg-setup.mjs`** ——
+  `CREATE TABLE IF NOT EXISTS` 对**已存在**的表是空操作，老表不会自己长出新列；
+  而 `content_check_order` 要求远端表集合与发布顺序**完全一致**。
+- ⭐ **同一条「校验契约」在几个命令里必须一个口径** ——
+  2026-11-12 踩过：`library set` 放行「基线里有、但没登记」的字段，
+  `library verify`／`library import` 却判它「不许凭空加字段」
+  ⇒ 症状是「改一条成功，自检却报错」，没人看得懂。
+  修法是三处都按基线放行（`validateEntry` 的 `knownKeys` 参数），
+  并补 **W 段**断言（往临时基线塞一个未登记字段，逼这条契约显形）——
+  修完当时**测不出来**的改动，就得补一条能测出来的断言。
 
 ### Directus 12 的坑（都已踩过）
 

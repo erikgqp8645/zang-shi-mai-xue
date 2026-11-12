@@ -54,6 +54,29 @@
 | **A27** | 派生代理键在后台是只读（`meta.readonly`） |
 | **A28** | 视图预设写在**对的位置**：过滤条件在预设在**顶层 `filter`**，可见列在 **`layout_query.tabular.fields`** |
 | **A29** | 每张脉象图都有书签：书签数 == 图数、书签名 == 图名、书签过滤条件 == 那张图的 `pattern_id` |
+| **A30** | 布尔列（`visible`／`always`／`hide_group_titles`…）在后台是**开关**（`meta.interface == 'boolean'`），不是数字框 |
+
+## 管理员覆盖层（`scripts/e2e/library-admin.mjs`）
+
+命令行那条线（`npm run admin -- library …`），前缀 `LA` ＋ 段字母。
+
+| id | 抓什么 |
+|---|---|
+| **LA1**~**LA4** | 空覆盖层自检通过／dry-run 不写盘／apply 不改内容文件／apply 不塞自己的顶层键 |
+| **B1**~**B5** | 改一条：成功／备注与改的人／不连带丢字段／apply 后真的变了／apply 幂等（跑两次一个字节都不变） |
+| **V1**~**V4** | **每条的「是否显示」（`visible`）也得能改**（2026-11-12 新增）：改得动／apply 后真的变 `false`／别的条目没被连带改／撤得掉（逐字节回原样） |
+| **W1**~**W5** | **基线里有、但注册表里没登记的字段必须能原样往返**（2026-11-12 新增）：set 带过去／verify 不判违规／apply 之后还在／import 搬得过去／清理干净 |
+| **C1**~**C3** | 新增一条：成功／apply 后真的多出来／id 不能重复 |
+| **D1**~**D6** | 删除：写墓碑／墓碑看得见／apply 后真的消失／删基线里的条目／删被引用的方剂要连带清理／撤销 |
+| **E1**~**E2** | restore／全部撤销后 apply 逐字节回基线 |
+| **F1**~**F3** | 删成方的连带处理：p42 置空并写「未载」／科中映射一并清掉／restore 后回基线 |
+| **G1**~**G3** | 悬空引用：apply 必须拒绝写盘／verify 报得出来／restore 后恢复 |
+| **H1**~**H11** | p44 边界：不能新增／能改字段／能删除／revive 放得回来／墓碑要带原内容快照 |
+| **I1**~**I5** | 字段校验：枚举／未知字段／整条替换不许凭空加字段／必填／剂量原样转录 |
+| **J1**~**J3** | 命令行自身的契约：未知子命令／`--help`／未知种类 |
+| **K1**~**K2** | export 条目数／import 到另一个库内容一模一样 |
+| **L1**~**L3** | 读接口：形状对／未登录 401／所有账号共享同一份（公共资料） |
+| **M1**~**M2** | 仓库里的 `src/content/*.json` 逐字节未变 |
 
 ## 计划 §10.2 的覆盖情况
 
@@ -84,7 +107,7 @@
 | 脚本 | 抓什么坏 | 项数 |
 |---|---|---|
 | `scripts/e2e/content-schema-break.mjs` | 内容层的坏数据（往**临时副本**里注入） | 17 |
-| `scripts/e2e/content-admin-break.mjs` | 后台的坏配置（**真的改**本地后台，跑完恢复） | 18 |
+| `scripts/e2e/content-admin-break.mjs` | 后台的坏配置（**真的改**本地后台，跑完恢复）；含「布尔列的开关被改成数字框」 | 19 |
 
 **前端／界面那条线**（不在 A 编号里 —— 那些是内容层的断言）：
 
@@ -93,7 +116,8 @@
 | `scripts/e2e/app-nested-button-break-test.mjs` | ② 定疗法里的**嵌套 button** 与**点击冒泡** | 12 |
 | `scripts/e2e/app-library-compact-break-test.mjs` | 「用方知识库紧凑态」：kind 徽章没去掉／落点不自动展开／**焦点后到**那个坑 | 18 |
 | `scripts/e2e/app-standing-toggle-break-test.mjs` | 「常驻条目开关 ＋ 筛选分组计数口径」：②③ 各自忽略开关／chip 退回旧口径／说明里露出没渲染的 `**`／**把② 的讲稿方剂全量节加回来（mutation J）** | 37 |
-| `scripts/e2e/library-admin-break-test.mjs` | 管理员覆盖层的九种坏法 | 9 |
+| `scripts/e2e/app-library-display-break-test.mjs` | 「知识库显示模式 ＋ 每条是否显示」：**K** 可见性过滤被写坏（数据＋代码一起坏）／**M** 隐藏分组标题被写坏／**L** 只改数据、代码不动（必须**仍绿** —— 证明代码真在读内容层） | 见脚本输出 |
+| `scripts/e2e/library-admin-break-test.mjs` | 管理员覆盖层的十二种坏法（含 **M10** 摘掉 `visible` 字段登记／**M11** verify 不放行基线字段／**M12** import 不放行基线字段） | 12 |
 | `scripts/e2e/rule-delete-loader-break-test.mjs` | 装载器静默降级 | 2 |
 | `scripts/e2e/excel_roundtrip_break.py` | Excel 往返丢数据 | — |
 

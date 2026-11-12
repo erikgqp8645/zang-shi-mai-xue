@@ -1678,12 +1678,12 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`chore/desktop-electron` = `8bc151f`；`feat/wechat-miniprogram` = `623aca8`（小程序／鸿蒙／桌面端／CloudBase 线，**历史原样保留**）；**`feat/web-site` = `845b339`（网站端线，2026-11-06 从 `6ebc881` 切出）** |
 | 分支纪律 | **两条长期开发线**（2026-11-06 起）：网站端新改动走 `feat/web-site`，小程序／鸿蒙／桌面端走 `feat/wechat-miniprogram`；同源于 `6ebc881`，都**不开 PR**、都不**改写已推送的历史**。详见 `AGENTS.md`「Git 约定」 |
 | PR | #6 `chore/multi-user → main`，**OPEN**；#7 `chore/desktop-electron → chore/multi-user`，**OPEN**；`feat/wechat-miniprogram` **永不开 PR**（2026-11-06 拍板：**永不合并进 `main`**） |
-| 全量回归 | **914 项全绿**（core 40 ＋ excel 27 ＋ excel-break 28 ＋ exercise 13 ＋ taro-lint 202 ＋ taro-api 58 ＋ migration 53 ＋ auth 57 ＋ **app 53** ＋ 桌面端 33 ＋ content 17 ＋ **后台核对 198（新增）** ＋ library-admin 52 ＋ rule-delete-loader 13 ＋ 鸿蒙 70）。后台那 198 项需要本地 Directus 容器在跑，**没起时明确打印「跳过」并 exit 0**（`PULSE_E2E_REQUIRE=1` 时缺容器才 exit 1 —— 跳过必须能区分于通过） |
+| 全量回归 | **942 项全绿**（core 40 ＋ excel 27 ＋ excel-break 28 ＋ exercise 13 ＋ taro-lint 202 ＋ taro-api 58 ＋ migration 53 ＋ auth 57 ＋ **app 61** ＋ 桌面端 33 ＋ content 17 ＋ **后台核对 210（新增）** ＋ library-admin 61 ＋ rule-delete-loader 13 ＋ 鸿蒙 69）。后台那 210 项需要本地 Directus 容器在跑，**没起时明确打印「跳过」并 exit 0**（`PULSE_E2E_REQUIRE=1` 时缺容器才 exit 1 —— 跳过必须能区分于通过） |
 | 教程与练习册 | **`docs/教程-如何填写用方知识库.md`**（面向审核者：分表细则 ＋ 三个完整例子 ＋ 报错对照）；**`content/示例-填写示范.xlsx`**（练习册：5 格故意留空 ＋ 标黄 ＋ 批注）＋ `npm run content:exercise:check` 逐格验收。练习册的正确答案**从真源现取**，不写死；文件名含「示例／练习／示范」的工作簿**拒绝写回真源**（详见 §3.20） |
-| 数据层 | **JSON 为唯一真源**（`src/content/*.json` **8 个文件**，新增 `symbols.json`）；**Excel 为人工编辑层**（`content/臧氏脉学-用方知识库.xlsx`，**65 个 sheet** ＝ 15 通用表 ＋ **50 张脉象图矩阵**）；TS 只留逻辑。**矩阵是脉象图的唯一编辑面**，长表由它派生。往返 20 项 ＋ 故意写坏 22 项都挂在 `npm test`。用法见 [`content-layer.md`](./content-layer.md)（详见 §3.18／§3.19） |
-| 内容层（新版 · 进行中） | **本地 `local-data/content.sqlite` ＝ 编辑真源**（17 张表 1472 行，Directus 后台可编辑）→ 发布命令 → 远端 PG `content` schema ＋ 仓库 `src/content/*.json` 快照。**M0～M3 已完成**（选型／落库／远端通路／发布命令），**M4（Excel 退役）起未做**。⭐ 2026-11-12 补完后台人眼确认：**抓出并修掉一个让「被引用方整张表点不开」的 500**（Directus 的 `meta.one_field` 反向 o2m 误判）。⭐ 同日**统一了断言编号**（计划 §10.2 的 A1~A19 为准，计划外续 A20+）＋ **后台补三项配置**（枚举下拉／必填／只读）＋ 补上「一个格位只能属于一个组」这条真实缺口。编号对照表见 [`content-assertions.md`](./content-assertions.md)，详见 §3.26／§3.27 与 [`content-admin-选型.md`](./content-admin-选型.md) |
+| 数据层 | **JSON 为唯一真源**（`src/content/*.json` **9 个文件**，新增 `library-settings.json`）；**Excel 为人工编辑层**（`content/臧氏脉学-用方知识库.xlsx`，**65 个 sheet** ＝ 15 通用表 ＋ **50 张脉象图矩阵**）；TS 只留逻辑。**矩阵是脉象图的唯一编辑面**，长表由它派生。往返 20 项 ＋ 故意写坏 22 项都挂在 `npm test`。用法见 [`content-layer.md`](./content-layer.md)（详见 §3.18／§3.19） |
+| 内容层（新版 · 进行中） | **本地 `local-data/content.sqlite` ＝ 编辑真源**（18 张表 1473 行，Directus 后台可编辑）→ 发布命令 → 远端 PG `content` schema ＋ 仓库 `src/content/*.json` 快照。**M0～M3 已完成**（选型／落库／远端通路／发布命令），**M4（Excel 退役）起未做**。⭐ 2026-11-12 补完后台人眼确认：**抓出并修掉一个让「被引用方整张表点不开」的 500**（Directus 的 `meta.one_field` 反向 o2m 误判）。⭐ 同日**统一了断言编号**（计划 §10.2 的 A1~A19 为准，计划外续 A20+）＋ **后台补三项配置**（枚举下拉／必填／只读）＋ 补上「一个格位只能属于一个组」这条真实缺口。⭐ 再同日加了**知识库的「是否显示」**（每条一个勾 ＋ 知识库显示模式，**共享层**，详见 §3.32）。编号对照表见 [`content-assertions.md`](./content-assertions.md)，详见 §3.26／§3.27／§3.32 与 [`content-admin-选型.md`](./content-admin-选型.md) |
 | 小程序工程 | `pulse-record/taro/`（Taro 4.3.2 ＋ React 18）；**原生 `miniprogram/` 原样保留作回退** |
-| 网站端 | `pulse-record/src/`（Vite ＋ React ＋ TS，单页 `App.tsx`）；③ 框内有**可折叠「用方知识库」**（p44 依脉用方全量 61 条 ＋ 讲稿方剂全量 30 方，**紧凑一行一条**：折叠只留「标题 ｜ 疗法 ｜ 方名」，**不挂 kind 徽章**，点开才见脉象图／原文／方剂卡），③ 的方名**可点进去定位 ＋ 高亮 ＋ 落点自动展开**（详见 §3.17／§3.29）；② 面板的「筛选分组」chip **写明口径**（「N 条用方（含常驻 M）」—— 2026-11-12 起**删掉了原来的「· K 方备查」**，那个「方」数的 30 方在② 面板已不再渲染，留着就是无落点的数字）＋ 下方一行说明，并带一个**「常驻条目（禁忌）」显示开关** —— **② 命中区与③ 知识库共用同一个开关**，默认显示、可关掉（详见 §3.30）；**② 面板不再整份渲染讲稿方剂 30 方**（与③ 知识库是同一份数据、全量对全量重复，已删；讲稿方剂一律去③ 查，② 只留命中条目，详见 §3.31）；后端**仍跑本机 SQLite**（`local-data/history.sqlite`），**未接 CloudBase PG** |
+| 网站端 | `pulse-record/src/`（Vite ＋ React ＋ TS，单页 `App.tsx`）；③ 框内有**可折叠「用方知识库」**（p44 依脉用方全量 61 条 ＋ 讲稿方剂全量 30 方，**紧凑一行一条**：折叠只留「标题 ｜ 疗法 ｜ 方名」，**不挂 kind 徽章**，点开才见脉象图／原文／方剂卡），③ 的方名**可点进去定位 ＋ 高亮 ＋ 落点自动展开**（详见 §3.17／§3.29）；② 面板的「筛选分组」chip **写明口径**（「N 条用方（含常驻 M）」—— 2026-11-12 起**删掉了原来的「· K 方备查」**，那个「方」数的 30 方在② 面板已不再渲染，留着就是无落点的数字）＋ 下方一行说明，并带一个**「常驻条目（禁忌）」显示开关** —— **② 命中区与③ 知识库共用同一个开关**，默认显示、可关掉（详见 §3.30）；**② 面板不再整份渲染讲稿方剂 30 方**（与③ 知识库是同一份数据、全量对全量重复，已删；讲稿方剂一律去③ 查，② 只留命中条目，详见 §3.31）；③ 知识库的**「分组标题」与「每条是否显示」已落到共享层**（后台改完发布，全站一致；前端只**只读回显**当前模式，不另做本机开关，详见 §3.32）；后端**仍跑本机 SQLite**（`local-data/history.sqlite`），**未接 CloudBase PG** |
 | 小程序包体 | 媒体资源 **119.0 KB**（底图 JPEG 116.3 KB ＋ 8 个 tabbar 图标 ≤0.4 KB）；**微信「图片和音频 > 200 K」已通过**（详见 §3.12） |
 | 模拟器回归 | `npm run test:e2e:mp:sim`（**55 项**：4 个 tab 逐页截图 ＋ **白屏判定** ＋ **包内底图运行时可读**）、`npm run test:e2e:mp:privacy`（**6 项**：隐私政策页）、`npm run test:e2e:mp:canvas`（**8 项**：**真微信 canvas 2d 出图端到端**）、`npm run test:e2e:mp:link`（**17 项**：③ 的方名 →「用方」页定位 ＋ 高亮 ＋ 锚点唯一 ＋ 真的滚过去了，详见 §3.16）；四个都会**自己先重启小程序**（bundle 是缓存的，不重启跑的是旧产物）。**2026-11-06 在 macOS 上实测四套全绿：55/55 ＋ 6/6 ＋ 8/8 ＋ 17/17 ＝ 86 项** |
 | 上线前清单 | `pulse-record/docs/miniprogram-release-checklist.md`（隐私指引勾选项＋可复制文案、服务器域名、类目截图、审核退路对照表） |
@@ -2710,3 +2710,127 @@ kind＝禁忌 一共 **3** 条：
 | 浏览器人眼确认 | chip 行＝「木·肝 6 条用方／火·心 4 条用方／土·脾 14 条用方／金·肺 2 条用方／水·肾 9 条用方（含常驻 2）」，**已无「方备查」**；② 面板尾部直接接同和堂版成方小节（讲稿方剂那节已消失）；③ 知识库头部仍「讲义 p44 依脉用方 61 条 · 讲稿方剂 30 方」；控制台 0 报错 |
 
 
+
+### 3.32 知识库的「分组标题」与「每条是否显示」：落到共享层（2026-11-12）
+
+起因：用户拿网站端 ③「用方知识库」的截图，在画布上标了两处，并写明：
+
+> **以上两个标注都需要记忆，如果用户不显示则下次默认不显示**
+
+| 标注 | 位置 | 原文要求 |
+|---|---|---|
+| **标注1** | 分组标题行（「叁、用方（第二讲）」那一行） | 「增加一个选项，不显示这些文字，直接显示内容」 |
+| **标注2** | 分组标题下面的每一条条目 | 「这里每一条都可以单独编辑文字和是否显示」 |
+
+#### 拍板（两次问卷）
+
+| 问卷 | 问题 | 决定 |
+|---|---|---|
+| `ask_f2b7607940c903b1346b410a` | 「每一条都能单独编辑文字和是否显示」改的是哪一层？ | **共享层**：直接改所有人看到的知识库原文（**不是**个人层，**不是**两层都要） |
+| `ask_48173675012d40737c42c05f` | 标注1 的「隐藏分组标题」改哪一层？ | **共享层**：后台可改「知识库显示模式」，**发布后全站生效** |
+| 同上 | 标注2 的「编辑文字」编辑哪段？ | **直接改现有字段**（触发条件／治法／方名）—— 原文就是被改写后的版本 |
+
+⇒ 两处都落在**内容层真源**（§3.25 的 M0～M3 那套）：后台改 → 发布命令 → 远端 PG ＋ `src/content/*.json` 快照 → 网站端按发布值渲染。
+**没有做个人层**，也**没有在网站里留第二份本地开关**（同一件事两个真源，迟早不一致）。
+
+#### 落点（内容层）
+
+| 内容 | 落在哪 | 说明 |
+|---|---|---|
+| 每条依脉用方条目「是否显示」 | `content_formula_rules.visible`（bool，NOT NULL，默认 TRUE） | 61 条全部显式写 `true` |
+| 每条讲稿方剂「是否显示」 | `content_drugs.visible`（bool，NOT NULL，默认 TRUE） | 30 条全部显式写 `true` |
+| 知识库「显示模式」 | 新表 `content_library_settings`（固定一行 `id=library`，列 `hide_group_titles`） | 内容文件 `src/content/library-settings.json`（**第 9 个**） |
+
+判据统一在 `src/domain/visibility.ts` 的 `isVisible()`：**缺省＝显示，写 `false` 才是隐藏**。
+
+#### 改法
+
+- **schema**（`src/content/schema/`）：两张表各加一列 `visible`；新增 `library-settings.schema.json`。
+  - ⭐ schema 的列支持 `default` 声明 ⇒ **两套方言的默认值从同一份取值**（SQLite `DEFAULT 1`／PG `DEFAULT TRUE`），不会漂。
+  - ⭐ SQLite 的布尔列声明成 **`BOOLEAN`** 而不是 `INTEGER` —— Directus 靠**声明类型**判定字段类型，
+    声明成 INTEGER 时它在后台显示成**数字框**（填 0／1），声明成 BOOLEAN 才是**开关**。
+- **映射层**（`server/content-schema.mjs`）：`buildRows` / `buildContentFromRows` 双向支持 `visible` 与显示设置（**严格互逆**，A8／A9 盯着）。
+  - ⭐ 顺带修掉一个**发布期炸弹**：`rowsToPayload` 以前只还原 JSON 列，**布尔列发的是数字 0／1**，
+    而远端列是 `BOOLEAN` ⇒ `jsonb_populate_recordset` 会在远端报类型错（发布从没真跑过，所以没暴露）。现在布尔列发真布尔。
+  - ⭐ `createAllSql('pg')` 现在会多发一批**幂等补列**（`ALTER TABLE … ADD COLUMN IF NOT EXISTS`）——
+    `CREATE TABLE IF NOT EXISTS` 对**已存在**的表是空操作，远端老表不会自己长出新列。
+- **本地后台**（Directus）：
+  - 新集合 `content_library_settings`（一张表一行）＋ 两张表各一个 `visible` 列 ⇒ 后台**每条一个勾**。
+  - 新规则 `plannedBooleans()`：schema 里 `bool` 的列一律配 `interface: 'boolean'`（开关，不是数字框）。
+  - 新断言 **A30**：布尔列的界面必须是 `boolean`（配了开关就断言它没被改回数字框）。
+- **前端**（`src/`）：
+  - `FormulaLibrary.tsx`：知识库只列 `isVisible` 的条目（**② 命中区不受影响** —— 「这条内容不给看」不该顺手改判读结论）；
+    分组标题按共享值隐藏；工具行加一个**只读回显**芯片「分组标题 · 已隐藏／显示中」。
+  - ⭐ 隐藏分组标题**只在「讲稿原序」维度生效**：按五行／按左右手时那个标题是**唯一的分组标识**，
+    去掉就变成一堵墙 —— 那不是「直接显示内容」，是「看不出哪条属哪组」。
+  - `drugs.ts` 导出 `VISIBLE_DRUGS`（`DRUGS` 保持全量，② 命中区要按 id 查方剂卡）。
+- **Excel 管线**（还没退役，必须同步）：「用方条目」「方剂·讲稿2010」两张表各加一列**「显示」**（TRUE／FALSE）；
+  工作簿已重生成，`npm run content:check` 绿。
+  ⚠️ 「知识库显示模式」**故意不进 Excel** —— 它的编辑面是后台那张表，不是工作簿。
+
+#### 新增断言
+
+| 位置 | 条数 | 抓什么 |
+|---|---|---|
+| `app-regression.mjs`【⑪】段 | 8 | 知识库条目数 ＝ 内容层「该显示」的条数；头部计数跟着走；`visible=false` 的条目按**锚点 id** 判「一条都不出现」；分组标题按共享值显隐；模式芯片回显；按五行维度标题仍在 |
+| `app-library-display-break-test.mjs`（新脚本） | 3 个 mutation | **K** 过滤被写坏（数据＋代码一起坏）⇒ 变红；**M** 隐藏标题被写坏 ⇒ 变红；**L** 只改数据、代码不动 ⇒ **仍绿**（证明代码真在读内容层） |
+| `library-admin.mjs` **V 段**（新） | 4 | 覆盖层也能改每条的 `visible`：改得动／apply 后真的变 `false`／别的条目没被连带改／撤得掉（逐字节回原样） |
+| `library-admin.mjs` **W 段**（新） | 5 | 「基线里有、但注册表里没登记的字段」必须能原样往返：set 带过去／verify 不判违规／apply 之后还在／import 搬得过去／清理干净 |
+| `library-admin-break-test.mjs` **M10**~**M12**（新） | 3 个 mutation | **M10** 摘掉 `visible` 的字段登记 ⇒ V1／V2 变红；**M11** verify 不放行基线字段 ⇒ W2 变红；**M12** import 不放行基线字段 ⇒ W4 变红（K2 必须**仍绿**，证明破坏范围是隔离的） |
+| `content-admin-checks.mjs` **A30** | ＋12（后台核对 198 → 210） | 布尔列的界面必须是 `boolean` |
+| `content-admin-break.mjs` | 18 → 19 | 把开关改成数字框 ⇒ 必须被 [A30] 抓到 |
+
+⚠️ 断言里「内容层标了 `visible=false` 的条目一条都不出现」按**锚点 id** 判，不按文字 ——
+「变脉无力」有**两个 id 不同的条目**共用同一句标题（`fx-bianmai-wuli` 与 `fx-dl3-bianmai-wuli`）⇒ 按文字判会误报。
+⚠️ 期望值**从内容 JSON 现算**，不写死数字 —— 写死的话，数据一改这条断言就成了恒绿摆设。
+
+#### ⭐ 全量回归抓出来的真问题：覆盖层不认识 `visible`（顺手挖出一条更深的）
+
+全量 `npm test` 第一次跑就**红了两条**（`library-admin` 的 H9／K2）——
+**覆盖层（命令行那条线）不认识 `visible` 这个字段**。查下来是两处：
+
+1. **`visible` 没登记进「可编辑字段表」**（`server/library-schema.mjs` 的 `LIBRARY_KINDS`）
+   ⇒ `verify` 与 `import` 判它「不在本类的可编辑字段表里 —— 不许凭空加字段」。
+   **修法**：`visible` 登记成可选布尔字段（`rule` 与 `drug` 都登记）——
+   覆盖层本来就是同一份内容的另一个编辑面，**它也得能改「是否显示」**（V 段断言守住）。
+
+2. ⭐ **更深的那个**：三个命令对「基线里已有、但没登记的字段」**口径不一致** ——
+   `set` 传了 `knownKeys`（放行），`verify` 与 `import` **没传**（判违规）。
+   ⇒ 症状是「命令行改一条成功，自检却报『不许凭空加字段』」，没人看得懂。
+   **修法**：`verify` 与 `import` 也按基线放行（**同一份契约**）。
+   ⚠️ 这条修完当时**测不出来**（基线里已经没有未登记的字段了）⇒ 所以补了 **W 段**：
+   往**临时**基线里塞一个注册表里没有的字段，逼这条契约显形。
+
+> ⚠️ 这两条正是「**断言不是恒绿**」的价值：功能全写完了、全绿看着很美，
+> 全量回归一跑就红了两条 —— 而这两条都是**真实用户会踩到**的（改一条就报错）。
+
+#### 验证
+
+| 项 | 结果 |
+|---|---|
+| `npx tsc --noEmit` | ✅ 0 错误 |
+| `npm test`（全量） | ✅ **942 项全绿**（913 → 942，EXIT=0） |
+| `npm run test:e2e:app` | ✅ **61 项全绿**（53 → 61） |
+| `npm run test:e2e:app:display:break`（新） | ✅ 全部通过（K／M 变红、L 仍绿、还原后基线全绿） |
+| `npm run test:e2e:app:standing:break` | ✅ 37 项全绿（正则随过滤条件改动同步过了） |
+| `npm run test:e2e:library-admin` | ✅ **61 项全绿**（52 → 61，含 V／W 两段） |
+| `npm run test:e2e:library-admin:break` | ✅ **67 项全绿**（9 个 mutation → 12 个） |
+| `npm run content:check` | ✅ 工作簿与 JSON 完全一致 |
+| `npm run content:seed -- --check` | ✅ schema ↔ 库结构一致；往返逐字段一致（1473 行） |
+| `npm run content:admin:check` | ✅ **210 项全绿**（198 → 210，含 A30） |
+| `npm run test:e2e:content:admin` | ✅ **19 项全过**（18 → 19） |
+| `npm run test:e2e:content` | ✅ 17 项全过 |
+| 浏览器人眼确认 | ✅ ③ 知识库在「讲稿原序」下**没有分组标题**，61 条 ＋ 30 方一条不少；工具行「分组标题 已隐藏」；切到「按五行」分组标题回来；控制台 0 报错 |
+
+#### 遗留（需要 `tcb login`）
+
+远端 PG 还没落这一步的结构：**新表 `content_library_settings` ＋ 两张表的 `visible` 列**。
+登录后跑一次即可（幂等）：
+
+```bash
+node scripts/content-pg-setup.mjs      # 建新表 ＋ 补列 ＋ 重授权
+node scripts/content:publish            # 发布（远端 PG ＋ 9 个 JSON 快照）
+```
+
+⚠️ `content_check_order` 要求远端 `content` schema 的表集合与发布顺序**完全一致** ⇒
+**改了内容 schema 就必须先跑 setup**，否则发布会在远端报「表集合对不上」。
