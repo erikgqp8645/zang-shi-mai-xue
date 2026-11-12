@@ -98,6 +98,20 @@ function DoseCell({ r, source }: { r: FormulaReference; source: DoseSource }) {
           </div>
         </div>
       )}
+      {showTh && v.parentDose && (
+        <div className="pr-dose-block is-parent">
+          <div className="pr-dose-tag">母方 · 同和堂版 · 克</div>
+          <div className="pr-dose-text">{v.parentDose.composition}</div>
+          {v.parentDose.notes?.map((n, i) => (
+            <div key={i} className="pr-dose-note">
+              注：{n}
+            </div>
+          ))}
+          <div className="pr-dose-src">
+            〔{v.parentDose.name}｜同和堂版 p{v.parentDose.page}〕
+          </div>
+        </div>
+      )}
       {showTh && !v.dose && thMissing.map((m) => (
         <div key={m} className="pr-dose-none">
           {m}

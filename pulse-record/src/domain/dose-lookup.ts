@@ -27,7 +27,7 @@ import {
   FORMULA_SCIENCE_BY_NAME,
   type FormulaDose,
 } from './formula-table'
-import { FORMULA_ALIAS, FORMULA_REFERENCE } from './medication'
+import { FORMULA_ALIAS, FORMULA_REFERENCE, type FormulaReference } from './medication'
 
 /** 一条组成（来自某一套资料） */
 export interface DoseEntry {
@@ -43,6 +43,8 @@ export interface DoseEntry {
   source: string
   /** 对照依据（讲义 p42 方名 ↔ 该资料方名时，写明凭什么对上） */
   basis?: string
+  /** 这一条在查表结果里的身份：主方 ／ 母方（讲稿原文明写母方关系才有） */
+  role?: 'main' | 'parent'
 }
 
 /** 一次查找的结果 */
@@ -51,6 +53,8 @@ export interface DoseLookup {
   exact?: DoseEntry
   /** 同名不同号的候选（该资料方名里含这个名字） */
   candidates: DoseEntry[]
+  /** 与主方同列的**母方**成方（讲稿原文明写母方关系时才会有） */
+  related?: DoseEntry[]
   /** 命中方式：完全同名 ／ 别名对照 ／ 同名不同号 */
   via?: 'exact' | 'alias'
 }
@@ -172,6 +176,7 @@ export function lookupThDose(name: string): DoseLookup {
   return {
     exact: { ...hit2.exact, basis: [hit2.exact.basis, alt.note].filter(Boolean).join('　') },
     candidates: [],
+    related: hit2.related,
     via: hit2.via,
   }
 }
@@ -179,8 +184,9 @@ export function lookupThDose(name: string): DoseLookup {
 /** 同和堂版：按方名查（不含「去掉括号说明」那一层） */
 function lookupThByName(q: string): DoseLookup {
   // 1. 讲义 p42 的显式对照（有依据）：讲义方名 → 同和堂版方名
+  //    这一行还可能带一个**母方**成方（讲稿原文明写母方关系时才登记）
   const ref = lookupByReference(q)
-  if (ref) return { exact: ref, candidates: [], via: 'alias' }
+  if (ref) return { exact: ref.exact, candidates: [], related: ref.related, via: ref.via }
   // 2. 完全同名
   const exact = FORMULA_DOSES.find((d) => d.name === q)
   if (exact) return { exact: toEntry(exact), candidates: [], via: 'exact' }
@@ -215,16 +221,34 @@ function lookupThByName(q: string): DoseLookup {
  * 同名的行（讲义 p42 ↔ 同和堂版用同一个名）不在这里处理：那种情况走「完全同名」那条路，
  * 不必标「别名对照」。
  */
-function lookupByReference(name: string): DoseEntry | undefined {
+function lookupByReference(
+  name: string,
+): { exact: DoseEntry; related: DoseEntry[]; via: 'exact' | 'alias' } | undefined {
   const row = FORMULA_REFERENCE.find((r) => r.name === name && r.doseId)
   if (!row?.doseId) return undefined
   const d = FORMULA_DOSE_BY_ID[row.doseId]
-  if (!d || d.name === row.name) return undefined
-  const entry = toEntry(d)
-  return {
-    ...entry,
-    basis: `讲义 p42 第 ${row.no} 行 · ${row.doseBasis}`,
+  if (!d) return undefined
+  const basis = `讲义 p42 第 ${row.no} 行 · ${row.doseBasis}`
+  const related = parentEntry(row, basis)
+  if (d.name === row.name) {
+    // 同名同方 —— 不必标「别名对照」，但母方照样要带出来
+    return { exact: toEntry(d), related, via: 'exact' }
   }
+  return { exact: { ...toEntry(d), basis }, related, via: 'alias' }
+}
+
+/**
+ * 母方成方 —— **讲稿原文明写母方关系**时才登记在 `parentDoseId` 里。
+ *
+ * 例：讲义 p42 第 10 行「加味理中」的母方是「理中汤」
+ * （讲稿 2010·第二讲：「原先我们是以理中汤为母方……（注：即本门加味理中）」）。
+ * 没有登记的就不给 —— 不凭名字相近自己认个母方。
+ */
+function parentEntry(row: FormulaReference, basis: string): DoseEntry[] {
+  if (!row.parentDoseId) return []
+  const p = FORMULA_DOSE_BY_ID[row.parentDoseId]
+  if (!p) return []
+  return [{ ...toEntry(p), role: 'parent', basis: `母方 · ${basis}` }]
 }
 
 /* ------------------------------------------------------------------ */
@@ -357,8 +381,9 @@ export interface DoseSourceView {
 }
 
 function toView(l: DoseLookup, unit: string): DoseSourceView {
-  if (l.exact) return { entries: [l.exact], matched: l.via ?? 'exact', unit }
-  if (l.candidates.length > 0) return { entries: l.candidates, matched: 'contains', unit }
+  const related = l.related ?? []
+  if (l.exact) return { entries: [l.exact, ...related], matched: l.via ?? 'exact', unit }
+  if (l.candidates.length > 0) return { entries: [...l.candidates, ...related], matched: 'contains', unit }
   return { entries: [], matched: 'none', unit }
 }
 

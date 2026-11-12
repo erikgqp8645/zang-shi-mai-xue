@@ -32,6 +32,10 @@
         "indication": { "type": "string", "description": "对应脉象及加减（照录）" },
         "doseId": { "type": "string", "description": "同和堂版成方的 id（真外键）" },
         "doseBasis": { "type": "string", "description": "对照依据" },
+        "parentDoseId": {
+          "type": "string",
+          "description": "母方成方的 id（讲稿原文明写母方关系时才填，如「加味理中」←「理中汤」）"
+        },
         "draftName": { "type": "string", "description": "讲稿里的方名" },
         "draftNote": { "type": "string", "description": "讲稿未载／写法不同的说明" }
       }
@@ -62,6 +66,12 @@
           "json": "rows.items.doseId"
         },
         { "name": "dose_basis", "type": "text", "json": "rows.items.doseBasis" },
+        {
+          "name": "parent_dose_id",
+          "type": "text",
+          "fk": { "table": "content_doses", "column": "id" },
+          "json": "rows.items.parentDoseId"
+        },
         { "name": "draft_name", "type": "text", "json": "rows.items.draftName" },
         { "name": "draft_note", "type": "text", "json": "rows.items.draftNote" }
       ]

@@ -571,6 +571,7 @@ export function buildRows(content) {
     indication: r.indication,
     dose_id: opt(r.doseId),
     dose_basis: opt(r.doseBasis),
+    parent_dose_id: opt(r.parentDoseId),
     draft_name: opt(r.draftName),
     draft_note: opt(r.draftNote),
   }))
@@ -748,6 +749,7 @@ export function buildContentFromRows(inputRows) {
     const {
       dose_id: doseId,
       dose_basis: doseBasis,
+      parent_dose_id: parentDoseId,
       draft_name: draftName,
       draft_note: draftNote,
       ...rest
@@ -755,6 +757,7 @@ export function buildContentFromRows(inputRows) {
     const out = { ...rest }
     if (doseId) out.doseId = doseId
     if (doseBasis) out.doseBasis = doseBasis
+    if (parentDoseId) out.parentDoseId = parentDoseId
     if (draftName) out.draftName = draftName
     if (draftNote) out.draftNote = draftNote
     return stripNulls(out)

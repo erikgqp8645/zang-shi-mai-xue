@@ -262,6 +262,14 @@ export interface FormulaReference {
   doseId?: string
   /** 同方对照的依据／差异说明（写清楚两套资料哪里不同） */
   doseBasis?: string
+  /**
+   * 母方成方的 id —— **讲稿原文明写母方关系**时才填。
+   *
+   * 例：讲义 p42 第 10 行「加味理中」的母方是「理中汤」
+   * （讲稿 2010·第二讲：「原先我们是以理中汤为母方……（注：即本门加味理中）」）。
+   * 没有写明的就留空 —— 不凭名字相近自己认个母方。
+   */
+  parentDoseId?: string
   /** 讲稿 2010·第二讲里对应的方剂条目名（比例制来源） */
   draftName?: string
   /** 讲稿侧查不到时的说明（讲稿未载／无同名方条） */
@@ -303,6 +311,8 @@ export const DRAFT_EXTRA: Record<string, { name: string; composition: string; so
 export interface FormulaDoseView {
   /** 同和堂版条目（本表没有就空） */
   dose?: FormulaDose
+  /** 同和堂版的**母方**成方（讲稿原文明写母方关系时才有） */
+  parentDose?: FormulaDose
   /** 同和堂版第 4 页「科中」对应行 */
   science?: FormulaScience
   /** 讲稿 2010 的方剂条目（本表没有就空） */
@@ -316,6 +326,7 @@ export interface FormulaDoseView {
 /** 取某一行方剂的配伍与剂量（讲义 p42 行 → 同和堂版 / 讲稿） */
 export function formulaDoseView(r: FormulaReference): FormulaDoseView {
   const dose = r.doseId ? FORMULA_DOSE_BY_ID[r.doseId] : undefined
+  const parentDose = r.parentDoseId ? FORMULA_DOSE_BY_ID[r.parentDoseId] : undefined
   const scienceName = r.doseId ? DOSE_SCIENCE_NAME[r.doseId] : undefined
   const science = scienceName ? FORMULA_SCIENCE_BY_NAME[scienceName] : undefined
 
@@ -332,7 +343,7 @@ export function formulaDoseView(r: FormulaReference): FormulaDoseView {
   if (!drug && !draftExtra) missing.push('讲稿 2010 未载其组成')
   if (r.draftNote) missing.push(r.draftNote)
 
-  return { dose, science, drug, draftExtra, missing }
+  return { dose, parentDose, science, drug, draftExtra, missing }
 }
 
 

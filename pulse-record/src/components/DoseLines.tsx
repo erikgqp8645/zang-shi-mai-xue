@@ -58,13 +58,13 @@ function DoseBlock({ label, view }: { label: string; view: DoseSourceView }) {
       </p>
     )
   }
+  /** 候选（不含母方）—— 母方是**另一个方**，不算「同名不同号」 */
+  const cands = view.entries.filter((e) => e.role !== 'parent')
   /** 名称里含查询词的候选：多条时不替读者选，只有一条时说清是「含」不是「同」 */
   const note =
-    view.entries.length > 1
-      ? `　同名不同号 ${view.entries.length} 条（原方名各不相同，工具不替你选）`
+    cands.length > 1
+      ? `　同名不同号 ${cands.length} 条（原方名各不相同，工具不替你选）`
       : '　名称含此名的一条（原方名见后）'
-  /** 别名对照：用名不同，但有明确对照依据 */
-  const showName = view.matched === 'contains' || view.matched === 'alias'
   return (
     <div className="pr-dose-block">
       <span className="pr-dose-block-label">
@@ -72,16 +72,22 @@ function DoseBlock({ label, view }: { label: string; view: DoseSourceView }) {
         {view.matched === 'contains' && note}
         {view.matched === 'alias' && '　别名对照（有明确对照依据）'}
       </span>
-      {view.entries.map((e) => (
-        <p key={`${label}-${e.name}`} className="pr-dose-line">
-          {showName && <span className="pr-dose-name">{e.name}：</span>}
+      {view.entries.map((e) => {
+        /** 别名对照：用名不同，但有明确对照依据；母方是另一个方，名字一定要露出来 */
+        const showName =
+          view.matched === 'contains' || view.matched === 'alias' || e.role === 'parent'
+        return (
+          <p key={`${label}-${e.name}`} className="pr-dose-line">
+            {e.role === 'parent' && <span className="pr-dose-role">母方</span>}
+            {showName && <span className="pr-dose-name">{e.name}：</span>}
           {e.composition}
           {e.science && <span className="pr-dose-science">　科中：{e.science}</span>}
           {e.usage && <span className="pr-dose-usage">　服法：{e.usage}</span>}
           <span className="pr-dose-src">〔{e.source}〕</span>
-          {e.basis && <span className="pr-dose-ref">　对照：{e.basis}</span>}
-        </p>
-      ))}
+            {e.basis && <span className="pr-dose-ref">　对照：{e.basis}</span>}
+          </p>
+        )
+      })}
     </div>
   )
 }

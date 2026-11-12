@@ -3143,6 +3143,23 @@ button:disabled {
   font-weight: 600;
 }
 
+/* 母方标记：讲稿原文明写母方关系时，同和堂版那条成方前面挂这个 */
+.pr-dose-role {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--clay);
+  background: rgba(168, 106, 74, 0.1);
+}
+
+.pr-dose-block.is-parent {
+  border-left: 2px solid rgba(168, 106, 74, 0.35);
+  padding-left: 8px;
+}
+
 .pr-dose-science,
 .pr-dose-usage {
   color: var(--clay);
