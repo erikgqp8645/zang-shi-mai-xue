@@ -448,7 +448,7 @@ function youGuanChiZuoGuanFuDa(ctx: RuleContext): string[] {
  *
  * ⚠️ **函数留在 TS，数据在 JSON**。
  *    规则的数据（条件文字、治法、方剂、出处、原文）现在住在
- *    `src/content/formula-rules.json`（可由 Excel 编辑）；
+ *    `src/content/formula-rules.json`（内容层快照，可由本地后台／命令行编辑）；
  *    这里只保留**判定逻辑** —— 那是代码，不是数据。
  *
  * 对应关系（见 `loadRules`）：
@@ -732,7 +732,7 @@ export const EVALUATORS: Record<string, (ctx: RuleContext) => string[]> = {
  * 规则集 —— 数据从 JSON 取，判定函数从上面取。
  *
  * 两者按 `id` 关联。**一个 id 只有一处真源**：
- *   · 数据字段 → `src/content/formula-rules.json`（Excel 可编辑）
+ *   · 数据字段 → `src/content/formula-rules.json`（内容层快照，可编辑）
  *   · 判定函数 → 本文件的 `EVALUATORS`
  */
 export const FORMULA_RULES: FormulaRule[] = loadRules(RULE_DATA.rules, EVALUATORS, PATTERNS)

@@ -135,7 +135,7 @@ CREATE TABLE IF NOT EXISTS custom_symbols (
 
 -- 方剂脉象图的**覆盖层**（使用者手填，按人隔离）
 --
--- 内置基线在 src/content/pulse-patterns.json（Excel 管线产出，只读）。
+-- 内置基线在 src/content/pulse-patterns.json（内容层快照，只读）。
 -- 这里只存「改过的那些条目」，一条目一行序：按 (owner_id, formula_id) 整条接管 ——
 -- 只要这个键下有行，就用这几行；没有，就回落到内置基线。
 -- 删除某个条目 ＝ 没有行（DELETE 即回到基线）；删其中一张 ＝ 不写那一行 seq。
@@ -158,7 +158,7 @@ CREATE TABLE IF NOT EXISTS formula_patterns (
 
 -- 用方知识库 · 管理员覆盖层（全局共享，不按账号隔离）
 --
--- 内置基线在 src/content/*.json（Excel 管线产出，只读）。
+-- 内置基线在 src/content/*.json（内容层快照，只读）。
 -- 这里只存**管理员改过的那些条目**：一条目一行，按 (kind, item_id) 整条接管 ——
 --   · 有行且 deleted=0 → 用这一行的 payload 整条替换基线条目
 --   · 有行且 deleted=1 → 墓碑：该条目在结果里消失

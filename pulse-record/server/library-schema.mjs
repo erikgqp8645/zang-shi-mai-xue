@@ -365,11 +365,11 @@ export function readBaseline(contentDir = DEFAULT_CONTENT_DIR) {
  *
  * **行尾跟随原文件**：原来用 CRLF 就写 CRLF，用 LF 就写 LF
  * （仓库里 git 的 autocrlf 会把工作区文件 checkout 成 CRLF，
- *   而 scripts/excel_to_json.py 写出的是 LF —— 两种都得对得上，
+ *   而内容层发布管道写出的是 LF —— 两种都得对得上，
  *   否则「空覆盖层 apply 之后逐字节未变」这条验收就过不了）。
  *
- * 序列化格式与 scripts/excel_to_json.py 完全一致
- * （`json.dumps(..., ensure_ascii=False, indent=2)` ＋ 末尾换行）。
+ * 序列化格式与内容层发布管道完全一致
+ * （`JSON.stringify(x, null, 2)` ＋ 末尾换行）。
  */
 export function writeBaseline(contentDir, files) {
   const written = []
@@ -434,7 +434,7 @@ export function groupOverrides(rows) {
 /**
  * 引用层校验（悬空引用）。
  *
- * 规则与 scripts/excel_to_json.py 一致：
+ * 规则与内容层的引用校验一致：
  *   · p44 的 drugs[] 里每个 id 必须存在于讲稿方剂
  *   · p42 的 doseId 若非空，必须存在于同和堂版成方
  *   · 科中映射的键必须存在于成方；值必须存在于科中（或是「未载」）

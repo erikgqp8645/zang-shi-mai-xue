@@ -9,8 +9,7 @@
  *
  * 这一轮**前端一行都不改**：内容是编译期内联的（src/domain/*.ts 的
  * `import x from '../content/x.json'`），所以管理员改完要用 `library apply`
- * 把覆盖层合并回 `src/content/*.json`（**数据层**），再走既有 Excel 管线
- * 重建人工编辑层、`npm run build` 重出前端。
+ * 把覆盖层合并回 `src/content/*.json`（**数据层**），再 `npm run build` 重出前端。
  *
  * ## 覆盖层语义（与 server/db.mjs 的 formula_patterns 同一套）
  *
@@ -746,7 +745,6 @@ async function cmdApply(db, opts, positional) {
   for (const w of written) console.log(`✓ 已写出 ${w.path}（${w.bytes} 字节，${w.eol}）`)
   console.log('')
   console.log('接下来：')
-  console.log('  npm run content:excel   重建人工编辑层（Excel）')
   console.log('  npm run build           重出前端')
 }
 

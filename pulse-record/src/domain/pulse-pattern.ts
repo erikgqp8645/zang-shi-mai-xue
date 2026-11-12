@@ -68,7 +68,7 @@ export interface PatternTerm {
 /**
  * 原文用字 → 符号集。
  *
- * **数据在 `src/content/pulse-terms.json`**（可由 Excel 编辑），
+ * **数据在 `src/content/pulse-terms.json`**（内容层快照，可编辑），
  * 这里只做类型收窄 —— 逻辑（判定、合成 ctx）留本文件。
  *
  * ⚠️ `有值` 的 codes 在 JSON 里是**物化后的 14 个符号**（不是 ALL_CODES 的引用）——
@@ -146,7 +146,7 @@ export interface PatternRelation {
 /** 一条用方条目的脉象图 */
 export interface PulsePattern {
   /**
-   * 图名（Excel 里就是矩阵 sheet 的 tab 名，如「清挡路」）。
+   * 图名（如「清挡路」）。
    *
    * 50 条老数据都写了，但类型上一直没声明 —— 这里补上，
    * 免得界面只能拿条件文字当标题。

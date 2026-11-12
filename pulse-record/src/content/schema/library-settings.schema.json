@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "./schema/library-settings.schema.json",
   "title": "用方知识库 · 显示设置",
-  "description": "「用方知识库」这个区块**自己的**显示设置（共享层，全站一致）。ⓘ 这里只有「知识库」这一个区块的设置，所以表里固定一行（id＝library）。ⓘ **不进 Excel 管线** —— 这一版的编辑面是本地后台（Directus），不是工作簿；工作簿只管内容本身（条目与方剂）。",
+  "description": "「用方知识库」这个区块**自己的**显示设置（共享层，全站一致）。ⓘ 这里只有「知识库」这一个区块的设置，所以表里固定一行（id＝library）。ⓘ **这一版的编辑面是本地后台（Directus）＋发布管道** —— 后台改完跑发布命令，才会推到远端并同步回仓库快照。",
   "type": "object",
   "required": ["library"],
   "properties": {

@@ -140,7 +140,7 @@ CREATE TABLE IF NOT EXISTS custom_symbols (
 CREATE INDEX IF NOT EXISTS symbols_by_owner ON custom_symbols (owner_id);
 
 -- ── 方剂脉象图（覆盖层）──────────────────────────────────────────────
--- 内置基线在 src/content/pulse-patterns.json（Excel 管线产出，只读）。
+-- 内置基线在 src/content/pulse-patterns.json（内容层快照，只读）。
 -- 这里只存「使用者手改过的条目」：一条目一行，按 (owner_id, formula_id) 整条接管 ——
 -- 该键下有行就用这几行，没有就回落到内置基线。
 CREATE TABLE IF NOT EXISTS formula_patterns (
@@ -159,7 +159,7 @@ CREATE TABLE IF NOT EXISTS formula_patterns (
 CREATE INDEX IF NOT EXISTS formula_patterns_by_owner ON formula_patterns (owner_id);
 
 -- ── 用方知识库 · 管理员覆盖层（全局共享，不按账号隔离）─────────────────
--- 内置基线在 src/content/*.json（Excel 管线产出，只读）。
+-- 内置基线在 src/content/*.json（内容层快照，只读）。
 -- 这里只存管理员改过的那些条目：一条目一行，按 (kind, item_id) 整条接管。
 --   · 有行且 deleted=0 → 用这一行的 payload 整条替换基线条目
 --   · 有行且 deleted=1 → 墓碑：该条目在结果里消失
