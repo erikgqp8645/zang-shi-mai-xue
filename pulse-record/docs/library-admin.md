@@ -326,11 +326,12 @@ src/content/*.json        library_items 表            基线 ⊕ 覆盖层
 **冻住** —— 点了按钮，页面就再也不响应，连刷新都救不回来，只能重启应用。
 浏览器里它只是弹个框，但同一份代码要跑两种端 ⇒ 一律用站内的。
 
-ⓘ **一处**：删除条目（`FormulaLibrary.tsx`）、知识库条目恢复默认（`LibraryEditor.tsx`）、
-脉象图恢复默认（`PatternEditor.tsx`）三处都 import 它 ⇒ 确认框的样子和措辞只有一个来源。
+ⓘ **一处**：删除条目（`FormulaLibrary.tsx`）与**统一编辑弹层**（`RuleEditor.tsx` ——
+条目恢复默认 ＋ 脉象图恢复默认都在这儿）两处都 import 它 ⇒ 确认框的样子和措辞只有一个来源。
 
 ⓘ RE14 断言盯着这件事（先剥注释再看代码）：源码里不许再出现 `window.confirm`，
-三处都要 import 并渲染 `ConfirmDialog`。
+两处都要 import 并渲染 `ConfirmDialog`；被动面板（`LibraryFields.tsx`／`PatternPanel.tsx`／
+`PatternStrip.tsx`）连 `window.confirm` 都不能有。
 
 ---
 
@@ -367,7 +368,7 @@ src/content/*.json        library_items 表            基线 ⊕ 覆盖层
 | `src/domain/library-merge.mjs` | 浏览器侧的**生效集**合并（基线 ⊕ 覆盖层） |
 | `src/domain/library-chips.mjs` | 方名标签（chip）的改／删（纯函数） |
 | `src/state/library.tsx` | 前端的装载 ＋ 四个动词（落库成功后才刷新生效集） |
-| `src/components/LibraryEditor.tsx` | ③ 里的条目编辑弹层（表单由注册表驱动） |
+| `src/components/RuleEditor.tsx` | ③ 里的**统一编辑弹层**（条目 ＋ 脉象图两个页签；表单由注册表驱动） |
 | `scripts/lib/library-cli.mjs` | 命令行本体 |
 | `scripts/admin.mjs` | `library` 子命令的入口 |
 | `scripts/e2e/library-admin.mjs` | 端到端测试（61 项） |
