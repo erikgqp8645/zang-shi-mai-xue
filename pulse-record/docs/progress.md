@@ -2834,3 +2834,126 @@ node scripts/content:publish            # 发布（远端 PG ＋ 9 个 JSON 快�
 
 ⚠️ `content_check_order` 要求远端 `content` schema 的表集合与发布顺序**完全一致** ⇒
 **改了内容 schema 就必须先跑 setup**，否则发布会在远端报「表集合对不上」。
+
+---
+
+### 3.33 ③ 知识库的条目／方名标签可编辑可删除（2026-11-12）
+
+#### 起因
+
+用户在网站端 ③「用方知识库」的截图上标了两处：
+
+1. **「变脉有力」那条**（`fx2-jianban-sanjiao`）——「要求这些条目可以删除，增加删除按钮，增加编辑按钮」；
+2. **「引火归元的添加药」那行的方名标签**（`fx2-yinhuo-jiazi`）——「这个标签也可以删除和编辑」。
+
+改之前，③ 是**只读**的：内容全靠命令行 `npm run admin -- library …` 改，
+改完还要 `library apply` → 重建 → 部署才看得见。
+
+#### 三层真源
+
+```
+① 基线层（只读）          ② 覆盖层（可写）           ③ 生效层（运行期）
+src/content/*.json        library_items 表            基线 ⊕ 覆盖层
+前端编译期内联的就是它      管理员的运行时改动           前端真正显示/判读的那份
+```
+
+⭐ **③ 在前端算**（`src/domain/library-merge.mjs`），不是服务端整份下发 ——
+命中判定是**代码**（`EVALUATORS`），服务端按已发布内容下发的那份里，
+可能有这版代码**没有判定函数**的规则 id ⇒ 前端 `loadRules` 直接抛错 ⇒ 整站崩。
+⇒ 生效集必须以「**前端自己那份基线**」为底合并 ⇒ id 永远是基线的子集。
+
+- 合并与级联的**底层**（`mergeKind`／`cascadeCleanup`）搬到了
+  `src/domain/library-core.mjs` —— **浏览器与 `library apply` 共用同一份**
+  ⇒ 网站里看到的与写进基线的，永远是同一个结果。
+  （搬它是因为云函数跑 Node 16／18／20 **不能 import `.ts`**；`.mjs` 谁都能跑，
+  且**不进小程序编译产物** ⇒ 小程序行为零变化。）
+- ⚠️ 搬的过程中**抓到一个真 bug**：`mergeLibrary` 原来拿基线原对象去合，
+  级联（`cascadeCleanup`）是**就地**改 `rule.drugs` 的 ⇒
+  「删一个讲稿方剂」会把**基线本身**改脏 ⇒ 刷新前后知识库不一样。
+  修法：合并前深拷贝（命令行那边本来就这么做）⇒ 由 RE10 盯着。
+
+#### 四个动词 ＋ 一个读
+
+| 接口 | 对应命令行 | 干什么 | 权限 |
+|---|---|---|---|
+| `GET /api/library/kinds` | —— | 「什么能改」的注册表（字段清单、中文标签、可选值） | 登录即可 |
+| `GET /api/library/overrides` | `library list` | 覆盖层原始行（含墓碑） | 登录即可 |
+| `PATCH /api/library/entries/:kind/:id` | `library set --set k=v` | **改一条**（字段级） | **仅 admin** |
+| `DELETE /api/library/entries/:kind/:id` | `library del` | **删一条**（写墓碑，带原内容快照） | **仅 admin** |
+| `POST …/:id/restore` | `library restore` | **恢复默认**（回基线） | **仅 admin** |
+| `POST …/:id/revive` | `library revive` | **撤销删除**（把快照放回来） | **仅 admin** |
+
+- ⭐ **语义与命令行逐条对齐**（同一个词就是同一件事）⇒ 两边不漂移。
+- **写接口仅 admin**（`users.role === 'admin'`；单机模式下本机账号就是 admin）；
+  **读接口不设闸门** —— 知识库是公共资料，不同账号看到的必须是同一份。
+- 本轮只开放 `rule`（p44 依脉用方 61 条 ＋ 讲稿方剂 30 方）；其余四类接口**明确拒**
+  并给出行命令路径（别让人以为「改了没反应」）。
+
+#### 界面
+
+- ③ 的每一条：行尾多出「编辑」「删除」；**方名标签**上多出「✎ 改」「✕ 删」。
+- 编辑弹层：**表单由注册表驱动**（前端不硬编码字段表）⇒ 字段表只有一处真源；
+  `id` **只读**（改 id ＝ 删了重加，而 p44 新增要配判定函数）；有「恢复默认」。
+- 删除走**二次确认**；删完顶部提示条「已删除『…』｜**撤销**」；
+  ③ 底部另有「已删除的条目（可撤销）」小节（**刷新后仍能撤销** ——
+  墓碑本身带快照，不依赖前端内存）。
+- ⚠️ 紧凑行结构从「一个 button」改成「button ＋ 工具区 ＋ 标签区」——
+  chip 上要放按钮，button 里不能套 button（HTML 无效 ＋ 点击冒泡）。
+
+#### 断言（RE1~RE14 ＋ 8 种故意写坏）
+
+| 脚本 | 抓什么 | 项数 |
+|---|---|---|
+| `scripts/e2e/library-runtime-edit.mjs` | 网站端运行时编辑（RE1~RE14） | 15 |
+| `scripts/e2e/library-runtime-edit-break-test.mjs` | 八种坏法：**X1** 摘掉 admin 闸门／**X2** 字段级改成整条覆盖／**X3** 墓碑不写快照／**X4** 前端不读生效集／**X5** chip 删不掉／**X6** 级联不做／**X7** 陌生 id 也照样合并／**X8** 确认框换回 `window.confirm` | 50（8×mutation ＋ 还原检查） |
+
+编号登记在 `docs/content-assertions.md`（`RE` 前缀 = RuntimeEdit）。
+
+#### 已知缺口
+
+1. ⭐ **小程序端不同步**：小程序不设覆盖层 store ⇒ 生效集永远是基线 ⇒
+   网站端改了，小程序看不到。接同一套覆盖层属小程序线（`feat/wechat-miniprogram`）的后续项。
+2. **线上未上线**：新增写接口在 `server/index.mjs` ⇒ 必须重新部署云函数 `pulse-api`
+   才生效（需 `tcb login` 或 `TCLOUD_SECRET_ID/KEY/SESSION_TOKEN`）。
+   **本地已完整验证，线上未部署** —— 如实报告，不假装已上线。
+3. **不自动固化**：网站端的改动只写覆盖层，`src/content/*.json` 一个字节都不动
+   （RE12 盯着）；要固化须人明确跑 `library apply`。
+
+### 3.34 删除／恢复默认的确认改成站内确认框（2026-11-12）
+
+#### 为什么改
+
+上一轮（§3.33）的删除与「恢复默认」都走 `window.confirm`。实测点下去之后
+**整个页面卡死**（连刷新都救不回来），根因是原生模态框在 **Electron 桌面端**
+会把渲染进程整个冻住 —— 弹窗挂在窗口上，页面上的 JS 一行都跑不动。
+浏览器里它只是弹个框，但同一份代码要跑两种端 ⇒ 统一换成**站内确认框**。
+
+#### 改了什么
+
+- 新增 `src/components/ConfirmDialog.tsx`（**一处**）：样式沿用编辑器那套
+  （`pr-ps-modal`／`pr-ed-foot`），只多加一个层级（`is-confirm`，z-index 70）。
+- 三处「要问一下再动手」都改用它：
+  - 删除知识库条目（`FormulaLibrary.tsx`，标题「删掉这一条？」，确定按钮红色）
+  - 知识库条目「恢复默认」（`LibraryEditor.tsx`）
+  - 脉象图「恢复默认」（`PatternEditor.tsx`，上一轮的东西，顺手统一）
+- Esc 语义：确认框开着时，Esc 先关**确认框**，不把编辑器一起关掉。
+- 确认框的点遮罩会 `stopPropagation` ⇒ 不会连带把外层编辑弹层关掉。
+
+#### 断言（RE14 ＋ X8）
+
+| 脚本 | 抓什么 | 项数 |
+|---|---|---|
+| `scripts/e2e/library-runtime-edit.mjs` | **RE14**：删除／恢复默认的确认走站内确认框 —— 源码里不许有 `window.confirm`；三处都要 import 并渲染 `ConfirmDialog`；确认框组件只有一处 | 15 |
+| `scripts/e2e/library-runtime-edit-break-test.mjs` | **X8**：把 `LibraryEditor.tsx` 的确认换回 `window.confirm` ⇒ RE14 必须变红（反向检查：RE1／RE12 仍绿） | 50 |
+
+ⓘ 断言按**结构**解析：先把注释剥掉再看剩下的代码 —— 否则源码里
+「ⓘ 不用 `window.confirm`」这种注释会把自己判成红的。
+（字符串字面量**保留**：`from './ConfirmDialog'` 与 `className="pr-ps-modal is-confirm"`
+都是字符串，剥掉就查不到「有没有 import／有没有用那个样式类」。）
+
+#### 人眼确认（本地单机模式，浏览器实测）
+
+- 删除 → 站内确认框弹出（标题＋三条说明＋取消／删掉）⇒ 点「删掉」落库成墓碑
+  ⇒ ③ 里这条消失 ⇒ 底部出现「已删除的条目（可撤销）」⇒ 点「撤销删除」放回来。
+- 恢复默认 → 站内确认框弹出 ⇒ 点「恢复默认」⇒ 覆盖层那一行撤掉 ⇒ ③ 回到基线。
+- 全程页面**不卡**；控制台 error／warn **0 条**。

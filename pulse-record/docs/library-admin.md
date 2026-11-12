@@ -1,10 +1,17 @@
 # 用方知识库 · 管理员手册
 
-> 「整个用方知识库都可以编辑」这件事的**唯一写入面**。
-> 管理员在命令行里改 → 改动落本机 SQLite → `library apply` 合并回内容文件 → 重新构建 → 前端生效。
+> 「整个用方知识库都可以编辑」这件事的**两个写入面**。
 >
-> 前端**没有编辑界面**（管理员用命令行改）；前端代码只动过一处：
-> `src/domain/formulas.ts` 的装载器放宽了一个方向，好让「删掉一条 p44 条目」不会把前端搞崩（见 §3）。
+> | 写入面 | 改完立刻生效吗 | 适合谁 |
+> |---|---|---|
+> | **网站端 ③「用方知识库」**（2026-11-12 起） | ✅ 立刻（全账号共享同一份） | 日常改一条、删一个方名标签 |
+> | **命令行** `npm run admin -- library …` | ❌ 要 `library apply` → 重建 → 部署 | 批量改动、固化进基线、审计与导入导出 |
+>
+> 两条路改的是**同一份覆盖层**（本机／云端 SQLite 的 `library_items` 表），
+> 语义**逐条对齐**（见 §6）⇒ 谁先改都不打架。
+>
+> 覆盖层之上还有一层「**生效层**」＝ 基线 ⊕ 覆盖层，**在前端算**
+> （见 §6.4）—— 界面显示的、② 命中的、导出的，都是这一份。
 
 ---
 
@@ -12,7 +19,7 @@
 
 ```
 内置基线（只读）                      管理员覆盖层（可写）
-src/content/*.json                    本机 SQLite 的 library_items 表
+src/content/*.json                    本机／云端 SQLite 的 library_items 表
   · Excel 管线的产物                    · 一条目一行，按 (kind, item_id) 整条接管
   · 已经提交进 git                       · 墓碑（deleted=1）＝ 这条被删了
   · 前端编译期内联的就是它                · 所有账号共享同一份（公共资料）
@@ -21,6 +28,10 @@ src/content/*.json                    本机 SQLite 的 library_items 表
                         ▼
               src/content/*.json（合并结果）
 ```
+
+> **第三层（运行期）**：覆盖层不必 apply 就能生效 ——
+> 前端把「基线 ⊕ 覆盖层」算成**生效集**，界面显示的、② 命中的、导出的都是它（§7.4）。
+> apply 是**固化**（把改动写进基线），不是「生效」的前提。
 
 **为什么分两层**：内置基线是**资料**（有出处、有原文、有 Excel 人工编辑层），
 不能被随手改坏；覆盖层是**管理员的改动记录**（谁改的、什么时候、为什么，都留着）。
@@ -189,6 +200,10 @@ npm run admin -- library revive rule fx2-yiti-lengreshui
 
 ## 5. 改完怎么让它进前端（顺序别搞反）
 
+> ⚠️ 这一节说的是**命令行**那条路。**网站端 ③ 里改的不用走这套流程** ——
+> 那边改完立刻生效（§7.4）；下面这套是「**把改动固化进基线**」的流程，
+> 两者不冲突：想固化时才走。
+
 ```bash
 # ①（如果人工在 Excel 里也改了）先把 Excel 的改动拉进 JSON，推进基线
 npm run content:json
@@ -237,12 +252,91 @@ GET /api/library/overrides
   —— **墓碑项也返回**（`deleted: true`），否则前端合并层表达不了「这条没了」。
 - 鉴权：走现有 `/api/` 中间件 → **未登录 401**；**所有登录账号都能读**
   （内容是共享的公共资料）。
-- **这一轮前端不接**。它的意义是：将来无论走「重新构建」还是「运行时读接口」，
-  后端都已经就位。
+- ✅ **2026-11-12 起前端接上了**（见 §6.4 生效层）。
 
 ---
 
-## 7. 故障排查
+## 7. 网站端运行时编辑（③ 里的「编辑／删除」）
+
+2026-11-12 起，网站端 ③「用方知识库」里每一条（讲义 p44 依脉用方 61 条 ＋ 讲稿方剂 30 方）
+都有「编辑」「删除」两个按钮；每个**方名标签**（chip）上有「✎ 改」「✕ 删」。
+
+### 7.1 接口清单
+
+| 接口 | 对应命令行 | 干什么 | 权限 |
+|---|---|---|---|
+| `GET /api/library/kinds` | —— | 「什么能改」的注册表（字段清单、中文标签、可选值、哪些类开放） | 登录即可 |
+| `GET /api/library/overrides` | `library list` | 覆盖层原始行（含墓碑） | 登录即可 |
+| `PATCH /api/library/entries/:kind/:id` | `library set --set k=v` | **改一条**（字段级；body `{ patch: {...} }`） | **仅 admin** |
+| `DELETE /api/library/entries/:kind/:id` | `library del` | **删一条**（写墓碑，带原内容快照） | **仅 admin** |
+| `POST /api/library/entries/:kind/:id/restore` | `library restore` | **恢复默认**（撤覆盖层这一行 → 回基线） | **仅 admin** |
+| `POST /api/library/entries/:kind/:id/revive` | `library revive` | **撤销删除**（把墓碑里的快照放回来） | **仅 admin** |
+
+⚠️ `DELETE` 是「**删除条目**」，不是「删覆盖行」—— 后者叫 `restore`。
+⚠️ `restore` 与 `revive` 的分工与命令行**完全一样**（见 §4 末尾那张表）。
+
+**字段级改**：服务端以「**当前生效的那条**」为底，把传上来的字段盖上去 ⇒
+「改一个字段，其余字段一字不丢」。改 `id` 一律 400（改 id ＝ 删了重加，
+而 p44 新增要配判定函数 ⇒ 本轮不开放新增）。
+
+### 7.2 权限
+
+- **写接口仅管理员**（`users.role === 'admin'`；单机模式下内置本机账号就是 admin）。
+  非管理员**看不到**任何编辑／删除按钮 —— 是「不渲染」，不是「禁用」。
+- **读接口不设闸门** —— 知识库是公共资料，不同账号看到的必须是同一份
+  （否则一个设置两处真源）。未登录一律 401。
+
+### 7.3 本轮开放的类
+
+只有 `rule`（讲义 p44 依脉用方）与 `drug`（讲稿方剂）两类在网站端开放编辑。
+其余四类（p42 对照表／同和堂版成方／科中／科中↔成方映射）接口**明确拒**，
+并给出人话原因与命令行路径 —— 别让人以为「改了没反应」。
+
+### 7.4 生效层（在前端算，不在服务端）
+
+```
+① 基线层（只读）          ② 覆盖层（可写）           ③ 生效层（运行期）
+src/content/*.json        library_items 表            基线 ⊕ 覆盖层
+前端编译期内联的就是它      管理员的运行时改动           前端真正显示/判读的那份
+```
+
+⭐ **③ 在前端算**（`src/domain/library-merge.mjs`），不是服务端整份下发 ——
+命中判定是**代码**（`EVALUATORS`），服务端按已发布内容下发的那份里，
+可能有这版代码**没有判定函数**的规则 id ⇒ 前端 `loadRules` 直接抛错 ⇒ 整站崩。
+⇒ 生效集必须以「**前端自己那份基线**」为底合并 ⇒ id 永远是基线的子集。
+
+- 合并与级联的**底层**（`mergeKind`／`cascadeCleanup`）在
+  `src/domain/library-core.mjs` —— **浏览器与 `library apply` 共用同一份**
+  ⇒ 网站里看到的与写进基线的，永远是同一个结果（RE10 断言盯着这件事）。
+- 覆盖层里若有**基线没有的 id**（命令行手滑造的），浏览器侧**跳过并报出来**
+  （命令行侧由 `library verify` 报出来）⇒ 前端不会因为陌生 id 崩。
+
+### 7.5 不自动固化
+
+网站端的改动**只写覆盖层**，`src/content/*.json`（仓库里的基线）**一个字节都不动**。
+要把改动固化进基线，须人明确执行 `npm run admin -- library apply`（+ 重建 + 部署）。
+
+⚠️ **小程序端不同步**：小程序不设覆盖层 store ⇒ 生效集永远是基线 ⇒
+网站端改了，小程序看不到。这是**已知缺口**，记在 `docs/progress.md`。
+
+### 7.6 确认走站内确认框（不用 `window.confirm`）
+
+删除条目、恢复默认这两步要问一句 —— 用的是**站内确认框**
+（`src/components/ConfirmDialog.tsx`，样式沿用编辑器那套 `pr-ps-modal`／`pr-ed-foot`）。
+
+ⓘ **为什么不用 `window.confirm`**：原生弹窗在 **Electron 桌面端**会把整个渲染进程
+**冻住** —— 点了按钮，页面就再也不响应，连刷新都救不回来，只能重启应用。
+浏览器里它只是弹个框，但同一份代码要跑两种端 ⇒ 一律用站内的。
+
+ⓘ **一处**：删除条目（`FormulaLibrary.tsx`）、知识库条目恢复默认（`LibraryEditor.tsx`）、
+脉象图恢复默认（`PatternEditor.tsx`）三处都 import 它 ⇒ 确认框的样子和措辞只有一个来源。
+
+ⓘ RE14 断言盯着这件事（先剥注释再看代码）：源码里不许再出现 `window.confirm`，
+三处都要 import 并渲染 `ConfirmDialog`。
+
+---
+
+## 8. 故障排查
 
 | 现象 | 多半是 |
 |---|---|
@@ -252,22 +346,35 @@ GET /api/library/overrides
 | `✗ 「xxx」不是…的可编辑字段` | 该字段不在注册表里。注册表在 `server/library-schema.mjs` 的 `LIBRARY_KINDS` |
 | `✗ 缺少必填字段「source」` | 新增条目必须自己填出处 —— 后端不替你编 |
 | 删了之后 `restore` 撤不回来 | `restore` 撤的是「覆盖层这一行」；已经被 apply 写掉的条目要用 `revive` 放回来 |
-| 改了但前端没变 | 改了之后**还要** `library apply` → `content:excel` → `npm run build` → 重新部署 |
+| 改了但前端没变 | **命令行**那条路：改了之后**还要** `library apply` → `content:excel` → `npm run build` → 重新部署 |
+| 网站端 ③ 改了，刷新后又变回去 | 刷新会重新拉覆盖层 —— 那一条多半被**恢复默认**过（覆盖层里没有它了 ⇒ 回基线） |
+| 网站端 ③ 看不到「编辑／删除」按钮 | 当前账号不是管理员（`users.role === 'admin'`）；单机模式下本机账号就是 admin |
+| 网站端 ③ 改完报「只有管理员能改」 | 同上 —— 写接口仅 admin，读接口人人可读（知识库是公共资料） |
+| 网站端 ③ 里某条不见了 | `npm run admin -- library list --kind rule` —— 它可能被**删掉**了（墓碑），用 `revive` 放回来 |
 | `npm run admin -- library list` 是空的 | 覆盖层是空的 —— 知识库还是内置基线，一字未改 |
+| 点了「删除／恢复默认」之后整个页面卡死 | 代码里又出现了 `window.confirm` —— 原生弹窗在 Electron 桌面端会冻住整个渲染进程。改用 `ConfirmDialog`（RE14 断言盯着） |
 
 ---
 
-## 8. 相关文件
+## 9. 相关文件
 
 | 文件 | 是什么 |
 |---|---|
 | `server/library-schema.mjs` | **注册表 ＋ 校验 ＋ 合并规则** —— 后端唯一的「什么能改、什么不能改」真源 |
+| `server/library-service.mjs` | **网站端运行时编辑的服务层**（PATCH／DELETE／restore／revive 四个动词） |
 | `server/db.mjs` / `server/db-pg.mjs` | 两套同名同签名的存储实现（SQLite ／ CloudBase PG） |
 | `server/store.mjs` | 存储分发层；契约表里写明了「知识库三函数没有 ownerId」的例外理由 |
 | `server/schema.sql` / `server/schema-pg.sql` | `library_items` 表 |
+| `src/domain/library-core.mjs` | **合并与级联的共享纯逻辑**（浏览器与命令行共用同一份） |
+| `src/domain/library-merge.mjs` | 浏览器侧的**生效集**合并（基线 ⊕ 覆盖层） |
+| `src/domain/library-chips.mjs` | 方名标签（chip）的改／删（纯函数） |
+| `src/state/library.tsx` | 前端的装载 ＋ 四个动词（落库成功后才刷新生效集） |
+| `src/components/LibraryEditor.tsx` | ③ 里的条目编辑弹层（表单由注册表驱动） |
 | `scripts/lib/library-cli.mjs` | 命令行本体 |
 | `scripts/admin.mjs` | `library` 子命令的入口 |
-| `scripts/e2e/library-admin.mjs` | 端到端测试（52 项） |
-| `scripts/e2e/library-admin-break-test.mjs` | break-test（9 条 mutation，逐条证明断言不是恒绿） |
+| `scripts/e2e/library-admin.mjs` | 端到端测试（61 项） |
+| `scripts/e2e/library-admin-break-test.mjs` | break-test（12 条 mutation，逐条证明断言不是恒绿） |
+| `scripts/e2e/library-runtime-edit.mjs` | 端到端测试（14 项）：网站端运行时编辑（RE1~RE13） |
+| `scripts/e2e/library-runtime-edit-break-test.mjs` | break-test（7 条 mutation）：证明上一条不是恒绿 |
 | `scripts/e2e/rule-delete-loader.mjs` | 端到端测试（13 项）：删掉一条 p44 条目之后，前端装载器照样起得来 |
 | `scripts/e2e/rule-delete-loader-break-test.mjs` | break-test（2 条 mutation）：证明上一条不是恒绿 |
