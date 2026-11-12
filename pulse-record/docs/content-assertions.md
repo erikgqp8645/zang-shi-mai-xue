@@ -92,6 +92,7 @@
 |---|---|---|
 | `scripts/e2e/app-nested-button-break-test.mjs` | ② 定疗法里的**嵌套 button** 与**点击冒泡** | 12 |
 | `scripts/e2e/app-library-compact-break-test.mjs` | 「用方知识库紧凑态」：kind 徽章没去掉／落点不自动展开／**焦点后到**那个坑 | 18 |
+| `scripts/e2e/app-standing-toggle-break-test.mjs` | 「常驻条目开关 ＋ 筛选分组计数口径」：②③ 各自忽略开关／chip 退回旧口径／说明里露出没渲染的 `**` | 28 |
 | `scripts/e2e/library-admin-break-test.mjs` | 管理员覆盖层的九种坏法 | 9 |
 | `scripts/e2e/rule-delete-loader-break-test.mjs` | 装载器静默降级 | 2 |
 | `scripts/e2e/excel_roundtrip_break.py` | Excel 往返丢数据 | — |

@@ -1678,12 +1678,12 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`chore/desktop-electron` = `8bc151f`；`feat/wechat-miniprogram` = `623aca8`（小程序／鸿蒙／桌面端／CloudBase 线，**历史原样保留**）；**`feat/web-site` = `845b339`（网站端线，2026-11-06 从 `6ebc881` 切出）** |
 | 分支纪律 | **两条长期开发线**（2026-11-06 起）：网站端新改动走 `feat/web-site`，小程序／鸿蒙／桌面端走 `feat/wechat-miniprogram`；同源于 `6ebc881`，都**不开 PR**、都不**改写已推送的历史**。详见 `AGENTS.md`「Git 约定」 |
 | PR | #6 `chore/multi-user → main`，**OPEN**；#7 `chore/desktop-electron → chore/multi-user`，**OPEN**；`feat/wechat-miniprogram` **永不开 PR**（2026-11-06 拍板：**永不合并进 `main`**） |
-| 全量回归 | **898 项全绿**（core 40 ＋ excel 27 ＋ excel-break 28 ＋ exercise 13 ＋ taro-lint 202 ＋ taro-api 58 ＋ migration 53 ＋ auth 57 ＋ **app 37** ＋ 桌面端 33 ＋ content 17 ＋ **后台核对 198（新增）** ＋ library-admin 52 ＋ rule-delete-loader 13 ＋ 鸿蒙 70）。后台那 198 项需要本地 Directus 容器在跑，**没起时明确打印「跳过」并 exit 0**（`PULSE_E2E_REQUIRE=1` 时缺容器才 exit 1 —— 跳过必须能区分于通过） |
+| 全量回归 | **909 项全绿**（core 40 ＋ excel 27 ＋ excel-break 28 ＋ exercise 13 ＋ taro-lint 202 ＋ taro-api 58 ＋ migration 53 ＋ auth 57 ＋ **app 48** ＋ 桌面端 33 ＋ content 17 ＋ **后台核对 198（新增）** ＋ library-admin 52 ＋ rule-delete-loader 13 ＋ 鸿蒙 70）。后台那 198 项需要本地 Directus 容器在跑，**没起时明确打印「跳过」并 exit 0**（`PULSE_E2E_REQUIRE=1` 时缺容器才 exit 1 —— 跳过必须能区分于通过） |
 | 教程与练习册 | **`docs/教程-如何填写用方知识库.md`**（面向审核者：分表细则 ＋ 三个完整例子 ＋ 报错对照）；**`content/示例-填写示范.xlsx`**（练习册：5 格故意留空 ＋ 标黄 ＋ 批注）＋ `npm run content:exercise:check` 逐格验收。练习册的正确答案**从真源现取**，不写死；文件名含「示例／练习／示范」的工作簿**拒绝写回真源**（详见 §3.20） |
 | 数据层 | **JSON 为唯一真源**（`src/content/*.json` **8 个文件**，新增 `symbols.json`）；**Excel 为人工编辑层**（`content/臧氏脉学-用方知识库.xlsx`，**65 个 sheet** ＝ 15 通用表 ＋ **50 张脉象图矩阵**）；TS 只留逻辑。**矩阵是脉象图的唯一编辑面**，长表由它派生。往返 20 项 ＋ 故意写坏 22 项都挂在 `npm test`。用法见 [`content-layer.md`](./content-layer.md)（详见 §3.18／§3.19） |
 | 内容层（新版 · 进行中） | **本地 `local-data/content.sqlite` ＝ 编辑真源**（17 张表 1472 行，Directus 后台可编辑）→ 发布命令 → 远端 PG `content` schema ＋ 仓库 `src/content/*.json` 快照。**M0～M3 已完成**（选型／落库／远端通路／发布命令），**M4（Excel 退役）起未做**。⭐ 2026-11-12 补完后台人眼确认：**抓出并修掉一个让「被引用方整张表点不开」的 500**（Directus 的 `meta.one_field` 反向 o2m 误判）。⭐ 同日**统一了断言编号**（计划 §10.2 的 A1~A19 为准，计划外续 A20+）＋ **后台补三项配置**（枚举下拉／必填／只读）＋ 补上「一个格位只能属于一个组」这条真实缺口。编号对照表见 [`content-assertions.md`](./content-assertions.md)，详见 §3.26／§3.27 与 [`content-admin-选型.md`](./content-admin-选型.md) |
 | 小程序工程 | `pulse-record/taro/`（Taro 4.3.2 ＋ React 18）；**原生 `miniprogram/` 原样保留作回退** |
-| 网站端 | `pulse-record/src/`（Vite ＋ React ＋ TS，单页 `App.tsx`）；③ 框内有**可折叠「用方知识库」**（p44 依脉用方全量 61 条 ＋ 讲稿方剂全量 30 方，**紧凑一行一条**：折叠只留「标题 ｜ 疗法 ｜ 方名」，**不挂 kind 徽章**，点开才见脉象图／原文／方剂卡），③ 的方名**可点进去定位 ＋ 高亮 ＋ 落点自动展开**（详见 §3.17／§3.29）；后端**仍跑本机 SQLite**（`local-data/history.sqlite`），**未接 CloudBase PG** |
+| 网站端 | `pulse-record/src/`（Vite ＋ React ＋ TS，单页 `App.tsx`）；③ 框内有**可折叠「用方知识库」**（p44 依脉用方全量 61 条 ＋ 讲稿方剂全量 30 方，**紧凑一行一条**：折叠只留「标题 ｜ 疗法 ｜ 方名」，**不挂 kind 徽章**，点开才见脉象图／原文／方剂卡），③ 的方名**可点进去定位 ＋ 高亮 ＋ 落点自动展开**（详见 §3.17／§3.29）；② 面板的「筛选分组」chip **写明口径**（「N 条用方（含常驻 M）· K 方备查」）＋ 下方一行说明，并带一个**「常驻条目（禁忌）」显示开关** —— **② 命中区与③ 知识库共用同一个开关**，默认显示、可关掉（详见 §3.30）；后端**仍跑本机 SQLite**（`local-data/history.sqlite`），**未接 CloudBase PG** |
 | 小程序包体 | 媒体资源 **119.0 KB**（底图 JPEG 116.3 KB ＋ 8 个 tabbar 图标 ≤0.4 KB）；**微信「图片和音频 > 200 K」已通过**（详见 §3.12） |
 | 模拟器回归 | `npm run test:e2e:mp:sim`（**55 项**：4 个 tab 逐页截图 ＋ **白屏判定** ＋ **包内底图运行时可读**）、`npm run test:e2e:mp:privacy`（**6 项**：隐私政策页）、`npm run test:e2e:mp:canvas`（**8 项**：**真微信 canvas 2d 出图端到端**）、`npm run test:e2e:mp:link`（**17 项**：③ 的方名 →「用方」页定位 ＋ 高亮 ＋ 锚点唯一 ＋ 真的滚过去了，详见 §3.16）；四个都会**自己先重启小程序**（bundle 是缓存的，不重启跑的是旧产物）。**2026-11-06 在 macOS 上实测四套全绿：55/55 ＋ 6/6 ＋ 8/8 ＋ 17/17 ＝ 86 项** |
 | 上线前清单 | `pulse-record/docs/miniprogram-release-checklist.md`（隐私指引勾选项＋可复制文案、服务器域名、类目截图、审核退路对照表） |
@@ -2502,3 +2502,116 @@ kindBadgesInLib 0 / plainFormulas 134 / plainFormulasWithBadge 134`。
 | `scripts/e2e/app-regression.mjs` | 新增 5 项断言（【⑧-补】段 ＋【⑧】两条自动展开） |
 | `scripts/e2e/app-library-compact-break-test.mjs` | **新建** —— 三条 mutation 证明新断言不是恒绿 |
 | `package.json` | 加 `test:e2e:app:compact:break` |
+
+---
+
+### 3.30 常驻条目开关 ＋ 筛选分组的计数口径（2026-11-12）
+
+起因：用户看着 ② 面板「筛选分组」那一行说：
+
+> **检查一下，这里方剂显示 10，可是条目就有两个，禁忌可以我来控制显示不显示。**
+
+#### 先查清事实：那两个数字量的不是同一样东西
+
+「土 · 脾 10 方」和屏上的「2 条」**谁也没错** —— 它们是**两套口径**，只是并排放在一个 chip 里，看着永远对不上。
+
+| chip 上的数字 | 量的东西 | 数据源 |
+|---|---|---|
+| **条** | ② 命中区里**本组**的依脉用方条目数（命中的规则 ＋ 常驻条目） | `RULE_ATTRIB` 的分组 |
+| **方** | **讲稿方剂 30 方**里归到本组的方数（渲染在下方「方剂备查」） | `DRUGS` 的分组 |
+
+实测（按五行，无记录时）：木·肝 0／8、火·心 0／6、土·脾 **0／10**、金·肺 0／1、水·肾 **2／5**（8＋6＋10＋1＋5＝30＝`DRUGS.length`）。
+
+⚠️ 屏幕上那 2 条**全是常驻条目（用药禁忌）**：三不用、上盛用白虎汤·下虚用肾气丸 —— **当前没有任何一条命中**。
+
+还有第三套口径：③ 知识库同一「按五行」维度的「条」是**全量 61 条**（木14 火8 土15 金2 水22）。
+同一个「条」字在两个面板里指的是不同的东西 —— 这是「看着对不上」的根因。
+
+#### 拍板（问卷 `ask_a877af6bdf52774e22bffaca`）
+
+| 项 | 决定 |
+|---|---|
+| ① chip 怎么写 | **写明口径**：「N 条用方（含常驻 M）· K 方备查」，并在 chip 行**下方加一行说明**把两个数字各指什么讲清楚 |
+| ② 常驻条目默认显不显示 | **默认显示**（讲稿第一讲的三不用是硬约束），但**可以关掉** |
+| ③ 开关管哪几处 | **② 面板 ＋ ③ 知识库共用同一个开关**（状态放 `App.tsx`），一个开关一个含义 |
+
+#### 改法
+
+- `App.tsx`：新增 `showStanding` ＋ `toggleStanding`，作为 **②③ 共用**的共享状态。
+- `Findings.tsx`（② 面板）：
+  - chip 文案改成 `N 条用方（含常驻 M）· K 方备查`；`filterChips` 多带一个 `standing` 字段（各组常驻条数）。
+  - chip 行末尾加开关按钮 `.pr-standing-toggle`（`aria-pressed`，`title` 写清关掉后影响哪两处）。
+  - chip 行下方加口径说明行 `.pr-filter-note`（只在按五行／按左右手维度出现 —— 讲稿原序没有分组 chip）。
+  - **修掉一个死条件**：原来写的是 `grouped.length === 0 && STANDING_FORMULA_RULES.length === 0`，
+    后半个条件恒为 false（常驻条目恒有 2 条）⇒ 「暂无命中的用方条目」这句话**从来没出现过**。
+    改成 `dim === 'route' && grouped.length === 0 && !showStanding` 才显示。
+- `FormulaLibrary.tsx`（③ 知识库）：
+  - 新增 `visibleRules`（关掉时滤掉 `always` 的那 2 条）—— `ruleGroups`／`ruleIndex`／头部计数**全部改用它**。
+    ⭐ `ruleIndex` 也必须跟着改：否则藏掉的条目还能被搜出来，「命中 N 条」会比实际列出来的多。
+  - 隐藏时在头部按钮**外面**加一行注记「已隐藏常驻条目（用药禁忌）2 条」
+    （放按钮里会破坏 e2e 里 `(\d+)\s*条…(\d+)\s*方` 的正则）。
+  - 工具条加同一个开关按钮。
+
+#### ⭐ 口径边界：开关只管 2 条，不管第 3 条
+
+kind＝禁忌 一共 **3** 条：
+
+| id | 是什么 | 归不归开关管 |
+|---|---|---|
+| `fx-jinji-sanyong` | 三不用（麻黄、黄连、大黄）—— 常驻，讲稿第一讲 | ✅ 管 |
+| `fx-jinji-baihu-shenqi` | 上盛用白虎汤／下虚用肾气丸 —— 常驻，讲稿第一讲 | ✅ 管 |
+| `fx2-xiajiao-rukemen` | 「寸关浮大，或有顶手的脉 → 下焦方进不去」—— **依脉象的挡路规则** | ❌ **不管** |
+
+第三条要是也被藏掉，「下焦方进不去」这类**挡路条件**就看不见了 ⇒ 不能藏。
+所以断言必须能分辨「藏掉的是哪两条」（关掉后③ 里应该**还剩 1 条**禁忌）。
+
+#### 新增断言（`app-regression.mjs`【⑩】段，11 条）
+
+| 断言 | 抓什么 |
+|---|---|
+| 默认显示：② 命中区列着 2 条常驻条目 | 开关默认状态反了 |
+| chip 写明口径（「条用方」／「方备查」），常驻条数单独标出来 | chip 文案退回旧口径 |
+| chip 下方有一行口径说明（两个数字各指什么） | 说明行没了 |
+| 口径说明里没有没渲染的 Markdown（`**` 直接露在页面上） | JSX 里的 `**` 不是粗体 |
+| ② ③ 两处都有这个开关，且都处于「显示中」 | 只做了一处／两处不同步 |
+| 关掉后② 命中区不再列常驻条目 | ② 忽略开关 |
+| 关掉后③ 知识库的常驻条目也没了（同一个开关） | ③ 忽略开关 |
+| 依脉象的禁忌条目不被这个开关藏掉（挡路条件要留着） | 藏过头 |
+| 关掉后 chip 的「条」数正好少掉常驻那几条 | chip 数没跟着变 |
+| 关掉后开关显示「已隐藏」，③ 头部注明藏了几条 | 状态没回显 |
+| 再打开，常驻条目回到② ③（开关没把东西弄丢） | 关掉之后回不来 |
+
+#### break-test（新增 `scripts/e2e/app-standing-toggle-break-test.mjs`，**28 项**）
+
+| mutation | 写坏什么 | 期望 |
+|---|---|---|
+| **F** | ③ 知识库**忽略开关** | 两条关于③ 的断言红；「② 不再列常驻条目」**仍绿**（证明不是靠同一个 mutation 顺带变红的假阳性） |
+| **G** | ② 命中区**忽略开关** | 「② 不再列常驻条目」红；两条关于③ 的**仍绿** |
+| **H** | chip 的数字**退回旧口径**（「X条 · Y方」） | 两条 chip 断言红；「默认显示：② 有 2 条常驻条目」**仍绿** |
+| **I** | 口径说明里的 `<strong>` 写回 Markdown 的 `**` | 「说明里没有没渲染的 Markdown」红；开关与计数的几条**仍绿**（只是排版写坏） |
+
+#### 验证
+
+- 网站端浏览器回归 **48 项全绿**（原 37；【⑩】段 11 项）
+- `node scripts/e2e/app-standing-toggle-break-test.mjs` → **28/28**（四条 mutation 全部被抓 ＋ 逐字节还原 ＋ 基线全绿）
+- 全量回归 `npm test` → **909 项全绿**（上一轮 898：app 37 → 48），退出码 0，0 红
+- 浏览器人眼确认（载入示例「少娟」，② 切「依脉用方」＋「按五行」）：
+  - chip：木·肝 **6 条用方** · 8 方备查／火·心 4／6／土·脾 14／10／金·肺 2／1／**水·肾 9 条用方（含常驻 2）** · 5 方备查
+  - 口径说明行渲染正常（**没有 `**` 露在页面上**）
+  - 关掉开关 ⇒ 水·肾 变 **7 条用方 · 5 方备查**（「含常驻 2」标记消失，正好少 2）、开关变「已隐藏」、
+    ③ 头部 **61 条 → 59 条**、③ 旁边出现「已隐藏常驻条目（用药禁忌）2 条」
+  - 再打开 ⇒ 全部回到原样（61 条）
+  - 控制台 0 报错 0 警告
+
+#### 这一轮新增/改动的文件
+
+| 文件 | 作用 |
+|---|---|
+| `src/App.tsx` | 新增 `showStanding` ＋ `toggleStanding`，作为 ②③ 共用的共享状态 |
+| `src/components/Findings.tsx` | chip 写明口径 ＋ 标出常驻条数；开关按钮；口径说明行；route 维度的禁忌小节随开关显隐；修掉那个恒假的空态条件 |
+| `src/components/FormulaLibrary.tsx` | 同一开关；`visibleRules` 接管分组／索引／头部计数；隐藏时的注记 |
+| `src/index.css` | `.pr-standing-toggle`（关掉只压淡、**不画删除线** —— 删除线会读成「功能没了」）、`.pr-filter-note`、`.pr-flib-tools`、`.pr-flib-standing-note` |
+| `scripts/e2e/app-regression.mjs` | 新增【⑩】段 11 项断言 |
+| `scripts/e2e/app-standing-toggle-break-test.mjs` | **新建** —— 四条 mutation 证明新断言不是恒绿 |
+| `package.json` | 加 `test:e2e:app:standing:break` |
+
