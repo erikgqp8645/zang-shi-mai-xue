@@ -1678,12 +1678,12 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`chore/desktop-electron` = `8bc151f`；`feat/wechat-miniprogram` = `623aca8`（小程序／鸿蒙／桌面端／CloudBase 线，**历史原样保留**）；**`feat/web-site` = `845b339`（网站端线，2026-11-06 从 `6ebc881` 切出）** |
 | 分支纪律 | **两条长期开发线**（2026-11-06 起）：网站端新改动走 `feat/web-site`，小程序／鸿蒙／桌面端走 `feat/wechat-miniprogram`；同源于 `6ebc881`，都**不开 PR**、都不**改写已推送的历史**。详见 `AGENTS.md`「Git 约定」 |
 | PR | #6 `chore/multi-user → main`，**OPEN**；#7 `chore/desktop-electron → chore/multi-user`，**OPEN**；`feat/wechat-miniprogram` **永不开 PR**（2026-11-06 拍板：**永不合并进 `main`**） |
-| 全量回归 | **840 项全绿**（core 40 ＋ excel 27 ＋ excel-break 28 ＋ exercise 13 ＋ taro-lint 202 ＋ taro-api 58 ＋ migration 53 ＋ auth 57 ＋ app 32 ＋ 桌面端 33 ＋ content 17 ＋ **后台核对 146（新增）** ＋ library-admin 52 ＋ rule-delete-loader 13 ＋ 鸿蒙 69）。后台那 146 项需要本地 Directus 容器在跑，**没起时明确打印「跳过」并 exit 0**（`PULSE_E2E_REQUIRE=1` 时缺容器才 exit 1 —— 跳过必须能区分于通过） |
+| 全量回归 | **898 项全绿**（core 40 ＋ excel 27 ＋ excel-break 28 ＋ exercise 13 ＋ taro-lint 202 ＋ taro-api 58 ＋ migration 53 ＋ auth 57 ＋ **app 37** ＋ 桌面端 33 ＋ content 17 ＋ **后台核对 198（新增）** ＋ library-admin 52 ＋ rule-delete-loader 13 ＋ 鸿蒙 70）。后台那 198 项需要本地 Directus 容器在跑，**没起时明确打印「跳过」并 exit 0**（`PULSE_E2E_REQUIRE=1` 时缺容器才 exit 1 —— 跳过必须能区分于通过） |
 | 教程与练习册 | **`docs/教程-如何填写用方知识库.md`**（面向审核者：分表细则 ＋ 三个完整例子 ＋ 报错对照）；**`content/示例-填写示范.xlsx`**（练习册：5 格故意留空 ＋ 标黄 ＋ 批注）＋ `npm run content:exercise:check` 逐格验收。练习册的正确答案**从真源现取**，不写死；文件名含「示例／练习／示范」的工作簿**拒绝写回真源**（详见 §3.20） |
 | 数据层 | **JSON 为唯一真源**（`src/content/*.json` **8 个文件**，新增 `symbols.json`）；**Excel 为人工编辑层**（`content/臧氏脉学-用方知识库.xlsx`，**65 个 sheet** ＝ 15 通用表 ＋ **50 张脉象图矩阵**）；TS 只留逻辑。**矩阵是脉象图的唯一编辑面**，长表由它派生。往返 20 项 ＋ 故意写坏 22 项都挂在 `npm test`。用法见 [`content-layer.md`](./content-layer.md)（详见 §3.18／§3.19） |
 | 内容层（新版 · 进行中） | **本地 `local-data/content.sqlite` ＝ 编辑真源**（17 张表 1472 行，Directus 后台可编辑）→ 发布命令 → 远端 PG `content` schema ＋ 仓库 `src/content/*.json` 快照。**M0～M3 已完成**（选型／落库／远端通路／发布命令），**M4（Excel 退役）起未做**。⭐ 2026-11-12 补完后台人眼确认：**抓出并修掉一个让「被引用方整张表点不开」的 500**（Directus 的 `meta.one_field` 反向 o2m 误判）。⭐ 同日**统一了断言编号**（计划 §10.2 的 A1~A19 为准，计划外续 A20+）＋ **后台补三项配置**（枚举下拉／必填／只读）＋ 补上「一个格位只能属于一个组」这条真实缺口。编号对照表见 [`content-assertions.md`](./content-assertions.md)，详见 §3.26／§3.27 与 [`content-admin-选型.md`](./content-admin-选型.md) |
 | 小程序工程 | `pulse-record/taro/`（Taro 4.3.2 ＋ React 18）；**原生 `miniprogram/` 原样保留作回退** |
-| 网站端 | `pulse-record/src/`（Vite ＋ React ＋ TS，单页 `App.tsx`）；③ 框内有**可折叠「用方知识库」**（p44 依脉用方全量 61 条 ＋ 讲稿方剂全量 30 方），③ 的方名**可点进去定位 ＋ 高亮**（详见 §3.17）；后端**仍跑本机 SQLite**（`local-data/history.sqlite`），**未接 CloudBase PG** |
+| 网站端 | `pulse-record/src/`（Vite ＋ React ＋ TS，单页 `App.tsx`）；③ 框内有**可折叠「用方知识库」**（p44 依脉用方全量 61 条 ＋ 讲稿方剂全量 30 方，**紧凑一行一条**：折叠只留「标题 ｜ 疗法 ｜ 方名」，**不挂 kind 徽章**，点开才见脉象图／原文／方剂卡），③ 的方名**可点进去定位 ＋ 高亮 ＋ 落点自动展开**（详见 §3.17／§3.29）；后端**仍跑本机 SQLite**（`local-data/history.sqlite`），**未接 CloudBase PG** |
 | 小程序包体 | 媒体资源 **119.0 KB**（底图 JPEG 116.3 KB ＋ 8 个 tabbar 图标 ≤0.4 KB）；**微信「图片和音频 > 200 K」已通过**（详见 §3.12） |
 | 模拟器回归 | `npm run test:e2e:mp:sim`（**55 项**：4 个 tab 逐页截图 ＋ **白屏判定** ＋ **包内底图运行时可读**）、`npm run test:e2e:mp:privacy`（**6 项**：隐私政策页）、`npm run test:e2e:mp:canvas`（**8 项**：**真微信 canvas 2d 出图端到端**）、`npm run test:e2e:mp:link`（**17 项**：③ 的方名 →「用方」页定位 ＋ 高亮 ＋ 锚点唯一 ＋ 真的滚过去了，详见 §3.16）；四个都会**自己先重启小程序**（bundle 是缓存的，不重启跑的是旧产物）。**2026-11-06 在 macOS 上实测四套全绿：55/55 ＋ 6/6 ＋ 8/8 ＋ 17/17 ＝ 86 项** |
 | 上线前清单 | `pulse-record/docs/miniprogram-release-checklist.md`（隐私指引勾选项＋可复制文案、服务器域名、类目截图、审核退路对照表） |
@@ -2412,3 +2412,93 @@ Directus 会往 `layout_query` 里塞它自己的字段，全量比对会永远�
 | `scripts/content-admin-check.mjs` | 带上视图预设／书签的核对（146 → 198） |
 | `scripts/e2e/content-admin-break.mjs` | 新增 2 类破坏用例（14 → 18）；预设也要能恢复 |
 | `docs/content-assertions.md` | 补 A28／A29 ＋ 4 条 Directus 12 新坑位 |
+
+### 3.29 用方知识库紧凑一行一条（2026-11-12）
+
+起因：用户看着网站端说「**前端用方知识库这里可以把主线删除掉平铺**」。
+
+拍板：**去掉全部 kind 徽章**，每条压成一行（**标题 ｜ 疗法 ｜ 方名**），**点开**才看脉象图／原文／方剂卡。
+（② 命中区**不动** —— 那里 kind 徽章是有用的。）
+
+#### 为什么「主线」是噪音
+
+61 条依脉用方按 `route` 分组，组标题已经把结构说清楚了
+（叁、用方／肆、依脉辨证论治／挡路一~六／头痛…）；
+kind 徽章是**重复信息**，而且最吵的那种 —— 61 条里 **28 条都是「主线」**。
+
+| kind | 条数 |
+|---|---|
+| 主线 | 28 |
+| 挡路 | 22 |
+| 加味 | 8 |
+| 禁忌 | 3 |
+
+⚠️ kind **没有丢**：左侧色条仍按 kind 着色（`.pr-formula.is-主线` 等规则照旧生效），颜色区分保留。
+
+#### 改法
+
+- `FormulaItem` 与 `DrugCard` 各加一个 `compact` 开关：
+  折叠时只留一行摘要（**标题 ｜ 疗法 ｜ 方名**），点开才出
+  **脉象图（带「编辑」）／原文／方剂卡／组成剂量／出处**。
+- 两种版式**共用同一份详情区**（`detail` 片段）——「能合成一个来源的，绝不留在两处」。
+- 讲稿方剂 **30 方**同样紧凑（原来 30 张厚卡片，每张六行原文）。
+- 折叠行是 `<button>`（可键盘操作、`aria-expanded`），**行内只放 phrasing 内容** ——
+  方名 chip 用 `<span>` 而不是 `<p>`（`<p>` 放进 `<button>` 是无效 HTML）。
+
+#### 踩到的坑：落点自动展开（讲稿方剂那条是折着的）
+
+③ 的方名点进来要落到知识库那一条。**规则条目那一次就对了，讲稿方剂那条却折着。**
+
+原因：知识库是**整块渲染**的 —— 第一次跳转就把 61＋30 条全挂上了，那会儿 `autoOpen` 还是 `false`；
+后来焦点才移到方剂那条，而 **`useState` 的初值只在首次挂载时读一次** ⇒ 不会再读一遍。
+
+规则条目之所以没事，是因为它是**第一次跳转时新挂载**的，初值恰好读到了 `true`。
+
+修法：跟随 `autoOpen` 展开（`useEffect(() => { if (autoOpen) setOpen(true) }, [autoOpen])`），
+两个组件（`FormulaItem` / `DrugCard`）都加。
+
+#### 新增断言（`app-regression.mjs`【⑧-补】段 ＋【⑧】两条）
+
+| 断言 | 抓什么 |
+|---|---|
+| 落点那一条自动展开（不用再点一下才看得到脉象图） | `autoOpen` 整体失效 |
+| 讲稿方剂落点那一条也自动展开 | 同上，且专抓「焦点后到」那个坑 |
+| 紧凑后一条不少（依脉用方 ＋ 讲稿方剂都还在） | 紧凑化时把条目改没了 |
+| 知识库里不再出现 kind 徽章（主线／挡路／加味／禁忌） | 徽章没去掉 |
+| ② 命中区仍带 kind 徽章（只改知识库，没把命中区一起改掉） | 改过头，把命中区也改了 |
+
+实测数字（`按五行` 维度下）：`declaredRules 61 / declaredDrugs 30 / compactRules 61 / compactDrugs 30 /
+kindBadgesInLib 0 / plainFormulas 134 / plainFormulasWithBadge 134`。
+
+#### break-test（新增 `scripts/e2e/app-library-compact-break-test.mjs`，18 项）
+
+| mutation | 写坏什么 | 期望 |
+|---|---|---|
+| **C** | 紧凑行里加回 kind 徽章 | 「知识库无徽章」红；「命中区仍带徽章」**仍绿**（证明不是靠同一个 mutation 顺带变红的假阳性） |
+| **D** | 去掉两个 `autoOpen` | 两条「落点自动展开」都红 |
+| **E** | **只**去掉跟随 `autoOpen` 展开的 `useEffect`（保留 `useState` 初值） | 「讲稿方剂落点自动展开」红；「落点自动展开」**仍绿** |
+
+⭐ **E 是关键**：它精确复现了 2026-11-12 真踩过的那个坑（规则条目仍绿、方剂条目红），
+证明「讲稿方剂落点自动展开」那条**不是**跟着规则条目顺带变绿的摆设。
+
+⚠️ E **不能整段删掉** `useEffect` —— 删了 import 就没人用，TS 报 `TS6133`，
+**编译直接失败**，回归根本跑不到断言那条 ⇒ 测的不是东西。留一个空壳才测得到。
+
+#### 验证
+
+- 网站端浏览器回归 **37 项全绿**（原 31；【⑧-补】段 5 项）
+- `node scripts/e2e/app-library-compact-break-test.mjs` → **18/18**（三条 mutation 全部被抓 ＋ 逐字节还原 ＋ 基线全绿）
+- 浏览器人眼确认：折叠态一行一条（无徽章）、点开见脉象图＋编辑按钮＋原文＋方剂卡、
+  搜索「右寸」命中正常（p44 按 route 计数／讲稿方剂 22 中 7／另见 p42 3 条）、控制台 0 报错
+- 全量回归 `npm test` → **898 项全绿**（上一轮 893：app 32 → 37），退出码 0，0 红
+
+#### 这一轮新增/改动的文件
+
+| 文件 | 作用 |
+|---|---|
+| `src/components/Findings.tsx` | `FormulaItem` / `DrugCard` 加 `compact` ＋ `autoOpen`；两种版式共用一份详情区 |
+| `src/components/FormulaLibrary.tsx` | 知识库改用紧凑态；落点自动展开 |
+| `src/index.css` | 紧凑行／展开区／方剂行的样式（`.pr-formula-compact` 等） |
+| `scripts/e2e/app-regression.mjs` | 新增 5 项断言（【⑧-补】段 ＋【⑧】两条自动展开） |
+| `scripts/e2e/app-library-compact-break-test.mjs` | **新建** —— 三条 mutation 证明新断言不是恒绿 |
+| `package.json` | 加 `test:e2e:app:compact:break` |

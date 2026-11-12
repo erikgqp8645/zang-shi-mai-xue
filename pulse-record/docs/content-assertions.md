@@ -84,7 +84,17 @@
 | 脚本 | 抓什么坏 | 项数 |
 |---|---|---|
 | `scripts/e2e/content-schema-break.mjs` | 内容层的坏数据（往**临时副本**里注入） | 17 |
-| `scripts/e2e/content-admin-break.mjs` | 后台的坏配置（**真的改**本地后台，跑完恢复） | 14 |
+| `scripts/e2e/content-admin-break.mjs` | 后台的坏配置（**真的改**本地后台，跑完恢复） | 18 |
+
+**前端／界面那条线**（不在 A 编号里 —— 那些是内容层的断言）：
+
+| 脚本 | 抓什么坏 | 项数 |
+|---|---|---|
+| `scripts/e2e/app-nested-button-break-test.mjs` | ② 定疗法里的**嵌套 button** 与**点击冒泡** | 12 |
+| `scripts/e2e/app-library-compact-break-test.mjs` | 「用方知识库紧凑态」：kind 徽章没去掉／落点不自动展开／**焦点后到**那个坑 | 18 |
+| `scripts/e2e/library-admin-break-test.mjs` | 管理员覆盖层的九种坏法 | 9 |
+| `scripts/e2e/rule-delete-loader-break-test.mjs` | 装载器静默降级 | 2 |
+| `scripts/e2e/excel_roundtrip_break.py` | Excel 往返丢数据 | — |
 
 两条铁律：
 - **新增/修改断言必须先「故意写坏」验证能抓到**，才允许合并。
