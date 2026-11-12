@@ -20,6 +20,12 @@
  * 跑法：node scripts/e2e/library-admin.mjs
  *
  * ⚠️ 全程只在**临时库 ＋ 临时内容目录**上操作，绝不碰仓库里的 src/content/*.json。
+ *
+ * ⭐ **本文件的编号带 `LA` 前缀**（LA = LibraryAdmin，覆盖层这条线）。
+ *    早先 A 段用的是裸 `A1`~`A4`，跟内容层断言的 `A1`~`A4`（实施计划 §10.2）
+ *    **撞号** —— 同一个编号在两处讲两件事，grep 一次就分不清是哪条线的。
+ *    计划 §10.2 的 A1~A19 留给内容层，本文件一律 `LA*`。
+ *    完整对照表见 `docs/content-assertions.md`。
  */
 
 import { spawnSync } from 'node:child_process'
@@ -128,12 +134,12 @@ async function dropRow(kind, itemId) {
 /* A 段：空状态                                                        */
 /* ------------------------------------------------------------------ */
 
-await check('A1 空覆盖层自检通过', async () => {
+await check('LA1 空覆盖层自检通过', async () => {
   const r = cli(['verify'])
   return [r.code === 0 && r.out.includes('自检通过'), `exit=${r.code} ${r.out.slice(0, 200)}`]
 })
 
-await check('A2 apply --dry-run 不写盘', async () => {
+await check('LA2 apply --dry-run 不写盘', async () => {
   const before = tempBytes()
   const r = apply(['--dry-run'])
   const after = tempBytes()
@@ -141,7 +147,7 @@ await check('A2 apply --dry-run 不写盘', async () => {
   return [r.code === 0 && same && r.out.includes('没有写盘'), `exit=${r.code} same=${same}`]
 })
 
-await check('A3 空覆盖层 apply：内容文件逐字节未变', async () => {
+await check('LA3 空覆盖层 apply：内容文件逐字节未变', async () => {
   const before = tempBytes()
   const r = apply()
   const after = tempBytes()
@@ -149,7 +155,7 @@ await check('A3 空覆盖层 apply：内容文件逐字节未变', async () => {
   return [r.code === 0 && same, `exit=${r.code} same=${same}`]
 })
 
-await check('A4 apply 之后内容文件里没有多出后端自己加的顶层键', async () => {
+await check('LA4 apply 之后内容文件里没有多出后端自己加的顶层键', async () => {
   // 后端不许往内容文件里塞自己的东西（写入时间戳、内部标记之类）——
   // 那会让「apply 幂等」变成一句空话。
   applyFresh()

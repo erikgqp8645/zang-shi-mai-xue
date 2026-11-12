@@ -18,14 +18,24 @@
  *
  * ## 注入的坏配置
  *
- * A7（关系元数据）
- *   ① 给关系填上 `meta.one_field` → 被引用方集合的列表接口 500（被 A6 抓到）
- * A8（字段界面）
+ * A22（关系元数据）
+ *   ① 给关系填上 `meta.one_field` → 被引用方集合的列表接口 500（被 A21 抓到）
+ *   ④ 给「计划外的残留关系」填上 `meta.one_field`
+ * A23（字段界面）
  *   ② 把 M2O 字段的界面改成普通输入 → 关系字段不再是下拉
- * A9（显示字段）
+ * A24（显示字段）
  *   ③ 把集合的 `display_template` 改错 → 下拉里显示 id 而不是人话
+ * A25（枚举下拉）
+ *   ⑤ 把枚举选项改错（多一项）
+ *   ⑥ 把枚举选项存成**数组**（Directus 12 的形状是对象）→ 下拉读不到
+ *   ⑦ 把 `allowOther` 打开 → 又多了一个「能随便填」的取值来源
+ * A26（必填校验）
+ *   ⑧ 把 NOT NULL 列的必填标记关掉
+ * A27（派生键只读）
+ *   ⑨ 把派生代理键的只读关掉 → 用户能手改算出来的键
  *
- * ④ 反向：没改坏时必须**一条都不报**（防假绿）。
+ * ⑩ 反向：没改坏时必须**一条都不报**（防假绿）。
+ * ⑪ 恢复原状后必须重新全绿（防「改坏了就回不来」）。
  *
  * ⚠️ 本测试会**真的改**本地后台的配置，跑完必须恢复原状。
  *    后台没起来时按 `pg-store.mjs` 的老规矩：明确打印「跳过」并 exit 0，
@@ -35,15 +45,20 @@
 import { tableDefs } from '../lib/content-schema.mjs'
 import { createAdminClient, pingAdmin } from '../lib/content-admin-client.mjs'
 import {
-  displayTemplate,
   plannedDisplayFields,
+  plannedEnums,
+  plannedReadonly,
   plannedRelations,
+  plannedRequired,
 } from '../lib/content-admin-plan.mjs'
 import {
   checkAdminReadable,
   checkDisplayTemplates,
+  checkEnumDropdowns,
   checkFieldInterfaces,
+  checkReadonlyDerived,
   checkRelationsNoOneField,
+  checkRequiredFlags,
 } from '../lib/content-admin-checks.mjs'
 
 let failures = 0
@@ -62,6 +77,9 @@ function ok(cond, msg) {
 const defs = tableDefs()
 const { relations, plainText } = plannedRelations(defs)
 const displayFields = plannedDisplayFields(defs, relations)
+const enums = plannedEnums(defs)
+const required = plannedRequired(defs)
+const readonly = plannedReadonly(defs)
 const tables = defs.map((d) => d.table)
 const plan = {
   tables,
@@ -69,6 +87,9 @@ const plan = {
   relations,
   plainText,
   displayFields,
+  enums,
+  required,
+  readonly,
 }
 
 const client = createAdminClient()
@@ -102,50 +123,47 @@ if (!loginRes.ok) {
 
 const api = client.api
 
+/** 跑一遍全部断言（反向检查与「恢复后」都用它） */
+async function runAll() {
+  return [
+    ...(await checkAdminReadable(api, plan)),
+    ...(await checkRelationsNoOneField(api, relations)),
+    ...(await checkFieldInterfaces(api, relations, plainText)),
+    ...(await checkDisplayTemplates(api, displayFields)),
+    ...(await checkEnumDropdowns(api, enums)),
+    ...(await checkRequiredFlags(api, required)),
+    ...(await checkReadonlyDerived(api, readonly)),
+  ]
+}
+
 /* ------------------------------------------------------------------ *
  * 快照：坏之前先记住原样，好还原
  * ------------------------------------------------------------------ */
 
 const snapshots = []
+const seen = new Set()
+async function snapshot(kind, path) {
+  if (seen.has(path)) return
+  seen.add(path)
+  const r = await api(path)
+  snapshots.push({ kind, path, meta: r.json?.data?.meta ?? null })
+}
+
 for (const rel of relations) {
-  const r = await api(`/relations/${rel.manyCollection}/${rel.manyField}`)
-  snapshots.push({
-    kind: 'relation',
-    path: `/relations/${rel.manyCollection}/${rel.manyField}`,
-    meta: r.json?.data?.meta ?? null,
-  })
+  await snapshot('relation', `/relations/${rel.manyCollection}/${rel.manyField}`)
+  await snapshot('field', `/fields/${rel.manyCollection}/${rel.manyField}`)
 }
 for (const df of displayFields) {
-  const r = await api(`/collections/${df.collection}`)
-  snapshots.push({
-    kind: 'collection',
-    path: `/collections/${df.collection}`,
-    meta: r.json?.data?.meta ?? null,
-  })
+  await snapshot('collection', `/collections/${df.collection}`)
 }
-for (const rel of relations) {
-  const r = await api(`/fields/${rel.manyCollection}/${rel.manyField}`)
-  snapshots.push({
-    kind: 'field',
-    path: `/fields/${rel.manyCollection}/${rel.manyField}`,
-    meta: r.json?.data?.meta ?? null,
-  })
-}
-// 计划外的残留关系也要能恢复（它的 one_field 也必须被抹平）
 for (const pt of plainText) {
-  const r = await api(`/relations/${pt.manyCollection}/${pt.manyField}`)
-  snapshots.push({
-    kind: 'relation',
-    path: `/relations/${pt.manyCollection}/${pt.manyField}`,
-    meta: r.json?.data?.meta ?? null,
-  })
-  const f = await api(`/fields/${pt.manyCollection}/${pt.manyField}`)
-  snapshots.push({
-    kind: 'field',
-    path: `/fields/${pt.manyCollection}/${pt.manyField}`,
-    meta: f.json?.data?.meta ?? null,
-  })
+  // 计划外的残留关系也要能恢复（它的 one_field 也必须被抹平）
+  await snapshot('relation', `/relations/${pt.manyCollection}/${pt.manyField}`)
+  await snapshot('field', `/fields/${pt.manyCollection}/${pt.manyField}`)
 }
+for (const e of enums) await snapshot('field', `/fields/${e.collection}/${e.field}`)
+for (const rq of required) await snapshot('field', `/fields/${rq.collection}/${rq.field}`)
+for (const ro of readonly) await snapshot('field', `/fields/${ro.collection}/${ro.field}`)
 
 async function restore() {
   for (const s of snapshots) {
@@ -158,16 +176,16 @@ async function restore() {
  * 跑
  * ------------------------------------------------------------------ */
 
-console.log(`[content-admin-break] 后台 ${client.url}｜${relations.length} 条关系 / ${plainText.length} 个文本字段 / ${displayFields.length} 个显示字段 / ${tables.length} 张表\n`)
+console.log(
+  `[content-admin-break] 后台 ${client.url}｜${relations.length} 条关系 / ${plainText.length} 个文本字段 / ` +
+    `${displayFields.length} 个显示字段 / ${enums.length} 个枚举列 / ` +
+    `${required.length} 个必填列 / ${readonly.length} 个只读列 / ${tables.length} 张表\n`,
+)
 
 try {
   console.log('⓪ 反向：好配置必须一条都不报（防假绿）')
   {
-    const p1 = await checkAdminReadable(api, plan)
-    const p2 = await checkRelationsNoOneField(api, relations)
-    const p3 = await checkFieldInterfaces(api, relations, plainText)
-    const p4 = await checkDisplayTemplates(api, displayFields)
-    const all = [...p1, ...p2, ...p3, ...p4]
+    const all = await runAll()
     ok(all.length === 0, `好配置无告警（实际 ${all.length} 条）`)
     for (const p of all) console.log(`      · [${p.id}] ${p.msg}`)
   }
@@ -184,12 +202,12 @@ try {
         body: { meta: { one_field: rel.oneField } },
       })
       const readable = await checkAdminReadable(api, plan)
-      const hit = readable.filter((p) => p.id === 'A6')
-      ok(hit.length > 0, `→ 必须被 [A6] 抓到（实际抓到 ${hit.length} 条）`)
+      const hit = readable.filter((p) => p.id === 'A21')
+      ok(hit.length > 0, `→ 必须被 [A21] 抓到（实际抓到 ${hit.length} 条）`)
       for (const p of hit) console.log(`      · ${p.msg}`)
 
-      const relHit = (await checkRelationsNoOneField(api, relations)).filter((p) => p.id === 'A7')
-      ok(relHit.length > 0, `→ 同时必须被 [A7] 抓到（实际抓到 ${relHit.length} 条）`)
+      const relHit = (await checkRelationsNoOneField(api, relations)).filter((p) => p.id === 'A22')
+      ok(relHit.length > 0, `→ 同时必须被 [A22] 抓到（实际抓到 ${relHit.length} 条）`)
     }
   }
 
@@ -201,8 +219,8 @@ try {
       method: 'PATCH',
       body: { meta: { interface: 'input', special: null } },
     })
-    const hit = (await checkFieldInterfaces(api, relations, plainText)).filter((p) => p.id === 'A8')
-    ok(hit.length > 0, `→ 必须被 [A8] 抓到（实际抓到 ${hit.length} 条）`)
+    const hit = (await checkFieldInterfaces(api, relations, plainText)).filter((p) => p.id === 'A23')
+    ok(hit.length > 0, `→ 必须被 [A23] 抓到（实际抓到 ${hit.length} 条）`)
     for (const p of hit) console.log(`      · ${p.msg}`)
   }
 
@@ -214,8 +232,8 @@ try {
       method: 'PATCH',
       body: { meta: { display_template: '{{__wrong__}}' } },
     })
-    const hit = (await checkDisplayTemplates(api, displayFields)).filter((p) => p.id === 'A9')
-    ok(hit.length > 0, `→ 必须被 [A9] 抓到（实际抓到 ${hit.length} 条）`)
+    const hit = (await checkDisplayTemplates(api, displayFields)).filter((p) => p.id === 'A24')
+    ok(hit.length > 0, `→ 必须被 [A24] 抓到（实际抓到 ${hit.length} 条）`)
     for (const p of hit) console.log(`      · ${p.msg}`)
   }
 
@@ -230,21 +248,95 @@ try {
         method: 'PATCH',
         body: { meta: { one_field: pt.oneField } },
       })
-      const hit = (await checkRelationsNoOneField(api, relations)).filter((p) => p.id === 'A7')
-      ok(hit.length > 0, `→ 必须被 [A7] 抓到（实际抓到 ${hit.length} 条）`)
+      const hit = (await checkRelationsNoOneField(api, relations)).filter((p) => p.id === 'A22')
+      ok(hit.length > 0, `→ 必须被 [A22] 抓到（实际抓到 ${hit.length} 条）`)
       for (const p of hit) console.log(`      · ${p.msg}`)
     }
   }
 
   console.log('')
-  console.log('⑤ 恢复原状后必须重新全绿')
+  console.log('⑤ 故意写坏：枚举下拉的选项多一项')
+  {
+    const e = enums[0]
+    await api(`/fields/${e.collection}/${e.field}`, {
+      method: 'PATCH',
+      body: {
+        meta: {
+          interface: 'select-dropdown',
+          options: {
+            allowOther: false,
+            choices: [...e.choices, { text: '多出来的', value: '多出来的' }],
+          },
+        },
+      },
+    })
+    const hit = (await checkEnumDropdowns(api, enums)).filter((p) => p.id === 'A25')
+    ok(hit.length > 0, `→ 必须被 [A25] 抓到（实际抓到 ${hit.length} 条）`)
+    for (const p of hit) console.log(`      · ${p.msg}`)
+  }
+
+  console.log('')
+  console.log('⑥ 故意写坏：枚举选项存成数组（Directus 12 的形状是对象）')
+  {
+    const e = enums[0]
+    await api(`/fields/${e.collection}/${e.field}`, {
+      method: 'PATCH',
+      body: { meta: { interface: 'select-dropdown', options: e.choices } },
+    })
+    const hit = (await checkEnumDropdowns(api, enums)).filter((p) => p.id === 'A25')
+    ok(hit.length > 0, `→ 必须被 [A25] 抓到（实际抓到 ${hit.length} 条）`)
+    for (const p of hit) console.log(`      · ${p.msg}`)
+  }
+
+  console.log('')
+  console.log('⑦ 故意写坏：把 allowOther 打开（多了一个能随便填的取值来源）')
+  {
+    const e = enums[0]
+    await api(`/fields/${e.collection}/${e.field}`, {
+      method: 'PATCH',
+      body: {
+        meta: {
+          interface: 'select-dropdown',
+          options: { allowOther: true, choices: e.choices },
+        },
+      },
+    })
+    const hit = (await checkEnumDropdowns(api, enums)).filter((p) => p.id === 'A25')
+    ok(hit.length > 0, `→ 必须被 [A25] 抓到（实际抓到 ${hit.length} 条）`)
+    for (const p of hit) console.log(`      · ${p.msg}`)
+  }
+
+  console.log('')
+  console.log('⑧ 故意写坏：把 NOT NULL 列的必填标记关掉')
+  {
+    const rq = required[0]
+    await api(`/fields/${rq.collection}/${rq.field}`, {
+      method: 'PATCH',
+      body: { meta: { required: false } },
+    })
+    const hit = (await checkRequiredFlags(api, required)).filter((p) => p.id === 'A26')
+    ok(hit.length > 0, `→ 必须被 [A26] 抓到（实际抓到 ${hit.length} 条）`)
+    for (const p of hit) console.log(`      · ${p.msg}`)
+  }
+
+  console.log('')
+  console.log('⑨ 故意写坏：把派生代理键的只读关掉')
+  {
+    const ro = readonly[0]
+    await api(`/fields/${ro.collection}/${ro.field}`, {
+      method: 'PATCH',
+      body: { meta: { readonly: false } },
+    })
+    const hit = (await checkReadonlyDerived(api, readonly)).filter((p) => p.id === 'A27')
+    ok(hit.length > 0, `→ 必须被 [A27] 抓到（实际抓到 ${hit.length} 条）`)
+    for (const p of hit) console.log(`      · ${p.msg}`)
+  }
+
+  console.log('')
+  console.log('⑩ 恢复原状后必须重新全绿')
   {
     await restore()
-    const p1 = await checkAdminReadable(api, plan)
-    const p2 = await checkRelationsNoOneField(api, relations)
-    const p3 = await checkFieldInterfaces(api, relations, plainText)
-    const p4 = await checkDisplayTemplates(api, displayFields)
-    const all = [...p1, ...p2, ...p3, ...p4]
+    const all = await runAll()
     ok(all.length === 0, `恢复后无告警（实际 ${all.length} 条）`)
     for (const p of all) console.log(`      · [${p.id}] ${p.msg}`)
   }

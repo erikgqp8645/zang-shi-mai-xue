@@ -29,14 +29,20 @@
  * A2（格位）
  *   ⑧ 格位少一行      → 一张图不是 18 行
  *   ⑨ seq 不连续      → seq 跳号
- * A3（组号）
+ * A3（组号 / 单一编号空间）
  *   ⑩ 组号跳号        → 组号不是一个编号空间（1,3 缺 2）
+ *   ⑭ 一个格位被两组同时认领 → (部位,取法,左右) 重复（这三条原来抓不到）
  * A4（用字 ↔ 组号）
- *   ⑪ 有用字没组号    → 这一格被悄悄丢出任何组，图上还留着用字
- * RT（往返）
- *   ⑫ 库里内容被改了  → 库 ≠ 源 JSON，导出即漂移
+ *   ⑬ 有用字没组号    → 这一格被悄悄丢出任何组，图上还留着用字
+ * A8（往返）
+ *   ⑮ 库里内容被改了  → 库 ≠ 源 JSON，导出即漂移
+ * A20（派生代理主键）
+ *   ⑯ 派生键被手改    → id 与「父键|序号」对不上
  *
- * ⑬ 反向：没改坏时必须**一条都不报**（防假绿）。
+ * ⑰ 反向：没改坏时必须**一条都不报**（防假绿）。
+ *
+ * ⭐ 编号以实施计划 §10.2 的 A1~A19 为准；计划外的从 A20 起往后排。
+ *    完整对照表见 `docs/content-assertions.md`。
  *
  * ⭐ 注入点**按结构定位**（找列、按内容找行），
  *    不靠硬编码行号/列号 —— 表结构一变就会失效。
@@ -236,8 +242,27 @@ const CASES = [
     },
   },
   {
-    id: 'RT',
-    name: '⑭ 库里内容被改了（库 ≠ 源 JSON，导出即漂移）',
+    id: 'A3',
+    name: '⑭ 一个格位被两组同时认领（(部位,取法,左右) 重复 —— 组号不是一个编号空间）',
+    apply: (db) => {
+      // 把某张图的一个「R」格改成「L」——
+      // 同一张图里 9 部位×取法 × 左右 本来左右各一格，改完就有两格同键了。
+      // 这条**原来抓不到**：行数还是 18、seq 还是连续、组号也还连续。
+      const row = db
+        .prepare(
+          `SELECT "pattern_id", "seq" FROM "content_pulse_cells"
+           WHERE "side" = 'R' ORDER BY "pattern_id", "seq" LIMIT 1`,
+        )
+        .get()
+      if (!row) throw new Error('找不到「R」侧格位（注入点失效）')
+      db.prepare(
+        'UPDATE "content_pulse_cells" SET "side" = \'L\' WHERE "pattern_id" = ? AND "seq" = ?',
+      ).run(row.pattern_id, row.seq)
+    },
+  },
+  {
+    id: 'A8',
+    name: '⑮ 库里内容被改了（库 ≠ 源 JSON，导出即漂移）',
     apply: (db) => {
       db.prepare('UPDATE "content_pulse_patterns" SET "title" = ? WHERE "id" = ?').run(
         '被偷偷改过的图名',
@@ -246,8 +271,8 @@ const CASES = [
     },
   },
   {
-    id: 'A5',
-    name: '⑮ 派生代理主键被手改了（id 与「父键|序号」对不上）',
+    id: 'A20',
+    name: '⑯ 派生代理主键被手改了（id 与「父键|序号」对不上）',
     apply: (db) => {
       db.prepare(
         'UPDATE "content_pulse_cells" SET "id" = ? WHERE "pattern_id" = ? AND "seq" = 0',
@@ -264,7 +289,7 @@ const content = loadContent(CONTENT_DIR)
 const tmpRoot = mkdtempSync(join(tmpdir(), 'pulse-content-break-'))
 
 try {
-  console.log('⑮ 反向：好库必须一条都不报（防假绿）')
+  console.log('⑰ 反向：好库必须一条都不报（防假绿）')
   {
     const { db, path } = buildFreshDb(join(tmpRoot, 'good.sqlite'), content)
     const problems = runChecks(db, content)

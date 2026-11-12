@@ -1,5 +1,5 @@
 /**
- * 内容层的不变量校验（断言 A1~A4 ＋ 往返）
+ * 内容层的不变量校验（断言 A1~A4、A8、A9、A20）
  *
  * ## 为什么要单独一个模块
  *
@@ -12,8 +12,15 @@
  * ## ⭐ 结论的形状
  *
  * 每条结论是 `{ id, msg }`，**不是裸字符串**。`id` 是机器可读的断言编号
- * （`A1`／`A2`／`A3`／`A4`／`RT`），调用方按 `id` 判定「哪条断言抓到了」，
+ * （`A1`／`A2`／`A3`／`A4`／`A8`／`A9`／`A20`），调用方按 `id` 判定「哪条断言抓到了」，
  * 不靠 `msg` 文案匹配 —— 文案会改，`id` 不会。
+ *
+ * ## ⭐ 编号以实施计划 §10.2 的 A1~A19 为准（唯一来源）
+ *
+ * · 计划里有的 ⇒ 用计划编号，语义不许偏
+ * · 计划里没有的 ⇒ 从 **A20** 起往后续，**不占用计划编号**
+ *
+ * 完整对照表见 `docs/content-assertions.md`。
  */
 
 import { buildContentFromRows, buildRows, canonicalJson, qi, tableDefs } from './content-schema.mjs'
@@ -134,6 +141,16 @@ export function checkSchemaVsDb(db) {
  *  · A2 每张图固定 18 行（9 部位×取法 × 左右），seq 连续
  *  · A3 组号是**一个共用编号空间**里的组序号（1..N 连续，不允许左右各一套）
  *  · A4 填了用字或符号就必须有组号
+ *
+ * ⭐ A3 同时并入实施计划 §10.2 的 **A19**（「组号只有一个编号空间」）：
+ *    计划里 A3 与 A19 讲的是同一件事的两种说法（都在抓「左右被当成独立编号空间」），
+ *    合并成一条，不在两处各留一份。
+ *
+ * ⭐ A3 里那条「格位三元组唯一」是**计划 A19 的实质内容**，也是真实的缺口：
+ *    一个格位（部位×取法×左右）只能属于一个组。
+ *    落库时 `groupOf.set(格位, 组号)` 是**后写覆盖先写** ——
+ *    源 JSON 里同一个格位出现在两个组里，落库会**静默取最后一个**，
+ *    组号连续性照样通过 ⇒ 没有这条断言就抓不到。
  */
 export function checkCells(db) {
   const problems = []
@@ -154,6 +171,21 @@ export function checkCells(db) {
     const expected = Array.from({ length: 18 }, (_, i) => i)
     if (seqs.join(',') !== expected.join(',')) {
       fail('A2', `${p.id} 的 seq 不连续`)
+    }
+    // ⭐ A19：一个格位只能属于一个组 —— 同一张图里 (部位,取法,左右) 不能重复。
+    //    这条**原来没有**：seq 连续 + 行数 18 都过，但一个格位被两组同时认领也过得去。
+    const cellKeys = new Map()
+    for (const r of mine) {
+      const key = `${r.organ}|${r.depth}|${r.side}`
+      if (cellKeys.has(key)) {
+        fail(
+          'A3',
+          `${p.id} 的格位「${key}」出现了两次（seq ${cellKeys.get(key)} 与 ${r.seq}）` +
+            `—— 一个格位只能属于一个组，组号是一个共用编号空间`,
+        )
+      } else {
+        cellKeys.set(key, r.seq)
+      }
     }
   }
   for (const r of rows) {
@@ -184,11 +216,15 @@ export function checkCells(db) {
 }
 
 /**
- * A5：派生代理主键 `id` 与它的派生规则一致
+ * A20：派生代理主键 `id` 与它的派生规则一致
  *
  * 复合键的表（连接表、格位表）都带一个派生的 `id`（＝「父键|序号」）。
  * 这个 `id` 是**算出来的**，不是内容 —— 一旦有人手改了它，
  * 「父键＋序号」和 `id` 就会对不上 ⇒ 断言必须抓到。
+ *
+ * ⚠️ 编号是 **A20**（计划外）：实施计划 §10.2 的 A5 是「API content 包 == 远端 PG」，
+ *    在 `scripts/e2e/content-pg.mjs` 里，跟这条完全是两回事 ——
+ *    早先两边都叫 A5，撞车了。计划外的编号一律从 A20 起往后排。
  */
 export function checkDerivedIds(db) {
   const problems = []
@@ -200,7 +236,7 @@ export function checkDerivedIds(db) {
     for (const r of db.prepare(`SELECT * FROM ${qi(def.table)}`).all()) {
       const want = columns.map((c) => String(r[c] ?? '')).join(separator)
       if (r.id !== want) {
-        fail('A5', `${def.table} 的 id 与派生规则不符：期望「${want}」，实际「${r.id}」`)
+        fail('A20', `${def.table} 的 id 与派生规则不符：期望「${want}」，实际「${r.id}」`)
       }
     }
   }
@@ -211,9 +247,14 @@ export function checkDerivedIds(db) {
 const norm = canonicalJson
 
 /**
- * 往返：库 → JSON 是否与源 JSON 一致（逐字段）
+ * A8：库 → JSON 是否与**源 JSON** 一致（逐字段）
  *
  * 这条同时验了三件事：落库函数没丢字段、库结构没漂移、导出函数没丢字段。
+ *
+ * ⭐ 编号是 **A8**（实施计划 §10.2：「JSON 快照 == 本地库」）：
+ *    `content-seed.mjs --check` 读的「源 JSON」就是仓库里的 `src/content/*.json`
+ *    —— 那**就是**内容层的快照文件 ⇒ 这条正是计划 A8 说的那件事。
+ *    早先它叫 `RT`，跟计划对不上号，已改正。
  */
 export function checkRoundTrip(db, content) {
   const problems = []
@@ -230,7 +271,7 @@ export function checkRoundTrip(db, content) {
     const b = JSON.stringify(norm(content[key]))
     if (a !== b) {
       problems.push({
-        id: 'RT',
+        id: 'A8',
         msg: `往返不一致：${key}\n    源：${b.slice(0, 300)}\n    回：${a.slice(0, 300)}`,
       })
     }
@@ -239,18 +280,20 @@ export function checkRoundTrip(db, content) {
 }
 
 /**
- * 往返：库 → JSON → 库 是否逐字段一致（**无损**）
+ * A9：库 → JSON → 库 是否逐字段一致（**无损**）
  *
- * ## 跟 checkRoundTrip 的区别
+ * ## 跟 checkRoundTrip（A8）的区别
  *
- *   · `checkRoundTrip`     —— 库 回读出来的 JSON == **源 JSON 文件**。
+ *   · `checkRoundTrip`（A8） —— 库 回读出来的 JSON == **源 JSON 文件**。
  *                             用于「刚灌完库」的场景（源还是那个源）。
- *   · `checkRoundTripLossless` —— 库 → JSON → 再灌回库 == 原库。
+ *   · `checkRoundTripLossless`（A9） —— 库 → JSON → 再灌回库 == 原库。
  *                             用于**发布**场景：库里已经是改过的稿，
  *                             源 JSON 文件是**上一版的快照**（本来就不该相等）。
  *
  * 发布的本质就是「库 → JSON 快照 → 远端」，所以这条才是发布前该守的不变量：
  * **导出会不会丢字段**。
+ *
+ * ⭐ 编号是 **A9**（实施计划 §10.2：「本地库 → JSON → 读回 → 逐字段一致」）。
  *
  * @param {object} db 内容库
  * @returns {{id: string, msg: string}[]} 问题清单（空 = 通过）
@@ -274,7 +317,7 @@ export function checkRoundTripLossless(db) {
     const b = again[def.table] || []
     if (a.length !== b.length) {
       problems.push({
-        id: 'RTL',
+        id: 'A9',
         msg: `往返丢行：${def.table} 库里有 ${a.length} 行，JSON 回灌后 ${b.length} 行`,
       })
       continue
@@ -290,7 +333,7 @@ export function checkRoundTripLossless(db) {
           (c.type === 'bool' && Boolean(va) === Boolean(vb))
         if (same) continue
         problems.push({
-          id: 'RTL',
+          id: 'A9',
           msg: `往返改字段：${def.table}.${c.name} 第 ${i + 1} 行 库=${JSON.stringify(va)} 回灌=${JSON.stringify(vb)}`,
         })
       }

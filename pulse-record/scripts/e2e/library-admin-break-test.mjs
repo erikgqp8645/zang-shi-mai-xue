@@ -218,7 +218,7 @@ const MUTATIONS = [
       },
     ],
     expectRed: [
-      'A4 apply 之后内容文件里没有多出后端自己加的顶层键',
+      'LA4 apply 之后内容文件里没有多出后端自己加的顶层键',
       'B5 apply 幂等：跑两次，第二次一个字节都不变',
     ],
     expectGreen: [],

@@ -6,11 +6,14 @@
  *
  *     node scripts/content-admin-check.mjs
  *
- * 核对四件事（断言本体在 `scripts/lib/content-admin-checks.mjs`）：
- *   A6 每张内容表的列表接口都是 200（不被 Directus 的反向 o2m 误伤）
- *   A7 每条关系的 `meta.one_field` 都是 null
- *   A8 关系字段是 M2O 下拉；指向非主键的字段是普通文本
- *   A9 被引用集合的 `display_template` 指向 schema 声明的显示列
+ * 核对七件事（断言本体在 `scripts/lib/content-admin-checks.mjs`）：
+ *   A21 每张内容表的列表接口都是 200（不被 Directus 的反向 o2m 误伤）
+ *   A22 每条关系的 `meta.one_field` 都是 null
+ *   A23 关系字段是 M2O 下拉；指向非主键的字段是普通文本
+ *   A24 被引用集合的 `display_template` 指向 schema 声明的显示列
+ *   A25 schema 声明了 enum 的列是下拉，且选项与 schema 一致
+ *   A26 schema 里 NOT NULL 的列在后台标了必填
+ *   A27 派生代理键在后台是只读
  *
  * ⚠️ **只读** —— 不改任何配置（改配置的是 `content-admin-init.mjs`，
  *    故意写坏的验证是 `scripts/e2e/content-admin-break.mjs`）。
@@ -23,7 +26,10 @@ import { tableDefs } from './lib/content-schema.mjs'
 import { createAdminClient, pingAdmin } from './lib/content-admin-client.mjs'
 import {
   plannedDisplayFields,
+  plannedEnums,
+  plannedReadonly,
   plannedRelations,
+  plannedRequired,
 } from './lib/content-admin-plan.mjs'
 import { runAdminChecks } from './lib/content-admin-checks.mjs'
 
@@ -36,6 +42,9 @@ const plan = {
   relations,
   plainText,
   displayFields,
+  enums: plannedEnums(defs),
+  required: plannedRequired(defs),
+  readonly: plannedReadonly(defs),
 }
 
 const client = createAdminClient()
@@ -67,7 +76,8 @@ const { problems, checks } = await runAdminChecks(client.api, plan)
 
 console.log(
   `[content-admin-check] ${plan.tables.length} 张表 / ${plan.relations.length} 条关系 / ` +
-    `${plan.plainText.length} 个文本字段 / ${plan.displayFields.length} 个显示字段`,
+    `${plan.plainText.length} 个文本字段 / ${plan.displayFields.length} 个显示字段 / ` +
+    `${plan.enums.length} 个枚举列 / ${plan.required.length} 个必填列 / ${plan.readonly.length} 个只读列`,
 )
 if (problems.length === 0) {
   console.log(`=== 通过 ${checks} ｜ 失败 0 ===`)

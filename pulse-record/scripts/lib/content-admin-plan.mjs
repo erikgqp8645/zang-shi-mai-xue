@@ -83,3 +83,76 @@ export function plannedDisplayFields(defs, relations) {
 export function displayTemplate(field) {
   return `{{${field}}}`
 }
+
+/**
+ * 要配成**枚举下拉**的列 —— schema 里声明了 `enum` 的那些。
+ *
+ * 返回 [{ collection, field, choices, allowOther }]。
+ *
+ * ⭐ `allowOther` 恒为 **false**：
+ *    这一列的取值集合就是 schema 里那一份（尺／关／寸、浮／中／沉、L／R），
+ *    允许手输别的值就等于让「同一概念留在两处」——
+ *    打错一个「寸」（比如带空格、写成「手」）后台不拦，发布前也拦不住。
+ *    真要加取值，改 schema 那一份（唯一来源），后台跟着变。
+ */
+export function plannedEnums(defs) {
+  const out = []
+  for (const def of defs) {
+    for (const col of def.columns) {
+      if (!col.enum || !col.enum.length) continue
+      out.push({
+        collection: def.table,
+        field: col.name,
+        choices: col.enum.map((v) => ({ text: String(v), value: String(v) })),
+        allowOther: false,
+      })
+    }
+  }
+  return out
+}
+
+/**
+ * 要标**必填**的列 —— schema 里 `notNull: true` 的那些。
+ *
+ * 返回 [{ collection, field }]。
+ *
+ * ⭐ 为什么后台要再标一遍（DB 已经有 NOT NULL）：
+ *    `NOT NULL` 只挡 `NULL`，挡不住**空字符串**。
+ *    后台里一个没填的文本框提交上去是 `''`，DB 照收不误 ⇒
+ *    「出处」「组成」这类必填列会悄悄变成空字符串。
+ *    `meta.required` 让后台**当场**标红并拦住提交（R-Edit 的硬要求）。
+ *
+ * ⚠️ **派生的代理键不在此列** —— 它们是算出来的，不是内容，
+ *    该由 A27（只读）管，不该让人手填。
+ */
+export function plannedRequired(defs) {
+  const out = []
+  for (const def of defs) {
+    const derived = !!def.derivedId
+    for (const col of def.columns) {
+      if (!col.notNull) continue
+      if (derived && col.name === 'id') continue
+      out.push({ collection: def.table, field: col.name })
+    }
+  }
+  return out
+}
+
+/**
+ * 要标成**只读**的列 —— 派生代理键 `id`。
+ *
+ * 返回 [{ collection, field }]。
+ *
+ * ⭐ 为什么：`content_pulse_cells.id` ＝「pattern_id|seq」，是**算出来的**。
+ *    A20 会在发布前抓到「id 与派生规则对不上」，
+ *    但等到发布才拦＝用户白改一场。
+ *    后台里直接把它设成只读 ⇒ 改不了，也就没有这个坑。
+ */
+export function plannedReadonly(defs) {
+  const out = []
+  for (const def of defs) {
+    if (!def.derivedId) continue
+    out.push({ collection: def.table, field: 'id' })
+  }
+  return out
+}
