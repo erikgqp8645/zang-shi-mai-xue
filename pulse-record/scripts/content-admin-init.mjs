@@ -22,7 +22,14 @@
  *     下拉里显示人看得懂的那一列（科中名、方名、图名、用字名），而不是 id。
  *  ⑤ **必填标记**（`meta.required`）—— schema 里 NOT NULL 的列，后台当场标红。
  *  ⑥ **只读标记**（`meta.readonly`）—— 派生代理键是算出来的，不让人手填。
- *  ⑦ **视图预设**（`directus_presets`）—— 脉象图按 `pattern_id` 过滤成一屏 18 行。
+ *  ⑦ **视图预设**（`directus_presets`）—— 脉象图按 `pattern_id` 过滤成一屏 18 行，
+ *     并且**每张图建一个书签**，点侧栏书签图标直达那张图。
+ *
+ * ⚠️ **Directus 12 的两个存储位置（实测，写错就是「界面没生效」）**：
+ *   · 过滤条件 → 预设在**顶层 `filter` 列**；写进 `layout_query.filter` 不生效
+ *     （界面照样全量、前端请求不带 filter）。
+ *   · 表格可见列 → **`layout_query.tabular.fields`**；
+ *     `layout_options.fields` 那个键 Directus 根本不读。
  *
  * ⭐ **全部从 `src/content/schema/*.schema.json` 推导** —— 外键声明在 schema 里，
  *    这里不另写一份关系清单（铁律：能合成一个来源的，绝不留在两处）。
@@ -50,6 +57,9 @@ import {
   plannedReadonly,
   plannedRelations,
   plannedRequired,
+  plannedViewPresets,
+  CELL_COLLECTION,
+  PATTERN_COLLECTION,
 } from './lib/content-admin-plan.mjs'
 
 const CHECK = process.argv.includes('--check')
@@ -74,60 +84,18 @@ async function writeOrCheck(path, body, readPath = path) {
  * ------------------------------------------------------------------ */
 
 /**
- * 要预置的**视图预设**。
+ * 要预置的**视图预设**在 `scripts/lib/content-admin-plan.mjs` 里
+ * （`plannedViewPresets(defs, patterns)`）—— 断言那边共用同一份，
+ * 不在这里另写一份（铁律：能合成一个来源的，绝不留在两处）。
  *
- * Directus 12 把「筛选器 / 布局 / 收藏」统一收在 `directus_presets` 里
- * （没有独立的 `/filters` `/layouts` 端点了）。
- *
+ * 三类预设：
  * · `content_pulse_cells` —— 编辑面的主视图：**按 pattern_id 过滤到一张图，
- *   一屏正好 18 行（9 部位×取法 × 左右）**，列序按「部位 → 取法 → 左右」。
+ *   一屏正好 18 行（9 部位×取法 × 左右）**，可见列按「部位 → 取法 → 左右 → 用字」。
  * · `content_pulse_patterns` —— 50 张图的清单。
+ * · 每张图一个**书签** —— 点侧栏书签图标直达那张图的 18 行。
  *
  * 预设挂在**当前用户**下（`user` 字段）⇒ 换个人登录要重建。
  */
-export const VIEW_PRESETS = [
-  {
-    collection: 'content_pulse_cells',
-    layout: 'tabular',
-    layout_query: {
-      fields: [
-        'id',
-        'pattern_id',
-        'seq',
-        'side',
-        'organ',
-        'depth',
-        'term_id',
-        'codes',
-        'group_no',
-        'note',
-        'flex',
-      ],
-      // ⭐ 参考图＝清挡路（讲义 p34 的 18 格实例）。换图改这个值即可。
-      filter: { pattern_id: { _eq: 'fx-ssx-qingdanglu' } },
-      sort: [
-        { field: 'pattern_id', direction: 'asc' },
-        { field: 'seq', direction: 'asc' },
-      ],
-    },
-    layout_options: {
-      layout: 'tabular',
-      fields: ['seq', 'side', 'organ', 'depth', 'term_id', 'group_no', 'note', 'flex'],
-    },
-  },
-  {
-    collection: 'content_pulse_patterns',
-    layout: 'tabular',
-    layout_query: {
-      fields: ['id', 'title', 'source', 'note'],
-      sort: [{ field: 'id', direction: 'asc' }],
-    },
-    layout_options: {
-      layout: 'tabular',
-      fields: ['title', 'source', 'note'],
-    },
-  },
-]
 
 /* ------------------------------------------------------------------ *
  * 跑
@@ -314,6 +282,9 @@ async function main() {
   }
 
   console.log('')
+  await syncViewPresets()
+
+  console.log('')
   if (failed) {
     console.error(`❌ ${failed} 处没配上`)
     process.exitCode = 1
@@ -322,15 +293,23 @@ async function main() {
   console.log(
     CHECK
       ? `✅ ${relations.length} 条关系 ＋ ${plainText.length} 个文本字段 ＋ ${fieldPlans.size} 个字段界面` +
-          ` ＋ ${displayFields.length} 个显示字段 全部就位`
+          ` ＋ ${displayFields.length} 个显示字段 ＋ 视图预设 全部就位`
       : `✅ 全部就位（处理 ${changed} 处）`,
   )
-
-  await syncViewPresets()
 }
 
 /**
- * 预置视图预设（幂等：同集合的旧预设先删掉再建，避免重复堆叠）。
+ * 预置视图预设（幂等：逐条比对，只补差异）。
+ *
+ * ⭐ 为什么是「比对」而不是「全删重建」：
+ *   · 书签是**给用户点的**（50 张图各一个），全删重建会连用户自己加的书签一起抹掉；
+ *   · Directus 自己会把界面状态写回预设（我在表头加一列可见列，
+ *     `layout_query.tabular.fields` 就多了一项）⇒ 全删重建会把用户刚调好的界面冲掉。
+ *   所以按 (集合, 书签名) 配对：**该留的留，不该留的删，该建的建**。
+ *
+ * ⭐ 只比「我们管的那几项」（filter / layout / 拉取列 / 排序 / 可见列），
+ *   不比整个 JSON —— Directus 会往 `layout_query` 里塞它自己的字段
+ *   （`search`、`aggregate`…），全量比对会永远不相等 ⇒ 每次跑都重建。
  */
 async function syncViewPresets() {
   const me = await api('/users/me')
@@ -341,22 +320,59 @@ async function syncViewPresets() {
     return
   }
 
-  const existing = await api('/presets')
-  const mine = (existing.json?.data || []).filter(
-    (p) => p.user === userId && VIEW_PRESETS.some((v) => v.collection === p.collection),
+  // 书签名就是图名 —— 图清单从库里取，不硬编码
+  const patRes = await api(`/items/${PATTERN_COLLECTION}?fields=id,title&limit=500`)
+  if (!patRes.ok) {
+    console.error(`❌ 取图清单失败 ${patRes.status}：${patRes.text.slice(0, 160)}`)
+    failed++
+    return
+  }
+  const patterns = patRes.json?.data || []
+
+  const desired = plannedViewPresets(defs, patterns)
+  const existingRes = await api('/presets')
+  const mine = (existingRes.json?.data || []).filter(
+    (p) =>
+      p.user === userId &&
+      (p.collection === CELL_COLLECTION || p.collection === PATTERN_COLLECTION),
   )
 
+  const keyOf = (p) => `${p.collection}|${p.bookmark ?? ''}`
+  const byKey = new Map(mine.map((p) => [keyOf(p), p]))
+  const managed = (x) =>
+    JSON.stringify({
+      filter: x.filter ?? null,
+      layout: x.layout ?? null,
+      fields: x.layout_query?.fields ?? null,
+      sort: x.layout_query?.sort ?? null,
+      tabular: x.layout_query?.tabular?.fields ?? null,
+      innerFilter: x.layout_query?.filter ?? null,
+    })
+  const label = (v) => `${v.collection}${v.bookmark ? ` · 书签「${v.bookmark}」` : ''}`
+
+  // ① 不该存在的（对不上的 / 改过名的）删掉
   for (const p of mine) {
+    const want = desired.find((d) => keyOf(d) === keyOf(p))
+    if (want && managed(want) === managed(p)) continue
     if (CHECK) {
-      console.log(`  ℹ️  ${p.collection} 已有一份视图预设（--check 不删）`)
+      console.log(`  ℹ️  ${label(p)} 与预期不符（--check 不改）`)
       continue
     }
     await api(`/presets/${p.id}`, { method: 'DELETE' })
+    byKey.delete(keyOf(p))
   }
 
-  for (const v of VIEW_PRESETS) {
+  // ② 该有的建上
+  for (const v of desired) {
+    const cur = byKey.get(keyOf(v))
+    if (cur && managed(v) === managed(cur)) {
+      console.log(`  ✅ ${label(v)} 视图预设已就位`)
+      continue
+    }
     if (CHECK) {
-      console.log(`  ℹ️  ${v.collection} 视图预设${mine.some((p) => p.collection === v.collection) ? '已存在' : '未建'}`)
+      console.log(
+        `  ℹ️  ${label(v)} 视图预设${cur ? '与预期不符' : '未建'}`,
+      )
       continue
     }
     const r = await api('/presets', {
@@ -364,10 +380,10 @@ async function syncViewPresets() {
       body: { user: userId, ...v },
     })
     if (r.ok) {
-      console.log(`  ✅ ${v.collection} 视图预设已就位`)
+      console.log(`  ✅ ${label(v)} 视图预设已就位`)
     } else {
       failed++
-      console.error(`  ❌ ${v.collection} 视图预设：${r.status} ${r.text.slice(0, 200)}`)
+      console.error(`  ❌ ${label(v)} 视图预设：${r.status} ${r.text.slice(0, 200)}`)
     }
   }
 }

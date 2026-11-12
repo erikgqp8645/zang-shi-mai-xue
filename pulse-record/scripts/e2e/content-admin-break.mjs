@@ -45,6 +45,10 @@
 import { tableDefs } from '../lib/content-schema.mjs'
 import { createAdminClient, pingAdmin } from '../lib/content-admin-client.mjs'
 import {
+  CELL_COLLECTION,
+  DEFAULT_PATTERN_ID,
+  PATTERN_COLLECTION,
+  plannedCellViewColumns,
   plannedDisplayFields,
   plannedEnums,
   plannedReadonly,
@@ -53,12 +57,14 @@ import {
 } from '../lib/content-admin-plan.mjs'
 import {
   checkAdminReadable,
+  checkBookmarks,
   checkDisplayTemplates,
   checkEnumDropdowns,
   checkFieldInterfaces,
   checkReadonlyDerived,
   checkRelationsNoOneField,
   checkRequiredFlags,
+  checkViewPresets,
 } from '../lib/content-admin-checks.mjs'
 
 let failures = 0
@@ -90,6 +96,11 @@ const plan = {
   enums,
   required,
   readonly,
+  cellCollection: CELL_COLLECTION,
+  patternCollection: PATTERN_COLLECTION,
+  defaultPatternId: DEFAULT_PATTERN_ID,
+  cellViewColumns: plannedCellViewColumns(defs),
+  patterns: [],
 }
 
 const client = createAdminClient()
@@ -123,6 +134,10 @@ if (!loginRes.ok) {
 
 const api = client.api
 
+// 图清单（A29 的期望值）
+const patRes = await api(`/items/${PATTERN_COLLECTION}?fields=id,title&limit=500`)
+plan.patterns = patRes.ok ? patRes.json?.data || [] : []
+
 /** 跑一遍全部断言（反向检查与「恢复后」都用它） */
 async function runAll() {
   return [
@@ -133,6 +148,8 @@ async function runAll() {
     ...(await checkEnumDropdowns(api, enums)),
     ...(await checkRequiredFlags(api, required)),
     ...(await checkReadonlyDerived(api, readonly)),
+    ...(await checkViewPresets(api, plan)),
+    ...(await checkBookmarks(api, plan)),
   ]
 }
 
@@ -165,10 +182,52 @@ for (const e of enums) await snapshot('field', `/fields/${e.collection}/${e.fiel
 for (const rq of required) await snapshot('field', `/fields/${rq.collection}/${rq.field}`)
 for (const ro of readonly) await snapshot('field', `/fields/${ro.collection}/${ro.field}`)
 
+/* 视图预设与书签也要能恢复 */
+const meRes = await api('/users/me')
+const userId = meRes.json?.data?.id
+const presetSnaps = []
+{
+  const r = await api('/presets')
+  const mine = (r.json?.data || []).filter(
+    (p) =>
+      p.user === userId &&
+      (p.collection === CELL_COLLECTION || p.collection === PATTERN_COLLECTION),
+  )
+  for (const p of mine) {
+    presetSnaps.push({
+      id: p.id,
+      bookmark: p.bookmark,
+      filter: p.filter,
+      layout: p.layout,
+      layout_query: p.layout_query,
+      layout_options: p.layout_options,
+      icon: p.icon,
+      color: p.color,
+    })
+  }
+}
+
 async function restore() {
   for (const s of snapshots) {
     if (!s.meta) continue
     await api(s.path, { method: 'PATCH', body: { meta: s.meta } })
+  }
+  for (const s of presetSnaps) {
+    const body = {
+      bookmark: s.bookmark,
+      filter: s.filter,
+      layout: s.layout,
+      layout_query: s.layout_query,
+      layout_options: s.layout_options,
+      icon: s.icon,
+      color: s.color,
+    }
+    const cur = await api(`/presets/${s.id}`)
+    if (cur.ok) {
+      await api(`/presets/${s.id}`, { method: 'PATCH', body })
+    } else {
+      await api('/presets', { method: 'POST', body: { ...body, user: userId } })
+    }
   }
 }
 
@@ -333,7 +392,56 @@ try {
   }
 
   console.log('')
-  console.log('⑩ 恢复原状后必须重新全绿')
+  console.log('⑩ 故意写坏：把默认视图的过滤条件从顶层挪进 layout_query.filter')
+  console.log('    （这正是本轮实测踩到的坑 —— 位置写错，预设建得出来，界面却不生效）')
+  {
+    const r = await api('/presets')
+    const view = (r.json?.data || []).find(
+      (p) => p.collection === CELL_COLLECTION && !p.bookmark && p.user === userId,
+    )
+    ok(!!view, `找到格位集合的默认视图预设（${view ? 'id=' + view.id : '无'}）`)
+    if (view) {
+      await api(`/presets/${view.id}`, {
+        method: 'PATCH',
+        body: {
+          filter: null,
+          layout_query: {
+            ...view.layout_query,
+            filter: { pattern_id: { _eq: DEFAULT_PATTERN_ID } },
+          },
+        },
+      })
+      const hit = (await checkViewPresets(api, plan)).filter((p) => p.id === 'A28')
+      ok(hit.length > 0, `→ 必须被 [A28] 抓到（实际抓到 ${hit.length} 条）`)
+      for (const p of hit) console.log(`      · ${p.msg}`)
+    }
+  }
+
+  console.log('')
+  console.log('⑪ 故意写坏：把一个书签改名（那张图就切不到）＋把另一个的过滤改错（会切错图）')
+  {
+    const r = await api('/presets')
+    const bookmarks = (r.json?.data || []).filter(
+      (p) => p.collection === CELL_COLLECTION && p.bookmark && p.user === userId,
+    )
+    ok(bookmarks.length >= 2, `找到可注入的书签（${bookmarks.length} 个）`)
+    if (bookmarks.length >= 2) {
+      await api(`/presets/${bookmarks[0].id}`, {
+        method: 'PATCH',
+        body: { bookmark: 'ZZ改坏的书签名' },
+      })
+      await api(`/presets/${bookmarks[1].id}`, {
+        method: 'PATCH',
+        body: { filter: { pattern_id: { _eq: 'fx-__wrong__' } } },
+      })
+      const hit = (await checkBookmarks(api, plan)).filter((p) => p.id === 'A29')
+      ok(hit.length > 0, `→ 必须被 [A29] 抓到（实际抓到 ${hit.length} 条）`)
+      for (const p of hit) console.log(`      · ${p.msg}`)
+    }
+  }
+
+  console.log('')
+  console.log('⑫ 恢复原状后必须重新全绿')
   {
     await restore()
     const all = await runAll()

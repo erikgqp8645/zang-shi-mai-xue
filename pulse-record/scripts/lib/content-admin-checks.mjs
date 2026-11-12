@@ -302,6 +302,152 @@ export async function checkReadonlyDerived(api, readonly) {
 }
 
 /**
+ * A28（视图预设）—— 格位编辑面的视图预设必须写在**对的位置**。
+ *
+ * ⭐ **Directus 12 的两个存储位置（实测，写错就是「界面没生效」）**：
+ *   · 过滤条件 → 预设在**顶层 `filter` 列**。
+ *     写进 `layout_query.filter` **不生效**（界面照样全量 900 行、前端请求不带 filter）。
+ *   · 表格可见列 → **`layout_query.tabular.fields`**。
+ *     ⛔ `layout_options.fields` 那个键 Directus 根本不读（界面自己建的书签里它是 null）。
+ *
+ * 这条守的就是「自动化全绿、界面却没生效」那个坑：
+ * 位置写错时，预设记录照样建得出来、API 照样 200，只有界面知道不对。
+ */
+export async function checkViewPresets(api, plan) {
+  const problems = []
+  const me = await api('/users/me')
+  const userId = me.json?.data?.id
+  if (!userId) {
+    problems.push({ id: 'A28', msg: '拿不到当前用户 id，视图预设没法核对' })
+    return problems
+  }
+
+  const r = await api('/presets')
+  if (!r.ok) {
+    problems.push({ id: 'A28', msg: `预设清单读取失败 ${r.status}` })
+    return problems
+  }
+  const mine = (r.json?.data || []).filter((p) => p.user === userId)
+
+  // ① 格位编辑主视图：1 份，过滤在顶层，可见列在 layout_query.tabular.fields
+  const views = mine.filter(
+    (p) => p.collection === plan.cellCollection && !p.bookmark,
+  )
+  if (views.length !== 1) {
+    problems.push({
+      id: 'A28',
+      msg: `${plan.cellCollection} 的默认视图预设应有 1 份，实为 ${views.length} 份`,
+    })
+  } else {
+    const v = views[0]
+    const wantFilter = { pattern_id: { _eq: plan.defaultPatternId } }
+    if (JSON.stringify(v.filter) !== JSON.stringify(wantFilter)) {
+      problems.push({
+        id: 'A28',
+        msg:
+          `默认视图的顶层 filter = ${JSON.stringify(v.filter)}，` +
+          `应为 ${JSON.stringify(wantFilter)}` +
+          `（过滤条件必须写在顶层；写进 layout_query.filter 不生效）`,
+      })
+    }
+    const gotCols = v.layout_query?.tabular?.fields
+    if (JSON.stringify(gotCols) !== JSON.stringify(plan.cellViewColumns)) {
+      problems.push({
+        id: 'A28',
+        msg:
+          `默认视图的可见列 layout_query.tabular.fields = ${JSON.stringify(gotCols)}，` +
+          `应为 ${JSON.stringify(plan.cellViewColumns)}` +
+          `（可见列在这个位置；layout_options.fields 不被读取）`,
+      })
+    }
+  }
+
+  // ② 图清单视图：也要有可见列
+  const patternViews = mine.filter(
+    (p) => p.collection === plan.patternCollection && !p.bookmark,
+  )
+  if (patternViews.length !== 1) {
+    problems.push({
+      id: 'A28',
+      msg: `${plan.patternCollection} 的视图预设应有 1 份，实为 ${patternViews.length} 份`,
+    })
+  } else {
+    const cols = patternViews[0].layout_query?.tabular?.fields
+    if (!Array.isArray(cols) || !cols.length) {
+      problems.push({
+        id: 'A28',
+        msg: `图清单视图的可见列 layout_query.tabular.fields = ${JSON.stringify(cols)}，不应为空`,
+      })
+    }
+  }
+
+  return problems
+}
+
+/**
+ * A29（书签）—— 每张脉象图都要有一个书签，点开就是那张图的 18 行。
+ *
+ * ⭐ 书签是 Directus 12 唯一的「切图」机制：
+ *   过滤器的 Pattern ID 是**纯文本框**（关系下拉只按主键搜，填图名搜不到），
+ *   而书签是 `?bookmark=<预设 id>` 直达 —— 书签里有**过滤条件**，所以能切图。
+ *
+ * 断言内容：
+ *   · 书签数 == 图数（多一个＝用户自己加的散书签，少一个＝有图切不到）
+ *   · 每个书签的名字 == 图名（书签名就是给人看的）
+ *   · 每个书签的过滤条件 == 那张图的 pattern_id
+ */
+export async function checkBookmarks(api, plan) {
+  const problems = []
+  const me = await api('/users/me')
+  const userId = me.json?.data?.id
+  if (!userId) {
+    problems.push({ id: 'A29', msg: '拿不到当前用户 id，书签没法核对' })
+    return problems
+  }
+
+  const r = await api('/presets')
+  if (!r.ok) {
+    problems.push({ id: 'A29', msg: `预设清单读取失败 ${r.status}` })
+    return problems
+  }
+  const mine = (r.json?.data || []).filter((p) => p.user === userId)
+  const bookmarks = mine.filter(
+    (p) => p.collection === plan.cellCollection && p.bookmark,
+  )
+
+  if (bookmarks.length !== plan.patterns.length) {
+    problems.push({
+      id: 'A29',
+      msg:
+        `${plan.cellCollection} 的书签数 = ${bookmarks.length}，` +
+        `图数 = ${plan.patterns.length}（每个图要有一个书签）`,
+    })
+  }
+
+  for (const pat of plan.patterns) {
+    const hit = bookmarks.find((b) => b.bookmark === pat.title)
+    if (!hit) {
+      problems.push({
+        id: 'A29',
+        msg: `图「${pat.title}」（${pat.id}）没有书签`,
+      })
+      continue
+    }
+    const want = { pattern_id: { _eq: pat.id } }
+    if (JSON.stringify(hit.filter) !== JSON.stringify(want)) {
+      problems.push({
+        id: 'A29',
+        msg:
+          `书签「${pat.title}」的 filter = ${JSON.stringify(hit.filter)}，` +
+          `应为 ${JSON.stringify(want)}`,
+      })
+    }
+  }
+
+  return problems
+}
+
+/**
  * 汇总跑一遍，返回 `{ problems, checks }`。
  *
  * `checks` ＝ 实际核对的项数（便于回归统计；`problems` 为空即全过）。
@@ -315,9 +461,12 @@ export async function runAdminChecks(api, plan) {
     ...(await checkEnumDropdowns(api, plan.enums)),
     ...(await checkRequiredFlags(api, plan.required)),
     ...(await checkReadonlyDerived(api, plan.readonly)),
+    ...(await checkViewPresets(api, plan)),
+    ...(await checkBookmarks(api, plan)),
   ]
   // 每一项断言的「个数」：表 × 3 种请求 ＋ 关系 × 2 ＋ 文本字段 ＋ 显示字段
   //                            ＋ 枚举列 ＋ 必填列 ＋ 只读列
+  //                            ＋ 视图预设 2 ＋ 书签（图数）
   const checks =
     plan.tables.length * 3 +
     plan.relations.length * 2 +
@@ -325,7 +474,9 @@ export async function runAdminChecks(api, plan) {
     plan.displayFields.length +
     plan.enums.length +
     plan.required.length +
-    plan.readonly.length
+    plan.readonly.length +
+    2 +
+    plan.patterns.length
   return { problems, checks }
 }
 

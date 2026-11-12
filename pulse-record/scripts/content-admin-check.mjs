@@ -25,6 +25,10 @@
 import { tableDefs } from './lib/content-schema.mjs'
 import { createAdminClient, pingAdmin } from './lib/content-admin-client.mjs'
 import {
+  CELL_COLLECTION,
+  DEFAULT_PATTERN_ID,
+  PATTERN_COLLECTION,
+  plannedCellViewColumns,
   plannedDisplayFields,
   plannedEnums,
   plannedReadonly,
@@ -45,6 +49,12 @@ const plan = {
   enums: plannedEnums(defs),
   required: plannedRequired(defs),
   readonly: plannedReadonly(defs),
+  // 视图预设与书签（A28／A29）
+  cellCollection: CELL_COLLECTION,
+  patternCollection: PATTERN_COLLECTION,
+  defaultPatternId: DEFAULT_PATTERN_ID,
+  cellViewColumns: plannedCellViewColumns(defs),
+  patterns: [], // 下面从库里取
 }
 
 const client = createAdminClient()
@@ -72,12 +82,25 @@ if (!loginRes.ok) {
   process.exit(0)
 }
 
-const { problems, checks } = await runAdminChecks(client.api, plan)
+// 图清单（A29 的期望值）—— 从库里取，不硬编码
+const patRes = await client.api(
+  `/items/${PATTERN_COLLECTION}?fields=id,title&limit=500`,
+)
+if (!patRes.ok) {
+  console.log(
+    `[content-admin-check] 图清单读取失败 ${patRes.status}：${String(patRes.text).slice(0, 160)}`,
+  )
+  console.log('[content-admin-check] EXIT=1 —— 拿不到图清单，A29 没法核对')
+  process.exit(1)
+}
+plan.patterns = patRes.json?.data || []
 
+const { problems, checks } = await runAdminChecks(client.api, plan)
 console.log(
   `[content-admin-check] ${plan.tables.length} 张表 / ${plan.relations.length} 条关系 / ` +
     `${plan.plainText.length} 个文本字段 / ${plan.displayFields.length} 个显示字段 / ` +
-    `${plan.enums.length} 个枚举列 / ${plan.required.length} 个必填列 / ${plan.readonly.length} 个只读列`,
+    `${plan.enums.length} 个枚举列 / ${plan.required.length} 个必填列 / ${plan.readonly.length} 个只读列 / ` +
+    `${plan.patterns.length} 张图的书签`,
 )
 if (problems.length === 0) {
   console.log(`=== 通过 ${checks} ｜ 失败 0 ===`)

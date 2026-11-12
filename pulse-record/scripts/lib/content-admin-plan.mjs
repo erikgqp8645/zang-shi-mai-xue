@@ -156,3 +156,121 @@ export function plannedReadonly(defs) {
   }
   return out
 }
+
+/* ------------------------------------------------------------------ *
+ * 视图预设（脉象图的编辑面）
+ * ------------------------------------------------------------------ */
+
+/** 脉象格位表（一张图的 18 个格位） */
+export const CELL_COLLECTION = 'content_pulse_cells'
+/** 脉象图清单表（50 张图） */
+export const PATTERN_COLLECTION = 'content_pulse_patterns'
+
+/**
+ * 默认视图落在哪张图上。
+ *
+ * 讲义 2026-10·p34 的实例表就是「清挡路」这张图（18 格），
+ * 拿它当参考图 ⇒ 默认打开后台就看到一张**有内容**的图，不是空表。
+ */
+export const DEFAULT_PATTERN_ID = 'fx-ssx-qingdanglu'
+
+/**
+ * 编辑一屏时**不**显示的列。
+ *
+ * · `id`        —— 派生代理键（算出来的，只读）
+ * · `pattern_id` —— 当前图（过滤条件已经把它锁死，显示一遍没意义）
+ * · `seq`      —— 行序（排序已经按它定，位置就是顺序）
+ *
+ * 剩下的（部位／取法／左右／用字／符号／组号／备注／弹性）才是改图时要看、要改的。
+ */
+const CELL_HIDDEN_COLUMNS = ['id', 'pattern_id', 'seq']
+
+/** 格位表要拉取的全部列（要能改，就都得拉回来）。 */
+export function plannedCellFields(defs) {
+  const def = defs.find((d) => d.table === CELL_COLLECTION)
+  if (!def) return []
+  return def.columns.map((c) => c.name)
+}
+
+/** 格位表在表格里显示的列（可见列）。 */
+export function plannedCellViewColumns(defs) {
+  return plannedCellFields(defs).filter((n) => !CELL_HIDDEN_COLUMNS.includes(n))
+}
+
+/**
+ * 要预置的**视图预设**清单 —— 从库里推导。
+ *
+ * `patterns` ＝ 库里的脉象图（[{ id, title }]），由调用方从后台 API 取。
+ *
+ * 产出三类：
+ * ① **格位编辑主视图** —— 落在参考图上，一屏 18 行
+ * ② **图清单视图** —— 50 张图的标题／出处／备注
+ * ③ **每张图一个书签** —— 点书签图标直达那张图的 18 行
+ *
+ * ⭐ **Directus 12 的两个存储位置（实测，别再写错）**：
+ *   · 过滤条件 → 预设在**顶层 `filter` 列**。
+ *     写进 `layout_query.filter` **不生效**（界面照样全量 900 行、前端请求不带 filter）。
+ *     Directus 自己保存状态时会**同时**写两处，我们跟着写两处。
+ *   · 表格可见列 → `layout_query.tabular.fields`。
+ *     ⛔ 不是 `layout_options.fields`（那个键 Directus 根本不读，写了也没反应）。
+ *   · `layout_query.fields` ＝ 要拉取哪些列（拉全，改哪列都改得动）。
+ */
+export function plannedViewPresets(defs, patterns) {
+  const cells = defs.find((d) => d.table === CELL_COLLECTION)
+  const patternDefs = defs.find((d) => d.table === PATTERN_COLLECTION)
+  if (!cells || !patternDefs) return []
+
+  const allCellFields = plannedCellFields(defs)
+  const cellViewColumns = plannedCellViewColumns(defs)
+  const cellSort = [
+    { field: 'pattern_id', direction: 'asc' },
+    { field: 'seq', direction: 'asc' },
+  ]
+
+  const cellLayout = (patternId) => {
+    const filter = { pattern_id: { _eq: patternId } }
+    return {
+      filter,
+      layout_query: {
+        fields: allCellFields,
+        filter,
+        sort: cellSort,
+        tabular: { fields: cellViewColumns },
+      },
+    }
+  }
+
+  const presets = [
+    {
+      collection: CELL_COLLECTION,
+      layout: 'tabular',
+      ...cellLayout(DEFAULT_PATTERN_ID),
+    },
+    {
+      collection: PATTERN_COLLECTION,
+      layout: 'tabular',
+      layout_query: {
+        fields: patternDefs.columns.map((c) => c.name),
+        sort: [{ field: 'id', direction: 'asc' }],
+        tabular: {
+          // ⭐ `id` 也显示出来 —— 切图要填的就是它（过滤器的 Pattern ID 是纯文本框，
+          //    Directus 12 的关系下拉只按主键搜，填图名搜不到）。
+          //    没有这一列，用户就得靠记忆把「清挡路」对到 fx-ssx-qingdanglu。
+          fields: patternDefs.columns.map((c) => c.name),
+        },
+      },
+    },
+  ]
+
+  for (const p of patterns) {
+    if (!p || !p.id || !p.title) continue
+    presets.push({
+      collection: CELL_COLLECTION,
+      bookmark: p.title,
+      layout: 'tabular',
+      ...cellLayout(p.id),
+    })
+  }
+
+  return presets
+}
