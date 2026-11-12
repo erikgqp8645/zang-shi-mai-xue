@@ -293,7 +293,18 @@ export function FormulaLibrary({ focus }: Props) {
                             id={formulaAnchor('rule', r.id)}
                             className={`pr-flib-anchor${focusId === formulaAnchor('rule', r.id) ? ' is-focus' : ''}`}
                           >
-                            <FormulaItem item={libraryRule(r)} srcNote=" · 全量条目（知识库）" />
+                            {/*
+                              紧凑一行：折叠时只留「标题 ｜ 疗法 ｜ 方名」，点开才看
+                              脉象图／原文／方剂卡。kind 徽章在紧凑态不出现 ——
+                              route 标题已经表达了结构（详见 Findings.tsx 的 FormulaItem）。
+                              从 ③ 的方名跳进来时（focusId 对上）自动展开那一条。
+                            */}
+                            <FormulaItem
+                              item={libraryRule(r)}
+                              srcNote=" · 全量条目（知识库）"
+                              compact
+                              autoOpen={focusId === formulaAnchor('rule', r.id)}
+                            />
                           </div>
                         ))}
                       </div>
@@ -327,7 +338,13 @@ export function FormulaLibrary({ focus }: Props) {
                             id={formulaAnchor('drug', d.id)}
                             className={`pr-flib-anchor${focusId === formulaAnchor('drug', d.id) ? ' is-focus' : ''}`}
                           >
-                            <DrugCard drug={d} showAttr={dim !== 'route'} />
+                            {/* 与上面同一种紧凑一行 —— 讲稿方剂也要能一眼扫完 */}
+                            <DrugCard
+                              drug={d}
+                              showAttr={dim !== 'route'}
+                              compact
+                              autoOpen={focusId === formulaAnchor('drug', d.id)}
+                            />
                           </div>
                         ))}
                       </div>

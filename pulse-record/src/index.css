@@ -2615,6 +2615,121 @@ button:disabled {
   flex-shrink: 0;
 }
 
+/* --------------------------------------------------------------------------
+   用方知识库 · 紧凑一行一条
+   --------------------------------------------------------------------------
+   61 条依脉用方 ＋ 30 方讲稿方剂，全展开是几十屏长，扫不动。
+   折叠时每条只留一行摘要（标题 ｜ 疗法 ｜ 方名），点开才出脉象图／原文／方剂卡。
+
+   kind（主线／挡路／加味／禁忌）在紧凑态**不出徽章** —— 上面的 route 标题
+   已经表达了结构，徽章是重复信息。⚠️ kind 没丢：左侧色条仍按 kind 着色
+   （`.pr-formula.is-主线` 等规则照旧生效），颜色区分保留。
+   -------------------------------------------------------------------------- */
+
+.pr-formula-compact {
+  cursor: default;
+  padding: 0 0 0 9px;
+  margin-bottom: 1px;
+  border-left-width: 3px;
+}
+
+.pr-formula-compact:hover {
+  background: transparent;
+}
+
+.pr-formula-compact.is-open {
+  background: #faf6ef;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+}
+
+.pr-formula-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 5px 4px 5px 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pr-formula-row:hover {
+  background: #faf6ef;
+}
+
+.pr-formula-caret {
+  flex-shrink: 0;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--sage);
+}
+
+.pr-formula-row-title {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* 疗法那一长串：单行截断，完整文字挂 title，展开后看全 */
+.pr-formula-row-therapy {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pr-formula-compact .pr-formula-list-inline {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.pr-formula-detail {
+  padding: 4px 0 0;
+}
+
+/* 方剂卡片 · 紧凑一行（与上面同一套做法） */
+
+.pr-drug-compact {
+  padding: 0 9px;
+  margin-bottom: 1px;
+}
+
+.pr-drug-compact.is-open {
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+}
+
+.pr-drug-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  margin: 0;
+  padding: 5px 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pr-drug-row:hover {
+  background: #f6f1e7;
+}
+
+.pr-drug-row-name {
+  font-size: 13px;
+}
+
 .pr-formula-therapy {
   margin: 4px 0 2px;
   font-size: 13px;

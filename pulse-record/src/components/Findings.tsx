@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { RuleHit } from '../domain/rules'
 import {
   CONSTITUTION_TABLE,
@@ -100,16 +100,40 @@ function AttrBasis({ attr }: { attr: Attribution | undefined }) {
   return <p className="pr-attr-basis">归类依据：{attr.basis}</p>
 }
 
-/** 方剂卡片：组成／服法／科学中药／加减／适用脉象／禁忌，全部照抄讲稿原文 */
-export function DrugCard({ drug, showAttr }: { drug: Drug; showAttr?: boolean }) {
+/**
+ * 方剂卡片：组成／服法／科学中药／加减／适用脉象／禁忌，全部照抄讲稿原文
+ *
+ * ## 两种版式（`compact`）
+ *
+ * · **默认** —— ② 命中区用的完整卡片，六行原文全摊开。
+ * · **`compact`** —— 「用方知识库」用的紧凑一行：折叠时只留
+ *   **疗法 ｜ 方名**，点开才出组成／服法／科学中药／适用脉象／加减／禁忌。
+ *   （与 `FormulaItem` 的紧凑态同一套做法 —— 知识库那一段要能一眼扫完。）
+ */
+export function DrugCard({
+  drug,
+  showAttr,
+  compact,
+  autoOpen,
+}: {
+  drug: Drug
+  showAttr?: boolean
+  /** 紧凑一行：折叠时只留一行摘要，点开才看原文 */
+  compact?: boolean
+  /** 紧凑态默认展开（从 ③ 的方名跳进来时用，落在哪一条就展开哪一条） */
+  autoOpen?: boolean
+}) {
   const attr = RULE_OR_DRUG_ATTRIB[drug.id]
-  return (
-    <div className="pr-drug" onClick={(e) => e.stopPropagation()}>
-      <div className="pr-drug-head">
-        <span className="pr-drug-therapy">{drug.therapy}</span>
-        <strong>{drug.name}</strong>
-        {showAttr && <AttrChip attr={attr} />}
-      </div>
+  const [open, setOpen] = useState(!!autoOpen)
+
+  /** 焦点落在这一条时就展开（同 FormulaItem：初值只在挂载时读一次，得跟着变） */
+  useEffect(() => {
+    if (autoOpen) setOpen(true)
+  }, [autoOpen])
+
+  /** 原文六行 —— 两种版式共用 */
+  const detail = (
+    <>
       {drug.composition && (
         <p className="pr-drug-line">
           <span className="pr-drug-key">组成</span>
@@ -154,6 +178,36 @@ export function DrugCard({ drug, showAttr }: { drug: Drug; showAttr?: boolean })
       )}
       {showAttr && <AttrBasis attr={attr} />}
       <p className="pr-finding-src">〔{drug.source}〕</p>
+    </>
+  )
+
+  if (compact) {
+    return (
+      <div className={`pr-drug pr-drug-compact${open ? ' is-open' : ''}`} onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          className="pr-drug-row"
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+        >
+          <span className="pr-formula-caret">{open ? '▾' : '▸'}</span>
+          <span className="pr-drug-therapy">{drug.therapy}</span>
+          <strong className="pr-drug-row-name">{drug.name}</strong>
+          {showAttr && <AttrChip attr={attr} />}
+        </button>
+        {open && <div className="pr-formula-detail">{detail}</div>}
+      </div>
+    )
+  }
+
+  return (
+    <div className="pr-drug" onClick={(e) => e.stopPropagation()}>
+      <div className="pr-drug-head">
+        <span className="pr-drug-therapy">{drug.therapy}</span>
+        <strong>{drug.name}</strong>
+        {showAttr && <AttrChip attr={attr} />}
+      </div>
+      {detail}
     </div>
   )
 }
@@ -214,13 +268,36 @@ function ScienceLine({ s }: { s: FormulaScience }) {
   )
 }
 
-/** 一条依脉用方条目 */
+/**
+ * 一条依脉用方条目
+ *
+ * ## 两种版式（`compact`）
+ *
+ * · **默认** —— ② 命中区用的完整卡片：kind 徽章 ＋ 标题 ＋ 疗法 ＋ 方名 ＋ 脉象图 ＋ 原文
+ *   ＋ 方剂卡 ＋ 组成剂量 ＋ 出处，一屏一条，**带 kind 徽章**（主线／挡路／加味／禁忌）。
+ * · **`compact`** —— 「用方知识库」用的紧凑一行：折叠时只留
+ *   **标题 ｜ 疗法 ｜ 方名**（kind 徽章不出现），点开才出脉象图／原文／方剂卡。
+ *
+ * ## 为什么紧凑态不挂 kind 徽章
+ *
+ * 知识库里 61 条依脉用方按 route 分组（叁、用方／肆、依脉辨证论治／挡路一~六…），
+ * route 标题已经把结构说清楚了，再挂一个「主线」徽章是**重复信息**，而且 61 条里
+ * 有 28 条都是「主线」——最吵的那种重复。
+ * ⚠️ kind 本身**没有丢**：左侧色条仍按 kind 着色（`.pr-formula.is-*`），颜色区分照旧。
+ *
+ * ## 内容只有一份
+ *
+ * 两种版式共用同一份详情区（`detail`），不各写一遍 ——
+ * 「能合成一个来源的，绝不留在两处」。
+ */
 export function FormulaItem({
   item,
   showAttr,
   sessions,
   onFocusFormula,
   srcNote,
+  compact,
+  autoOpen,
 }: {
   item: SessionFormulaHit
   showAttr?: boolean
@@ -230,18 +307,35 @@ export function FormulaItem({
   onFocusFormula?: (h: SessionFormulaHit) => void
   /** 出处行后面的补充说明（「用方知识库」里写「全量条目」，命中区写命中记录） */
   srcNote?: string
+  /** 紧凑一行：折叠时只留一行摘要，点开才看详情 */
+  compact?: boolean
+  /** 紧凑态默认展开（从 ③ 的方名跳进来时用，落在哪一条就展开哪一条） */
+  autoOpen?: boolean
 }) {
   const { sessionLabel, hit } = item
   const attr = RULE_OR_DRUG_ATTRIB[hit.id]
-  return (
-    <div className={`pr-formula is-${hit.kind}`} onClick={() => onFocusFormula?.(item)}>
-      <div className="pr-formula-head">
-        <span className="pr-formula-kind">{hit.kind}</span>
-        <strong>{hit.condition}</strong>
-        {showAttr && <AttrChip attr={attr} />}
-      </div>
-      <p className="pr-formula-therapy">{hit.therapy}</p>
-      {hit.formulas.length > 0 && (
+  const [open, setOpen] = useState(!!autoOpen)
+
+  /**
+   * 焦点落在这一条时就展开。
+   *
+   * ⚠️ 不能只靠 `useState(!!autoOpen)` 的初值 —— 知识库是**整块渲染**的：
+   * 第一次跳转就把 61＋30 条全挂上了，那会儿 `autoOpen` 还是 false；
+   * 后来焦点才移到这一条，初值不会再读一遍 ⇒ 落点是折着的。
+   * 所以这里跟着 `autoOpen` 变一次就展开一次（用户自己折起来的不受影响）。
+   */
+  useEffect(() => {
+    if (autoOpen) setOpen(true)
+  }, [autoOpen])
+
+  /**
+   * 详情区 —— 两种版式共用。
+   * 紧凑态的「疗法／方名」在折叠行上已经出现过，这里就不再重复一遍。
+   */
+  const detail = (
+    <>
+      {!compact && <p className="pr-formula-therapy">{hit.therapy}</p>}
+      {!compact && hit.formulas.length > 0 && (
         <p className="pr-formula-list-inline">
           {hit.formulas.map((f) => (
             <span key={f} className="pr-formula-chip">
@@ -292,6 +386,47 @@ export function FormulaItem({
               : ` · 命中记录 ${sessions.join('、')}`
             : ` · 记录 ${sessionLabel}`}
       </p>
+    </>
+  )
+
+  if (compact) {
+    return (
+      <div className={`pr-formula pr-formula-compact is-${hit.kind}${open ? ' is-open' : ''}`}>
+        <button
+          type="button"
+          className="pr-formula-row"
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+        >
+          <span className="pr-formula-caret">{open ? '▾' : '▸'}</span>
+          <strong className="pr-formula-row-title">{hit.condition}</strong>
+          <span className="pr-formula-row-therapy" title={hit.therapy}>
+            {hit.therapy}
+          </span>
+          {showAttr && <AttrChip attr={attr} />}
+          {hit.formulas.length > 0 && (
+            <span className="pr-formula-list-inline">
+              {hit.formulas.map((f) => (
+                <span key={f} className="pr-formula-chip">
+                  {f}
+                </span>
+              ))}
+            </span>
+          )}
+        </button>
+        {open && <div className="pr-formula-detail">{detail}</div>}
+      </div>
+    )
+  }
+
+  return (
+    <div className={`pr-formula is-${hit.kind}`} onClick={() => onFocusFormula?.(item)}>
+      <div className="pr-formula-head">
+        <span className="pr-formula-kind">{hit.kind}</span>
+        <strong>{hit.condition}</strong>
+        {showAttr && <AttrChip attr={attr} />}
+      </div>
+      {detail}
     </div>
   )
 }

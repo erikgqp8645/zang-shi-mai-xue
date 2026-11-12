@@ -234,6 +234,12 @@ try {
   c.check('定位到的那一条高亮了', ruleHit.focus === true)
   c.check('锚点 id 全页唯一（不与别处抢同一个 id）', ruleHit.dup === 1, `实际 ${ruleHit.dup} 个`)
 
+  // 紧凑态：落点那一条得**自己就展开** —— 折叠着落进来等于没落
+  const ruleOpen = await chrome.ev(
+    `(()=>{const el=document.getElementById('rule-fx-dl3-bianmai-wuli');return !!(el&&el.querySelector('.pr-formula-compact.is-open'))})()`,
+  )
+  c.check('落点那一条自动展开（不用再点一下才看得到脉象图）', ruleOpen === true)
+
   // 点「中焦方」→ 它对照的是讲稿第二讲的**方剂条目**（drug 锚点）
   await chrome.ev(
     `(()=>{const b=[...document.querySelectorAll('.pr-triad-rx .pr-link')].find(b=>b.textContent.trim()==='中焦方');b&&b.click();return 1})()`,
@@ -247,6 +253,12 @@ try {
   c.check('讲稿方剂那一条也高亮了', drugHit.focus === true)
   c.check('方剂锚点 id 也唯一', drugHit.dup === 1, `实际 ${drugHit.dup} 个`)
 
+  // 讲稿方剂也是紧凑态 —— 落点同样得自己就展开
+  const drugOpen = await chrome.ev(
+    `(()=>{const el=document.getElementById('drug-zhongjiao');return !!(el&&el.querySelector('.pr-drug-compact.is-open'))})()`,
+  )
+  c.check('讲稿方剂落点那一条也自动展开', drugOpen === true)
+
   // 换个分组维度（按五行）后，锚点仍得在 —— 全量视图不因换维度丢条目
   await chrome.ev(
     `(()=>{const b=[...document.querySelectorAll('#pr-flib .pr-dim-btn')].find(b=>b.textContent.trim()==='按五行');b&&b.click();return 1})()`,
@@ -259,6 +271,45 @@ try {
     '换成「按五行」维度后，锚点仍在（换维度不丢条目）',
     afterDim.rule === true && afterDim.drug === true,
     JSON.stringify(afterDim),
+  )
+
+  /* ---- ⑧-补 「用方知识库」紧凑态的结构不变量 ---- */
+  console.log('\n【⑧-补】「用方知识库」紧凑态：徽章去掉了，条目一条不少')
+  const lib = await chrome.ev(
+    `(()=>{
+      const head=document.querySelector('#pr-flib .pr-flib-count');
+      const m=head?head.textContent.match(/(\\d+)\\s*条[\\s\\S]*?(\\d+)\\s*方/):null;
+      const inLib=(sel)=>document.querySelectorAll('#pr-flib '+sel).length;
+      const all=(sel)=>document.querySelectorAll(sel).length;
+      return {
+        declaredRules: m?Number(m[1]):-1,
+        declaredDrugs: m?Number(m[2]):-1,
+        compactRules: inLib('.pr-formula-compact'),
+        compactDrugs: inLib('.pr-drug-compact'),
+        kindBadgesInLib: inLib('.pr-formula-kind'),
+        plainFormulas: all('.pr-formula:not(.pr-formula-compact)'),
+        plainFormulasWithBadge: all('.pr-formula:not(.pr-formula-compact) .pr-formula-kind'),
+      }
+    })()`,
+  )
+  console.log(`  ${JSON.stringify(lib)}`)
+  c.check(
+    '紧凑后一条不少（依脉用方 ＋ 讲稿方剂都还在）',
+    lib.declaredRules > 0 &&
+      lib.declaredDrugs > 0 &&
+      lib.compactRules === lib.declaredRules &&
+      lib.compactDrugs === lib.declaredDrugs,
+    JSON.stringify(lib),
+  )
+  c.check(
+    '知识库里不再出现 kind 徽章（主线／挡路／加味／禁忌）',
+    lib.kindBadgesInLib === 0,
+    `还有 ${lib.kindBadgesInLib} 个`,
+  )
+  c.check(
+    '② 命中区仍带 kind 徽章（只改知识库，没把命中区一起改掉）',
+    lib.plainFormulas === lib.plainFormulasWithBadge,
+    `${lib.plainFormulasWithBadge}/${lib.plainFormulas} 条带徽章`,
   )
 
   /* ---- ⑨ ② 定疗法里的方名链接：不得嵌套 button，也不得连带选疗法 ---- */
