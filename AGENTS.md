@@ -845,6 +845,61 @@ npm run admin -- library verify                    # 自检（合规／引用／
 **只读接口**（为将来的前端同步预留，本轮前端不接）：
 `GET /api/library/overrides` → `{ overrides, meta }`；未登录 401，所有登录账号可读。
 
+## 内容层 · 本地后台 ＋ 发布管道（pulse-record · 进行中）
+
+「知识库怎么改」的**新路线**：本地 SQLite 做编辑面 → 本地后台（Directus）里点选编辑 →
+执行发布命令 → 同步到远端 CloudBase PG 的 `content_*` 表 ＋ 生成 `src/content/*.json` 只读快照。
+
+⚠️ **与上一节的覆盖层是两条并行的路线**（写入面不同：页面 vs 命令行），
+方向尚未拍板，见 `pulse-record/docs/progress.md` 的「待用户办的事」。
+
+完整手册在 **`pulse-record/docs/content-publish.md`**（发布语义）与
+**`pulse-record/docs/content-admin-选型.md`**（后台选型与坑位）；
+**断言编号的唯一来源是 `pulse-record/docs/content-assertions.md`** —— 改断言前先看它。
+
+### 三份真源
+
+| 层 | 位置 | 谁能动 |
+|---|---|---|
+| **编辑面** | 本机 `local-data/content.sqlite`（17 张表 1472 行，**DELETE 模式**，不是 WAL） | 管理员（Directus 页面） |
+| **结构描述** | `src/content/schema/*.schema.json` 的 `x-tables`（含 `fk`／`enum`／`notNull`／`derivedId`／`displayField`） | 只读，**唯一来源** |
+| **只读快照** | `src/content/*.json`（8 个） | 发布命令生成，不手改 |
+| **远端真源** | CloudBase PG `content` schema（17 张表 ＋ `content_meta` 3 张账本表 ＋ 6 个 RPC） | **只由发布命令写** |
+
+### 硬规矩
+
+- **本地库与远端同名同列同语义** —— DDL 由同一份 schema 生成（`server/content-schema.mjs`），两边不会漂移。
+- **组成／比例／出处一律存原文串**，不拆列（实测 475 个 token 里 13 个带量程、括注、单位、组合方引用）。
+- **组号是一个共用编号空间**：`content_pulse_cells` 用 `side` 单列 ＋ 单一 `group_no`，
+  不做左右两列（Excel 时代 50 张只吻合 11 张的坑）。
+- **写操作全部下沉为 PG 函数（RPC）**，不新增 PG 直连通路；凭证只从环境变量读。
+- **后台断言按结构解析**（看状态码与 `meta` 字段值，不搜关键词）；
+  **新增/修改断言必须先用「故意写坏」验证能抓到**。
+- ⭐ **后台类交付物必须留一道人眼确认**（登录真机走一遍 ＋ 截图回填文档）——
+  2026-11-12 证明：自动化断言全绿时，界面是**坏的**（某张表点开就 500）。
+
+### Directus 12 的三个坑（都已踩过）
+
+| 坑 | 现象 | 处置 |
+|---|---|---|
+| `meta.one_field` 双向匹配 | 填了 → **被引用方集合的列表接口整个 500** | 一律 `null`；断言 A22 **全量**盯（含残留关系） |
+| `meta.options` 必须是**对象** | 存成数组时界面读不到 `choices` ⇒ **下拉是空的** | `{ allowOther, choices }`；断言 A25 |
+| `DELETE /relations` 删不掉内省关系的 meta | 删完 GET 还在 | 只能 `PATCH` 置 null |
+
+### 命令
+
+```bash
+node scripts/content-admin.mjs up|down|status|reset   # 本地后台（端口 8055；账号 admin@example.com / PulseLocal2026）
+node scripts/content-admin-init.mjs                    # 配关系／字段界面／枚举下拉／必填／只读／视图（幂等）
+node scripts/content-admin-init.mjs --check            # 只读核对
+npm run content:admin:check                            # 后台配置的只读核对（A21~A27）
+node scripts/e2e/content-admin-break.mjs               # 后台「故意写坏」（会改配置并在 finally 恢复）
+node scripts/content-seed.mjs [--check]                # 灌库／校验
+node scripts/content-publish.mjs [--dry-run]           # 五步发布流水线
+node scripts/content-snapshot.mjs [--check]            # 库 → JSON 快照
+node scripts/content-status.mjs / content-rollback.mjs # 发布状态／回滚
+```
+
 ---
 
 ## 部署与运维（pulse-record）
