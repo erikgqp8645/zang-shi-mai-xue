@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { PulsePattern } from '../domain/pulse-pattern'
+import { groupLegend } from '../domain/pulse-pattern'
 import { usePatterns } from '../state/patterns'
 import { PatternSheet, hasCells } from './PatternSheet'
 import { RuleEditor } from './RuleEditor'
@@ -40,6 +41,8 @@ export function PatternStrip({ formulaId, formulaLabel, baseline }: Props) {
 
   const patterns = patternsOf(formulaId, baseline)
   const open = openIndex === null ? null : patterns[openIndex] ?? null
+  /** 组说明：多组才有（单组＝所有格同时成立，不用另说） */
+  const openLegend = open && hasCells(open) ? groupLegend(open) : null
 
   /* Esc 关闭大图 */
   useEffect(() => {
@@ -85,21 +88,25 @@ export function PatternStrip({ formulaId, formulaLabel, baseline }: Props) {
       </div>
 
       <div className="pr-ps-list">
-        {patterns.map((p, i) => (
-          <button
-            key={`${p.title ?? 'p'}-${i}`}
-            type="button"
-            className={`pr-ps-thumb${hasCells(p) ? '' : ' is-note'}`}
-            onClick={() => setOpenIndex(i)}
-            title="点开看大图"
-          >
-            {hasCells(p) ? <PatternSheet pattern={p} compact /> : <NoteThumb pattern={p} />}
-            <span className="pr-ps-thumb-label">
-              {p.origin === 'manual' && <i className="pr-ps-manual" title="手动填写">手</i>}
-              {p.title || `脉象 ${i + 1}`}
-            </span>
-          </button>
-        ))}
+        {patterns.map((p, i) => {
+          const legend = hasCells(p) ? groupLegend(p) : null
+          return (
+            <button
+              key={`${p.title ?? 'p'}-${i}`}
+              type="button"
+              className={`pr-ps-thumb${hasCells(p) ? '' : ' is-note'}`}
+              onClick={() => setOpenIndex(i)}
+              title="点开看大图"
+            >
+              {hasCells(p) ? <PatternSheet pattern={p} compact /> : <NoteThumb pattern={p} />}
+              <span className="pr-ps-thumb-label">
+                {p.origin === 'manual' && <i className="pr-ps-manual" title="手动填写">手</i>}
+                {p.title || `脉象 ${i + 1}`}
+              </span>
+              {legend && <span className="pr-ps-thumb-groups">{legend}</span>}
+            </button>
+          )
+        })}
       </div>
 
       {open && (
@@ -120,11 +127,10 @@ export function PatternStrip({ formulaId, formulaLabel, baseline }: Props) {
             <div className="pr-ps-modal-body">
               {hasCells(open) && <PatternSheet pattern={open} />}
 
-              {hasCells(open) && open.groups && open.groups.length > 1 && (
+              {hasCells(open) && openLegend && (
                 <p className="pr-ps-legend">
-                  {open.groups.map((_, i) => `组 ${i + 1}`).join(' ／ ')}：
                   <b>每组内部要同时成立；组与组之间有一组成立即算符合。</b>
-                  格角上标的是它属于哪一组。
+                  {openLegend}
                 </p>
               )}
 

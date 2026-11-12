@@ -3846,6 +3846,15 @@ button:disabled {
   white-space: nowrap;
 }
 
+/* 缩略图下的组说明（多组才有）：哪几格属于哪一组 */
+.pr-ps-thumb-groups {
+  max-width: 132px;
+  font-size: 9px;
+  line-height: 1.25;
+  color: #a49a86;
+  text-align: center;
+}
+
 /* ---- 矩阵表（默认＝缩略尺寸） ---- */
 .pr-psheet {
   border-collapse: collapse;
@@ -3897,13 +3906,6 @@ button:disabled {
 
 .pr-psheet .pr-ps-end {
   border-right-width: 1.6px;
-}
-
-.pr-ps-gno {
-  font-size: 8px;
-  color: #8a6d3b;
-  vertical-align: super;
-  margin-left: 1px;
 }
 
 /* ---- 关系型注记卡（没有格位的那 20 条） ---- */

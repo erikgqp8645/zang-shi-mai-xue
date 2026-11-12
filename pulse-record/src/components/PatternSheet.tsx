@@ -21,8 +21,10 @@ import { termOf, type CellRequirement, type PulsePattern } from '../domain/pulse
  *
  * ## AND 组
  *
- * 20 条数据有多个 AND 组（组内「且」、组间「或」）。这种在格的右上角加组号小标，
- * 图下列一句话说明 —— 否则读者会以为所有格必须同时成立。
+ * 20 条数据有多个 AND 组（组内「且」、组间「或」）。这种**不在格子里画组号角标** ——
+ * 角标是程序自己加的（资料原图上没有），而且跟脉象符号挤在一格里分不清：
+ * `0²` 看着像「另一种脉象」，空格中央飘一个 `1` 更莫名其妙。
+ * 组信息改由 `groupLegend()` 出一行文字，在图下方列明「哪几格属于哪一组」。
  */
 
 const HANDS: Hand[] = ['L', 'R']
@@ -65,19 +67,6 @@ export function PatternSheet({ pattern, compact }: Props) {
   const byCell = new Map<string, CellRequirement>()
   for (const c of pattern.cells) byCell.set(c.cell, c)
 
-  // 多 AND 组时才标组号；只有一组标了反而是噪声
-  const multiGroup = !!pattern.groups && pattern.groups.length > 1
-  const groupNo = new Map<string, number[]>()
-  if (multiGroup) {
-    ;pattern.groups!.forEach((cells, i) => {
-      for (const key of cells) {
-        const list = groupNo.get(key) ?? []
-        list.push(i + 1)
-        groupNo.set(key, list)
-      }
-    })
-  }
-
   // 关系型条目没有格位 —— 由 PatternStrip 渲染成注记卡，这里不出空表
   if (pattern.cells.length === 0) return null
 
@@ -111,7 +100,6 @@ export function PatternSheet({ pattern, compact }: Props) {
               {HANDS.map((hand) => {
                 const key = cellKey(hand, row.organ, row.depth)
                 const req = byCell.get(key)
-                const nos = groupNo.get(key)
                 return (
                   <td
                     key={hand}
@@ -121,7 +109,6 @@ export function PatternSheet({ pattern, compact }: Props) {
                     title={req ? requirementTitle(req, hand, row.organ, row.depth) : undefined}
                   >
                     {req ? requirementText(req) : ''}
-                    {nos && <sup className="pr-ps-gno">{nos.join('')}</sup>}
                   </td>
                 )
               })}

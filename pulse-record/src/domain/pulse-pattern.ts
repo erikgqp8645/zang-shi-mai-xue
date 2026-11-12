@@ -268,3 +268,53 @@ export function andGroups(pattern: PulsePattern): string[][] {
 export function hasRelation(pattern: PulsePattern): boolean {
   return !!pattern.relations && pattern.relations.length > 0
 }
+
+/* ------------------------------------------------------------------ */
+/* 组说明（组号角标去掉后，组信息改用文字）                             */
+/* ------------------------------------------------------------------ */
+
+/** 手别 → 中文（组说明里用） */
+const HAND_TEXT: Record<Hand, string> = { L: '左', R: '右' }
+
+/**
+ * 格键 → 人话：「L|关|浮」→「左关浮」。
+ *
+ * 格键写不出来时**原样返回** —— 不猜、不替读者编一个部位。
+ */
+export function cellLabel(cell: string): string {
+  const p = parseCell(cell)
+  return p ? `${HAND_TEXT[p.hand]}${p.organ}${p.depth}` : cell
+}
+
+/**
+ * 组说明文字 —— 如「组 1：左关浮；组 2：右关浮」。
+ *
+ * ## 为什么用文字，不用格角上标
+ *
+ * 组号角标是**程序自己加的**，资料原图上没有；而且它跟脉象符号挤在一格里：
+ * `0²` 看着像「另一种脉象」，空格中央飘一个 `1` 更莫名其妙
+ * （那是因为 `groups` 引用了 `cells` 之外的格，角标没有依附对象）。
+ * 去掉角标后组信息挪到这里，读者看的是「**哪几格属于哪一组**」。
+ *
+ * ## 只列**有要求**的格
+ *
+ * `groups` 里可能引用到 `cells` 之外的格（导入时漏一格就会这样）。
+ * 那种格没有取值要求，列出来是假的 —— 过滤掉。
+ *
+ * ## 单组（或没有 `groups`）时返回 null
+ *
+ * 「所有格同时成立」是默认语义，不需要额外说明。
+ */
+export function groupLegend(pattern: PulsePattern): string | null {
+  const groups = pattern.groups
+  if (!groups || groups.length <= 1) return null
+  const has = new Set(pattern.cells.map((c) => c.cell))
+  const lines: string[] = []
+  groups.forEach((cells, i) => {
+    const labels = cells.filter((k) => has.has(k)).map(cellLabel)
+    if (labels.length === 0) return
+    lines.push(`组 ${i + 1}：${labels.join('、')}`)
+  })
+  if (lines.length === 0) return null
+  return lines.join('；')
+}
