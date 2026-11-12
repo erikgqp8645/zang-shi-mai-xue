@@ -35,6 +35,7 @@ import { PATTERNS } from './pulse-patterns'
 import type { PulsePattern } from './pulse-pattern'
 import { isDa, strengthOf } from './symbols'
 import RULE_DATA from '../content/formula-rules.json'
+import LIBRARY_DATA from '../content/library-settings.json'
 
 export type FormulaKind = '主线' | '挡路' | '加味' | '禁忌'
 
@@ -64,6 +65,14 @@ export interface FormulaRule {
   kind: FormulaKind
   /** 常驻条目（如用药禁忌）：不依赖脉象，始终列出 */
   always?: boolean
+  /**
+   * **这一条要不要在「用方知识库」里显示**（共享层，全站一致）。
+   *
+   * ⓘ 这是**内容层**的字段（后台改 → 发布 → 全站生效），不是本机偏好。
+   * ⓘ 判读判定**不受它影响** —— `evaluate` 仍按脉象命中，
+   *    ②「定疗法」面板的命中结果照旧；只是这一条不出现在知识库列表里。
+   */
+  visible?: boolean
   /**
    * 本条的**脉象图**（条件示意）—— 讲稿／讲义写明的格位要求。
    *
@@ -108,6 +117,7 @@ export interface RuleDataJson {
   quote: string
   kind: string
   always?: boolean
+  visible?: boolean
 }
 
 /** 合法的类别（讲稿／讲义的四类） */
@@ -725,6 +735,23 @@ export const EVALUATORS: Record<string, (ctx: RuleContext) => string[]> = {
  *   · 判定函数 → 本文件的 `EVALUATORS`
  */
 export const FORMULA_RULES: FormulaRule[] = loadRules(RULE_DATA.rules, EVALUATORS, PATTERNS)
+
+/**
+ * 「用方知识库」的**显示设置**（共享层，全站一致）。
+ *
+ * ⓘ 真源是内容层 `src/content/library-settings.json`
+ *    （后台「知识库显示」那张表改完，发布命令写进快照 ⇒ 全站生效）。
+ * ⓘ 这里只**读**：网站端不提供第二份开关 ——
+ *    一个设置有两处真源就等于迟早不一致。
+ *
+ * · `hideGroupTitles` —— true＝「讲稿原序」维度下**不显示分组标题**，
+ *   直接一条条列内容。
+ *   ⓘ 只作用于「讲稿原序」：按五行／按左右手时，那个标题是**唯一的分组标识**
+ *   （木／火／土…／左手·心肝…），去掉就变成一堵墙。
+ */
+export const LIBRARY_SETTINGS = {
+  hideGroupTitles: LIBRARY_DATA.library.hideGroupTitles === true,
+}
 
 /**
  * 按**给定的**规则数据载入规则（判定函数与脉象图仍用本文件的那两份）。

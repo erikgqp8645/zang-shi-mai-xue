@@ -52,6 +52,7 @@ import { tableDefs } from './lib/content-schema.mjs'
 import { ADMIN_URL, createAdminClient } from './lib/content-admin-client.mjs'
 import {
   displayTemplate,
+  plannedBooleans,
   plannedDisplayFields,
   plannedEnums,
   plannedReadonly,
@@ -105,6 +106,7 @@ const defs = tableDefs()
 const { relations, plainText } = plannedRelations(defs)
 const displayFields = plannedDisplayFields(defs, relations)
 const enums = plannedEnums(defs)
+const booleans = plannedBooleans(defs)
 const required = plannedRequired(defs)
 const readonly = plannedReadonly(defs)
 
@@ -211,6 +213,14 @@ async function main() {
       interface: 'input',
       special: null,
       note: `存的是「${pt.oneCollection}」的 ${pt.oneField}（原文用字），不是它的主键 ${pt.targetPk} ⇒ 没法做成下拉，按文本填`,
+    })
+  }
+  for (const b of booleans) {
+    // ⭐ 布尔列渲染成**开关**（不是数字框）——
+    //   用户要的是「一格一个勾」，填 0／1 会填错。
+    addField(b.collection, b.field, {
+      interface: 'boolean',
+      note: b.note,
     })
   }
   for (const e of enums) {

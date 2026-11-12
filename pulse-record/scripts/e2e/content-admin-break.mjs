@@ -51,6 +51,7 @@ import {
   plannedCellViewColumns,
   plannedDisplayFields,
   plannedEnums,
+  plannedBooleans,
   plannedReadonly,
   plannedRelations,
   plannedRequired,
@@ -61,6 +62,7 @@ import {
   checkDisplayTemplates,
   checkEnumDropdowns,
   checkFieldInterfaces,
+  checkBooleanSwitches,
   checkReadonlyDerived,
   checkRelationsNoOneField,
   checkRequiredFlags,
@@ -86,6 +88,7 @@ const displayFields = plannedDisplayFields(defs, relations)
 const enums = plannedEnums(defs)
 const required = plannedRequired(defs)
 const readonly = plannedReadonly(defs)
+const booleans = plannedBooleans(defs)
 const tables = defs.map((d) => d.table)
 const plan = {
   tables,
@@ -148,6 +151,7 @@ async function runAll() {
     ...(await checkEnumDropdowns(api, enums)),
     ...(await checkRequiredFlags(api, required)),
     ...(await checkReadonlyDerived(api, readonly)),
+    ...(await checkBooleanSwitches(api, booleans)),
     ...(await checkViewPresets(api, plan)),
     ...(await checkBookmarks(api, plan)),
   ]
@@ -388,6 +392,20 @@ try {
     })
     const hit = (await checkReadonlyDerived(api, readonly)).filter((p) => p.id === 'A27')
     ok(hit.length > 0, `→ 必须被 [A27] 抓到（实际抓到 ${hit.length} 条）`)
+    for (const p of hit) console.log(`      · ${p.msg}`)
+  }
+
+  console.log('')
+  console.log('⑫-新 故意写坏：把布尔列的「开关」改成数字框')
+  console.log('    （开关变回 0／1 输入框 —— 用户会填错；这是 A30 管的）')
+  {
+    const b = booleans[0]
+    await api(`/fields/${b.collection}/${b.field}`, {
+      method: 'PATCH',
+      body: { meta: { interface: 'input' } },
+    })
+    const hit = (await checkBooleanSwitches(api, booleans)).filter((p) => p.id === 'A30')
+    ok(hit.length > 0, `→ 必须被 [A30] 抓到（实际抓到 ${hit.length} 条）`)
     for (const p of hit) console.log(`      · ${p.msg}`)
   }
 

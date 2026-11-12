@@ -91,6 +91,11 @@ export const LIBRARY_KINDS = {
       { key: 'quote', type: 'string', required: true },
       { key: 'kind', type: 'enum', values: ['主线', '挡路', '加味', '禁忌'], required: true },
       { key: 'always', type: 'boolean' },
+      // 「这一条要不要在用方知识库里显示」——
+      // 2026-11-12 用户标注2：「这里每一条都可以单独编辑文字和是否显示」。
+      // true＝显示；false＝知识库列表里不列这一条（**判读命中不受影响**）。
+      // 不写＝按显示算（缺省显示），所以它不是必填。
+      { key: 'visible', type: 'boolean' },
     ],
     blocked: {
       add:
@@ -123,6 +128,8 @@ export const LIBRARY_KINDS = {
       { key: 'contraindication', type: 'string' },
       { key: 'source', type: 'string', required: true },
       { key: 'quote', type: 'string' },
+      // 「这一方要不要在用方知识库里显示」—— 同 rule 的 visible，语义一样。
+      { key: 'visible', type: 'boolean' },
     ],
   },
 

@@ -85,6 +85,34 @@ export function displayTemplate(field) {
 }
 
 /**
+ * 要配成**开关**的列 —— schema 里类型是 `bool` 的那些。
+ *
+ * 返回 [{ collection, field, note }]。
+ *
+ * ⭐ 为什么要显式配：
+ *   Directus 的布尔字段默认给的是**数字框**（填 0／1），
+ *   用户要的是**一眼能点、不会填错**的开关。
+ *   显式指定 `interface: 'boolean'` 才渲染成勾选框。
+ *
+ * ⭐ 说明文字取 schema 的 `comment`（唯一来源）——
+ *   那一列是什么意思，schema 里已经写着，界面里就不用再写一遍。
+ */
+export function plannedBooleans(defs) {
+  const out = []
+  for (const def of defs) {
+    for (const col of def.columns) {
+      if (col.type !== 'bool') continue
+      out.push({
+        collection: def.table,
+        field: col.name,
+        note: col.comment || '勾上＝是',
+      })
+    }
+  }
+  return out
+}
+
+/**
  * 要配成**枚举下拉**的列 —— schema 里声明了 `enum` 的那些。
  *
  * 返回 [{ collection, field, choices, allowOther }]。

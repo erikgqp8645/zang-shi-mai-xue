@@ -65,8 +65,30 @@ export const SCHEMA_DIR = join(CONTENT_DIR, 'schema')
 const TYPE_MAP = {
   text: { sqlite: 'TEXT', pg: 'TEXT' },
   integer: { sqlite: 'INTEGER', pg: 'INTEGER' },
-  bool: { sqlite: 'INTEGER', pg: 'BOOLEAN' },
+  // ⭐ SQLite 没有布尔类型，但**列的声明名**可以写 BOOLEAN ——
+  //   Directus 的 SQLite 驱动靠**声明类型**判定字段类型，
+  //   声明成 INTEGER 时它在后台显示成「数字框」，
+  //   声明成 BOOLEAN 才显示成**开关**（用户要的就是一格一个开关）。
+  //   SQLite 的类型亲和性对 BOOLEAN 落成 NUMERIC，存 1／0 没有任何问题。
+  bool: { sqlite: 'BOOLEAN', pg: 'BOOLEAN' },
   json: { sqlite: 'TEXT', pg: 'JSONB' },
+}
+
+/**
+ * 列的**默认值** → 两套方言的 SQL 字面量。
+ *
+ * ⭐ 两套方言都从**同一个** schema 声明取值 ⇒ 本地库与远端表的默认值不会漂。
+ *   · SQLite 没有 TRUE/FALSE ⇒ 布尔落成 1／0；
+ *   · PG 是真布尔 ⇒ TRUE／FALSE。
+ */
+function defaultSql(col, dialect) {
+  const v = col.default
+  if (v === undefined || v === null) return null
+  if (col.type === 'bool') return dialect === 'pg' ? (v ? 'TRUE' : 'FALSE') : v ? '1' : '0'
+  if (col.type === 'integer') return String(v)
+  if (col.type === 'text') return `'${String(v).replace(/'/g, "''")}'`
+  if (col.type === 'json') return dialect === 'pg' ? `'[]'::jsonb` : "'[]'"
+  throw new Error(`未知列类型 ${col.type}（表 ${col.table}）`)
 }
 
 /** 讲义 p34 的 9 行版体例（与 `src/domain/layout.ts` 的 LAYOUTS.nine 一致） */
@@ -125,6 +147,8 @@ export function tableDefs(dir = SCHEMA_DIR) {
           fk: c.fk || null,
           json: c.json || null,
           comment: c.comment || '',
+          // ⭐ 默认值：两套方言都从这一份取值 ⇒ 本地表与远端表不会漂。
+          default: c.default === undefined ? null : c.default,
         })),
         // ⭐ 派生代理主键规则（复合键 → 单列 id）。
         //   规则写在 schema 里（唯一来源），落库/导出/断言都从这里读。
@@ -200,6 +224,8 @@ function columnSql(col, dialect) {
   if (!t) throw new Error(`未知列类型 ${col.type}（表 ${col.table}）`)
   let s = `${qi(col.name)} ${t}`
   if (col.notNull) s += ' NOT NULL'
+  const d = defaultSql(col, dialect)
+  if (d) s += ` DEFAULT ${d}`
   if (col.unique && !col.pk) s += ' UNIQUE'
   return s
 }
@@ -226,6 +252,45 @@ export function createTableSql(def, dialect, schema = null) {
 }
 
 /**
+ * 给**已存在**的表补列的语句（幂等）。
+ *
+ * ⭐ 为什么需要它：
+ *   `CREATE TABLE IF NOT EXISTS` 对**已存在**的表是**空操作** ——
+ *   远端 PG 上那张表是老版本建的，schema 后来加了列，
+ *   光跑建表语句**不会**把新列补上 ⇒ 发布时
+ *   `jsonb_populate_recordset(NULL::content.<表>, …)` 会因为字段对不上而报错。
+ *
+ *   所以建表语句后面要跟一句「把缺的列补上」。
+ *
+ * ⭐ 只给**可空**或**有默认值**的列补：
+ *   `ADD COLUMN … NOT NULL`（且无默认值）在有数据的表上会直接失败
+ *   （PG：column contains null values）⇒ 这种列必须人工写迁移，
+ *   不能靠自动补列硬来（宁可报错，也不要悄悄填一个错的默认值）。
+ *
+ * @param def     表定义
+ * @param dialect 'sqlite' | 'pg'
+ * @param schema  表所在 schema（null ＝ 不限定）
+ */
+export function alterColumnsSql(def, dialect, schema = null) {
+  // SQLite 不支持 `ADD COLUMN IF NOT EXISTS` ⇒ 本地表一律重建，不走这条路
+  if (dialect !== 'pg') return ''
+  const name = schema ? `${qi(schema)}.${qi(def.table)}` : qi(def.table)
+  const out = []
+  for (const c of def.columns) {
+    if (c.pk) continue
+    if (c.notNull && defaultSql(c, dialect) === null) continue
+    const t = TYPE_MAP[c.type]?.pg
+    if (!t) continue
+    let s = `${qi(c.name)} ${t}`
+    if (c.notNull) s += ' NOT NULL'
+    const d = defaultSql(c, dialect)
+    if (d) s += ` DEFAULT ${d}`
+    out.push(`ALTER TABLE ${name} ADD COLUMN IF NOT EXISTS ${s};`)
+  }
+  return out.join('\n')
+}
+
+/**
  * 全部建表语句
  *
  * @param dialect 'sqlite' | 'pg'
@@ -240,6 +305,11 @@ export function createAllSql(dialect, opts = {}) {
       `-- ${schema ? `${schema}.` : ''}${d.table}${d.comment ? ` · ${d.comment}` : ''}（来自 ${d.source}.schema.json）`,
     )
     out.push(createTableSql(d, dialect, schema))
+    const alters = alterColumnsSql(d, dialect, schema)
+    if (alters) {
+      out.push(`-- 补列（老表上缺的那几列，幂等）`)
+      out.push(alters)
+    }
   }
   return out.join('\n\n')
 }
@@ -265,22 +335,26 @@ export function dropAllSql(dialect, opts = {}) {
  * 内容 JSON → 行
  * ------------------------------------------------------------------ */
 
-/** 读 8 个内容文件 */
+/** 读内容 JSON 文件（9 个：8 个内容 ＋ 1 个「知识库显示设置」） */
 export function loadContent(dir = CONTENT_DIR) {
-  const names = [
-    'doses',
-    'drugs',
-    'formula-reference',
-    'formula-rules',
-    'pulse-groups',
-    'pulse-patterns',
-    'pulse-terms',
-    'symbols',
-  ]
+  const names = CONTENT_FILES
   const out = {}
   for (const n of names) out[n] = JSON.parse(readFileSync(join(dir, `${n}.json`), 'utf8'))
   return out
 }
+
+/** 内容文件名清单（唯一来源；快照、装载、发布都读它） */
+export const CONTENT_FILES = [
+  'doses',
+  'drugs',
+  'formula-reference',
+  'formula-rules',
+  'library-settings',
+  'pulse-groups',
+  'pulse-patterns',
+  'pulse-terms',
+  'symbols',
+]
 
 /** 原样字符串 / 可空 */
 function opt(v) {
@@ -334,7 +408,22 @@ export function jsonColumnMap(dir = SCHEMA_DIR) {
 }
 
 /**
- * SQLite 行 → **发布载荷**行：把 JSON 列从「JSON 字符串」还原成「JSON 值」。
+ * 每张表里 **布尔型**的列名。
+ *
+ * 依据是 schema 的列类型（`type: 'bool'`）⇒ 唯一真源。
+ */
+export function boolColumnMap(dir = SCHEMA_DIR) {
+  const map = {}
+  for (const def of tableDefs(dir)) {
+    const cols = def.columns.filter((c) => c.type === 'bool').map((c) => c.name)
+    if (cols.length) map[def.table] = cols
+  }
+  return map
+}
+
+/**
+ * SQLite 行 → **发布载荷**行：把 JSON 列从「JSON 字符串」还原成「JSON 值」，
+ * 把布尔列从 0／1 还原成 true／false。
  *
  * ## 为什么发布前要还原
  *
@@ -342,16 +431,20 @@ export function jsonColumnMap(dir = SCHEMA_DIR) {
  * 如果直接把 TEXT 当字符串发过去，PG 存进去的就是一个 **JSON 字符串**
  * （`"[\"甲\",\"乙\"]"`），不是数组 —— 线上读到的东西形状就变了。
  *
- * 还原成真 JSON 之后再发，PG 存进去的才是正经的 jsonb 数组。
+ * 布尔列同理：本地存 0／1（SQLite 没有布尔类型），
+ * 远端列是 `BOOLEAN` ⇒ 必须发 **JSON 布尔**（true／false），
+ * 发数字的话 `jsonb_populate_recordset` 会在远端报类型错。
  *
  * @param {Record<string, object[]>} rows 库里的行（`{ 表名: [行] }`）
  * @returns {Record<string, object[]>} 载荷行
  */
 export function rowsToPayload(rows) {
   const jcols = jsonColumnMap()
+  const bcols = boolColumnMap()
   const out = {}
   for (const [table, list] of Object.entries(rows)) {
     const cols = jcols[table] || []
+    const bools = bcols[table] || []
     out[table] = (list || []).map((row) => {
       const r = { ...row }
       for (const c of cols) {
@@ -361,6 +454,10 @@ export function rowsToPayload(rows) {
         } catch {
           // 不是合法 JSON（不该发生，断言 A1 会盯住）⇒ 原样带过去，别让发布整个挂掉
         }
+      }
+      for (const c of bools) {
+        if (r[c] === null || r[c] === undefined) continue
+        r[c] = Boolean(r[c])
       }
       return r
     })
@@ -437,6 +534,8 @@ export function buildRows(content) {
     contraindication: opt(d.contraindication),
     source: d.source,
     quote: d.quote,
+    // ⭐ 「是否显示」：缺省＝显示；写 false 才是隐藏
+    visible: d.visible === false ? 0 : 1,
   }))
 
   rows.content_formula_rules = rules.map((r) => ({
@@ -449,6 +548,8 @@ export function buildRows(content) {
     quote: r.quote,
     always: r.always === undefined ? null : r.always ? 1 : 0,
     adds: r.adds ? JSON.stringify(r.adds) : null,
+    // ⭐ 「是否显示」：缺省＝显示；写 false 才是隐藏
+    visible: r.visible === false ? 0 : 1,
   }))
 
   // 方名是**原文写法**，不是外键 ⇒ 存文本
@@ -518,6 +619,15 @@ export function buildRows(content) {
     group: s.group,
     hint: opt(s.hint),
   }))
+
+  // 知识库显示设置（固定一行）
+  const lib = content['library-settings']?.library || {}
+  rows.content_library_settings = [
+    {
+      id: 'library',
+      hide_group_titles: lib.hideGroupTitles ? 1 : 0,
+    },
+  ]
 
   rows.content_pulse_patterns = Object.entries(patterns).map(([id, p]) => ({
     id,
@@ -608,14 +718,15 @@ export function buildContentFromRows(inputRows) {
   doses.sciences = rows.content_sciences.map((s) => stripNulls({ ...s }))
 
   const drugs = rows.content_drugs.map((d) => {
-    const { adjustments, ...rest } = d
+    const { adjustments, visible, ...rest } = d
     const out = { ...rest }
     if (adjustments) out.adjustments = parseJsonColumn(adjustments)
+    out.visible = visible === null || visible === undefined ? true : !!visible
     return stripNulls(out)
   })
 
   const rules = rows.content_formula_rules.map((r) => {
-    const { always, adds, ...rest } = r
+    const { always, adds, visible, ...rest } = r
     const out = { ...rest }
     if (always !== null && always !== undefined) out.always = !!always
     if (adds) out.adds = parseJsonColumn(adds)
@@ -629,6 +740,7 @@ export function buildContentFromRows(inputRows) {
       .map((d) => d.drug_id)
     out.formulas = formulas
     if (drugIds.length) out.drugs = drugIds
+    out.visible = visible === null || visible === undefined ? true : !!visible
     return stripNulls(out)
   })
 
@@ -716,6 +828,12 @@ export function buildContentFromRows(inputRows) {
     return stripNulls(out)
   })
 
+  // 知识库显示设置（固定一行）
+  const libRow = rows.content_library_settings[0] || {}
+  const library = {
+    hideGroupTitles: !!libRow.hide_group_titles,
+  }
+
   // ⭐ 每个文件都带上 `$schema` 指针（指向自己那份 schema 文件）
   const withSchema = (name, body) => ({ $schema: `./schema/${name}.schema.json`, ...body })
 
@@ -728,6 +846,7 @@ export function buildContentFromRows(inputRows) {
       draftExtra,
     }),
     'formula-rules': withSchema('formula-rules', { rules }),
+    'library-settings': withSchema('library-settings', { library }),
     'pulse-groups': withSchema('pulse-groups', { groups }),
     'pulse-patterns': withSchema('pulse-patterns', { patterns }),
     'pulse-terms': withSchema('pulse-terms', { terms }),

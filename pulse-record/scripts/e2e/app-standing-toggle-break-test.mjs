@@ -92,8 +92,16 @@ function ok(name, cond, detail = '') {
 /** Findings.tsx：② 命中区分组时把常驻条目并进来 */
 const RE_PANEL_ALL = /const all = showStanding \? \[\.\.\.formulaHits, \.\.\.standingHits\(\)\] : \[\.\.\.formulaHits\]/
 
-/** FormulaLibrary.tsx：知识库要显示的规则集 */
-const RE_VISIBLE_RULES = /\(\) => \(showStanding \? FORMULA_RULES : FORMULA_RULES\.filter\(\(r\) => !r\.always\)\)/
+/**
+ * FormulaLibrary.tsx：知识库要显示的规则集
+ *
+ * ⚠️ 2026-11-12 改过一次：过滤条件里多了内容层的「是否显示」
+ *    （`isVisible(r)`），常驻条目那一条从 `!r.always` 改成 `!r.always` 的等价写法。
+ *    mutation F 只破坏**常驻条目**那半边（`showStanding || !r.always` → 恒真），
+ *    可见性那半边留着不动 —— F 测的是「开关」，不是「可见性」。
+ */
+const RE_VISIBLE_RULES =
+  /FORMULA_RULES\.filter\(\(r\) => isVisible\(r\) && \(showStanding \|\| !r\.always\)\)/
 
 /**
  * Findings.tsx：chip 上的数字文案
@@ -149,7 +157,8 @@ const MUTATIONS = [
     file: 'library',
     apply(src) {
       // showStanding 为真时本来就是全量；为假时也返回全量 ⇒ 开关在③ 里失效
-      return src.replace(RE_VISIBLE_RULES, '() => (showStanding ? FORMULA_RULES : FORMULA_RULES)')
+      // （只破坏常驻条目那半边；可见性那半边留着 —— 那是另一条断言在管的事）
+      return src.replace(RE_VISIBLE_RULES, 'FORMULA_RULES.filter((r) => isVisible(r))')
     },
     expectRed: [
       '关掉后③ 知识库的常驻条目也没了（同一个开关）',

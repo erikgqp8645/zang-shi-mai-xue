@@ -13,7 +13,10 @@
  *   · 墓碑被当成「没改过」→ 刚删的条目又冒出来；
  *   · 悬空引用检查被关掉 → 写出半坏数据，前端读的时候才炸；
  *   · p44 边界被关掉 → 数据多一条而判定函数没有 → **前端启动就崩**；
- *   · 每次写盘都带时间戳 → apply 不幂等，改一次抖一下。
+ *   · 每次写盘都带时间戳 → apply 不幂等，改一次抖一下；
+ *   · 「是否显示」（visible）没登记进可编辑字段表 → 这一项没人能改；
+ *   · verify／import 不放行「基线里有、但没登记」的字段 → 命令行改一条成功，
+ *     自检却报「不许凭空加字段」（三个命令口径不一致）。
  *
  * ## 这个脚本干什么
  *
@@ -322,6 +325,74 @@ const MUTATIONS = [
       'H4 p44 可以删除',
       'H5 删除后 apply：这条从 p44 里消失，别的条目一条不少',
     ],
+  },
+  {
+    id: 'M10',
+    title: '「是否显示」（visible）从可编辑字段表里删掉（这一项就没人能改了）',
+    files: [
+      {
+        path: LIB,
+        replacements: [
+          {
+            from:
+              '      // 不写＝按显示算（缺省显示），所以它不是必填。\n' +
+              '      { key: \'visible\', type: \'boolean\' },\n' +
+              '    ],',
+            to:
+              '      // 不写＝按显示算（缺省显示），所以它不是必填。\n' +
+              '      // （故意写坏：visible 的字段登记被删掉了）\n' +
+              '    ],',
+          },
+        ],
+      },
+    ],
+    expectRed: [
+      'V1 set 改 visible：成功（覆盖层能改「是否显示」）',
+      'V2 apply 之后内容文件里这一条的 visible 真的变成 false',
+    ],
+    // 关键：只坏了「字段登记」这一处 —— 基线里那个字段仍然被原样保留，
+    // 所以 verify 不该因此变红（变了就说明 W2 是靠别的东西变红的假阳性）。
+    expectGreen: ['W2 verify 通过（自检跟 set 同一个口径，不把基线字段判成违规）'],
+  },
+  {
+    id: 'M11',
+    title: 'verify 不再放行「基线里有、但没登记」的字段（命令行改一条成功，自检却报违规）',
+    files: [
+      {
+        path: CLI,
+        replacements: [
+          {
+            from:
+              '      const knownKeys = new Set(Object.keys(baselineEntryOf(baseline, spec, itemId) ?? {}))\n' +
+              '      const errors = validateEntry(kind, ov.payload, { knownKeys })',
+            to: '      const errors = validateEntry(kind, ov.payload) // （故意写坏：knownKeys 摘掉）',
+          },
+        ],
+      },
+    ],
+    expectRed: ['W2 verify 通过（自检跟 set 同一个口径，不把基线字段判成违规）'],
+    // 关键：只坏了「自检」这一处 —— 改一条本身照样该成功。
+    expectGreen: ['V1 set 改 visible：成功（覆盖层能改「是否显示」）'],
+  },
+  {
+    id: 'M12',
+    title: 'import 不再放行「基线里有、但没登记」的字段（搬到另一个库就搬不过去）',
+    files: [
+      {
+        path: CLI,
+        replacements: [
+          {
+            from:
+              '    const knownKeys = new Set(Object.keys(baselineEntryOf(baseline, spec, id) ?? {}))\n' +
+              '    const errors = validateEntry(kind, item?.payload, { knownKeys })',
+            to: '    const errors = validateEntry(kind, item?.payload) // （故意写坏：knownKeys 摘掉）',
+          },
+        ],
+      },
+    ],
+    expectRed: ['W4 import 到另一个库：未登记的字段也搬得过去'],
+    // 关键：只坏了「导入」这一处 —— 导入**只含已登记字段**的那一批照样该过。
+    expectGreen: ['K2 import 到另一个库：内容一模一样'],
   },
 ]
 

@@ -14,6 +14,7 @@
  *   A25 schema 声明了 enum 的列是下拉，且选项与 schema 一致
  *   A26 schema 里 NOT NULL 的列在后台标了必填
  *   A27 派生代理键在后台是只读
+ *   A30 布尔列在后台是开关（不是数字框）
  *
  * ⚠️ **只读** —— 不改任何配置（改配置的是 `content-admin-init.mjs`，
  *    故意写坏的验证是 `scripts/e2e/content-admin-break.mjs`）。
@@ -28,6 +29,7 @@ import {
   CELL_COLLECTION,
   DEFAULT_PATTERN_ID,
   PATTERN_COLLECTION,
+  plannedBooleans,
   plannedCellViewColumns,
   plannedDisplayFields,
   plannedEnums,
@@ -49,6 +51,7 @@ const plan = {
   enums: plannedEnums(defs),
   required: plannedRequired(defs),
   readonly: plannedReadonly(defs),
+  booleans: plannedBooleans(defs),
   // 视图预设与书签（A28／A29）
   cellCollection: CELL_COLLECTION,
   patternCollection: PATTERN_COLLECTION,
@@ -100,6 +103,7 @@ console.log(
   `[content-admin-check] ${plan.tables.length} 张表 / ${plan.relations.length} 条关系 / ` +
     `${plan.plainText.length} 个文本字段 / ${plan.displayFields.length} 个显示字段 / ` +
     `${plan.enums.length} 个枚举列 / ${plan.required.length} 个必填列 / ${plan.readonly.length} 个只读列 / ` +
+    `${plan.booleans.length} 个布尔开关 / ` +
     `${plan.patterns.length} 张图的书签`,
 )
 if (problems.length === 0) {

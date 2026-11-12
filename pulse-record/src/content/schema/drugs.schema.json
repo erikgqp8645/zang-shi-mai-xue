@@ -34,7 +34,11 @@
         },
         "contraindication": { "type": "string", "description": "禁忌，逐条保留" },
         "source": { "type": "string", "description": "出处（如「讲稿 2010·第二讲（叁、用方·一、一体疗法）」）" },
-        "quote": { "type": "string", "description": "逐字原文（渲染时加引号）" }
+        "quote": { "type": "string", "description": "逐字原文（渲染时加引号）" },
+        "visible": {
+          "type": "boolean",
+          "description": "**是否在「用方知识库」里显示这一条**（共享层，全站一致）。false＝这一条不展示。ⓘ 判读判定逻辑不受影响（`evaluate` 仍按脉象命中），只是这条内容不出现在列表里。"
+        }
       }
     }
   },
@@ -54,7 +58,15 @@
         { "name": "adjustments", "type": "json", "json": "drugs.items.adjustments" },
         { "name": "contraindication", "type": "text", "json": "drugs.items.contraindication" },
         { "name": "source", "type": "text", "notNull": true, "json": "drugs.items.source" },
-        { "name": "quote", "type": "text", "notNull": true, "json": "drugs.items.quote" }
+        { "name": "quote", "type": "text", "notNull": true, "json": "drugs.items.quote" },
+        {
+          "name": "visible",
+          "type": "bool",
+          "notNull": true,
+          "default": true,
+          "json": "drugs.items.visible",
+          "comment": "是否在「用方知识库」里显示这一条（共享层，全站一致）"
+        }
       ]
     }
   ]

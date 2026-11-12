@@ -672,7 +672,10 @@ async function cmdImport(db, opts, positional) {
       problems.push(spec.blocked?.add ?? `${spec.label}不能新增`)
       continue
     }
-    const errors = validateEntry(kind, item?.payload)
+    // 校验：基线里本来就有、但没登记的字段放行（同 cmdSet 的契约）——
+    // 导入的是**覆盖层导出的东西**，那些字段本来就该跟着一起搬过去。
+    const knownKeys = new Set(Object.keys(baselineEntryOf(baseline, spec, id) ?? {}))
+    const errors = validateEntry(kind, item?.payload, { knownKeys })
     if (errors.length > 0) {
       problems.push(`${kind} ${id}：${errors.join('；')}`)
       continue
@@ -771,7 +774,11 @@ async function cmdVerify(db, opts, positional) {
         problems.push(`${spec.label}「${itemId}」的 JSON 读不出来`)
         continue
       }
-      const errors = validateEntry(kind, ov.payload)
+      // 基线里本来就有、但没登记的字段放行（保留原样）——
+      // **与 cmdSet 同一个契约**：命令行改一条能过，自检就不能再把它判成违规。
+      // （漏了这一句的后果：管理员改一条成功，跑 verify 却报「不许凭空加字段」。）
+      const knownKeys = new Set(Object.keys(baselineEntryOf(baseline, spec, itemId) ?? {}))
+      const errors = validateEntry(kind, ov.payload, { knownKeys })
       if (errors.length > 0) {
         problems.push(`${spec.label}「${itemId}」不合规：${errors.join('；')}`)
       }

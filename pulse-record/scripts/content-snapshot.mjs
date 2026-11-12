@@ -4,7 +4,7 @@
  *
  * ## 干什么
  *
- * 本地编辑库 → 8 个 `src/content/*.json`。不碰远端。
+ * 本地编辑库 → 9 个 `src/content/*.json`。不碰远端。
  *
  * ## 什么时候需要单独跑
  *
@@ -63,7 +63,7 @@ function main() {
       console.log(`  ${args.check ? '会变' : '已改'}  ${r.name}.json（${r.bytes} 字节）`)
     }
   }
-  if (!changed) console.log('  8 个快照都没变')
+  if (!changed) console.log(`  ${result.length} 个快照都没变`)
 
   console.log(
     args.check

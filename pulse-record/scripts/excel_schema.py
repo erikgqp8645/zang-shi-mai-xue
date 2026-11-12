@@ -109,6 +109,17 @@ SHEET_DRUGS = SheetDef(
         ColDef("禁忌", "contraindication", 38, omit_empty=True),
         ColDef("出处", "source", 32, note="格式：讲稿 2010·第N讲"),
         ColDef("原文引述", "quote", 60, note="逐字引用，保持原文用字"),
+        ColDef(
+            "显示",
+            "visible",
+            8,
+            "bool",
+            note=(
+                "**这一条要不要在「用方知识库」里显示**（共享层，全站一致）。"
+                "TRUE＝显示；FALSE＝这一条不展示。"
+                "⚠️ 留空会被当成「不是布尔值」而报错 —— 请填 TRUE 或 FALSE。"
+            ),
+        ),
     ],
 )
 
@@ -275,6 +286,17 @@ SHEET_FORMULA_RULES = SheetDef(
         ColDef("原文引述", "quote", 60),
         ColDef("类别", "kind", 10, note="主线／挡路／加味／禁忌"),
         ColDef("常驻", "always", 8, "bool", omit_empty=True, note="TRUE＝不依赖脉象，始终列出（如用药禁忌）"),
+        ColDef(
+            "显示",
+            "visible",
+            8,
+            "bool",
+            note=(
+                "**这一条要不要在「用方知识库」里显示**（共享层，全站一致）。"
+                "TRUE＝显示；FALSE＝这一条不展示。"
+                "⚠️ 留空会被当成「不是布尔值」而报错 —— 请填 TRUE 或 FALSE。"
+            ),
+        ),
     ],
 )
 

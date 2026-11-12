@@ -19,7 +19,8 @@
         "zhongjiao",
         "xiajiao",
         "sanjiao-liaocheng"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-bianmai-youli",
@@ -37,7 +38,8 @@
       ],
       "drugs": [
         "jianban-sanjiao"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-shenyong-mubiao",
@@ -52,7 +54,8 @@
       ],
       "drugs": [
         "xiajiao"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-ssx-qingdanglu",
@@ -64,7 +67,8 @@
       "quote": "「1. 清挡路，如下图」（讲义 2026-10·p44 上盛下虚框）",
       "formulas": [
         "清挡路"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-ssx-yinhuo",
@@ -80,7 +84,8 @@
       ],
       "drugs": [
         "yinhui-guiyuan"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-dl1-jiawei-sijun",
@@ -92,7 +97,8 @@
       "quote": "「第一个挡路的，浮取无，浮取没有或者弱，我们就用加味四君。」（讲稿 2010·第四讲·清挡路一）",
       "formulas": [
         "加味四君（五昇／理中）"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-dl1-yinyang",
@@ -108,7 +114,8 @@
         "麦冬",
         "干姜",
         "黄芪"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-dl1-liushen",
@@ -120,7 +127,8 @@
       "quote": "「第二个是浮软的脉，我们用六神。浮软再大一点，就是胃出血的脉，记住，软脉是胃出血的脉。」（讲稿 2010·第四讲）",
       "formulas": [
         "六神"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-dl1-zengye",
@@ -132,7 +140,8 @@
       "quote": "「看下面浮大的脉。我们用增液汤。」（讲稿 2010·第四讲）",
       "formulas": [
         "增液（安卫）"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-dl1-hongda-huhang",
@@ -145,7 +154,8 @@
       "formulas": [
         "三号上焦方（护航）",
         "下焦方（科中）"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-dl1-guanjian",
@@ -155,7 +165,8 @@
       "kind": "挡路",
       "source": "讲义 2026-10·p44（蓝框注）／讲稿 2010·第四讲",
       "quote": "「想入肾，右关是第一关键，右关的问题先解决，才有办法往下面走。」（讲稿 2010·第四讲）",
-      "formulas": []
+      "formulas": [],
+      "visible": true
     },
     {
       "id": "fx-dl2-youcun-da",
@@ -168,7 +179,8 @@
       "formulas": [
         "参苏",
         "肝肺同治"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-dl2-youcun-hongda",
@@ -181,7 +193,8 @@
       "formulas": [
         "参苏加减",
         "肝肺同治"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-dl2-zuoguan-hongxian",
@@ -193,7 +206,8 @@
       "quote": "「我们看左关。左关脉出现浮洪或者弦。洪是更大，我们是用加味龙胆。像病毒来讲的话，没有加味龙胆你不要想。」（讲稿 2010·第四讲·清挡路二）",
       "formulas": [
         "加味龙胆"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-dl2-zuoguan-zhongyouli",
@@ -206,7 +220,8 @@
       "formulas": [
         "散泻两走",
         "补中带泻"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-dl2-zuoguan-youcun-da",
@@ -218,7 +233,8 @@
       "quote": "「③ 左关右寸浮大：肝肺同治」（讲义 2026-10·p44 肝肺同治框）",
       "formulas": [
         "肝肺同治"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-dl2-zuoguan-fuwu",
@@ -230,7 +246,8 @@
       "quote": "「我们看下面这个浮无或弱，这个很简单，就是滋肾以补肝，他所产生的症状一般烦闷比较多。」（讲稿 2010·第四讲·清挡路二）",
       "formulas": [
         "滋肾以补肝"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-dl2-zuoguan-xuzang-ladun",
@@ -243,7 +260,8 @@
       "formulas": [
         "六味 + 天冬",
         "参苏"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-dl2-zuocun-guan-fu",
@@ -256,7 +274,8 @@
       "formulas": [
         "肝心同治",
         "天王（补心丹）"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-dl2-shuangguan-youcun-da",
@@ -268,7 +287,8 @@
       "quote": "「⑥ 双关右寸浮大：黄芪鳖甲」（讲义 2026-10·p44 肝肺同治框）",
       "formulas": [
         "黄芪鳖甲"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-dl3-zuocun-da",
@@ -280,7 +300,8 @@
       "quote": "「我们看左寸脉。出现浮大的时候，很简单，第一个问头，第二个问心脏会不会心悸，第三个问睡眠，这三个跑不掉。左寸浮大，我们是用天王芪。」（讲稿 2010·第四讲·清挡路三）",
       "formulas": [
         "天王芪（天王补心丹 + 黄芪）"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-dl3-zuocun-ding",
@@ -292,7 +313,8 @@
       "quote": "「左寸顶的，程度就更高，不适之症更严重，我们用天王加防风，没有比较高等级的散药，去不了那个顶。」（讲稿 2010·第四讲·清挡路三）",
       "formulas": [
         "天王 + 防风"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-dl3-bianmai-wuli",
@@ -304,7 +326,8 @@
       "quote": "「再来就是变脉无力，很单纯，用上焦方。」（讲稿 2010·第四讲·清挡路三）",
       "formulas": [
         "上焦方"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-dl4-chi-bupingheng",
@@ -316,7 +339,8 @@
       "quote": "「记住尺脉不平衡是万恶的元凶，很多病症都是因为尺脉不平衡而造成。」（讲稿 2010·第四讲·清挡路四）｜「把上面一二三个挡路清掉后，知柏就可以下去。要知柏下去是把尺脉打到脉衰，才补得进去。」（讲稿 2010·第六讲）",
       "formulas": [
         "知柏六味桂"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-dl4-chi-da-ding",
@@ -326,7 +350,8 @@
       "kind": "挡路",
       "source": "讲义 2026-10·p44（右下框 ② 尺浮大或顶手）／讲稿 2010·第五讲",
       "quote": "「如果左寸顶手、或右寸顶手、双寸顶手、尺弱或不平衡，这些都是扫障碍里面必须要清除的，不清除这些障碍，肾药没办法下行。」（讲稿 2010·第五讲）",
-      "formulas": []
+      "formulas": [],
+      "visible": true
     },
     {
       "id": "fx-dl5-shuangguan",
@@ -341,7 +366,8 @@
       ],
       "drugs": [
         "shuangguan-tongzhi"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-dl6-ganxin",
@@ -356,7 +382,8 @@
       ],
       "drugs": [
         "ganyan-tongzhi"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-toutou-bianmai",
@@ -376,7 +403,8 @@
         "zhongjiao",
         "xiajiao",
         "sanjiao-liaocheng"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-toutou-cunguan",
@@ -389,7 +417,8 @@
       "formulas": [
         "引火归元",
         "清挡路"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-toutou-shuangguan",
@@ -402,7 +431,8 @@
       "formulas": [
         "双关同治",
         "上焦方（护航）"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-yao-yangxu",
@@ -414,7 +444,8 @@
       "quote": "「我们看逍遥散，阳虚以四君子汤加温热药，阴虚以六味地黄加温热药。我再给大家解读，尺脉及左关都是虚脏。」（讲稿 2010·第二讲）",
       "formulas": [
         "四君子汤 + 温热药"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-yao-yinxu",
@@ -426,7 +457,8 @@
       "quote": "「我们看逍遥散，阳虚以四君子汤加温热药，阴虚以六味地黄加温热药。」（讲稿 2010·第二讲）",
       "formulas": [
         "六味汤 + 温热药"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-yao-jiawei-sijun-peifang",
@@ -447,7 +479,8 @@
       ],
       "drugs": [
         "zhongjiao"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-yao-liushen-peifang",
@@ -463,7 +496,8 @@
       ],
       "drugs": [
         "youguan-liushen"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-yao-xiaoyao",
@@ -483,7 +517,8 @@
         "ganyan-tongzhi",
         "zuocun-fuda-tianwang",
         "zuocun-fuda-yangxin"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-yao-huangqi-biejia",
@@ -503,7 +538,8 @@
       ],
       "drugs": [
         "zuoguan-youcun-fuda"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-yao-bianbian",
@@ -522,7 +558,8 @@
         "youguanchi-fuda-zengye",
         "xiajiao",
         "yinhui-guiyuan"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx2-yiti-lengreshui",
@@ -537,7 +574,8 @@
       ],
       "drugs": [
         "yiti-leng-re-shui"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx2-sanjiao-wuli",
@@ -559,7 +597,8 @@
         "zhongjiao",
         "xiajiao",
         "sanjiao-liaocheng"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx2-jianban-sanjiao",
@@ -577,7 +616,8 @@
       ],
       "drugs": [
         "jianban-sanjiao"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx2-yinhuo-guiyuan",
@@ -593,7 +633,8 @@
       ],
       "drugs": [
         "yinhui-guiyuan"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx2-xiajiao-rukemen",
@@ -608,7 +649,8 @@
       ],
       "drugs": [
         "xiajiao"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx2-yinhuo-jiazi",
@@ -634,7 +676,8 @@
       ],
       "drugs": [
         "yinhui-guiyuan"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx2-youguanchi-fuda-ding-muxiang",
@@ -649,7 +692,8 @@
       ],
       "drugs": [
         "youguanchi-dingshou-muxiang"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx2-youguanchi-zuoguan-fuda-soufeng",
@@ -664,7 +708,8 @@
       ],
       "drugs": [
         "soufeng-shunqi"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx2-ssx-yinhuo",
@@ -679,7 +724,8 @@
       ],
       "drugs": [
         "yinhui-guiyuan"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx2-zuocun-ding-tianwang",
@@ -697,7 +743,8 @@
       ],
       "drugs": [
         "zuocun-fuda-tianwang"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx2-zuocunguan-ganyan",
@@ -716,7 +763,8 @@
       ],
       "drugs": [
         "ganyan-tongzhi"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx2-shuangcun-fuda",
@@ -736,7 +784,8 @@
         "zuocun-fuda-tianwang",
         "youcun-fuda-cansu",
         "zhongjiao"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx2-youguan-fuda-zengye",
@@ -755,7 +804,8 @@
         "youguanchi-fuda-zengye",
         "youmai-fuda-yijian",
         "yinhui-guiyuan"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx2-youguan-xuzang-lizhong",
@@ -772,7 +822,8 @@
       "drugs": [
         "youguan-jiawei-lizhong",
         "youguan-liushen"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx2-zuoguan-youcun-huangqi",
@@ -791,7 +842,8 @@
       "drugs": [
         "zuoguan-youcun-fuda",
         "zuoguan-youcun-fuhongda"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx2-zuoguan-fuda-longdan",
@@ -807,7 +859,8 @@
       ],
       "drugs": [
         "zuoguan-fuhongda-longdan"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx2-shuangguan-fuda-buzhong",
@@ -824,7 +877,8 @@
       ],
       "drugs": [
         "shuangguan-tongzhi"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx2-chi-bupingheng-zhibai",
@@ -839,7 +893,8 @@
       ],
       "drugs": [
         "yinhui-guiyuan"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx2-liumai-xianxi",
@@ -859,7 +914,8 @@
       "drugs": [
         "zuocun-fuda-tianwang",
         "jianban-sanjiao"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx2-liumai-fuhongdaxian",
@@ -883,7 +939,8 @@
         "zuoguan-fuhongda-longdan",
         "youguanchi-fuhongda-fangfeng",
         "zuoguan-youcun-fuhongda"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx2-zuoyou-bupingheng-renshen",
@@ -898,7 +955,8 @@
       ],
       "drugs": [
         "zuoyou-bupingheng-renshen"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx2-zuoguan-xuzang-zishen",
@@ -914,7 +972,8 @@
       ],
       "drugs": [
         "zuoguan-xuzang-tongzhi"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-jinji-sanyong",
@@ -929,7 +988,8 @@
         "不用麻黄",
         "不用黄连",
         "不用大黄"
-      ]
+      ],
+      "visible": true
     },
     {
       "id": "fx-jinji-baihu-shenqi",
@@ -943,7 +1003,8 @@
       "formulas": [
         "白虎汤",
         "肾气丸（桂附八味肾气丸）"
-      ]
+      ],
+      "visible": true
     }
   ]
 }

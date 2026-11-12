@@ -1,0 +1,6 @@
+{
+  "$schema": "./schema/library-settings.schema.json",
+  "library": {
+    "hideGroupTitles": true
+  }
+}

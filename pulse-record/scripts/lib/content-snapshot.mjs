@@ -3,8 +3,8 @@
  *
  * ## 干什么
  *
- * 把本地编辑库（`local-data/content.sqlite`）导成 8 个内容 JSON 文件。
- * 这 8 个文件是**发布命令的产物**（不是编辑面）——
+ * 把本地编辑库（`local-data/content.sqlite`）导成 9 个内容 JSON 文件。
+ * 这 9 个文件是**发布命令的产物**（不是编辑面）——
  * 手改会被下一次发布覆盖，且 `content:check` 会红。
  *
  * ## 格式必须与现有文件**完全一致**
@@ -24,12 +24,13 @@ import { join } from 'node:path'
 
 import { CONTENT_DIR, buildContentFromRows, readTable, tableDefs } from './content-schema.mjs'
 
-/** 8 个内容文件名（不含扩展名） */
+/** 9 个内容文件名（不含扩展名） */
 export const SNAPSHOT_FILES = [
   'doses',
   'drugs',
   'formula-reference',
   'formula-rules',
+  'library-settings',
   'pulse-groups',
   'pulse-patterns',
   'pulse-terms',

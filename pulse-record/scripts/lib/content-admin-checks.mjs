@@ -271,6 +271,40 @@ export async function checkRequiredFlags(api, required) {
 }
 
 /**
+ * A30（布尔开关）—— schema 里 `type: 'bool'` 的列，后台必须是**开关**。
+ *
+ * Directus 的布尔字段默认给的是**数字框**（填 0／1），
+ * 用户要的是一眼能点、不会填错的勾选框 ⇒ 必须显式配 `interface: 'boolean'`。
+ *
+ * ⓘ 这一条只对**声明成布尔**的列生效；
+ *   SQLite 里布尔列的声明名必须写 `BOOLEAN`（Directus 靠声明类型判定），
+ *   否则它在后台显示成 integer ⇒ 这条断言会红。
+ */
+export async function checkBooleanSwitches(api, booleans) {
+  const problems = []
+  for (const b of booleans) {
+    const r = await api(`/fields/${b.collection}/${b.field}`)
+    if (!r.ok) {
+      problems.push({
+        id: 'A30',
+        msg: `字段 ${b.collection}.${b.field} 读取失败 ${r.status}`,
+      })
+      continue
+    }
+    const iface = r.json?.data?.meta?.interface
+    if (iface !== 'boolean') {
+      problems.push({
+        id: 'A30',
+        msg:
+          `字段 ${b.collection}.${b.field} 的界面 = ${JSON.stringify(iface)}，` +
+          `应为 "boolean"（布尔列要给开关，不是数字框）`,
+      })
+    }
+  }
+  return problems
+}
+
+/**
  * A27（派生键只读）—— 派生代理主键 `id` 在后台必须是只读。
  *
  * `content_pulse_cells.id` ＝「pattern_id|seq」，是**算出来的**。
@@ -461,6 +495,7 @@ export async function runAdminChecks(api, plan) {
     ...(await checkEnumDropdowns(api, plan.enums)),
     ...(await checkRequiredFlags(api, plan.required)),
     ...(await checkReadonlyDerived(api, plan.readonly)),
+    ...(await checkBooleanSwitches(api, plan.booleans)),
     ...(await checkViewPresets(api, plan)),
     ...(await checkBookmarks(api, plan)),
   ]
@@ -475,6 +510,7 @@ export async function runAdminChecks(api, plan) {
     plan.enums.length +
     plan.required.length +
     plan.readonly.length +
+    plan.booleans.length +
     2 +
     plan.patterns.length
   return { problems, checks }

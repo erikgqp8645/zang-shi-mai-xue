@@ -104,7 +104,7 @@ export function checkSchemaVsDb(db) {
         fail('A1', `缺列：${def.table}.${col.name}`)
         continue
       }
-      const expectType = { text: 'TEXT', integer: 'INTEGER', bool: 'INTEGER', json: 'TEXT' }[col.type]
+      const expectType = { text: 'TEXT', integer: 'INTEGER', bool: 'BOOLEAN', json: 'TEXT' }[col.type]
       if (String(got.type).toUpperCase() !== expectType) {
         fail('A1', `类型不符：${def.table}.${col.name} 期望 ${expectType}，实际 ${got.type}`)
       }

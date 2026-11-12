@@ -88,6 +88,10 @@
             "加味",
             "禁忌"
           ]
+        },
+        "visible": {
+          "type": "boolean",
+          "description": "**是否在「用方知识库」里显示这一条**（共享层，全站一致）。false＝这一条不展示。ⓘ 判读判定逻辑不受影响（`evaluate` 仍按脉象命中），只是这条内容不出现在列表里。"
         }
       }
     }
@@ -150,6 +154,14 @@
           "name": "adds",
           "type": "json",
           "json": "rules.items.adds"
+        },
+        {
+          "name": "visible",
+          "type": "bool",
+          "notNull": true,
+          "default": true,
+          "json": "rules.items.visible",
+          "comment": "是否在「用方知识库」里显示这一条（共享层，全站一致）"
         }
       ]
     },

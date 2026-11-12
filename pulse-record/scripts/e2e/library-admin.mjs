@@ -16,6 +16,7 @@
  *   ⑨ 字段校验拦得住坏数据（必填、枚举、未知字段）；
  *   ⑩ 读接口形状对，未登录 401，**所有账号共享同一份**（公共资料）；
  *   ⑪ **仓库里真正的 src/content/*.json 一个字节都没被碰**。
+ *   ⑫ 每条的「是否显示」（visible）也能改，改完撤得掉（逐字节回基线）。
  *
  * 跑法：node scripts/e2e/library-admin.mjs
  *
@@ -215,6 +216,141 @@ await check('B5 apply 幂等：跑两次，第二次一个字节都不变', asyn
   const after = tempBytes()
   const same = CONTENT_FILES.every((f) => before.get(f).equals(after.get(f)))
   return [r.code === 0 && same, `exit=${r.code} same=${same}`]
+})
+
+/* ------------------------------------------------------------------ */
+/* V 段：每条的「是否显示」（visible）                                  */
+/* ------------------------------------------------------------------ */
+/*
+ * 2026-11-12 用户标注2：「这里每一条都可以单独编辑文字和是否显示」。
+ * 这个「是否显示」是**共享层**的内容字段（内容层 `visible` 列）——
+ * 覆盖层是同一份内容的另一个编辑面，所以它也得能改这个字段。
+ *
+ * ⚠️ 改完之后必须能**撤销回原始基线**（逐字节）——
+ *    覆盖层是叠加在基线上的，撤不掉就等于把基线永久改脏了。
+ */
+const VIS_RULE_ID = 'fx-bianmai-wuli'
+
+/**
+ * V 段动手**之前**临时内容目录的样子。
+ *
+ * ⚠️ 不能拿「原始基线」当参照 —— B 段改的 `xiajiao` 还在覆盖层里，
+ *    apply 会把它一起写回去 ⇒ 那是 V 段之外的改动，不该算在 V 段头上。
+ */
+const visBefore = tempBytes()
+
+await check('V1 set 改 visible：成功（覆盖层能改「是否显示」）', async () => {
+  const r = cli([
+    'set', 'rule', VIS_RULE_ID,
+    '--set', 'visible=false',
+    '--note', '这一条先不显示',
+    '--by', '测试员',
+  ])
+  return [r.code === 0 && r.out.includes('已改'), `exit=${r.code} ${r.out.slice(0, 300)}`]
+})
+
+await check('V2 apply 之后内容文件里这一条的 visible 真的变成 false', async () => {
+  const r = applyFresh()
+  const hit = tempJson('formula-rules.json').rules.find((x) => x.id === VIS_RULE_ID)
+  return [r.code === 0 && hit?.visible === false, `exit=${r.code} visible=${hit?.visible}`]
+})
+
+await check('V3 别的条目的 visible 没被连带改掉（只动了一条）', async () => {
+  const rules = tempJson('formula-rules.json').rules
+  const others = rules.filter((x) => x.id !== VIS_RULE_ID)
+  const broken = others.filter((x) => x.visible === false)
+  return [broken.length === 0, broken.map((x) => x.id).join('｜') || `（其余 ${others.length} 条都没动）`]
+})
+
+await check('V4 撤掉覆盖行之后 apply 逐字节回到 V 段之前的样子', async () => {
+  await dropRow('rule', VIS_RULE_ID)
+  const r = applyFresh()
+  const now = tempBytes()
+  const same = CONTENT_FILES.every((f) => visBefore.get(f).equals(now.get(f)))
+  return [r.code === 0 && same, `exit=${r.code} same=${same}`]
+})
+
+/* ------------------------------------------------------------------ */
+/* W 段：基线里有、但注册表里没有的字段 —— 必须能原样往返              */
+/* ------------------------------------------------------------------ */
+/*
+ * 契约（`validateEntry` 的 `knownKeys` 参数）：
+ *   基线里本来就有、但没登记的字段 —— **保留原样，不算错**；
+ *   但管理员**不能凭空新增**这种字段。
+ *
+ * 这条契约横跨三个命令：set（改）→ verify（自检）→ import（搬）。
+ * 三处必须是**同一个口径** ——
+ * 否则就会出现「命令行改一条成功、自检却报『不许凭空加字段』」这种没人看得懂的报错。
+ *
+ * ⚠️ 2026-11-12 真踩过：`visible` 加进基线之后，
+ *    verify 与 import 都没传 knownKeys ⇒ 同一个字段在 set 里合法、在自检里违规。
+ *
+ * ⓘ 全程在**临时内容目录**上做：往临时基线里塞一个注册表里没有的字段，
+ *    仓库里的 src/content/*.json 一个字节都不碰。
+ */
+const EXTRA_FIELD = 'x-未登记字段'
+const W_RULE_ID = 'fx-bianmai-wuli'
+
+/** 把临时基线摆成「仓库基线 ＋ 某一条里多一个注册表里没有的字段」 */
+function tempBaselineWithExtraField() {
+  applyFresh() // 先回到仓库基线（apply 会把覆盖层里的改动写回去）
+  const p = join(contentDir, 'formula-rules.json')
+  const doc = JSON.parse(readFileSync(p, 'utf8'))
+  const hit = doc.rules.find((r) => r.id === W_RULE_ID)
+  hit[EXTRA_FIELD] = '原样保留'
+  writeFileSync(p, JSON.stringify(doc, null, 2) + '\n', 'utf8')
+}
+
+const wBefore = tempBytes()
+
+await check('W1 set 改一条：基线里未登记的字段原样带过去', async () => {
+  tempBaselineWithExtraField()
+  const r = cli([
+    'set', 'rule', W_RULE_ID,
+    '--set', 'condition=（W 段测试用条件）',
+    '--content-dir', contentDir,
+  ])
+  const show = cli(['show', 'rule', W_RULE_ID, '--content-dir', contentDir])
+  return [
+    r.code === 0 && r.out.includes('已改') && show.out.includes(EXTRA_FIELD),
+    `exit=${r.code} ${r.out.slice(0, 200)}`,
+  ]
+})
+
+await check('W2 verify 通过（自检跟 set 同一个口径，不把基线字段判成违规）', async () => {
+  const r = cli(['verify', '--content-dir', contentDir])
+  return [r.code === 0 && r.out.includes('自检通过'), `exit=${r.code} ${r.out.slice(0, 300)}`]
+})
+
+await check('W3 apply 之后那个字段原样还在文件里', async () => {
+  const r = apply()
+  const hit = tempJson('formula-rules.json').rules.find((x) => x.id === W_RULE_ID)
+  return [r.code === 0 && hit?.[EXTRA_FIELD] === '原样保留', `exit=${r.code} ${hit?.[EXTRA_FIELD]}`]
+})
+
+await check('W4 import 到另一个库：未登记的字段也搬得过去', async () => {
+  const outFile = join(dir, 'export-w.json')
+  cli(['export', '--out', outFile])
+  const otherDb = join(dir, 'other-w.sqlite')
+  const imp = spawnSync(
+    process.execPath,
+    [
+      join(ROOT, 'scripts', 'admin.mjs'), 'library', 'import',
+      '--file', outFile,
+      '--content-dir', contentDir,
+    ],
+    { env: { ...process.env, PULSE_DB: otherDb }, encoding: 'utf8', cwd: ROOT },
+  )
+  const out = `${imp.stdout ?? ''}${imp.stderr ?? ''}`
+  return [imp.status === 0 && out.includes('已导入'), `exit=${imp.status} ${out.slice(0, 300)}`]
+})
+
+await check('W5 清理：撤掉覆盖行后临时目录逐字节回到 W 段之前', async () => {
+  await dropRow('rule', W_RULE_ID)
+  applyFresh()
+  const now = tempBytes()
+  const same = CONTENT_FILES.every((f) => wBefore.get(f).equals(now.get(f)))
+  return [same, `same=${same}`]
 })
 
 /* ------------------------------------------------------------------ */

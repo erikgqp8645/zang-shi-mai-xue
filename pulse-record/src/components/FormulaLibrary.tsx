@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FORMULA_RULES, FORMULA_ROUTE_ORDER, type FormulaRule } from '../domain/formulas'
-import { DRUGS, DRUG_GROUPS, type Drug } from '../domain/drugs'
+import {
+  FORMULA_RULES,
+  FORMULA_ROUTE_ORDER,
+  LIBRARY_SETTINGS,
+  type FormulaRule,
+} from '../domain/formulas'
+import { DRUG_GROUPS, VISIBLE_DRUGS, type Drug } from '../domain/drugs'
+import { isVisible } from '../domain/visibility'
 import { FORMULA_REFERENCE } from '../domain/medication'
 import { formulaAnchor, formulaAnchorId, type FormulaLink } from '../domain/formula-links'
 import {
@@ -127,11 +133,18 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding }: Props)
   /**
    * 讲义 p44 依脉用方里**要显示的**那部分。
    *
-   * 常驻条目（三不用／白虎汤·肾气丸，route＝「用药禁忌」）不依脉象，
-   * 关掉开关就不列 —— 与② 命中区同一个开关（状态在 App 里）。
+   * 两道过滤：
+   * ① **内容层的「是否显示」**（`visible=false` 的不列）——
+   *    共享层，后台改完发布，全站一致。
+   * ② **常驻条目开关**（三不用／白虎汤·肾气丸，route＝「用药禁忌」不依脉象，
+   *    关掉就不列）—— 与② 命中区同一个开关（状态在 App 里）。
+   *
+   * ⚠️ 只过滤**知识库列表**：判读（② 命中区）仍按全量规则命中 ——
+   *    「这条内容不给看」不该顺手把判读结论也改了。
    */
   const visibleRules = useMemo(
-    () => (showStanding ? FORMULA_RULES : FORMULA_RULES.filter((r) => !r.always)),
+    () =>
+      FORMULA_RULES.filter((r) => isVisible(r) && (showStanding || !r.always)),
     [showStanding],
   )
 
@@ -160,21 +173,33 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding }: Props)
       }))
   }, [dim, visibleRules])
 
-  /** 讲稿 2010 方剂：按维度分组（全量） */
+  /** 讲稿 2010 方剂：按维度分组（全量里**要显示**的那些） */
   const drugGroups = useMemo<Group<Drug>[]>(() => {
-    if (dim === 'wuxing') return groupByWuxing(DRUGS, (d) => d.id)
-    if (dim === 'hand') return groupByHand(DRUGS, (d) => d.id)
+    if (dim === 'wuxing') return groupByWuxing(VISIBLE_DRUGS, (d) => d.id)
+    if (dim === 'hand') return groupByHand(VISIBLE_DRUGS, (d) => d.id)
     // 讲稿原序：按讲稿第二讲「叁、用方」的三种疗法
     return DRUG_GROUPS.map((g) => ({
       key: g.therapy,
       label: g.title,
       note: '讲稿 2010·第二讲「叁、用方」',
-      items: DRUGS.filter((d) => d.therapy === g.therapy),
+      items: VISIBLE_DRUGS.filter((d) => d.therapy === g.therapy),
     })).filter((g) => g.items.length > 0)
   }, [dim])
 
   /** 按五行／左右手时的分组顺序（与 ② 面板同一套） */
   const groupOrder = dim === 'wuxing' ? DIM_ORDER.wuxing : dim === 'hand' ? DIM_ORDER.hand : []
+
+  /**
+   * 分组标题显不显示 —— **共享层**的设置（后台改完发布，全站一致）。
+   *
+   * ⓘ 只在「讲稿原序」维度生效：
+   *    按五行／按左右手时，那个标题是**唯一的分组标识**（木／火／土…），
+   *    去掉就变成一堵墙 —— 那不是「直接显示内容」，是「看不出哪条属哪组」。
+   *
+   * ⓘ 讲稿原序下每条自己带「条件 ｜ 疗法 ｜ 方名」，
+   *    所以标题去掉后条目仍然读得懂。
+   */
+  const hideGroupTitles = LIBRARY_SETTINGS.hideGroupTitles && dim === 'route'
 
   /* ------------------------------------------------------------------ */
   /* 检索                                                                */
@@ -186,7 +211,7 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding }: Props)
     () => buildRuleIndex(visibleRules, (rule) => patternsOf(rule.id, rule.patterns)),
     [visibleRules, patternsOf],
   )
-  const drugIndex = useMemo(() => buildDrugIndex(DRUGS), [])
+  const drugIndex = useMemo(() => buildDrugIndex(VISIBLE_DRUGS), [])
   const refIndex = useMemo(() => buildRefIndex(FORMULA_REFERENCE), [])
 
   /** 命中 id 集合 —— 查询为空时是全集，所以渲染侧只有一套过滤逻辑 */
@@ -218,7 +243,7 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding }: Props)
           <span className="pr-flib-caret">{expanded ? '▾' : '▸'}</span>
           <span className="pr-flib-title">用方知识库</span>
           <span className="pr-flib-count">
-            讲义 p44 依脉用方 {visibleRules.length} 条 · 讲稿方剂 {DRUGS.length} 方
+            讲义 p44 依脉用方 {visibleRules.length} 条 · 讲稿方剂 {VISIBLE_DRUGS.length} 方
           </span>
         </button>
         {/* 计数说明放在按钮外面 —— 按钮里的数字是「现在显示了多少」 */}
@@ -285,6 +310,22 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding }: Props)
               <span className="pr-filter-key">常驻条目（禁忌）</span>
               <span className="pr-filter-num">{showStanding ? '显示中' : '已隐藏'}</span>
             </button>
+            {/*
+              知识库显示模式 —— **只读回显**共享值，不是本机开关。
+              真源在内容层（后台「知识库显示」那张表）⇒ 改完发布，全站一致。
+              这里再放一个开关就等于同一件事有两个真源（迟早不一致）。
+            */}
+            <span
+              className={`pr-lib-mode${hideGroupTitles ? ' is-off' : ''}`}
+              title={
+                LIBRARY_SETTINGS.hideGroupTitles
+                  ? '知识库显示模式（共享层）：「讲稿原序」下不显示分组标题，直接列内容。在本地后台「知识库显示」那张表里改，改完跑发布命令生效。'
+                  : '知识库显示模式（共享层）：当前显示分组标题。在本地后台「知识库显示」那张表里改，改完跑发布命令生效。'
+              }
+            >
+              <span className="pr-filter-key">分组标题</span>
+              <span className="pr-filter-num">{hideGroupTitles ? '已隐藏' : '显示中'}</span>
+            </span>
             {searching && (
               <p className="pr-flib-hit">
                 命中 <strong>{hitCount}</strong> 条
@@ -318,10 +359,12 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding }: Props)
                     if (items.length === 0) return null
                     return (
                       <div key={g.key} className="pr-flib-group">
-                        <h4 className="pr-drug-group-title">
-                          {dim === 'route' ? g.label : groupShortLabel(dim, g.key)}
-                          {searching && <span className="pr-flib-group-hit">{items.length}</span>}
-                        </h4>
+                        {!hideGroupTitles && (
+                          <h4 className="pr-drug-group-title">
+                            {dim === 'route' ? g.label : groupShortLabel(dim, g.key)}
+                            {searching && <span className="pr-flib-group-hit">{items.length}</span>}
+                          </h4>
+                        )}
                         {dim !== 'route' && <p className="pr-target-line">{g.note}</p>}
                         {items.map((r) => (
                           <div
@@ -363,10 +406,12 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding }: Props)
                     if (items.length === 0) return null
                     return (
                       <div key={g.key} className="pr-flib-group">
-                        <h4 className="pr-drug-group-title">
-                          {dim === 'route' ? g.label : groupShortLabel(dim, g.key)}
-                          {searching && <span className="pr-flib-group-hit">{items.length}</span>}
-                        </h4>
+                        {!hideGroupTitles && (
+                          <h4 className="pr-drug-group-title">
+                            {dim === 'route' ? g.label : groupShortLabel(dim, g.key)}
+                            {searching && <span className="pr-flib-group-hit">{items.length}</span>}
+                          </h4>
+                        )}
                         {dim !== 'route' && <p className="pr-target-line">{g.note}</p>}
                         {items.map((d) => (
                           <div

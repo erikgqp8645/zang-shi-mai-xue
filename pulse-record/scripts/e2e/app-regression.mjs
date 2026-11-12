@@ -569,6 +569,123 @@ try {
     `② 同和堂版 ${dupStat.panelTonghe} 张`,
   )
 
+  /* ---- ⑪ 知识库：共享层的「显示模式」＋「每条是否显示」 ---- */
+  console.log('\n【⑪】知识库显示模式 ＋ 每条的「是否显示」（共享层）')
+  //
+  // 2026-11-12 用户在画布上标了两处（网站端 ③「用方知识库」截图）：
+  //   标注1 —— 分组标题行（「叁、用方（第二讲）」）：
+  //            「增加一个选项，不显示这些文字，直接显示内容」
+  //   标注2 —— 下面每一条条目：「这里每一条都可以单独编辑文字和是否显示」
+  //
+  // 两处都落在**共享层**（用户拍板：改的是所有人看到的原文，不是本机偏好）：
+  //   · 分组标题显不显示 → 内容层 `content_library_settings.hide_group_titles`
+  //   · 每条显不显示     → 内容层 `content_formula_rules.visible` / `content_drugs.visible`
+  // 编辑面在本地后台（Directus），发布命令把值写进 `src/content/*.json` ⇒ 全站一致。
+  //
+  // ⚠️ 期望值**从内容 JSON 里算**，不写死数字 ——
+  //    写死的话，数据一改这条断言就成了恒绿/恒红的摆设。
+  const ruleDoc = JSON.parse(readFileSync(join(ROOT, 'src/content/formula-rules.json'), 'utf8'))
+  const drugDoc = JSON.parse(readFileSync(join(ROOT, 'src/content/drugs.json'), 'utf8'))
+  const libDoc = JSON.parse(readFileSync(join(ROOT, 'src/content/library-settings.json'), 'utf8'))
+  const shown = (x) => x.visible !== false
+  const wantRules = ruleDoc.rules.filter(shown)
+  const wantDrugs = drugDoc.drugs.filter(shown)
+  const wantHideTitles = libDoc.library.hideGroupTitles === true
+  /** 讲稿原序下的分组数：依脉用方按 route 分组 ＋ 讲稿方剂按疗法分组 */
+  const wantGroups =
+    new Set(wantRules.map((r) => r.route)).size + new Set(wantDrugs.map((d) => d.therapy)).size
+
+  // 切回「讲稿原序」维度（前面的段落把 ③ 切到「按五行」了）
+  await chrome.ev(
+    `(()=>{const b=[...document.querySelectorAll('#pr-flib .pr-dim-btn')].find(b=>b.textContent.trim()==='讲稿原序');b&&b.click();return 1})()`,
+  )
+  await sleep(600)
+
+  const libStat = async () =>
+    chrome.ev(
+      `(()=>{
+        const lib=document.querySelector('#pr-flib');
+        if(!lib) return null;
+        const titles=[...lib.querySelectorAll('.pr-drug-group-title')];
+        const mode=lib.querySelector('.pr-lib-mode');
+        const head=lib.querySelector('.pr-flib-count');
+        return {
+          rules: lib.querySelectorAll('.pr-formula-compact').length,
+          drugs: lib.querySelectorAll('.pr-drug-compact').length,
+          titles: titles.length,
+          mode: mode?(mode.textContent||'').replace(/\\s+/g,' ').trim():'',
+          modeOff: mode?mode.classList.contains('is-off'):null,
+          head: head?(head.textContent||'').replace(/\\s+/g,' ').trim():'',
+          dim: [...lib.querySelectorAll('.pr-dim-btn')].find(b=>b.classList.contains('is-on'))?.textContent.trim()||'',
+        };
+      })()`,
+    )
+
+  const lib1 = await libStat()
+  console.log(`  ${JSON.stringify(lib1)}`)
+  c.check('知识库切在「讲稿原序」维度', lib1.dim === '讲稿原序', lib1.dim)
+  c.check(
+    '知识库里渲染的依脉用方条目数 ＝ 内容层里「该显示」的条数（visible=false 的不列）',
+    lib1.rules === wantRules.length,
+    `界面 ${lib1.rules} 条 / 应显示 ${wantRules.length} 条`,
+  )
+  c.check(
+    '知识库里渲染的讲稿方剂数 ＝ 内容层里「该显示」的方数',
+    lib1.drugs === wantDrugs.length,
+    `界面 ${lib1.drugs} 方 / 应显示 ${wantDrugs.length} 方`,
+  )
+  c.check(
+    '知识库头部的计数也跟着走（显示中的条数，不是全量）',
+    lib1.head.includes(`${wantRules.length} 条`) && lib1.head.includes(`${wantDrugs.length} 方`),
+    lib1.head,
+  )
+
+  // 内容层标了 visible=false 的那一条，知识库里确实找不到它
+  //
+  // ⚠️ 按**锚点 id** 判，不按文字判 ——
+  //   「变脉无力」这条内容有两个 id 不同的条目共用同一个标题文字
+  //   （`fx-bianmai-wuli` 与 `fx-dl3-bianmai-wuli`）⇒ 按文字判会误报。
+  const hiddenIds = [
+    ...ruleDoc.rules.filter((r) => r.visible === false).map((r) => `rule-${r.id}`),
+    ...drugDoc.drugs.filter((d) => d.visible === false).map((d) => `drug-${d.id}`),
+  ]
+  const leaked = await chrome.ev(
+    `(()=>{const ids=${JSON.stringify(hiddenIds)};const lib=document.querySelector('#pr-flib');if(!lib)return [];return ids.filter(id=>!!document.getElementById(id));})()`,
+  )
+  c.check(
+    '内容层标了 visible=false 的条目，知识库里一条都不出现',
+    leaked.length === 0,
+    leaked.join('｜') || `（当前标了隐藏的有 ${hiddenIds.length} 条）`,
+  )
+
+  c.check(
+    '分组标题：共享值是「隐藏」就一个都不渲染，是「显示」就照旧渲染',
+    lib1.titles === (wantHideTitles ? 0 : wantGroups),
+    `界面 ${lib1.titles} 个 / 期望 ${wantHideTitles ? 0 : wantGroups} 个`,
+  )
+  c.check(
+    '显示模式有回显（共享值：已隐藏／显示中）',
+    lib1.mode.includes(wantHideTitles ? '已隐藏' : '显示中') && lib1.modeOff === wantHideTitles,
+    lib1.mode,
+  )
+
+  // 按五行／按左右手：分组标题是**唯一的分组标识** ⇒ 必须留着
+  await chrome.ev(
+    `(()=>{const b=[...document.querySelectorAll('#pr-flib .pr-dim-btn')].find(b=>b.textContent.trim()==='按五行');b&&b.click();return 1})()`,
+  )
+  await sleep(600)
+  const libWuxing = await libStat()
+  c.check(
+    '按五行维度下分组标题仍然保留（那是唯一的分组标识，去了就是一堵墙）',
+    libWuxing.dim === '按五行' && libWuxing.titles > 0,
+    `维度 ${libWuxing.dim} / ${libWuxing.titles} 个标题`,
+  )
+  // 切回讲稿原序（后面的段落按这个维度算）
+  await chrome.ev(
+    `(()=>{const b=[...document.querySelectorAll('#pr-flib .pr-dim-btn')].find(b=>b.textContent.trim()==='讲稿原序');b&&b.click();return 1})()`,
+  )
+  await sleep(500)
+
   /* ---- ⑤ 控制台 ---- */
   console.log('\n【⑤】控制台异常')
   console.log('  ', chrome.errors.length ? chrome.errors : '（无）')

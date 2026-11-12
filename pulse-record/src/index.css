@@ -2484,6 +2484,29 @@ button:disabled {
 }
 
 /*
+  知识库显示模式 —— **只读回显**共享值（后台改完发布，全站一致）。
+  不是可点的开关：能点就会有人点，点了却只改本机 ⇒ 同一件事两个真源。
+  所以它没有 pointer、没有 hover 效果，「已隐藏」用虚线框表示「这一项被关掉了」。
+*/
+.pr-lib-mode {
+  font: inherit;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  border: 1px solid var(--divider);
+  background: var(--paper);
+  color: var(--sage);
+  padding: 3px 10px;
+  border-radius: 3px;
+  cursor: default;
+}
+.pr-lib-mode.is-off {
+  border-style: dashed;
+  color: var(--ink);
+}
+
+/*
   常驻条目开关 —— 它不是「这一组被关掉」，是「这一类内容要不要显示」，
   所以不画删除线，只把字压淡（删除线会读成「这个功能没了」）。
 */

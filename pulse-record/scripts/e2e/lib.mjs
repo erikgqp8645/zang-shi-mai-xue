@@ -12,6 +12,7 @@ import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createServer } from 'node:net'
 
 export const ROOT = join(import.meta.dirname, '..', '..')
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -138,9 +139,31 @@ export function buildApp({ force = false } = {}) {
  * 起一个无头 Chrome，用 CDP 连上去。
  * 返回 { ev, errors, close }：ev 在页面里执行表达式并取回值。
  */
+/**
+ * 找一个**没人占**的端口。
+ *
+ * ⭐ 为什么必须找：上一次跑剩下来的无头 Chrome 还占着 9370 时，
+ *   新起的 Chrome 起不来，而 `http://127.0.0.1:9370/json/list` 又能问出**旧页面** ⇒
+ *   连上去的是上一次的页面，后面的 `ev()` 永远等不到回应 ⇒ **整个脚本卡死**
+ *   （实测踩过：kill 掉一次跑测，残留 Chrome 就把下一轮卡住了）。
+ */
+async function freePort(preferred) {
+  for (let p = preferred; p < preferred + 50; p += 1) {
+    const busy = await new Promise((resolve) => {
+      const srv = createServer()
+      srv.once('error', () => resolve(true))
+      srv.once('listening', () => srv.close(() => resolve(false)))
+      srv.listen(p, '127.0.0.1')
+    })
+    if (!busy) return p
+  }
+  return preferred
+}
+
 export async function launchChrome({ url, width = 1500, height = 1200, port = 9370 } = {}) {
   const exe = chromePath()
   if (!exe) throw new Error('找不到 Chrome（用 CHROME_PATH 指定可执行文件）')
+  port = await freePort(port)
   const dir = mkdtempSync(join(tmpdir(), 'pulse-chrome-'))
   const chrome = spawn(
     exe,

@@ -9,7 +9,7 @@
  * | ① **自检**（本地） | schema ↔ 库结构；领域不变量（组号一个编号空间、填用字必填组号、格位固定 18 行、导出无损） | **中止发布**，逐条指出是哪一格 |
  * | ② **对拍** | 本地 vs 远端已发布版 → 新增 N 条 / 修改 M 条 / 删除 K 条 | 远端不可达 → **中止**（不猜） |
  * | ③ **原子发布** | 一次 RPC ＝ 一个事务（整份覆盖） | 事务回滚，远端保持发布前状态，**绝不半套** |
- * | ④ **生成快照** | 本地库 → 8 个 `src/content/*.json` | 快照失败 → 远端已发布但快照未更新 → 明确提示，可单独重跑 |
+ * | ④ **生成快照** | 本地库 → 9 个 `src/content/*.json` | 快照失败 → 远端已发布但快照未更新 → 明确提示，可单独重跑 |
  * | ⑤ **三方对拍** | 远端 PG == 本地库 == JSON 快照 | 不一致 → 红，**不允许「改一边让它过」** |
  *
  * ## 用法
@@ -85,7 +85,7 @@ async function readRemote() {
   return { rows: res?.tables ?? {}, total: res?.total ?? 0, state }
 }
 
-/** 读盘上的 8 个快照文件 */
+/** 读盘上的快照文件（9 个） */
 function readSnapshotFiles() {
   const out = {}
   for (const name of SNAPSHOT_FILES) {
@@ -148,6 +148,8 @@ async function main() {
   } catch (err) {
     console.error(`✗ 远端读不出来：${String(err?.message ?? err)}`)
     console.error('  远端不可达就**中止** —— 不猜、不拿旧数据顶上。')
+    console.error('  ⚠️ 若刚改过内容 schema（加了表／列），先跑一次：')
+    console.error('     node scripts/content-pg-setup.mjs      （远端建表 ＋ 补列 ＋ 授权）')
     process.exitCode = 1
     return
   }
@@ -201,7 +203,7 @@ async function main() {
   if (changedFiles.length) {
     for (const w of changedFiles) console.log(`   · 改了 ${w.name}.json`)
   } else {
-    console.log('   · 8 个快照都没变（内容与上一版一致）')
+    console.log(`   · ${SNAPSHOT_FILES.length} 个快照都没变（内容与上一版一致）`)
   }
 
   // ── ⑤ 三方对拍 ────────────────────────────────────────────────────

@@ -11,6 +11,7 @@
  */
 
 import { toRecord } from './to-record'
+import { isVisible } from './visibility'
 import DRUG_DATA from '../content/drugs.json'
 
 export type Therapy = '一体疗法' | '三焦疗法' | '五脏疗法'
@@ -36,9 +37,24 @@ export interface Drug {
   source: string
   /** 讲稿原句 */
   quote: string
+  /**
+   * **这一条要不要在「用方知识库」里显示**（共享层，全站一致）。
+   *
+   * ⓘ false＝知识库里不列这一条；判读（② 命中区）不受影响。
+   * ⓘ 判据统一走 `src/domain/visibility.ts` 的 `isVisible`。
+   */
+  visible?: boolean
 }
 
 export const DRUGS: Drug[] = DRUG_DATA.drugs as Drug[]
+
+/**
+ * 知识库里**要显示**的方剂 —— `visible=false` 的不列。
+ *
+ * ⓘ `DRUGS` 保持**全量**（② 命中区要按 id 查方剂卡，
+ *    藏起来的方剂也得能查到组成／禁忌）⇒ 过滤只发生在这一层。
+ */
+export const VISIBLE_DRUGS: Drug[] = DRUGS.filter(isVisible)
 
 export const DRUG_BY_ID: Record<string, Drug> = toRecord(
   DRUGS.map((d) => [d.id, d] as [string, Drug]),
