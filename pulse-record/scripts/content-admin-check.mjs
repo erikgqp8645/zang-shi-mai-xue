@@ -32,6 +32,7 @@ const { relations, plainText } = plannedRelations(defs)
 const displayFields = plannedDisplayFields(defs, relations)
 const plan = {
   tables: defs.map((d) => d.table),
+  columns: Object.fromEntries(defs.map((d) => [d.table, d.columns.map((c) => c.name)])),
   relations,
   plainText,
   displayFields,

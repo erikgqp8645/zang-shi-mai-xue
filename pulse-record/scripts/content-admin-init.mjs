@@ -197,6 +197,18 @@ async function main() {
   // ③ 外键指向非主键列的字段：按普通文本处理（存的是名字，不是主键值）
   for (const pt of plainText) {
     const label = `${pt.manyCollection}.${pt.manyField} → ${pt.oneCollection}.${pt.oneField}`
+
+    // ⚠️ 这条关系以前配过（one_field ＝ 目标列）⇒ 现在**必须把 meta 抹平**。
+    //    Directus 的 `DELETE /relations/{集合}/{字段}` 对**内省出来的**关系删不掉
+    //    meta（删完 GET 还在），所以只能用 PATCH 置 null。
+    //    留着不抹平的后果：哪天 Directus 改了行为让这条也进 `schema.relations`，
+    //    读 `content_drugs` 的 `name` 列就会撞上那个 500。
+    const relRes = await writeOrCheck(
+      `/relations/${pt.manyCollection}/${pt.manyField}`,
+      { meta: { one_field: null, one_deselect_action: 'nullify' } },
+      `/relations/${pt.manyCollection}/${pt.manyField}`,
+    )
+
     const fieldRes = await writeOrCheck(
       `/fields/${pt.manyCollection}/${pt.manyField}`,
       {
@@ -208,13 +220,16 @@ async function main() {
       },
       `/fields/${pt.manyCollection}/${pt.manyField}`,
     )
-    const ok = fieldRes.ok && fieldRes.json?.data?.meta?.interface === 'input'
+
+    const relOk = relRes.ok && relRes.json?.data?.meta?.one_field === null
+    const ok = relOk && fieldRes.ok && fieldRes.json?.data?.meta?.interface === 'input'
     if (ok) {
-      console.log(`  ✅ ${label}（普通文本：值不是主键）`)
+      console.log(`  ✅ ${label}（普通文本：值不是主键；关系 meta 已抹平）`)
     } else {
       failed++
       console.log(`  ❌ ${label}（普通文本）`)
-      console.log(`     界面：${fieldRes.status} ${fieldRes.text.slice(0, 200)}`)
+      if (!relOk) console.log(`     关系：${relRes.status} ${relRes.text.slice(0, 200)}`)
+      if (!fieldRes.ok) console.log(`     界面：${fieldRes.status} ${fieldRes.text.slice(0, 200)}`)
     }
     if (!CHECK) changed++
   }

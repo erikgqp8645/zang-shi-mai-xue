@@ -63,7 +63,13 @@ const defs = tableDefs()
 const { relations, plainText } = plannedRelations(defs)
 const displayFields = plannedDisplayFields(defs, relations)
 const tables = defs.map((d) => d.table)
-const plan = { tables, relations, plainText, displayFields }
+const plan = {
+  tables,
+  columns: Object.fromEntries(defs.map((d) => [d.table, d.columns.map((c) => c.name)])),
+  relations,
+  plainText,
+  displayFields,
+}
 
 const client = createAdminClient()
 
@@ -125,6 +131,21 @@ for (const rel of relations) {
     meta: r.json?.data?.meta ?? null,
   })
 }
+// 计划外的残留关系也要能恢复（它的 one_field 也必须被抹平）
+for (const pt of plainText) {
+  const r = await api(`/relations/${pt.manyCollection}/${pt.manyField}`)
+  snapshots.push({
+    kind: 'relation',
+    path: `/relations/${pt.manyCollection}/${pt.manyField}`,
+    meta: r.json?.data?.meta ?? null,
+  })
+  const f = await api(`/fields/${pt.manyCollection}/${pt.manyField}`)
+  snapshots.push({
+    kind: 'field',
+    path: `/fields/${pt.manyCollection}/${pt.manyField}`,
+    meta: f.json?.data?.meta ?? null,
+  })
+}
 
 async function restore() {
   for (const s of snapshots) {
@@ -142,7 +163,7 @@ console.log(`[content-admin-break] 后台 ${client.url}｜${relations.length} �
 try {
   console.log('⓪ 反向：好配置必须一条都不报（防假绿）')
   {
-    const p1 = await checkAdminReadable(api, tables)
+    const p1 = await checkAdminReadable(api, plan)
     const p2 = await checkRelationsNoOneField(api, relations)
     const p3 = await checkFieldInterfaces(api, relations, plainText)
     const p4 = await checkDisplayTemplates(api, displayFields)
@@ -162,7 +183,7 @@ try {
         method: 'PATCH',
         body: { meta: { one_field: rel.oneField } },
       })
-      const readable = await checkAdminReadable(api, tables)
+      const readable = await checkAdminReadable(api, plan)
       const hit = readable.filter((p) => p.id === 'A6')
       ok(hit.length > 0, `→ 必须被 [A6] 抓到（实际抓到 ${hit.length} 条）`)
       for (const p of hit) console.log(`      · ${p.msg}`)
@@ -199,10 +220,27 @@ try {
   }
 
   console.log('')
-  console.log('④ 恢复原状后必须重新全绿')
+  console.log('④ 故意写坏：给「计划外的残留关系」填上 meta.one_field')
+  {
+    // content_alias.target → content_drugs.name：外键指向唯一列，不是主键 ⇒ 不该建关系
+    const pt = plainText[0]
+    ok(!!pt, `找到可注入的残留关系（${pt ? pt.manyCollection + '.' + pt.manyField : '无'}）`)
+    if (pt) {
+      await api(`/relations/${pt.manyCollection}/${pt.manyField}`, {
+        method: 'PATCH',
+        body: { meta: { one_field: pt.oneField } },
+      })
+      const hit = (await checkRelationsNoOneField(api, relations)).filter((p) => p.id === 'A7')
+      ok(hit.length > 0, `→ 必须被 [A7] 抓到（实际抓到 ${hit.length} 条）`)
+      for (const p of hit) console.log(`      · ${p.msg}`)
+    }
+  }
+
+  console.log('')
+  console.log('⑤ 恢复原状后必须重新全绿')
   {
     await restore()
-    const p1 = await checkAdminReadable(api, tables)
+    const p1 = await checkAdminReadable(api, plan)
     const p2 = await checkRelationsNoOneField(api, relations)
     const p3 = await checkFieldInterfaces(api, relations, plainText)
     const p4 = await checkDisplayTemplates(api, displayFields)
