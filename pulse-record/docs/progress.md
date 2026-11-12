@@ -1678,10 +1678,10 @@ U 盘带着 exe 走，换台电脑打开，读的还是那台电脑的 %APPDATA%
 | 远端分支 | `main` = `a0f5c10`；`chore/multi-user` = `b9e3b19`；`chore/desktop-electron` = `8bc151f`；`feat/wechat-miniprogram` = `623aca8`（小程序／鸿蒙／桌面端／CloudBase 线，**历史原样保留**）；**`feat/web-site` = `845b339`（网站端线，2026-11-06 从 `6ebc881` 切出）** |
 | 分支纪律 | **两条长期开发线**（2026-11-06 起）：网站端新改动走 `feat/web-site`，小程序／鸿蒙／桌面端走 `feat/wechat-miniprogram`；同源于 `6ebc881`，都**不开 PR**、都不**改写已推送的历史**。详见 `AGENTS.md`「Git 约定」 |
 | PR | #6 `chore/multi-user → main`，**OPEN**；#7 `chore/desktop-electron → chore/multi-user`，**OPEN**；`feat/wechat-miniprogram` **永不开 PR**（2026-11-06 拍板：**永不合并进 `main`**） |
-| 全量回归 | **772 项全绿**（core 40 ＋ excel 27 ＋ excel-break 28 ＋ exercise 13 ＋ taro-lint 202 ＋ taro-api 58 ＋ migration 53 ＋ auth 57 ＋ app 32 ＋ 桌面端 33 ＋ content 16 ＋ **后台核对 79（新增）** ＋ library-admin 52 ＋ rule-delete-loader 13 ＋ 鸿蒙 69）。后台那 62 项需要本地 Directus 容器在跑，**没起时明确打印「跳过」并 exit 0**（`PULSE_E2E_REQUIRE=1` 时缺容器才 exit 1 —— 跳过必须能区分于通过） |
+| 全量回归 | **840 项全绿**（core 40 ＋ excel 27 ＋ excel-break 28 ＋ exercise 13 ＋ taro-lint 202 ＋ taro-api 58 ＋ migration 53 ＋ auth 57 ＋ app 32 ＋ 桌面端 33 ＋ content 17 ＋ **后台核对 146（新增）** ＋ library-admin 52 ＋ rule-delete-loader 13 ＋ 鸿蒙 69）。后台那 146 项需要本地 Directus 容器在跑，**没起时明确打印「跳过」并 exit 0**（`PULSE_E2E_REQUIRE=1` 时缺容器才 exit 1 —— 跳过必须能区分于通过） |
 | 教程与练习册 | **`docs/教程-如何填写用方知识库.md`**（面向审核者：分表细则 ＋ 三个完整例子 ＋ 报错对照）；**`content/示例-填写示范.xlsx`**（练习册：5 格故意留空 ＋ 标黄 ＋ 批注）＋ `npm run content:exercise:check` 逐格验收。练习册的正确答案**从真源现取**，不写死；文件名含「示例／练习／示范」的工作簿**拒绝写回真源**（详见 §3.20） |
 | 数据层 | **JSON 为唯一真源**（`src/content/*.json` **8 个文件**，新增 `symbols.json`）；**Excel 为人工编辑层**（`content/臧氏脉学-用方知识库.xlsx`，**65 个 sheet** ＝ 15 通用表 ＋ **50 张脉象图矩阵**）；TS 只留逻辑。**矩阵是脉象图的唯一编辑面**，长表由它派生。往返 20 项 ＋ 故意写坏 22 项都挂在 `npm test`。用法见 [`content-layer.md`](./content-layer.md)（详见 §3.18／§3.19） |
-| 内容层（新版 · 进行中） | **本地 `local-data/content.sqlite` ＝ 编辑真源**（17 张表 1472 行，Directus 后台可编辑）→ 发布命令 → 远端 PG `content` schema ＋ 仓库 `src/content/*.json` 快照。**M0～M3 已完成**（选型／落库／远端通路／发布命令），**M4（Excel 退役）起未做**。⭐ 2026-11-12 补完后台人眼确认：**抓出并修掉一个让「被引用方整张表点不开」的 500**（Directus 的 `meta.one_field` 反向 o2m 误判），新增断言 A6~A9 ＋「故意写坏」7/7。见 §3.26 与 [`content-publish.md`](./content-publish.md) |
+| 内容层（新版 · 进行中） | **本地 `local-data/content.sqlite` ＝ 编辑真源**（17 张表 1472 行，Directus 后台可编辑）→ 发布命令 → 远端 PG `content` schema ＋ 仓库 `src/content/*.json` 快照。**M0～M3 已完成**（选型／落库／远端通路／发布命令），**M4（Excel 退役）起未做**。⭐ 2026-11-12 补完后台人眼确认：**抓出并修掉一个让「被引用方整张表点不开」的 500**（Directus 的 `meta.one_field` 反向 o2m 误判）。⭐ 同日**统一了断言编号**（计划 §10.2 的 A1~A19 为准，计划外续 A20+）＋ **后台补三项配置**（枚举下拉／必填／只读）＋ 补上「一个格位只能属于一个组」这条真实缺口。编号对照表见 [`content-assertions.md`](./content-assertions.md)，详见 §3.26／§3.27 与 [`content-admin-选型.md`](./content-admin-选型.md) |
 | 小程序工程 | `pulse-record/taro/`（Taro 4.3.2 ＋ React 18）；**原生 `miniprogram/` 原样保留作回退** |
 | 网站端 | `pulse-record/src/`（Vite ＋ React ＋ TS，单页 `App.tsx`）；③ 框内有**可折叠「用方知识库」**（p44 依脉用方全量 61 条 ＋ 讲稿方剂全量 30 方），③ 的方名**可点进去定位 ＋ 高亮**（详见 §3.17）；后端**仍跑本机 SQLite**（`local-data/history.sqlite`），**未接 CloudBase PG** |
 | 小程序包体 | 媒体资源 **119.0 KB**（底图 JPEG 116.3 KB ＋ 8 个 tabbar 图标 ≤0.4 KB）；**微信「图片和音频 > 200 K」已通过**（详见 §3.12） |
@@ -2235,3 +2235,94 @@ relation.collection === collection && relation.field === field                  
 | `scripts/content-admin-init.mjs` | 改用共用的 client/plan；`one_field` 置 null；配显示模板；`--check` 只读 |
 | `docs/images/directus-*.png` | 三张截图（列表页／下拉／500 现场） |
 
+> 📌 **本节的断言编号已作废** —— 这里写的 A6／A7／A8／A9 与实施计划 §10.2 的
+> 「A6 发布事务失败／A7 发布幂等／A8 快照==库／A9 往返」**完全错位**，
+> 同一个编号在两处讲两件事。2026-11-12 已统一改成 **A21~A27**，
+> 见 §3.27 与 [`content-assertions.md`](./content-assertions.md)。
+
+
+### 3.27 断言编号统一 ＋ 后台补三项配置（2026-11-12）
+
+这一轮不依赖任何待决事项，做的是两件「早就该做」的事。
+
+#### ① 断言编号撞车 —— 同一个编号在两处讲两件事
+
+实施计划 §10.2 的 **A1~A19 是唯一的编号来源**，但实现里早已各占各的：
+
+| 撞号 | 曾经的两种含义 | 现在 |
+|---|---|---|
+| `A5` | 内容层「派生代理主键」 ＋ 远端「API 包 == 远端 PG」 | 前者 → **A20**；后者仍是 **A5** |
+| `A6` | 远端「发布事务失败」 ＋ 后台「列表接口可读」 | 后台 → **A21** |
+| `A7` | 远端「发布幂等」 ＋ 后台「`one_field` 为 null」 | 后台 → **A22** |
+| `A8` | 计划「JSON 快照 == 本地库」 ＋ 后台「字段界面」 | 后台 → **A23** |
+| `A9` | 计划「库→JSON→读回」 ＋ 后台「显示模板」 | 后台 → **A24** |
+| `RT`／`RTL` | 内容层的两条往返检查（跟计划对不上号） | → **A8**／**A9** |
+| `A1`~`A4` | 内容层 ＋ 覆盖层线（`library-admin.mjs`） | 覆盖层线 → **LA1**~**LA4** |
+
+⇒ **规则**：计划里有的用计划编号（语义不许偏）；计划里没有的**从 A20 起往后排**，
+不占用计划编号；别的子系统用别的前缀（覆盖层线一律 `LA*`）。
+完整对照表落在 [`content-assertions.md`](./content-assertions.md)（**编号的唯一来源**）。
+
+顺带发现：**计划自己的 A8 与「落库无损」是同一件事** ——
+`content-seed.mjs --check` 读的「源 JSON」就是仓库里的 `src/content/*.json`，
+那**就是**内容层的快照文件 ⇒ 合并成一条 A8，不再两处各留一份。
+
+#### ② A3 补上一条真实缺口：「一个格位只能属于一个组」
+
+计划 A3 与 A19 讲的是同一件事（都在抓「左右被当成独立编号空间」），合并成 A3。
+
+而 A19 的实质内容 —— **同一张图里 (部位,取法,左右) 唯一** —— **原来没有断言**：
+
+落库时 `groupOf.set(格位, 组号)` 是**后写覆盖先写**，
+源 JSON 里同一个格位出现在两个组里会被**静默取最后一个**，
+组号连续性照样通过 ⇒ 行数 18、seq 连续、组号连续三条全过，坏数据就这么流到远端。
+现在 A3 多查这一条，并配了「故意写坏」的注入用例（把一个 `R` 侧格改成 `L`）。
+
+#### ③ 后台补三项配置（全部从 schema 声明推导，唯一来源）
+
+| 配置 | 声明在 schema 的 | 断言 | 为什么要 |
+|---|---|---|---|
+| **枚举下拉** | 列的 `enum`（尺／关／寸、浮／中／沉、L／R） | A25 | 手打容易打错；`allowOther=false` 保证取值集合只有一份 |
+| **必填标记** | 列的 `notNull` | A26 | `NOT NULL` 只挡 `NULL`，**挡不住空字符串** —— 后台里没填的文本框提交上去是 `''` |
+| **只读标记** | 表的 `derivedId` | A27 | 派生代理键是**算出来的**，让人手填＝迟早对不上（A20 抓到时已经白改一场） |
+
+**踩到的坑**：Directus 12 的界面选项是**对象** `{ allowOther, choices }`，**不是数组**。
+存成数组时 Directus 不报错，但界面读不到 `choices` ⇒ **下拉是空的**，
+看起来像「后台不支持下拉」。⇒ A25 专门盯这个形状。
+
+**有依据地偏离计划一处**：计划 §6.4 设想 `source`（出处）做「枚举下拉 ＋ 允许自定义」，
+但实测真实取值是**组合式长句**（`讲稿 2010·第四讲／讲义 2026-10·p44（肾虚框 1）`），
+四张表各有 46／28／56／7 种取值 ⇒ 下拉只会限制自由文本。处置：**出处保持自由文本 ＋ 必填校验**。
+
+#### ④ 顺带修掉：机器重启后起不来本地后台
+
+`content-admin.mjs up` 原来**无条件** `docker pull`。机器重启后镜像其实还在本地（1.11 GB），
+但 pull 要去 `auth.docker.io` 换 token，网络一断就整条命令失败 ⇒ **容器根本起不来**。
+现在：**本地已有镜像就跳过 pull**（`docker image inspect` 先问一句）。
+
+#### 验证
+
+- **全量回归 840 项全绿**（原 772：后台核对 79 → 146，内容层破坏用例 16 → 17），退出码 0。
+- `npm run content:admin:check` → **146 项全绿**
+  （17 张表 × 3 种请求 ＋ 10 条关系 × 2 ＋ 1 个文本字段 ＋ 7 个显示字段
+  ＋ 5 个枚举列 ＋ 56 个必填列 ＋ 6 个只读列）。
+- `node scripts/e2e/content-admin-break.mjs` → **14/14**
+  （新增：枚举选项多一项／存成数组／打开 `allowOther` → A25；关必填 → A26；关只读 → A27）。
+- `node scripts/e2e/content-schema-break.mjs` → **17/17**（新增 A3 的格位三元组用例）。
+- `node scripts/content-snapshot.mjs --check` → 8 个快照都没变（本次只动配置与断言，不动内容）。
+
+#### 这一轮新增/改动的文件
+
+| 文件 | 作用 |
+|---|---|
+| `docs/content-assertions.md` | **断言编号对照表（唯一来源）** —— 新建 |
+| `scripts/lib/content-admin-plan.mjs` | 加 `plannedEnums`／`plannedRequired`／`plannedReadonly` |
+| `scripts/lib/content-admin-checks.mjs` | 编号改 A21~A27；新增 A25／A26／A27 |
+| `scripts/lib/content-checks.mjs` | 编号改 A8／A9／A20；A3 补「格位三元组唯一」 |
+| `scripts/content-admin-init.mjs` | 合成每列的 meta 一次 PATCH；配枚举下拉／必填／只读 |
+| `scripts/content-admin-check.mjs` | 带上新配置，核对项 79 → 146 |
+| `scripts/e2e/content-admin-break.mjs` | 编号跟着改；新增 3 类破坏用例（9 → 14 项） |
+| `scripts/e2e/content-schema-break.mjs` | 编号跟着改；新增 A3 用例（16 → 17 项） |
+| `scripts/e2e/library-admin.mjs` | A 段编号改 `LA*`（与内容层撞号） |
+| `scripts/e2e/library-admin-break-test.mjs` | 跟着改 |
+| `scripts/content-admin.mjs` | 本地已有镜像就跳过 pull（重启后能起来） |

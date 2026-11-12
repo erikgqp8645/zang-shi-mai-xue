@@ -187,7 +187,7 @@ parentItem$1[parentRelationField].push(nestedItem$1);      // ← 挂在字符�
 > 「外键指向主键」的关系建 `schema.relations` 条目（所以它当时**没有**炸），
 > 但那是**依赖 Directus 的内部行为**才安全 —— 留着不抹平，哪天它改了行为就中招。
 > 而 `DELETE /relations/{集合}/{字段}` 对**内省出来的**关系**删不掉 meta**（删完 GET 还在），
-> 只能用 `PATCH` 把 `one_field` 置 null。断言 **A7** 因此改成**全量**检查
+> 只能用 `PATCH` 把 `one_field` 置 null。断言 **A22** 因此改成**全量**检查
 > （`GET /relations` 里所有 `content_` 开头的），不只查计划内那几条。
 
 ### 3.5 ⚠️ `--check` 原来会真写
@@ -196,13 +196,39 @@ parentItem$1[parentRelationField].push(nestedItem$1);      // ← 挂在字符�
 「核对」却真的改了远端，跑一次 `--check` 就等于改了一次配置，没法当验收用。
 现在 `--check` 走 `GET` 比对远端现状，正常模式才 `PATCH`。
 
+### 3.6 ⚠️ Directus 12 的界面选项是**对象**，不是数组
+
+给一个列配「枚举下拉」时，`meta.options` 的形状是：
+
+```jsonc
+{ "allowOther": false, "choices": [ { "text": "寸", "value": "寸" } ] }
+```
+
+**不是** `[{ "text": …, "value": … }]`。存成数组时 Directus 不会报错，
+但界面读不到 `choices` ⇒ **下拉是空的**（用户看到的是一个普通输入框，
+还以为「后台不支持下拉」）。实测踩过 ⇒ 断言 **A25** 专门盯这个形状。
+
+配套的三条后台配置（2026-11-12 补上，全部从 schema 声明推导）：
+
+| 配置 | 声明在 schema 的 | 断言 | 为什么要 |
+|---|---|---|---|
+| **枚举下拉** | 列的 `enum` | A25 | 尺／关／寸、浮／中／沉、L／R 是**固定集合**，手打容易打错；`allowOther=false` 保证取值集合只有一份 |
+| **必填标记** | 列的 `notNull` | A26 | `NOT NULL` 只挡 `NULL`，**挡不住空字符串** —— 后台里没填的文本框提交上去是 `''`，DB 照收不误 |
+| **只读标记** | 表的 `derivedId` | A27 | 派生代理键是**算出来的**，让人手填＝迟早对不上（A20 会抓到，但等到发布才拦＝白改一场） |
+
+⚠️ **`source`（出处）列没有做枚举下拉** —— 计划 §6.4 原本设想「枚举下拉 ＋ 允许自定义」，
+但实测真实取值是**组合式长句**（`讲稿 2010·第四讲／讲义 2026-10·p44（肾虚框 1）`），
+四张表各有 46／28／56／7 种取值，做成下拉只会限制自由文本、反而不好用。
+⇒ 处置：**出处保持自由文本 ＋ 必填校验 ＋ 说明三种出处格式**（在字段 note 里）。
+这是**有依据地偏离计划**，记在这里，不静默改。
+
 ---
 
 
 | 计划里写的 | 实测 | 处置 |
 |---|---|---|
 | 「16 张内容表」 | **17 张** | 计划自身的计数笔误（它的表清单本身就是 17 行）—— 以清单为准 |
-| 复合主键的连接表／格位表 | Directus **整表忽略** | 6 张表加派生代理键 `id`（§3.1）＋ 新增断言 A5 |
+| 复合主键的连接表／格位表 | Directus **整表忽略** | 6 张表加派生代理键 `id`（§3.1）＋ 新增断言 A20 |
 | 本地库沿用 `server/db.mjs` 的 WAL 写法 | 双实例共享会**丢写入** | 内容库改 DELETE 模式（§3.2），业务库不动 |
 | 外键关系需要人工在后台配 | Directus 12 **自动内省**出 11 条关系（`meta` 为 `null`） | 用 `PATCH /relations/{集合}/{字段}` 补 `meta`，并把关系字段的界面设成 `select-dropdown-m2o`；全部由 `scripts/content-admin-init.mjs` **从 schema 的 `fk` 声明自动推导**，可重复执行。⭐ **`meta.one_field` 必须留 `null`**（填了会让被引用方整张表 500 —— §3.4）；⭐ 另配集合级 `display_template`（`{{name}}`），下拉才显示人话而不是 id |
 | 「M0-A：本地 PG 容器兜底」 | **不需要** | M0-B 全程成立，未启用 M0-A ⇒ **未新增 `pg` 依赖** |
@@ -249,15 +275,27 @@ parentItem$1[parentRelationField].push(nestedItem$1);      // ← 挂在字符�
 
 | id | 断言 |
 |---|---|
-| **A6** | 每张内容表的列表接口都是 200 —— 三种形态各测一次：`?limit=1`、`?fields=*`、**显式点名每一列**（最后一种才是最容易踩中 o2m 误判的形态） |
-| **A7** | **所有** content 关系的 `meta.one_field` 都是 `null`（全量查，不只计划内那几条） |
-| **A8** | 关系字段是 `select-dropdown-m2o`；指向非主键的字段是普通文本 `input` |
-| **A9** | 被引用集合的 `display_template` ＝ schema 声明的显示列 |
+| **A21** | 每张内容表的列表接口都是 200 —— 三种形态各测一次：`?limit=1`、`?fields=*`、**显式点名每一列**（最后一种才是最容易踩中 o2m 误判的形态） |
+| **A22** | **所有** content 关系的 `meta.one_field` 都是 `null`（全量查，不只计划内那几条） |
+| **A23** | 关系字段是 `select-dropdown-m2o`；指向非主键的字段是普通文本 `input` |
+| **A24** | 被引用集合的 `display_template` ＝ schema 声明的显示列 |
+| **A25** | schema 声明了 `enum` 的列是下拉，且**选项与 schema 逐个相同**、`allowOther=false` |
+| **A26** | schema 里 `notNull` 的列在后台标了必填（`meta.required`） |
+| **A27** | 派生代理键在后台是**只读**（`meta.readonly`） |
 
-「故意写坏」的验证（`scripts/e2e/content-admin-break.mjs`）：把 `one_field` 填回去 → **必须被 A6／A7 抓到**；
-把界面改坏 → A8；把 `display_template` 改错 → A9；给**计划外的残留关系**填 `one_field` → A7；
-恢复后必须重新全绿。
-实测 **9/9 通过**（含反向「好配置一条都不报」的防假绿检查）。
+⚠️ 这几个 id 早先是 **A6／A7／A8／A9**，跟实施计划 §10.2 的
+「A6 发布事务失败／A7 发布幂等／A8 快照==库／A9 往返」**完全错位** ——
+同一个编号在两处讲两件事。已全部改成计划外的 **A21~A27**。
+编号纪律与完整对照表见 [`content-assertions.md`](./content-assertions.md)。
+
+「故意写坏」的验证（`scripts/e2e/content-admin-break.mjs`）：把 `one_field` 填回去 → **必须被 A21／A22 抓到**；
+把界面改坏 → A23；把 `display_template` 改错 → A24；给**计划外的残留关系**填 `one_field` → A22；
+枚举选项多一项／存成数组／打开 `allowOther` → A25；关掉必填标记 → A26；关掉派生键只读 → A27；
+恢复后必须重新全绿。实测 **14/14 通过**（含反向「好配置一条都不报」的防假绿检查）。
+
+只读核对（`npm run content:admin:check`）**146 项全绿**
+（17 张表 × 3 种请求 ＋ 10 条关系 × 2 ＋ 1 个文本字段 ＋ 7 个显示字段
+＋ 5 个枚举列 ＋ 56 个必填列 ＋ 6 个只读列）。
 
 ### 5.2 验收项 ④ 的结论：**多值下拉在当前 schema 下做不到，但当前内容也不需要**
 
@@ -271,11 +309,14 @@ parentItem$1[parentRelationField].push(nestedItem$1);      // ← 挂在字符�
 
 ⇒ **列为待拍板项**（计划 §11.1 一类），默认**保持 `jsonb` 不动**。
 
-### 5.3 派生 `id` 的编辑风险
+### 5.3 派生 `id` 的编辑风险 —— ✅ **已处置**（2026-11-12）
 
 代理键是**算出来的**。后台里手工新增一行时，人得自己填对 `id`（如 `fx-ssx-qingdanglu｜3`），
-否则 `id` 与「父键｜序号」对不上 —— 断言 **A5** 会抓到，发布脚本也会挡住。
-风险可控，但**在后台界面上给这 6 张表做「新增行」不太友好**，M6 若做定制页可考虑自动生成。
+否则 `id` 与「父键｜序号」对不上 —— 断言 **A20** 会抓到，发布脚本也会挡住。
+
+⇒ 现在后台里这 6 张表的 `id` 直接设成**只读**（`meta.readonly`，断言 **A27** 盯着），
+**改不了，也就没有这个坑**。剩下的代价是「新增行」这条路仍然不友好
+（要新增行得让发布脚本重新生成）—— 属 M6 的定制页范围，不在本地后台这一层解决。
 
 ---
 
@@ -284,12 +325,12 @@ parentItem$1[parentRelationField].push(nestedItem$1);      // ← 挂在字符�
 ```bash
 cd pulse-record
 
-# ① 起本地后台（自动拉镜像 1.11 GB、挂载 local-data → /data）
+# ① 起本地后台（镜像 1.11 GB、挂载 local-data → /data；本地已有镜像就跳过 pull）
 node scripts/content-admin.mjs up
 #    → http://localhost:8055/admin
 #    → 账号 admin@example.com　密码 PulseLocal2026（本地临时凭据，可改）
 
-# ② 配关系与视图（幂等；从 schema 的 fk 声明自动推导）
+# ② 配关系、字段界面、枚举下拉、必填、只读、视图（幂等；从 schema 声明自动推导）
 node scripts/content-admin-init.mjs
 node scripts/content-admin-init.mjs --check    # 只读核对（不会写）
 
@@ -297,13 +338,13 @@ node scripts/content-admin-init.mjs --check    # 只读核对（不会写）
 node scripts/content-seed.mjs
 node scripts/content-seed.mjs --check
 
-# ④ 断言的「故意写坏」验证（16/16）
+# ④ 内容层断言的「故意写坏」验证（17/17）
 node scripts/e2e/content-schema-break.mjs
 
-# ⑤ 后台配置的只读核对（A6~A9）
+# ⑤ 后台配置的只读核对（A21~A27，146 项）
 npm run content:admin:check
 
-# ⑥ 后台配置的「故意写坏」验证（7/7，会改配置并在 finally 里恢复）
+# ⑥ 后台配置的「故意写坏」验证（14/14，会改配置并在 finally 里恢复）
 npm run test:e2e:content:admin
 
 # 停
