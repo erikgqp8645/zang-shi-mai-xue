@@ -878,21 +878,36 @@ npm run admin -- library verify                    # 自检（合规／引用／
 - ⭐ **后台类交付物必须留一道人眼确认**（登录真机走一遍 ＋ 截图回填文档）——
   2026-11-12 证明：自动化断言全绿时，界面是**坏的**（某张表点开就 500）。
 
-### Directus 12 的三个坑（都已踩过）
+### Directus 12 的坑（都已踩过）
 
 | 坑 | 现象 | 处置 |
 |---|---|---|
 | `meta.one_field` 双向匹配 | 填了 → **被引用方集合的列表接口整个 500** | 一律 `null`；断言 A22 **全量**盯（含残留关系） |
 | `meta.options` 必须是**对象** | 存成数组时界面读不到 `choices` ⇒ **下拉是空的** | `{ allowOther, choices }`；断言 A25 |
 | `DELETE /relations` 删不掉内省关系的 meta | 删完 GET 还在 | 只能 `PATCH` 置 null |
+| **预设的过滤条件要写在顶层 `filter`** | 写进 `layout_query.filter` ⇒ 预设建得出来、API 全 200，**界面却照样全量**（前端请求不带 filter） | 两处都写（顶层那处生效）；断言 A28 |
+| **可见列在 `layout_query.tabular.fields`** | `layout_options.fields` **不被读取** ⇒ 界面不采用 | 写进 `layout_query.tabular.fields`；断言 A28 |
+| **书签 URL 用预设 id，不是名字** | `?bookmark=清挡路` ⇒「书签不存在」 | `?bookmark=<数字 id>`；书签名只给人看 |
+
+### 编辑一张脉象图（用户最常问的事）
+
+**`pulse-record/docs/编辑脉象图.md`** —— 完整步骤 ＋ 50 张图的「图名↔id」对照表。
+
+一句话版：起后台（`node scripts/content-admin.mjs up`）→ <http://localhost:8055/admin>
+（`admin@example.com` / `PulseLocal2026`）→ 左侧 **Content Pulse Cells**（一张图的 18 个格位，
+默认已落在参考图「清挡路」上，可见列＝部位/取法/左右/用字/符号/组号/备注/弹性）
+→ 点格子改（**没有行内编辑**，会跳到项目编辑页）→ 保存 → `npm run content:publish` 发布。
+
+切图：过滤器的 `Pattern ID` 是**纯文本框**（关系下拉只按主键搜，填图名搜不到）⇒ 填 id，
+或用书签直达地址 `?bookmark=<预设 id>`。**Directus 12 的界面不列出已保存的书签** —— 照实说。
 
 ### 命令
 
 ```bash
 node scripts/content-admin.mjs up|down|status|reset   # 本地后台（端口 8055；账号 admin@example.com / PulseLocal2026）
-node scripts/content-admin-init.mjs                    # 配关系／字段界面／枚举下拉／必填／只读／视图（幂等）
+node scripts/content-admin-init.mjs                    # 配关系／字段界面／枚举下拉／必填／只读／视图预设＋50 个书签（幂等）
 node scripts/content-admin-init.mjs --check            # 只读核对
-npm run content:admin:check                            # 后台配置的只读核对（A21~A27）
+npm run content:admin:check                            # 后台配置的只读核对（A21~A29）
 node scripts/e2e/content-admin-break.mjs               # 后台「故意写坏」（会改配置并在 finally 恢复）
 node scripts/content-seed.mjs [--check]                # 灌库／校验
 node scripts/content-publish.mjs [--dry-run]           # 五步发布流水线

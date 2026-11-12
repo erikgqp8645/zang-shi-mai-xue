@@ -2326,3 +2326,89 @@ relation.collection === collection && relation.field === field                  
 | `scripts/e2e/library-admin.mjs` | A 段编号改 `LA*`（与内容层撞号） |
 | `scripts/e2e/library-admin-break-test.mjs` | 跟着改 |
 | `scripts/content-admin.mjs` | 本地已有镜像就跳过 pull（重启后能起来） |
+
+### 3.28 视图预设写对了位置 ＋ 每张图一个书签（2026-11-12）
+
+起因：用户问「**我如何编辑脉象图呢？**」——要把「后台里怎么改一张图」这条路走通，
+结果走通的过程里又抓出两个**界面没生效**的坑。
+
+#### ① 视图预设的过滤条件写错了地方（界面照样 900 行）
+
+`content_pulse_cells` 的视图预设一开始把过滤条件写在 `layout_query.filter` 里：
+
+- 预设**建得出来**，API 读回也**对**，`content-admin-check` 全绿；
+- 但界面**照样显示 900 行**（50 张图 × 18 格），前端请求**不带 filter**。
+
+改成写在 `directus_presets` 的**顶层 `filter` 列**后，界面立刻变成 18 行
+（右上角显示「18 个过滤项目」，过滤徽标 1）。
+
+⭐ Directus 12 自己保存状态时**两处都写**（顶层 `filter` ＋ `layout_query.filter`），
+我们也两处都写，顶层那处是**生效的那处**。
+
+#### ② 可见列也不在 `layout_options.fields`
+
+原以为可见列写 `layout_options.fields`；实测**界面不采用**（还是默认的 ID/Organ/Pattern ID/Seq）。
+
+用界面自己的「＋（添加字段）」加一列 **Depth**，再读回预设，发现 Directus 写的是：
+
+```
+layout_query.tabular.fields = ["id","organ","pattern_id","seq","depth"]
+```
+
+⇒ **可见列在 `layout_query.tabular.fields`**；
+`layout_options.fields` 那个键 Directus **根本不读**（界面自己建的书签里它是 `null`）。
+
+现在格位编辑面的可见列是：**部位／取法／左右／用字／符号／组号／备注／弹性**（8 列），
+`id`／`pattern_id`／`seq` 藏起来（派生键、当前图已由过滤锁定、行序由排序定）。
+
+#### ③ 每张图一个书签（50 个）
+
+Directus 12 的书签（saved view）带**过滤条件**，是**唯一的「切图」机制**：
+
+- 过滤器的 `Pattern ID` 是**纯文本框**，关系下拉只按**主键**搜 ⇒ 填图名（「清挡路」）搜不到、零结果；
+- 书签能带过滤条件 ⇒ `?bookmark=<预设 id>` 直达那张图的 18 行，页面标题变成图名。
+
+⚠️ `?bookmark=` 后面是**预设在后台里的 id（数字）**，不是名字
+（用名字会得到「书签不存在」—— 这是实测踩到的）。
+书签**从库里推导**（`content_pulse_patterns` 的 50 行），不硬编码图名。
+
+⚠️ **Directus 12 的界面不列出已保存的书签**：书签图标是「把当前视图存成书签」，
+左侧导航栏里也没有书签列表 ⇒ 切图要么填 id，要么用直达地址。照实写进文档。
+
+#### ④ 初始化脚本改成「逐条比对，只补差异」
+
+原来是把同集合的旧预设**全删重建**。现在按 (集合, 书签名) 配对：该留的留、
+对不上的删、该建的建 —— 不会连用户自己加的书签一起抹掉，
+也不会把用户刚调好的可见列冲掉（Directus 会把界面状态写回预设）。
+
+只比「我们管的那几项」（filter／layout／拉取列／排序／可见列），不比整个 JSON ——
+Directus 会往 `layout_query` 里塞它自己的字段，全量比对会永远不相等 ⇒ 每次跑都重建。
+
+#### 新增断言
+
+| id | 抓什么 | 破坏用例 |
+|---|---|---|
+| **A28** | 视图预设写在**对的位置**：过滤在**顶层 `filter`**、可见列在 **`layout_query.tabular.fields`** | 把顶层 filter 挪进 `layout_query.filter` |
+| **A29** | 每张图都有书签：书签数 == 图数、书签名 == 图名、过滤条件 == 那张图的 `pattern_id` | 改一个书签的名 ＋ 改另一个书签的过滤 |
+
+#### 验证
+
+- **全量回归 896 项全绿**（原 840：后台核对 146 → 198，破坏用例 14 → 18），退出码 0。
+- `npm run content:admin:check` → **198 项全绿**
+  （…＋ 2 项视图预设 ＋ 50 张图的书签）。
+- `node scripts/e2e/content-admin-break.mjs` → **18/18**（新增 A28／A29 两类破坏用例，含恢复检查）。
+- `node scripts/content-admin-init.mjs` 连跑三遍 → 幂等（52 处「已就位」，零重建）。
+- 浏览器人眼确认：默认视图 18 行 ＋ 8 列可见；用字是 M2O 下拉；必填项标 `*`；
+  书签直达 `?bookmark=67` 正常（页面标题＝书签名）。
+
+#### 这一轮新增/改动的文件
+
+| 文件 | 作用 |
+|---|---|
+| `docs/编辑脉象图.md` | **新建** —— 后台里怎么改一张图（实测过的路径 ＋ 已知的别扭之处 ＋ 50 张图对照表） |
+| `scripts/lib/content-admin-plan.mjs` | 加 `plannedViewPresets`／`plannedCellViewColumns`／`DEFAULT_PATTERN_ID` |
+| `scripts/lib/content-admin-checks.mjs` | 新增 A28／A29 |
+| `scripts/content-admin-init.mjs` | 视图预设改比对式同步；可见列写进 `layout_query.tabular.fields`；建 50 个书签 |
+| `scripts/content-admin-check.mjs` | 带上视图预设／书签的核对（146 → 198） |
+| `scripts/e2e/content-admin-break.mjs` | 新增 2 类破坏用例（14 → 18）；预设也要能恢复 |
+| `docs/content-assertions.md` | 补 A28／A29 ＋ 4 条 Directus 12 新坑位 |

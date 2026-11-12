@@ -52,6 +52,8 @@
 | **A25** | schema 声明了 `enum` 的列是下拉，且**选项与 schema 逐个相同**、`allowOther=false` |
 | **A26** | schema 里 `notNull` 的列在后台标了必填（`meta.required`） |
 | **A27** | 派生代理键在后台是只读（`meta.readonly`） |
+| **A28** | 视图预设写在**对的位置**：过滤条件在预设在**顶层 `filter`**，可见列在 **`layout_query.tabular.fields`** |
+| **A29** | 每张脉象图都有书签：书签数 == 图数、书签名 == 图名、书签过滤条件 == 那张图的 `pattern_id` |
 
 ## 计划 §10.2 的覆盖情况
 
@@ -112,3 +114,8 @@
 | `meta.one_field` 双向匹配 | 填了 →「被引用方」集合的列表接口整个 500 | 一律 null，A22 全量盯着 |
 | `DELETE /relations` 删不掉内省关系的 meta | 删完 GET 还在 | 只能 PATCH 置 null（A22 也查残留） |
 | Directus 只认单列主键 | 复合主键的表被整表忽略 | schema 派生代理键 `id`（A20）＋ 后台只读（A27） |
+| **预设的过滤条件要写在顶层 `filter`** | 写进 `layout_query.filter` ⇒ 预设建得出来、API 全 200，**界面却照样显示 900 行**（前端请求不带 filter） | 顶层与 `layout_query.filter` **两处都写**（Directus 自己也两处都写），A28 盯着顶层那处 |
+| **可见列在 `layout_query.tabular.fields`** | `layout_options.fields` 那个键 Directus **根本不读**（界面自己建的书签里它是 `null`） | 可见列写进 `layout_query.tabular.fields`，A28 盯着 |
+| **书签 URL 用的是预设 id，不是名字** | `?bookmark=清挡路` ⇒「书签不存在」；`?bookmark=67` ⇒ 正常 | 切图走 `?bookmark=<预设 id>`；书签名只给人看 |
+| **关系下拉只按主键搜** | 过滤器的 `Pattern ID` 是纯文本框，填图名（「清挡路」）搜不到、零结果 | 切图靠书签（图清单里显示 `id` 列做对照） |
+| **Directus 12 的 tabular 没有行内编辑** | 点格子直接跳到项目编辑页 | 改格位＝点格子 → 项目页 → 改 → 保存 → 返回 |
