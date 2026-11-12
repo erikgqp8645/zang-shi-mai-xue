@@ -8,7 +8,8 @@
 
 - 实施计划（canonical）：`~/.minimax/v2/sessions/2026/11/02/03-37-13-904-session_bXZzXzc4YmIxZTViOGJmZTRhNWM4YzQ1YzE3NTkyZTBlYWYy/artifacts/plan.md`
 - 本地内容层现状：`docs/content-layer.md`（**该文档仍描述 Excel 时代**，M6 会随新流程重写）
-- 实测日期：2026-11-11
+- 发布管道：`docs/content-publish.md`（M2／M3 的远端结构与命令）
+- 实测日期：2026-11-11（选型）｜2026-11-12（人眼确认与修复，§3.4／§3.5／§5.1）
 
 ---
 
@@ -35,8 +36,8 @@
 |---|---|---|---|
 | ① | 中文界面可用 | ✅ | 登录页已是中文（邮箱／密码／登录／忘记密码）；项目默认语言与用户语言都设为 `zh-CN` |
 | ② | introspect 自动列出表并生成表单 | ✅ | **17/17** 张内容表全部被接管，每张都有字段与主键 |
-| ③ | M2O 关系字段点选（显示中文用字名） | ✅（配置层） | 11 条外键全部升级成 Directus 关系；`content_pulse_cells.term_id → content_pulse_terms.key`，而用字的 `key` 本身就是中文（「大或顶」「有」…），下拉直接显示中文用字名 |
-| ④ | 多值下拉（symbols 多选） | ⚠️ **受限** | `codes` 是 `jsonb` 列，Directus 的多选界面只服务**关系字段**；且实测 **96 个格位里 0 处有值** —— 见 §5.2 |
+| ③ | M2O 关系字段点选（显示中文用字名） | ✅（**人眼确认通过**） | 10 条外键升级成 Directus 关系；点开一格，下拉展开**正好 18 条用字**，当前值直接显示中文「**大或顶**」（不是 id）—— 截图见 §5.1。⚠️ 第一次人眼确认时**整个抽屉 500**，根因见 §3.4 |
+| ④ | 多值下拉（symbols 多选） | ⚠️ **受限** | `codes` 是 `jsonb` 列，Directus 的多选界面只服务**关系字段**；且实测 **`codes` 在 900 行里 0 处有值**（有值的 96 格是「用字位」，`codes` 全空）—— 见 §5.2 |
 | ⑤ | 按 `pattern_id` 过滤后只显示 18 行 | ✅（机制层） | `GET /items/content_pulse_cells?filter[pattern_id][_eq]=fx-ssx-qingdanglu` 返回**正好 18 行**（左 9 ＋ 右 9，含用字 6 格）；并已预置「一张图 18 行」的视图预设 |
 | ⑥ | 内存占用与首次启动时间 | ✅ | **冷启动 11.6 s** 到可服务；稳态内存 **287 MiB**（本机 7.75 GiB 的 3.7%）；镜像 1.11 GB |
 
@@ -121,16 +122,81 @@ Error: Cannot find module '/directus/docker-entrypoint.cjs'
 
 **处置**：挂到 `/data`，`DB_FILENAME=/data/content.sqlite`。
 
+### 3.4 ⚠️⚠️ `meta.one_field` 一填，**被引用方的整张表在后台里点不开**
+
+**这是 M0 人眼确认环节抓出来的** —— 在那之前，所有自动化断言都是绿的。
+
+#### 症状
+
+打开 `content_pulse_cells` 的一格（`/admin/content/content_pulse_cells/fx-dl1-zengye|3`）直接弹：
+
+```
+[INTERNAL_SERVER_ERROR]
+parentItem$1[parentRelationField].push is not a function
+```
+
+而且不止这一格 —— **凡是「被引用方」集合的列表接口都 500**：
+
+| 请求 | 结果 |
+|---|---|
+| `GET /items/content_sciences?fields=id,name,ratio,page` | ❌ 500 |
+| `GET /items/content_sciences?fields=name,ratio`（去掉 `id`） | ✅ 200 |
+| `GET /items/content_pulse_cells?fields=*`（没有反向关系） | ✅ 200 |
+
+⇒ 后台里「科学中药比例」「同和堂版成方」「讲稿方剂条目」「脉象图本体」这几张表**全都点不开**。
+
+#### 根因
+
+Directus 12 的 `getRelation()` 是**双向匹配**的（`@directus/utils`）：
+
+```js
+function getRelation(relations, collection, field) {
+  return relations.find((relation) => {
+    return relation.collection === collection && relation.field === field
+        || relation.related_collection === collection && relation.meta?.one_field === field;
+  });
+}
+```
+
+读「被引用方」集合（比如 `content_sciences`）时，如果请求的**列名恰好等于某条关系的 `meta.one_field`**
+（`one_field` 就是主键名 ⇒ **必然命中**），Directus 会把这个**标量列**当成**反向 o2m 关系**，
+于是在 `merge-with-parent-items.js` 的 o2m 分支里：
+
+```js
+const parentRelationField = nestedNode.fieldKey;          // = 'id'
+if (!parentItem$1[parentRelationField]) parentItem$1[parentRelationField] = [];
+...
+parentItem$1[parentRelationField].push(nestedItem$1);      // ← 挂在字符串上 ⇒ TypeError
+```
+
+`run-ast.js` 里那句 `delete items[nestedNode.fieldKey]` 对**数组**无效（只删了数组对象上的属性），
+所以每行仍带着自己的 `id`（字符串）⇒ `.push` 不存在 ⇒ 整个接口 500。
+
+#### 处置
+
+**`meta.one_field` 一律置 `null`**。正向 m2o **不需要**它 —— 靠 `collection + field` 匹配就够了，
+下拉照常工作；反向 o2m 展开我们用不到。
+
+外键指向**非主键**的（`content_alias.target` → `content_drugs.name`，存的是方名）
+干脆**不建 Directus 关系**，字段按普通文本处理 —— Directus 的 M2O 存的是主键值，建了也对不上。
+
+⇒ 关系数从 11 条变成 **10 条关系 ＋ 1 个普通文本字段**。
+
+### 3.5 ⚠️ `--check` 原来会真写
+
+`content-admin-init.mjs --check` 无论有没有 `--check` 都发 `PATCH` ——
+「核对」却真的改了远端，跑一次 `--check` 就等于改了一次配置，没法当验收用。
+现在 `--check` 走 `GET` 比对远端现状，正常模式才 `PATCH`。
+
 ---
 
-## 4. 对计划的修正（逐条）
 
 | 计划里写的 | 实测 | 处置 |
 |---|---|---|
 | 「16 张内容表」 | **17 张** | 计划自身的计数笔误（它的表清单本身就是 17 行）—— 以清单为准 |
 | 复合主键的连接表／格位表 | Directus **整表忽略** | 6 张表加派生代理键 `id`（§3.1）＋ 新增断言 A5 |
 | 本地库沿用 `server/db.mjs` 的 WAL 写法 | 双实例共享会**丢写入** | 内容库改 DELETE 模式（§3.2），业务库不动 |
-| 外键关系需要人工在后台配 | Directus 12 **自动内省**出 11 条关系（`meta` 为 `null`） | 用 `PATCH /relations/{集合}/{字段}` 补 `meta`（含 `one_field`），并把关系字段的界面设成 `select-dropdown-m2o`；全部由 `scripts/content-admin-init.mjs` **从 schema 的 `fk` 声明自动推导**，可重复执行 |
+| 外键关系需要人工在后台配 | Directus 12 **自动内省**出 11 条关系（`meta` 为 `null`） | 用 `PATCH /relations/{集合}/{字段}` 补 `meta`，并把关系字段的界面设成 `select-dropdown-m2o`；全部由 `scripts/content-admin-init.mjs` **从 schema 的 `fk` 声明自动推导**，可重复执行。⭐ **`meta.one_field` 必须留 `null`**（填了会让被引用方整张表 500 —— §3.4）；⭐ 另配集合级 `display_template`（`{{name}}`），下拉才显示人话而不是 id |
 | 「M0-A：本地 PG 容器兜底」 | **不需要** | M0-B 全程成立，未启用 M0-A ⇒ **未新增 `pg` 依赖** |
 | 「M0-C：桌面 GUI」 | 已排除 | 不满足 R-Edit，未测 |
 
@@ -144,20 +210,53 @@ Error: Cannot find module '/directus/docker-entrypoint.cjs'
 
 ## 5. 尚未闭环的项
 
-### 5.1 界面里的人眼确认与截图 —— **待补**
+### 5.1 界面里的人眼确认与截图 —— ✅ **已闭环**（2026-11-12）
 
-自动化已把「配置写对」全部验完（11 条关系、18 行过滤、17/17 接管、中文界面），
-但**「点开 `content_pulse_cells` 的一格，`term_id` 是不是一个能点选的下拉框」**
-这一条目前只有配置层证据，没有截图。验收项 ④ 也因此只能给「受限」结论。
+登录 `http://localhost:8055/admin`（账号见 §6）走了一遍。
 
-补法：登录 `http://localhost:8055/admin`（账号见 §6）走一遍，把截图补进本节。
+**① 列表页**（`content_pulse_cells`，900 行 ＝ 50 张图 × 18 格）
+
+![Directus 列表页](images/directus-list.png)
+
+**② 打开一格**（`fx-dl1-zengye|3`）—— 用字下拉直接显示中文
+
+![M2O 下拉](images/directus-m2o-dropdown.png)
+
+- `Term ID` = **「大或顶」**（中文用字名，不是 id）
+- `Pattern ID` = **「增液（安卫）」**（图名，不是 `fx-dl1-zengye`）
+- 下拉展开**正好 18 条数据** ＝ 18 个原文用字
+- 符号列 `Display` 也在（`++` / `0` / `-` / `|` / `#`…），跟讲义 p34 的符号体系一致
+- `Note` 列带出处（「讲义 p33：小＝无、弱」「虚脏 ＝ 弱或无（讲稿 2010·第十四讲）」…）
+
+**③ ⚠️ 第一次来是坏的**（修复前的现场）
+
+![500 现场](images/directus-m2o-500-before.png)
+
+打开抽屉直接弹 `INTERNAL_SERVER_ERROR`。根因见 **§3.4** —— 这个坑在自动化全绿的时候就已经存在，
+是**人眼确认**抓出来的（所以这一项不能只靠断言）。
+
+⇒ 验收项 ③ 从「✅（配置层）」升级为「✅（人眼确认通过）」。
+
+**新增的断言**（`scripts/lib/content-admin-checks.mjs`，按结构解析，不搜关键词）：
+
+| id | 断言 |
+|---|---|
+| **A6** | 每张内容表的列表接口（`?limit=1` 与 `?fields=*`）都是 200 |
+| **A7** | 每条关系的 `meta.one_field` 都是 `null` |
+| **A8** | 关系字段是 `select-dropdown-m2o`；指向非主键的字段是普通文本 `input` |
+| **A9** | 被引用集合的 `display_template` ＝ schema 声明的显示列 |
+
+「故意写坏」的验证（`scripts/e2e/content-admin-break.mjs`）：把 `one_field` 填回去 → **必须被 A6／A7 抓到**；
+把界面改坏 → A8；把 `display_template` 改错 → A9；恢复后必须重新全绿。
+实测 **7/7 通过**（含反向「好配置一条都不报」的防假绿检查）。
 
 ### 5.2 验收项 ④ 的结论：**多值下拉在当前 schema 下做不到，但当前内容也不需要**
 
 - `content_pulse_cells.codes` 是 `jsonb` 列（计划 §3 定的），Directus 的
   `select-multiple-dropdown`／`select-multiple-checkbox` 是**关系界面**，
   值是「关联项主键数组」，**不能直接渲染 JSON 数组**。
-- 实测 **`codes` 在 96 个格位里 0 处有值** ⇒ 当前内容**根本用不到**多选。
+- 实测 **`codes` 在 900 行（50 张图 × 18 格）里 0 处有值**
+  （有值的 96 格是「用字位」，它们的 `term_id` 有中文用字、`codes` 全空）⇒ 当前内容**根本用不到**多选。
 - 真要在格位上选符号，得把它改成**连接表**（`content_cell_symbols` ＋ M2M 关系），
   即多一张表、多一层 junction 关系。
 
@@ -183,6 +282,7 @@ node scripts/content-admin.mjs up
 
 # ② 配关系与视图（幂等；从 schema 的 fk 声明自动推导）
 node scripts/content-admin-init.mjs
+node scripts/content-admin-init.mjs --check    # 只读核对（不会写）
 
 # ③ 灌库（首次）／校验
 node scripts/content-seed.mjs
@@ -190,6 +290,12 @@ node scripts/content-seed.mjs --check
 
 # ④ 断言的「故意写坏」验证（16/16）
 node scripts/e2e/content-schema-break.mjs
+
+# ⑤ 后台配置的只读核对（A6~A9）
+npm run content:admin:check
+
+# ⑥ 后台配置的「故意写坏」验证（7/7，会改配置并在 finally 里恢复）
+npm run test:e2e:content:admin
 
 # 停
 node scripts/content-admin.mjs down
@@ -212,15 +318,18 @@ docker run -d --name pulse-directus -p 8055:8055 \
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
-| M0 | 本地后台选型验证 | ✅ **本轮完成**（截图待补，见 §5.1） |
-| M1 | 内容 schema ＋ 本地库建表 | ✅ **本轮完成**（8 份 schema、DDL 生成器、灌库、断言 A1~A5＋往返） |
-| M2 | 远端 PG 内容表 ＋ RPC | ⏭ 待做 |
-| M3~M7 | 发布管道／前端接内容／后台页／迁移收尾 | ⏭ 待做 |
+| M0 | 本地后台选型验证 | ✅ **已完成**（2026-11-12 补完人眼确认与截图；抓出并修掉 §3.4 的 500） |
+| M1 | 内容 schema ＋ 本地库建表 | ✅ **已完成**（8 份 schema、DDL 生成器、灌库、断言 A1~A5＋往返） |
+| M2 | 远端 PG 内容表 ＋ RPC | ✅ **已完成**（`content` schema 17 表 ＋ `content_meta` 账本表 ＋ 6 个 RPC，见 `docs/content-publish.md`） |
+| M3 | 发布命令 | ✅ **已完成**（`content:publish` 五步流水线 ＋ 快照／状态／回滚） |
+| M4~M7 | Excel 退役／前端接内容／定制后台页／迁移收尾 | ⏭ 待做（**M4 卡在「两条编辑路线取哪条」的拍板上**） |
 
 **待拍板（计划 §11.1）**：
 
-- ② 远端内容表放独立 schema `content` 还是 `public`＋前缀 —— M2 实测
+- ① **两条「知识库怎么改」的路子取哪条** —— ①本地后台＋发布管道（退役 Excel，本轮这条）
+  ②服务端管理员覆盖层（保留 Excel，另一条线）。两条已在 `feat/web-site` 上合并，功能都能用，
+  但长期只留一条才是答案。**这条卡住 M4。**
 - ③ `docs/填写流程图.html` 退役是否可接受
 - ④ `pulse`（NoSQL，2026-12-06 到期）留不留
 - ⑤ 本地后台是否常驻
-- ＋ **新增**：验收项 ④ 的 `codes` 是否改成连接表（§5.2，默认不动）
+- ＋ 验收项 ④ 的 `codes` 是否改成连接表（§5.2，默认不动）
