@@ -18,6 +18,8 @@ export function DoseLines({
   className,
   sources = ['th', 'draft'],
   skipWhenMissing = false,
+  onEdit,
+  canEdit = false,
 }: {
   /** 方名（原文用字） */
   name: string
@@ -26,6 +28,15 @@ export function DoseLines({
   sources?: DoseSource[]
   /** 两套都没查到时整块不渲染（用于「方名只是方名」的场合，避免满屏「未载」） */
   skipWhenMissing?: boolean
+  /**
+   * 管理员点「编辑」时回调 —— 参数是**具体那一条**的 kind 与 id。
+   *
+   * ⚠️ 只在能定位到条目时才给按钮（`entries[].id` 存在）：
+   *    「未载」是查无此方，没有可编辑的对象。
+   */
+  onEdit?: (kind: string, id: string, name: string) => void
+  /** 是否显示编辑入口（只有管理员看得到） */
+  canEdit?: boolean
 }) {
   const q = name.trim()
   if (!q) return null
@@ -42,14 +53,29 @@ export function DoseLines({
 
   return (
     <div className={`pr-dose-lines${className ? ` ${className}` : ''}`}>
-      {wantTh && <DoseBlock label="同和堂版（克）" view={th} />}
-      {wantDraft && <DoseBlock label="讲稿 2010（比例制）" view={draft} />}
+      {wantTh && <DoseBlock label="同和堂版（克）" view={th} onEdit={onEdit} canEdit={canEdit} />}
+      {wantDraft && <DoseBlock label="讲稿 2010（比例制）" view={draft} onEdit={onEdit} canEdit={canEdit} />}
     </div>
   )
 }
 
+/** kind → 人话（按钮的 title 与提示用） */
+function kindLabel(kind: string): string {
+  return kind === 'dose' ? '同和堂版成方' : kind === 'drug' ? '讲稿方剂' : kind
+}
+
 /** 一套资料的组成 */
-function DoseBlock({ label, view }: { label: string; view: DoseSourceView }) {
+function DoseBlock({
+  label,
+  view,
+  onEdit,
+  canEdit,
+}: {
+  label: string
+  view: DoseSourceView
+  onEdit?: (kind: string, id: string, name: string) => void
+  canEdit?: boolean
+}) {
   if (view.matched === 'none') {
     return (
       <p className="pr-dose-line is-missing">
@@ -85,6 +111,23 @@ function DoseBlock({ label, view }: { label: string; view: DoseSourceView }) {
           {e.usage && <span className="pr-dose-usage">　服法：{e.usage}</span>}
           <span className="pr-dose-src">〔{e.source}〕</span>
             {e.basis && <span className="pr-dose-ref">　对照：{e.basis}</span>}
+            {/*
+              「编辑」贴着这一条自己的出处 —— 它改的是**这一条**（同和堂版成方 或 讲稿方剂），
+              不是上面那个方名。查无此方（未载）时没有 id，不显示按钮。
+            */}
+            {canEdit && onEdit && e.id && e.kind ? (
+              <button
+                type="button"
+                className="pr-dose-edit"
+                title={`编辑这一条：${e.name}（${kindLabel(e.kind)}）`}
+                onClick={(ev) => {
+                  ev.stopPropagation()
+                  onEdit(e.kind as string, e.id as string, e.name)
+                }}
+              >
+                ✎ 编辑
+              </button>
+            ) : null}
           </p>
         )
       })}

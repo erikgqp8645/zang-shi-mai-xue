@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createLibraryEntry, restoreLibraryDefault, saveLibraryPatch, useLibrary } from '../state/library'
 import { usePatterns } from '../state/patterns'
-import { getEffectiveDrugRaw, getEffectiveRuleRaw } from '../domain/library-store'
+import { getEffectiveDoseRaw, getEffectiveDrugRaw, getEffectiveRuleRaw } from '../domain/library-store'
 import { diffEntryFields, normalizePatterns, patternsChanged } from '../domain/unified-editor.mjs'
 import { makeRuleId } from '../domain/rule-id'
 import type { PulsePattern } from '../domain/pulse-pattern'
@@ -90,7 +90,10 @@ export function RuleEditor({
   const effective = useMemo(() => {
     if (entryProp) return entryProp
     if (isCreate) return null
-    return kind === 'rule' ? getEffectiveRuleRaw(id) : getEffectiveDrugRaw(id)
+    // 三类各自有自己的 getter（dose ＝ 同和堂版成方）
+    if (kind === 'rule') return getEffectiveRuleRaw(id)
+    if (kind === 'dose') return getEffectiveDoseRaw(id)
+    return getEffectiveDrugRaw(id)
   }, [entryProp, kind, id, isCreate])
 
   /** 条目的基线（用于比较「有没有变」；恢复默认后会刷新） */
@@ -232,7 +235,12 @@ export function RuleEditor({
       if (which === 'entry') {
         await restoreLibraryDefault(kind, id)
         // 恢复后重新取生效的那一条，草稿跟着回到基线
-        const fresh = kind === 'rule' ? getEffectiveRuleRaw(id) : getEffectiveDrugRaw(id)
+        const fresh =
+          kind === 'rule'
+            ? getEffectiveRuleRaw(id)
+            : kind === 'dose'
+              ? getEffectiveDoseRaw(id)
+              : getEffectiveDrugRaw(id)
         if (fresh) {
           setEntryBase({ ...fresh })
           setDraft({ ...fresh })

@@ -86,9 +86,12 @@ export function onlyBaseline(overrides, kind, baselineIds) {
  * @param {object} overrides     覆盖层（来自 `GET /api/library/overrides`）
  * @param {any[]} baselineRules  内置基线里的规则（`src/content/formula-rules.json` 的 rules[]）
  * @param {any[]} baselineDrugs  内置基线里的讲稿方剂（`src/content/drugs.json` 的 drugs[]）
- * @returns {{ ruleData: any[], drugData: any[], problems: string[] }}
+ * @param {any[]} [baselineDoses] 内置基线里的同和堂版成方（`src/content/doses.json` 的 doses[]）
+ *   给了才合并 `dose` 这一类（2026-11-13 起：「剂量对照」那几行要能编辑）。
+ *   不传 ⇒ `doseData` 为 null，调用方回落到静态基线 —— 老调用点行为不变。
+ * @returns {{ ruleData: any[], drugData: any[], doseData: any[]|null, problems: string[] }}
  */
-export function mergeLibrary(kinds, overrides, baselineRules, baselineDrugs) {
+export function mergeLibrary(kinds, overrides, baselineRules, baselineDrugs, baselineDoses) {
   const problems = []
 
   /**
@@ -128,6 +131,22 @@ export function mergeLibrary(kinds, overrides, baselineRules, baselineDrugs) {
   const mergedRules = mergeKind(ruleSpec, rules, ruleOv.kept)
   const mergedDrugs = mergeKind(drugSpec, drugs, drugOv.kept)
 
+  /*
+   dose（同和堂版成方）：只在调用方给了基线、且注册表里有这一类时才合。
+   它是**纯数据**（没有判定函数那回事）⇒ 陌生 id 一律放行。
+  */
+  let mergedDoses = null
+  const doseSpec = kinds?.dose
+  if (Array.isArray(baselineDoses) && doseSpec) {
+    const doses = JSON.parse(JSON.stringify(baselineDoses))
+    const doseIds = new Set(doses.map((d) => String(d?.id ?? '')))
+    const doseOv = onlyBaseline(overrides, 'dose', doseIds)
+    for (const id of doseOv.stray) {
+      problems.push(`覆盖层里有一条同和堂版成方「${id}」不在内置基线里 —— 已跳过`)
+    }
+    mergedDoses = mergeKind(doseSpec, doses, doseOv.kept).container
+  }
+
   // 级联：删掉的方剂 ⇒ p44 的 drugs[] 里去掉那个 id
   const files = {
     'formula-rules.json': { rules: mergedRules.container },
@@ -138,6 +157,7 @@ export function mergeLibrary(kinds, overrides, baselineRules, baselineDrugs) {
   return {
     ruleData: files['formula-rules.json'].rules,
     drugData: files['drugs.json'].drugs,
+    doseData: mergedDoses,
     problems,
   }
 }

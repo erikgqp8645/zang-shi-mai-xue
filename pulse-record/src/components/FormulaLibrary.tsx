@@ -29,7 +29,7 @@ import {
   undoLibraryDelete,
   useLibrary,
 } from '../state/library'
-import { getEffectiveDrugRaw, getEffectiveRuleRaw } from '../domain/library-store'
+import { getEffectiveDoseRaw, getEffectiveDrugRaw, getEffectiveRuleRaw } from '../domain/library-store'
 import { DrugCard, FormulaItem, type SessionFormulaHit } from './Findings'
 import { RuleEditor } from './RuleEditor'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -169,9 +169,22 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding, canEdit 
    */
   const [pendingRemove, setPendingRemove] = useState<{ kind: string; id: string; title: string } | null>(null)
 
+  /**
+   * 从「剂量对照」那几行点开的编辑 —— 目标是**另一个 kind 的条目**
+   * （同和堂版成方 `dose` 或讲稿方剂 `drug`），不是外面这张卡本身。
+   */
+  function openForeignEditor(kind: string, id: string, name: string) {
+    openEditor(kind, id, name)
+  }
+
   /** 打开编辑弹层 */
   function openEditor(kind: string, id: string, title: string) {
-    const entry = kind === 'rule' ? getEffectiveRuleRaw(id) : getEffectiveDrugRaw(id)
+    const entry =
+      kind === 'rule'
+        ? getEffectiveRuleRaw(id)
+        : kind === 'dose'
+          ? getEffectiveDoseRaw(id)
+          : getEffectiveDrugRaw(id)
     if (!entry) {
       setToast('这一条现在取不到（可能刚被删掉）—— 刷新页面再试。')
       return
@@ -569,6 +582,7 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding, canEdit 
                                   ? {
                                       onFormulasChange: (next) => void patchFormulas('rule', r.id, next),
                                       actions: entryActions('rule', r.id, r.condition),
+                                      onEditEntry: openForeignEditor,
                                     }
                                   : undefined
                               }
@@ -619,7 +633,14 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding, canEdit 
                                    自动展开，手机上一下糊满屏，看着像「详情默认就摊开」（2026-11-13 反馈）。
                               */
                               autoOpen={!searching && focusId === formulaAnchor('drug', d.id)}
-                              tools={canEdit ? { actions: entryActions('drug', d.id, d.name) } : undefined}
+                              tools={
+                                canEdit
+                                  ? {
+                                      actions: entryActions('drug', d.id, d.name),
+                                      onEditEntry: openForeignEditor,
+                                    }
+                                  : undefined
+                              }
                             />
                           </div>
                         ))}

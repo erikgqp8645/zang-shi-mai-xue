@@ -84,6 +84,13 @@ export interface LibraryState {
   ruleData: RuleDataJson[] | null
   /** 合并后的方剂 —— null ＝ 用内置基线 */
   drugData: Drug[] | null
+  /**
+   * 合并后的同和堂版成方 —— null ＝ 用内置基线。
+   *
+   * ⓘ 2026-11-13 加：让「剂量对照」里那几行（同和堂版，克）也能被管理员编辑。
+   *   以前 `dose` 不进生效集，改了覆盖层前端也看不见。
+   */
+  doseData: unknown[] | null
   /** 覆盖层原始行（界面显示「已删除的条目（可撤销）」用） */
   overrides: LibraryOverrides
   /** 注册表（字段表）—— null ＝ 还没拿到 */
@@ -98,6 +105,7 @@ export interface LibraryState {
 const INITIAL: LibraryState = {
   ruleData: null,
   drugData: null,
+  doseData: null,
   overrides: {},
   kinds: null,
   error: null,
@@ -147,6 +155,19 @@ export function getEffectiveRuleRaw(id: string): Record<string, unknown> | null 
   if (!data) return null
   const hit = data.find((r) => String(r.id) === String(id))
   return hit ? ({ ...hit } as unknown as Record<string, unknown>) : null
+}
+
+/**
+ * 取同和堂版成方（`dose`）当前生效的原始 JSON。
+ *
+ * ⓘ 用法与另外两个 getter 一样，只是这一类的数据在 `doseData` 里
+ *   （「剂量对照」那几行点「编辑」时按 id 取）。
+ */
+export function getEffectiveDoseRaw(id: string): Record<string, unknown> | null {
+  const list = getLibraryState().doseData
+  if (!Array.isArray(list)) return null
+  const hit = list.find((d) => String((d as { id?: string })?.id) === String(id))
+  return hit ? ({ ...(hit as object) } as Record<string, unknown>) : null
 }
 
 /** 同上，讲稿方剂 */

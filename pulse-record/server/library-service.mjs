@@ -52,7 +52,13 @@ import { deleteLibraryItem, listLibraryItems, putLibraryItem } from './store.mjs
  * 其余四类（p42 对照表／同和堂版成方／科中／科中↔成方映射）**本轮不做**：
  * 它们不显示在 ③ 里，也没有对应的编辑面 ⇒ 接口明确拒，别让人以为「改了没反应」。
  */
-export const RUNTIME_EDITABLE_KINDS = ['rule', 'drug']
+export const RUNTIME_EDITABLE_KINDS = [
+  'rule',
+  'drug',
+  // 2026-11-13：同和堂版成方也开放运行时编辑 ——
+  // 「剂量对照」那几行（方名下面是克数）以前只能看，管理员改不了。
+  'dose',
+]
 
 /** 带 HTTP 状态码的业务错误（index.mjs 据此回响应） */
 export class LibraryError extends Error {

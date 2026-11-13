@@ -40,4 +40,6 @@ export declare function mergeLibrary(
   overrides: LibraryOverridesShape | null | undefined,
   baselineRules: any[] | null | undefined,
   baselineDrugs: any[] | null | undefined,
-): { ruleData: any[]; drugData: any[]; problems: string[] }
+  /** 同和堂版成方的基线；给了才合并 `dose` 这一类（不传 ⇒ doseData 为 null） */
+  baselineDoses?: any[] | null | undefined,
+): { ruleData: any[]; drugData: any[]; doseData: any[] | null; problems: string[] }

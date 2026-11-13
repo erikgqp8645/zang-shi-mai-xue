@@ -117,6 +117,13 @@ export interface LibraryTools {
   onFormulasChange?: (next: string[]) => void
   /** 条目级的「编辑」／「删除」按钮 */
   actions?: ReactNode
+  /**
+   * 打开**另一类条目**的编辑弹层（kind ＋ id）。
+   *
+   * ⓘ 用在「剂量对照」那几行：同和堂版成方（`dose`）与讲稿方剂（`drug`）
+   *   是**两个不同的条目**，点哪一行的编辑，改的就是那一条。
+   */
+  onEditEntry?: (kind: string, id: string, name: string) => void
 }
 
 /**
@@ -447,6 +454,8 @@ export function FormulaItem({
                 className="pr-formula-dose"
                 sources={hit.drugs && hit.drugs.length > 0 ? ['th'] : ['th', 'draft']}
                 skipWhenMissing
+                canEdit={!!tools?.onEditEntry}
+                onEdit={tools?.onEditEntry}
               />
             ))}
         </div>

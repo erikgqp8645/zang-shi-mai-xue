@@ -28,11 +28,24 @@ import {
   type FormulaDose,
 } from './formula-table'
 import { FORMULA_ALIAS, FORMULA_REFERENCE, type FormulaReference } from './medication'
+import { getLibraryState } from './library-store'
 
 /** 一条组成（来自某一套资料） */
 export interface DoseEntry {
   /** 该资料里的方名（原文用字） */
   name: string
+  /**
+   * 这一条属于哪套资料 —— 决定「管理员点编辑」时打开哪一类的编辑弹层。
+   *
+   * · `dose` ＝ 同和堂版成方（克）
+   * · `drug` ＝ 讲稿 2010·第二讲方剂（比例制）
+   *
+   * ⓘ 以前这个结构里不带 id，DoseLines 只能纯展示；要让它可编辑，
+   *   就得知道**具体是哪一条** —— 名字可能重复、可能没被查到（未载）。
+   */
+  kind?: 'dose' | 'drug'
+  /** 对应条目的 id（覆盖层按 `(kind, id)` 定位） */
+  id?: string
   /** 组成与剂量（原文照录） */
   composition?: string
   /** 科中／科学中药比例 */
@@ -63,10 +76,43 @@ export interface DoseLookup {
 /* 同和堂版《臧氏脉学方剂汇总统表》—— 成方（药味＋克）                  */
 /* ------------------------------------------------------------------ */
 
+/**
+ * **当前生效的**同和堂版成方。
+ *
+ * ⓘ 管理员在「剂量对照」那几行点「编辑」改的就是这一份：
+ *   改动落服务端覆盖层 → 前端合并进 `doseData` → 这里优先用它。
+ *   没有覆盖层（未登录／还没加载）⇒ 回落到静态基线 `FORMULA_DOSES`。
+ *
+ * ⚠️ 别再直接 `FORMULA_DOSES.find(...)` —— 那样管理员改了也查不到（静默不生效）。
+ */
+function effectiveDoses(): FormulaDose[] {
+  const merged = getLibraryState().doseData
+  if (Array.isArray(merged) && merged.length > 0) return merged as FormulaDose[]
+  return FORMULA_DOSES
+}
+
+/** 按 id 取生效的那一条（对照表 `doseId`／`parentDoseId` 用） —— 同样优先生效集 */
+function effectiveDoseById(id: string): FormulaDose | undefined {
+  return effectiveDoses().find((d) => d.id === id) ?? FORMULA_DOSE_BY_ID[id]
+}
+
+/**
+ * **当前生效的**讲稿方剂（比例制那套）。
+ *
+ * 与 `effectiveDoses()` 同理：管理员改了讲稿方剂，剂量对照里那一行要跟着变。
+ */
+function effectiveDrugs(): Drug[] {
+  const merged = getLibraryState().drugData
+  if (Array.isArray(merged) && merged.length > 0) return merged as Drug[]
+  return DRUGS
+}
+
 function toEntry(d: FormulaDose): DoseEntry {
   const sciName = DOSE_SCIENCE_NAME[d.id]
   const sci = sciName ? FORMULA_SCIENCE_BY_NAME[sciName] : undefined
   return {
+    kind: 'dose',
+    id: d.id,
     name: d.name,
     composition: d.composition,
     science: sci?.ratio,
@@ -122,9 +168,9 @@ function isNotAFormulaName(query: string, name: string, composition?: string): b
  * 「黄芪鳖甲」这类名字里带这个药味的方去顶替。
  */
 const HERB_NAMES: Set<string> = (() => {
-  const formulaNames = new Set([...FORMULA_DOSES.map((d) => d.name), ...DRUGS.map((d) => d.name)])
+  const formulaNames = new Set([...effectiveDoses().map((d) => d.name), ...effectiveDrugs().map((d) => d.name)])
   const set = new Set<string>()
-  for (const d of [...FORMULA_DOSES, ...DRUGS]) {
+  for (const d of [...effectiveDoses(), ...effectiveDrugs()]) {
     for (const h of herbsOf(d.composition)) {
       // 「六味桂」「知柏六味桂」这类是方名（别的方引它），不是药味
       if (formulaNames.has(h)) continue
@@ -188,18 +234,18 @@ function lookupThByName(q: string): DoseLookup {
   const ref = lookupByReference(q)
   if (ref) return { exact: ref.exact, candidates: [], related: ref.related, via: ref.via }
   // 2. 完全同名
-  const exact = FORMULA_DOSES.find((d) => d.name === q)
+  const exact = effectiveDoses().find((d) => d.name === q)
   if (exact) return { exact: toEntry(exact), candidates: [], via: 'exact' }
   // 3. 查的是一味药（黄芪、干姜、麦冬…）→ 两套资料都没有以它为名的方，明说未载
   if (isHerbName(q)) return { candidates: [] }
   // 4. 同名不同号：列出全部候选，工具不替读者选（组合方与「查询词是药味」的剔掉）
-  const cands = FORMULA_DOSES.filter(
+  const cands = effectiveDoses().filter(
     (d) => d.name.includes(q) && !isNotAFormulaName(q, d.name, d.composition),
   ).map(toEntry)
   // 5. 讲义 p42 的方名里含查询词 → 按那一行的对照找同和堂版（每条都带对照依据）
   for (const row of FORMULA_REFERENCE) {
     if (!row.doseId || !row.name.includes(q)) continue
-    const d = FORMULA_DOSE_BY_ID[row.doseId]
+    const d = effectiveDoseById(row.doseId)
     if (!d || isNotAFormulaName(q, d.name, d.composition)) continue
     if (cands.some((c) => c.name === d.name)) continue
     cands.push({
@@ -226,7 +272,7 @@ function lookupByReference(
 ): { exact: DoseEntry; related: DoseEntry[]; via: 'exact' | 'alias' } | undefined {
   const row = FORMULA_REFERENCE.find((r) => r.name === name && r.doseId)
   if (!row?.doseId) return undefined
-  const d = FORMULA_DOSE_BY_ID[row.doseId]
+  const d = effectiveDoseById(row.doseId)
   if (!d) return undefined
   const basis = `讲义 p42 第 ${row.no} 行 · ${row.doseBasis}`
   const related = parentEntry(row, basis)
@@ -246,7 +292,7 @@ function lookupByReference(
  */
 function parentEntry(row: FormulaReference, basis: string): DoseEntry[] {
   if (!row.parentDoseId) return []
-  const p = FORMULA_DOSE_BY_ID[row.parentDoseId]
+  const p = effectiveDoseById(row.parentDoseId)
   if (!p) return []
   return [{ ...toEntry(p), role: 'parent', basis: `母方 · ${basis}` }]
 }
@@ -257,6 +303,8 @@ function parentEntry(row: FormulaReference, basis: string): DoseEntry[] {
 
 function toDraftEntry(d: Drug): DoseEntry {
   return {
+    kind: 'drug',
+    id: d.id,
     name: d.name,
     composition: d.composition,
     science: d.science,
@@ -302,13 +350,13 @@ export function lookupDraftDrug(name: string): DoseLookup {
 /** 讲稿 2010：按方名查（不含「去掉括号说明」那一层） */
 function lookupDraftByName(q: string): DoseLookup {
   // 1. 完全同名
-  const same = DRUGS.find((d) => d.name === q)
+  const same = effectiveDrugs().find((d) => d.name === q)
   if (same) return { exact: toDraftEntry(same), candidates: [], via: 'exact' }
 
   // 2. 有依据的对照先走（见上）
   const alias = FORMULA_ALIAS[q]
   if (alias) {
-    const hit = DRUGS.find((d) => d.name === alias)
+    const hit = effectiveDrugs().find((d) => d.name === alias)
     if (hit) {
       return {
         exact: { ...toDraftEntry(hit), basis: `讲义 p42 方名「${q}」↔ 讲稿 2010「${hit.name}」（对照表有依据）` },
@@ -323,7 +371,7 @@ function lookupDraftByName(q: string): DoseLookup {
 
   // 4. 讲稿的条目名按脉位写，如「右关虚脏 · 软而无力（加味理中）」
   //    —— 括号里的方名或括号前那段就是查的那个名，算**对上**（不是「名字里含」）
-  const strong = DRUGS.filter((d) => {
+  const strong = effectiveDrugs().filter((d) => {
     const m = d.name.match(/^([^（]*)[（](.+)[）]$/)
     if (!m) return false
     const hit = m[1].trim() === q || m[2].trim() === q
@@ -342,7 +390,7 @@ function lookupDraftByName(q: string): DoseLookup {
 
   // 5. 方名里含它（如「上焦方」↔「一号上焦方／二号上焦方／三号上焦方」）
   //    → 列出全部候选，工具不替读者选
-  const cands = DRUGS.filter((d) => {
+  const cands = effectiveDrugs().filter((d) => {
     const hit = d.name.includes(q)
     return hit && !isNotAFormulaName(q, d.name, d.composition)
   })
@@ -354,7 +402,7 @@ function lookupDraftByName(q: string): DoseLookup {
     if (!row.name.includes(q)) continue
     const aliasName = FORMULA_ALIAS[row.name]
     if (!aliasName) continue
-    const hit = DRUGS.find((d) => d.name === aliasName)
+    const hit = effectiveDrugs().find((d) => d.name === aliasName)
     if (!hit || byRef.some((c) => c.name === hit.name)) continue
     byRef.push({
       ...toDraftEntry(hit),

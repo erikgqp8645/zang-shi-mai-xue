@@ -20,6 +20,7 @@ import type { Drug } from '../domain/drugs'
 import type { RuleDataJson } from '../domain/formulas'
 import RULE_DATA from '../content/formula-rules.json'
 import DRUG_DATA from '../content/drugs.json'
+import DOSE_DATA from '../content/doses.json'
 
 /**
  * 用方知识库 · **运行期生效集**的装载 ＋ 合并
@@ -46,7 +47,7 @@ import DRUG_DATA from '../content/drugs.json'
  */
 
 /** 本轮开放的两种（与服务端 `RUNTIME_EDITABLE_KINDS` 一致） */
-const MERGE_KINDS = ['rule', 'drug'] as const
+const MERGE_KINDS = ['rule', 'drug', 'dose'] as const
 
 /** 组件里读生效集：`const { ruleData } = useLibrary()` */
 export function useLibrary(): LibraryState {
@@ -71,10 +72,12 @@ export async function reloadLibrary(): Promise<void> {
       overrides,
       RULE_DATA.rules as RuleDataJson[],
       DRUG_DATA.drugs as Drug[],
+      (DOSE_DATA as { doses?: unknown[] }).doses ?? [],
     )
     setLibraryState({
       ruleData: merged.ruleData,
       drugData: merged.drugData,
+      doseData: merged.doseData,
       overrides,
       kinds,
       error: merged.problems.length > 0 ? merged.problems.join('\n') : null,
