@@ -20,6 +20,8 @@ import {
 import { FlowPath } from './FlowPath'
 import { DoseLines } from './DoseLines'
 import { PatternStrip } from './PatternStrip'
+import { hasCells } from './PatternSheet'
+import { usePatterns } from '../state/patterns'
 import {
   DIM_ORDER,
   groupByHand,
@@ -360,6 +362,19 @@ export function FormulaItem({
 }) {
   const { sessionLabel, hit } = item
   const attr = RULE_OR_DRUG_ATTRIB[hit.id]
+  /**
+   * 这一条的脉象图是不是**只有关系注记、没有格子**（如「任意格变脉且有力」）。
+   *
+   * ⓘ 那种图渲染出来是一张纯文字的「关系示意」卡 —— 单独占一块很浪费版面，
+   *   而且它说的本来就是条件本身 ⇒ 并入「说明」那一块（2026-11-13 用户定）。
+   *   有格子的图照旧显示缩略矩阵（那是要对着摸脉核对的，不能省）。
+   */
+  const { patternsOf } = usePatterns()
+  const myPatterns = patternsOf(hit.id, hit.patterns)
+  const relationOnly = myPatterns.length > 0 && myPatterns.every((p) => !hasCells(p))
+  const relationTexts = relationOnly
+    ? myPatterns.flatMap((p) => (p.relations ?? []).map((r) => `${r.kind}：${r.text}`))
+    : []
   const [open, setOpen] = useState(!!autoOpen)
   /** 正在**就地编辑**的方名 chip（③ 管理员用；② 命中区没有 tools ⇒ 不会进这个态） */
   const [editingChip, setEditingChip] = useState<number | null>(null)
@@ -426,9 +441,20 @@ export function FormulaItem({
           ))}
         </p>
       )}
-      {/* 脉象图：紧贴方名，说明「什么脉象才用这个方」 */}
-      <PatternStrip formulaId={hit.id} formulaLabel={hit.condition} baseline={hit.patterns} />
+      {/*
+        脉象图：紧贴方名，说明「什么脉象才用这个方」。
+        ⚠️ 只有关系注记（没有格子）的那几张**不单独占一块** —— 见下面 relationOnly 的说明。
+      */}
+      {!relationOnly && (
+        <PatternStrip formulaId={hit.id} formulaLabel={hit.condition} baseline={hit.patterns} />
+      )}
       <p className="pr-formula-quote">{hit.quote}</p>
+      {relationOnly && (
+        <p className="pr-formula-relation">
+          <span className="pr-formula-relation-key">条件示意</span>
+          {relationTexts.join('；')}
+        </p>
+      )}
       {showAttr && <AttrBasis attr={attr} />}
       {hit.drugs && hit.drugs.length > 0 && (
         <div className="pr-drugs">

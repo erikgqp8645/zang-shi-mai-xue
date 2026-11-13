@@ -2998,6 +2998,25 @@ button:disabled {
   border-color: var(--clay);
 }
 
+/* 「条件示意」并入说明块 —— 只有关系、没有格子的那条目走这里（不再单独占一块） */
+.pr-formula-relation {
+  margin: 4px 0 2px;
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--ink-2);
+}
+
+.pr-formula-relation-key {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  font-size: 11px;
+  color: var(--cinnabar);
+  background: var(--cinnabar-wash);
+  border: 1px solid rgba(156, 58, 47, 0.18);
+  border-radius: 2px;
+}
+
 .pr-formula-quote {
   margin: 4px 0 2px;
   font-size: 12px;
