@@ -318,3 +318,84 @@ export function groupLegend(pattern: PulsePattern): string | null {
   if (lines.length === 0) return null
   return lines.join('；')
 }
+
+/* ------------------------------------------------------------------ */
+/* 画图即条件：由脉象图直接判定命中                                        */
+/* ------------------------------------------------------------------ */
+
+/** 从格键（`'R|关|浮'`）读出该格实际录到的符号 */
+function readCell(ctx: RuleContext, cell: string): string[] {
+  const [hand, organ, depth] = cell.split('|')
+  if (!hand || !organ || !depth) return []
+  return ctx.get(hand as Hand, organ as Organ, depth as Depth)
+}
+
+/**
+ * 某一格是否满足这条要求。
+ *
+ * · 允许的取值：写了 `codes` 就用 `codes`（手填图），否则按原文用字查 `PATTERN_TERMS`；
+ * · 实际值里**有一个**落在允许集合里即算满足（彼此是「或」）；
+ * · `also`（如「变脉且无力」）还要求实际值里**同时**有一个落在 `also` 里。
+ */
+function cellSatisfied(req: CellRequirement, actual: string[]): boolean {
+  if (actual.length === 0) return false
+  // 用 `termOf`（本文件唯一入口），不直接翻 PATTERN_TERMS 表 —— 与其它调用点同一口径
+  const term = req.term ? termOf(req.term) : null
+  const allowed = req.codes && req.codes.length > 0 ? req.codes : term?.codes ?? []
+  if (allowed.length === 0) return false
+  if (!actual.some((c) => allowed.includes(c))) return false
+  const also = req.codes && req.codes.length > 0 ? [] : term?.also ?? []
+  if (also.length > 0 && !actual.some((c) => also.includes(c))) return false
+  return true
+}
+
+/**
+ * 由脉象图**直接判定**命中（「画图即条件」）。
+ *
+ * ## 用在哪
+ *
+ * 管理员在 ③ 用方知识库里**新建**的依脉用方条目，没有判定函数
+ * （`EVALUATORS` 里当然没有它）—— 它的判定就是它自己的脉象图。
+ * `src/domain/formulas.ts` 的 `loadRules` 会用本函数现场建一个判定。
+ *
+ * ## 组语义（与图上画的完全一致）
+ *
+ * · 有 `groups`：**组内「且」、组间「或」** —— 任一组成立即命中；
+ * · 没有 `groups`：所有格子「且」。
+ *
+ * ## 与老条目的差别
+ *
+ * 基线那 61 条的判定在 `EVALUATORS` 里**手写**，与它们图上的标法**可以有出入**
+ * （见本文件开头「与 condition 文字的出入」）。那批条目**不用**本函数 ——
+ * `loadRules` 先查 `EVALUATORS`，查不到才用图。⇒ 老条目行为零变化。
+ *
+ * @param pattern 条目自带的脉象图
+ * @param ctx     已录的脉象
+ * @returns 命中的格键（没命中 ⇒ 空数组）
+ */
+export function evaluatePattern(pattern: PulsePattern, ctx: RuleContext): string[] {
+  if (!pattern || !Array.isArray(pattern.cells) || pattern.cells.length === 0) return []
+  const reqOf = new Map<string, CellRequirement>()
+  for (const c of pattern.cells) reqOf.set(String(c.cell), c)
+
+  const groups =
+    Array.isArray(pattern.groups) && pattern.groups.length > 0
+      ? pattern.groups
+      : [pattern.cells.map((c) => String(c.cell))]
+
+  /** 组内每一格都要满足；满足就返回这一组的格键 */
+  for (const group of groups) {
+    const cells = (group ?? []).map(String).filter((k) => reqOf.has(k))
+    if (cells.length === 0) continue
+    let allOk = true
+    for (const cell of cells) {
+      const req = reqOf.get(cell) as CellRequirement
+      if (!cellSatisfied(req, readCell(ctx, cell))) {
+        allOk = false
+        break
+      }
+    }
+    if (allOk) return cells.slice()
+  }
+  return []
+}

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useSyncExternalStore, type ReactNode } from 'react'
 import { mergeLibrary } from '../domain/library-merge.mjs'
 import {
+  createLibraryEntry as apiCreateEntry,
   deleteLibraryEntry as apiDeleteEntry,
   listLibraryKinds,
   listLibraryOverrides,
@@ -103,6 +104,21 @@ export async function saveLibraryPatch(
   patch: Record<string, unknown>,
 ): Promise<void> {
   await apiPatchEntry(kind, id, patch)
+  await reloadLibrary()
+}
+
+/**
+ * **新增一条**（网站端「＋ 新增条目」）。
+ *
+ * ⓘ p44 条目的新增走「画图即条件」：`entry.patterns` 必须带至少一张脉象图，
+ *   那几张图就是它的命中判定（服务端也会拒掉没图的）。
+ * ⓘ 与其它三个动作同一纪律：**服务端确认落库之后**才刷新生效集。
+ */
+export async function createLibraryEntry(
+  kind: string,
+  entry: Record<string, unknown>,
+): Promise<void> {
+  await apiCreateEntry(kind, entry)
   await reloadLibrary()
 }
 

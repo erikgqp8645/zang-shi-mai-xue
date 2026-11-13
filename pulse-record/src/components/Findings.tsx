@@ -7,7 +7,7 @@ import {
   type FormulaHit,
 } from '../domain/formulas'
 import { getDrugById, type Drug } from '../domain/drugs'
-import { removeChip, setChip } from '../domain/library-chips.mjs'
+import { addChip, removeChip, sameChips, setChip } from '../domain/library-chips.mjs'
 import { useLibrary } from '../state/library'
 import {
   DOSE_SCIENCE_NAME,
@@ -345,6 +345,8 @@ export function FormulaItem({
   /** 正在**就地编辑**的方名 chip（③ 管理员用；② 命中区没有 tools ⇒ 不会进这个态） */
   const [editingChip, setEditingChip] = useState<number | null>(null)
   const [chipDraft, setChipDraft] = useState('')
+  /** 正在**新增**一个方名 chip（③ 管理员用） */
+  const [addingChip, setAddingChip] = useState(false)
 
   /**
    * 焦点落在这一条时就展开。
@@ -369,9 +371,23 @@ export function FormulaItem({
     const next = setChip(hit.formulas, index, chipDraft)
     setEditingChip(null)
     // 文字没变（或改空了）⇒ 什么都不做 —— 别白跑一趟落库
-    const same =
-      next.length === hit.formulas.length && next.every((v, i) => v === hit.formulas[i])
-    if (same) return
+    if (sameChips(next, hit.formulas)) return
+    tools?.onFormulasChange?.(next)
+  }
+
+  /**
+   * 新方名 chip 输入完了 —— 追加到数组末尾并落库。
+   *
+   * ⚠️ 只**追加**，不碰已有的项（`addChip` 是纯函数，空文字／重名都原样返回）。
+   *    重名与空值直接早退，不白跑一趟落库。
+   */
+  function commitAdd() {
+    if (!addingChip) return
+    const next = addChip(hit.formulas, chipDraft)
+    setAddingChip(false)
+    setChipDraft('')
+    // 判「有没有变化」要比内容（`sameChips`）—— 空值／重名时 addChip 原样返回，这里就不落库
+    if (sameChips(next, hit.formulas)) return
     tools?.onFormulasChange?.(next)
   }
 
@@ -456,7 +472,7 @@ export function FormulaItem({
           ⚠️ 方名 chip 在 button **外面** —— chip 上有「✎／✕」按钮，
           button 里不能套 button（HTML 无效 ＋ 点击会冒泡）。
         */}
-        {hit.formulas.length > 0 && (
+        {(hit.formulas.length > 0 || tools?.onFormulasChange) && (
           <div className="pr-formula-list-inline">
             {hit.formulas.map((f, i) => (
               <span key={`${f}-${i}`} className="pr-formula-chip">
@@ -507,6 +523,49 @@ export function FormulaItem({
                 )}
               </span>
             ))}
+            {/*
+              新增一个方名 chip（只有管理员看得到）。
+              ⚠️ 只往 `formulas[]` 里追加一项 —— 与 ✎／✕ 同一条落库路径（覆盖层即时生效），
+                不是新增一条 p44 条目（那种要判定函数，命令行也补不出来）。
+            */}
+            {tools?.onFormulasChange ? (
+              addingChip ? (
+                <span className="pr-formula-chip is-adding">
+                  <input
+                    className="pr-led-chip-input"
+                    value={chipDraft}
+                    autoFocus
+                    placeholder="新方名"
+                    aria-label="新方名"
+                    onChange={(e) => setChipDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        commitAdd()
+                      }
+                      if (e.key === 'Escape') {
+                        e.preventDefault()
+                        setAddingChip(false)
+                        setChipDraft('')
+                      }
+                    }}
+                    onBlur={commitAdd}
+                  />
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="pr-formula-chip pr-formula-chip-add"
+                  title="加一个方名"
+                  onClick={() => {
+                    setAddingChip(true)
+                    setChipDraft('')
+                  }}
+                >
+                  ＋ 添加
+                </button>
+              )
+            ) : null}
           </div>
         )}
         {tools?.actions && <div className="pr-formula-tools">{tools.actions}</div>}

@@ -32,6 +32,7 @@ import {
   type RuleContext,
 } from './pulse'
 import { PATTERNS } from './pulse-patterns'
+import { evaluatePattern } from './pulse-pattern'
 import type { PulsePattern } from './pulse-pattern'
 import { isDa, strengthOf } from './symbols'
 import RULE_DATA from '../content/formula-rules.json'
@@ -119,6 +120,13 @@ export interface RuleDataJson {
   kind: string
   always?: boolean
   visible?: boolean
+  /**
+   * **新建条目自带的脉象图**（网站端「＋ 新增条目」写进来的）。
+   *
+   * 它就是这条的**判定条件**（画图即条件）—— 详见 `loadRules`。
+   * 基线那 61 条没有这个字段（判定在 `EVALUATORS` 里）。
+   */
+  patterns?: PulsePattern[]
 }
 
 /** 合法的类别（讲稿／讲义的四类） */
@@ -162,15 +170,23 @@ export function loadRules(
   patterns: Record<string, PulsePattern>,
 ): FormulaRule[] {
   return data.map((r) => {
-    const evaluate = evaluators[r.id]
+    // 图的来源有两处，**优先条目自带**：
+    //   · `r.patterns` —— 网站端新建的条目把图存在自己身上（画图即条件）；
+    //   · `patterns[id]` —— 基线那 61 条的图（`src/content/pulse-patterns.json`）。
+    const pattern = (Array.isArray(r.patterns) ? r.patterns[0] : undefined) ?? patterns[r.id]
+    // 判定按优先级取：
+    //   ① `EVALUATORS` 里的手写判定（基线 61 条，行为一字不变）；
+    //   ② 没有手写判定但**有图** ⇒ 用图现场建一个判定（画图即条件）。
+    const evaluate =
+      evaluators[r.id] ?? (pattern ? (ctx: RuleContext) => evaluatePattern(pattern, ctx) : null)
     if (!evaluate) {
       throw new Error(
-        `formulas.ts：规则「${r.id}」没有对应的判定函数。` +
-          `请在 EVALUATORS 里补上（数据在 JSON，判定逻辑在本文件）。`,
+        `formulas.ts：规则「${r.id}」既没有判定函数、也没有脉象图。` +
+          `新建的条目必须带一张脉象图（那张图就是命中条件）；` +
+          `若这条本应是基线条目，请在 EVALUATORS 里补上判定函数。`,
       )
     }
     const rule = { ...r, kind: narrowKind(r.id, r.kind), evaluate }
-    const pattern = patterns[r.id]
     // 一张 → 包成数组，界面统一读 `patterns`；`pattern` 留着给老代码与断言
     return pattern ? { ...rule, pattern, patterns: [pattern] } : rule
   })

@@ -38,6 +38,7 @@ import {
   kindSpec,
   readBaseline,
   validateEntry,
+  validateRulePatterns,
 } from './library-schema.mjs'
 import { deleteLibraryItem, listLibraryItems, putLibraryItem } from './store.mjs'
 
@@ -170,6 +171,92 @@ function mustKind(kind) {
 /* ------------------------------------------------------------------ *
  * 四个动作                                                                *
  * ------------------------------------------------------------------ */
+
+/**
+ * **新增一条**（网站端「＋ 新增条目」）。
+ *
+ * ## 为什么 p44 条目以前不能新增，现在还行了
+ *
+ * 原来：命中判定写死在 `src/domain/formulas.ts` 的 `EVALUATORS` 里，
+ * 新建的条目没有判定函数 ⇒ 前端载入直接报错 ⇒ 从根上禁止。
+ *
+ * 现在：新条目走**「画图即条件」** —— 条目自带 `patterns`（脉象图），
+ * 前端 `loadRules` 用这张图现场建判定（`src/domain/pulse-pattern.ts` 的 `evaluatePattern`）。
+ * ⇒ 服务端只认**带非空脉象图**的新增；没图的当场拒（那种条目永远不命中）。
+ *
+ * ## 语义
+ *
+ * · 与命令行 `library add` 是同一件事：写覆盖层一行（`deleted=0`）。
+ * · `id` 不许与基线或现有效果重名（重名 ＝ 编辑，不是新增）。
+ * · 字段按注册表校验；`knownKeys` 传空集 —— **新条目不许带没登记的字段**。
+ *
+ * @param {object} db
+ * @param {string} kind  `rule` ｜ `drug`
+ * @param {object} entry 完整条目（含 id）
+ * @param {string} by    新增的人（登录名）
+ * @returns {Promise<{ entry: object }>}
+ */
+export async function createLibraryEntry(db, kind, entry, by) {
+  const spec = mustKind(kind)
+
+  if (!spec.addable) {
+    throw new LibraryError(
+      400,
+      `${spec.label}不支持新增。\n${spec.blocked?.add ?? ''}`,
+    )
+  }
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+    throw new LibraryError(400, '请求体要含条目（对象）')
+  }
+
+  const itemId = String(entry[spec.idField] ?? '').trim()
+  if (!itemId) throw new LibraryError(400, `缺少${spec.idField}`)
+  if (!/^[A-Za-z0-9_-]{2,64}$/.test(itemId)) {
+    throw new LibraryError(
+      400,
+      `${spec.idField}「${itemId}」不合法：只能用字母、数字、下划线、短横线，长度 2~64`,
+    )
+  }
+
+  const baseline = await readLibraryBaseline()
+  const overrides = groupOverrides(await listLibraryItems(db))
+  const eff = effectiveEntry(baseline, overrides, kind, itemId)
+  if (eff.entry) {
+    throw new LibraryError(409, `「${itemId}」已经存在了 —— 要改它请用编辑。`)
+  }
+  if (eff.deleted) {
+    throw new LibraryError(
+      409,
+      `「${itemId}」是一条被删掉的条目 —— 要放回来请用「撤销删除」，不要当新增重写。`,
+    )
+  }
+
+  // 「画图即条件」：p44 新条目必须自带**能用**的脉象图
+  // ⓘ 校验本身在 `library-schema.mjs` 的 `validateRulePatterns()` ——
+  //   命令行 `library add` 用的是同一份，两处不会漂移。
+  if (kind === 'rule') {
+    const patternErrors = validateRulePatterns(entry.patterns)
+    if (patternErrors.length > 0) {
+      throw new LibraryError(400, patternErrors.join('\n  · '))
+    }
+  }
+
+  const next = { ...entry, [spec.idField]: itemId }
+  // knownKeys 传空集：**新条目不许带没登记的字段**
+  const errors = validateEntry(kind, next)
+  if (errors.length > 0) {
+    throw new LibraryError(400, `这条加不了：\n  · ${errors.join('\n  · ')}`)
+  }
+
+  const ok = await putLibraryItem(db, kind, itemId, next, {
+    deleted: 0,
+    updatedBy: by,
+    note: '网站端新增',
+  })
+  if (!ok) throw new LibraryError(500, '写进数据库失败了')
+
+  return { entry: next }
+}
 
 /**
  * **改一条**（＝ 命令行 `library set --set 字段=值`）。

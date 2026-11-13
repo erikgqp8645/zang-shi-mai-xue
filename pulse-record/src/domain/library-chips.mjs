@@ -57,6 +57,29 @@ export function removeChip(list, index) {
 }
 
 /**
+ * 两个方名数组**内容是否一样**（顺序也算）。
+ *
+ * ⚠️ 判「有没有变化」必须比**内容**，不能只比长度：
+ *   长度相等但内容不同（例如只剩一项、被换成了新名字）也是变化，
+ *   当成「没改」会把用户的改动吞掉，而且界面上看不出来。
+ *
+ * ⓘ 改／删／加三条路径（`setChip`／`removeChip`／`addChip`）都靠它决定
+ *   「要不要白跑一趟落库」—— 所以只写这一份。
+ *
+ * @param a 旧数组
+ * @param b 新数组
+ */
+export function sameChips(a, b) {
+  const x = Array.isArray(a) ? a : []
+  const y = Array.isArray(b) ? b : []
+  if (x.length !== y.length) return false
+  for (let i = 0; i < x.length; i++) {
+    if (x[i] !== y[i]) return false
+  }
+  return true
+}
+
+/**
  * 加一个标签（＋）。
  *
  * ⓘ 空文字不算；已经有一样的也不重复加。

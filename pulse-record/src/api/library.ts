@@ -39,9 +39,25 @@ export async function listLibraryOverrides(): Promise<LibraryOverrides> {
   return overrides ?? {}
 }
 
-/** 改一条（字段级：只传要改的字段，其余不动） */
-export async function patchLibraryEntry(
+/**
+ * **新增一条**（网站端「＋ 新增条目」）。
+ *
+ * 与命令行 `library add` 同一件事。`kind === 'rule'` 时服务端要求
+ * 条目自带非空 `patterns`（脉象图）—— **画图即条件**：
+ * 那几张图就是它的命中判定（见 `src/domain/pulse-pattern.ts` 的 `evaluatePattern`）。
+ */
+export async function createLibraryEntry(
   kind: string,
+  entry: Record<string, unknown>,
+): Promise<{ entry: Record<string, unknown> }> {
+  return request<{ entry: Record<string, unknown> }>(
+    `/api/library/entries/${encodeURIComponent(kind)}`,
+    { method: 'POST', body: JSON.stringify({ entry }) },
+  )
+}
+
+/** 改一条（字段级：只传要改的字段，其余不动） */
+export async function patchLibraryEntry(  kind: string,
   id: string,
   patch: Record<string, unknown>,
 ): Promise<{ entry: Record<string, unknown>; changed: string[] }> {

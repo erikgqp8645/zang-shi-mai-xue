@@ -48,6 +48,8 @@
     "test:e2e:app:compact:break": "node scripts/e2e/app-library-compact-break-test.mjs",
     "test:e2e:app:standing:break": "node scripts/e2e/app-standing-toggle-break-test.mjs",
     "test:e2e:app:display:break": "node scripts/e2e/app-library-display-break-test.mjs",
+    "test:e2e:app:chip:break": "node scripts/e2e/app-chip-add-break-test.mjs",
+    "test:e2e:app:live:break": "node scripts/e2e/app-pattern-live-break-test.mjs",
     "test:e2e:library-admin": "node scripts/e2e/library-admin.mjs",
     "test:e2e:library-admin:break": "node scripts/e2e/library-admin-break-test.mjs",
     "test:e2e:library-runtime-edit": "node scripts/e2e/library-runtime-edit.mjs",

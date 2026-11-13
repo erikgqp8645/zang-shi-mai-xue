@@ -88,7 +88,7 @@ export const LIBRARY_KINDS = {
     container: 'array',
     idField: 'id',
     idType: 'string',
-    addable: false,
+    addable: true,
     deletable: true,
     fields: [
       { key: 'id', label: '条目 id', type: 'string', required: true },
@@ -107,14 +107,21 @@ export const LIBRARY_KINDS = {
       // true＝显示；false＝知识库列表里不列这一条（**判读命中不受影响**）。
       // 不写＝按显示算（缺省显示），所以它不是必填。
       { key: 'visible', label: '是否在知识库里显示', type: 'boolean' },
+      // 「画图即条件」：管理员新建的条目，**脉象图就是它的判定条件**
+      // （src/domain/formulas.ts 的 loadRules：EVALUATORS 没有该 id 时，用这里的图建判定）。
+      // 基线里的 61 条没有这个字段（判定在 EVALUATORS 里），不受影响。
+      { key: 'patterns', label: '脉象图（新建条目的判定条件）', type: 'json' },
     ],
+    // 2026-11-12：p44 条目**开放新增**了 —— 但只认「自带脉象图」的新增。
+    // 图即判定（`src/domain/pulse-pattern.ts` 的 `evaluatePattern`）：
+    //   有图 ⇒ 摸到图上标的格子就命中；
+    //   没图 ⇒ 前端载入时会报错（没有判定函数的条目永远不命中），所以服务端先拒。
     blocked: {
       add:
-        '讲义 p44「依脉用方」不能在这里新增。\n' +
-        '  原因：命中判定的逻辑写在代码里（pulse-record/src/domain/formulas.ts 的 EVALUATORS），\n' +
-        '        一条规则要能被命中，就得有一份对应的判定函数 —— 数据能写，判定逻辑长不出来。\n' +
-        '  （**删除是可以的**：条目删掉后，残留的判定函数不会被加载、不命中、也不显示。）\n' +
-        '  可以做的：先把这条作为「讲稿方剂」（kind=drug）加进来 —— 那部分是纯数据。',
+        '新增讲义 p44 条目必须**同时带一张脉象图** —— 这张图就是它的命中条件。\n' +
+        '  原因：老条目的判定写在代码里（pulse-record/src/domain/formulas.ts 的 EVALUATORS），\n' +
+        '        新建条目走的是「画图即条件」：图上标了哪几格，摸到那几格就命中。\n' +
+        '  在网站上新增时，新建弹层会把图一起提交，不必手动拼 JSON。',
     },
   },
 
@@ -296,6 +303,13 @@ export function validateEntry(kind, entry, opts = {}) {
           errors.push(`字段「${f.key}」必须是 1~4 的整数（同和堂版共 4 页）`)
         }
         break
+      case 'json':
+        // 结构化字段（如新建条目的脉象图）。只要求是对象或数组 ——
+        // 内部形状由各自的编辑器保证，这里不重复描述一遍。
+        if (typeof v !== 'object') {
+          errors.push(`字段「${f.key}」必须是对象或数组`)
+        }
+        break
       default:
         errors.push(`字段「${f.key}」的类型「${f.type}」没登记 —— 后端自己坏了`)
     }
@@ -309,6 +323,68 @@ export function validateEntry(kind, entry, opts = {}) {
     errors.push(`字段「${k}」不在本类的可编辑字段表里 —— 不许凭空加字段`)
   }
 
+  return errors
+}
+
+/** 格键格式：`L|关|浮`（手｜部位｜取法）—— 与前端 `cellKey()` 同一套 */
+const CELL_KEY_RE = /^[LR]\|(寸|关|尺)\|(浮|中|沉)$/
+
+/**
+ * 新增 p44 条目时校验**脉象图能不能用**（网站端与命令行共用同一份）。
+ *
+ * 为什么校验得这么细：新条目的判定**就是这张图**（画图即条件）。
+ * 图里有垃圾数据时，前端不会报错 —— 那条条目只是**永远不命中**，
+ * 而界面上看起来一切正常。这种「静默失效」必须在写库前就拒掉。
+ *
+ * 校验三项：
+ * ① 至少一张图，每张至少一个格子；
+ * ② 格键必须是 `L|关|浮` 这种形状（否则 `ctx.get()` 永远取不到值）；
+ * ③ 每格至少写了 `term`（原文用字）或 `codes`（符号），两者都没有 ＝ 这格没有要求。
+ *
+ * ⓘ **不**核对 `term` 的词表（`PATTERN_TERMS`）：那是前端内容层的表，
+ *   云函数环境里不一定读得到。词写错的后果与 ③ 相同（不命中），
+ *   由前端编辑器只提供已知术语来保证。
+ *
+ * ⭐ 放在这一层（不是 `library-service.mjs`）的原因：
+ *   **网站端（HTTP）与命令行（`library add`）必须同一套校验** ——
+ *   两处各写一份，迟早出现「网站上加得进、命令行加不进」这种漂移。
+ *
+ * @param {unknown} patterns
+ * @returns {string[]} 错误说明（空数组＝通过）
+ */
+export function validateRulePatterns(patterns) {
+  const errors = []
+  if (!Array.isArray(patterns) || patterns.length === 0) {
+    errors.push(
+      '新增的依脉用方条目必须带一张脉象图 —— 这张图就是它的命中条件。' +
+        '（没有图的条目永远不会被命中，界面也看不出来。）',
+    )
+    return errors
+  }
+
+  for (const [i, p] of patterns.entries()) {
+    if (!p || !Array.isArray(p.cells) || p.cells.length === 0) {
+      errors.push(`第 ${i + 1} 张脉象图没有标任何格子 —— 至少要标一格的（部位 ＋ 取法）才有判定意义。`)
+      continue
+    }
+    for (const c of p.cells) {
+      const key = String(c?.cell ?? '')
+      if (!CELL_KEY_RE.test(key)) {
+        errors.push(
+          `第 ${i + 1} 张脉象图里的格子「${key}」不合法：要写成「手|部位|取法」，如 L|关|浮、R|尺|沉。`,
+        )
+        continue
+      }
+      const hasTerm = typeof c?.term === 'string' && c.term.trim() !== ''
+      const hasCodes = Array.isArray(c?.codes) && c.codes.length > 0
+      if (!hasTerm && !hasCodes) {
+        errors.push(
+          `第 ${i + 1} 张脉象图的「${key}」这一格没写用字也没写符号 —— ` +
+            '这格等于没有要求，既不会命中也不会提示。请补上（或把它清空删掉）。',
+        )
+      }
+    }
+  }
   return errors
 }
 
@@ -525,8 +601,14 @@ export function readEvaluatorIds(formulasPath = FORMULAS_TS) {
  * 前端不加载它（见 src/domain/formulas.ts 的 loadRules：判定函数有、数据没有 → 跳过），
  * 所以删得干净；又因为函数还在，`library restore` 放回来时不用改一行代码。
  *
- * 新增则不行：一条**没有判定函数**的规则，前端载入时会直接报错（loadRules 抛错）。
- * 所以这里拿「判定函数表里的 id」当白名单；读不到判定函数表就退回「只认基线里的 id」。
+ * ## 新增的两条路（2026-11-12 起）
+ *
+ * ① **有判定函数**（`EVALUATORS` 里有这个 id）→ 放行。与原来一样。
+ * ② **自带脉象图**（`payload.patterns` 是非空数组）→ 放行。**画图即条件**：
+ *    前端 `loadRules` 会用这张图现场建一个判定（`pulse-pattern.ts` 的 `evaluatePattern`）。
+ *    这条是管理员在网站上「新增整条」走的路径 —— 不用改一行代码。
+ *
+ * 两条都不满足 ⇒ 拒。那种条目永远不命中，而界面看不出来 —— 宁可当场拒掉。
  *
  * @param {object} baselineFiles
  * @param {object} overrides
@@ -541,14 +623,15 @@ export function checkRuleAddBoundary(baselineFiles, overrides, evaluatorIds = nu
   const known = evaluatorIds ?? null
   for (const [itemId, ov] of Object.entries(overrides?.rule ?? {})) {
     if (ov.deleted) continue // 删除：放行（判定函数留着当残留代码）
-    if (known ? known.has(itemId) : baseIds.has(itemId)) continue
+    if (baseIds.has(itemId)) continue // 基线已有的条目：改字段，不是新增
+    if (known && known.has(itemId)) continue // ① 代码里有判定函数
+    const patterns = ov.payload?.patterns
+    if (Array.isArray(patterns) && patterns.length > 0) continue // ② 画图即条件
     errors.push(
-      known
-        ? `覆盖层新增了讲义 p44 条目「${itemId}」—— ` +
-            `src/domain/formulas.ts 的 EVALUATORS 里没有它，前端载入时会报错` +
-            `（命中判定是代码，不是数据，命令行补不出来）`
-        : `覆盖层新增了讲义 p44 条目「${itemId}」—— 基线里没有它，` +
-            `而且读不到判定函数表（src/domain/formulas.ts），无法确认它能不能被载入`,
+      `覆盖层新增了讲义 p44 条目「${itemId}」，但它既没有判定函数、也没有脉象图 —— ` +
+        `前端载入时会报错（这种条目永远不命中，界面却看不出来）。\n` +
+        `  修法二选一：给这条条目补一张脉象图（「画图即条件」），` +
+        `或在 src/domain/formulas.ts 的 EVALUATORS 里补一个判定函数。`,
     )
   }
   return errors

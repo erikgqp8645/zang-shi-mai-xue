@@ -140,32 +140,77 @@ interface Props {
   draft: Record<string, unknown>
   /** 改一个字段 */
   onChange: (key: string, value: unknown) => void
+  /**
+   * **新增**时 id 要能填 —— 编辑态下 id 只读（改 id ＝ 删了重加）。
+   */
+  creating?: boolean
+  /**
+   * 新增时「自动生成」那个按钮的回调。
+   *
+   * ⓘ 只在点按钮的那一刻往输入框里填一个 id —— **后台什么都不写**；
+   *   真正落库还是「保存」那一下（留空也会在保存时补上）。
+   */
+  onGenerateId?: () => string
 }
 
-export function LibraryFields({ kinds, kind, draft, onChange }: Props) {
+export function LibraryFields({ kinds, kind, draft, onChange, creating, onGenerateId }: Props) {
   const spec = kinds?.[kind]
   if (!spec) {
     return <p className="pr-empty">还没拿到字段表（注册表没加载上），先刷新页面再试。</p>
   }
   return (
     <div className="pr-led-grid">
-      {spec.fields.map((field) => (
-        <label key={field.key} className={`pr-led-field${field.long ? ' is-long' : ''}`}>
-          <span className="pr-led-label">
-            {field.label}
-            {field.required ? <em>＊</em> : null}
-          </span>
-          <FieldInput
-            field={field}
-            value={draft[field.key]}
-            readOnly={field.key === spec.idField}
-            onChange={(v) => onChange(field.key, v)}
-          />
-          {field.key === spec.idField ? (
-            <small className="pr-led-hint">条目 id 不能改（改它等于删了重加）。</small>
-          ) : null}
-        </label>
-      ))}
+      {/*
+        `json` 字段（如 rule 的 `patterns`）不在这个表单里编 ——
+        它由「脉象图」页签的编辑器负责，在这里渲染只会多出一个没意义的输入框。
+      */}
+      {spec.fields
+        .filter((field) => field.type !== 'json')
+        .map((field) => (
+          <label key={field.key} className={`pr-led-field${field.long ? ' is-long' : ''}`}>
+            <span className="pr-led-label">
+              {field.label}
+              {field.required ? <em>＊</em> : null}
+            </span>
+            {/*
+              新增时 id 旁边给一个「自动生成」——
+              ⓘ 点它只是把 id 填进输入框，**后台不写任何东西**；
+                真正落库在「保存」那一下（留空也会自动补）。
+            */}
+            {field.key === spec.idField && creating && onGenerateId ? (
+              <div className="pr-led-idrow">
+                <FieldInput
+                  field={field}
+                  value={draft[field.key]}
+                  readOnly={false}
+                  onChange={(v) => onChange(field.key, v)}
+                />
+                <button
+                  type="button"
+                  className="pr-led-btn pr-led-idgen"
+                  title="自动生成一个条目 id（只是填进输入框，保存时才落库）"
+                  onClick={() => onChange(field.key, onGenerateId())}
+                >
+                  自动生成
+                </button>
+              </div>
+            ) : (
+              <FieldInput
+                field={field}
+                value={draft[field.key]}
+                readOnly={field.key === spec.idField}
+                onChange={(v) => onChange(field.key, v)}
+              />
+            )}
+            {field.key === spec.idField ? (
+              <small className="pr-led-hint">
+                {creating
+                  ? '「自动生成」得到 u-日期-随机（如 u-261113-tmcz）；也可自己填语义化的名字（如 u-yiti-lengshui）。留空保存时自动生成。'
+                  : '条目 id 不能改（改它等于删了重加）。'}
+              </small>
+            ) : null}
+          </label>
+        ))}
     </div>
   )
 }

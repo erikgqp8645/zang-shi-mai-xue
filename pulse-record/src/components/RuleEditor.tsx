@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { restoreLibraryDefault, saveLibraryPatch, useLibrary } from '../state/library'
+import { createLibraryEntry, restoreLibraryDefault, saveLibraryPatch, useLibrary } from '../state/library'
 import { usePatterns } from '../state/patterns'
 import { getEffectiveDrugRaw, getEffectiveRuleRaw } from '../domain/library-store'
 import { diffEntryFields, normalizePatterns, patternsChanged } from '../domain/unified-editor.mjs'
+import { makeRuleId } from '../domain/rule-id'
 import type { PulsePattern } from '../domain/pulse-pattern'
 import { ConfirmDialog } from './ConfirmDialog'
 import { LibraryFields } from './LibraryFields'
@@ -49,7 +50,7 @@ type Tab = 'entry' | 'pattern'
 interface Props {
   /** `rule` ｜ `drug` */
   kind: string
-  /** 条目 id */
+  /** 条目 id（`mode='create'` 时是草稿 id，用户可在表单里改） */
   id: string
   /** 当前生效的那一条（不给就自己取） */
   entry?: Record<string, unknown> | null
@@ -59,19 +60,38 @@ interface Props {
   initialTab?: Tab
   /** 条目基线里的脉象图（覆盖层优先，由 `usePatterns` 处理） */
   baseline?: PulsePattern[]
+  /**
+   * `create` ＝ **新增**（还没有这一条）：保存走 `POST /api/library/entries/:kind`。
+   *
+   * ⓘ 新增 p44 条目必须带一张脉象图 —— **画图即条件**（图就是它的命中判定）。
+   *   所以新建时默认落在「脉象图」页，保存时把图一起提交。
+   */
+  mode?: 'edit' | 'create'
   onClose: () => void
 }
 
-export function RuleEditor({ kind, id, entry: entryProp, title, initialTab, baseline, onClose }: Props) {
+export function RuleEditor({
+  kind,
+  id,
+  entry: entryProp,
+  title,
+  initialTab,
+  baseline,
+  mode = 'edit',
+  onClose,
+}: Props) {
   const { kinds, overrides } = useLibrary()
   const { patternsOf, save: savePatterns, reset: resetPatterns, isOverridden: isPatternOverridden } =
     usePatterns()
 
+  const isCreate = mode === 'create'
+
   /** 生效的那一条（入口没给就自己取 —— 方剂卡那个入口拿不到整条） */
   const effective = useMemo(() => {
     if (entryProp) return entryProp
+    if (isCreate) return null
     return kind === 'rule' ? getEffectiveRuleRaw(id) : getEffectiveDrugRaw(id)
-  }, [entryProp, kind, id])
+  }, [entryProp, kind, id, isCreate])
 
   /** 条目的基线（用于比较「有没有变」；恢复默认后会刷新） */
   const [entryBase, setEntryBase] = useState<Record<string, unknown>>(() => ({ ...(effective ?? {}) }))
@@ -95,9 +115,9 @@ export function RuleEditor({ kind, id, entry: entryProp, title, initialTab, base
   const [confirmRestore, setConfirmRestore] = useState<null | 'entry' | 'pattern'>(null)
 
   /** 条目有没有被改过（覆盖层里有这一行） */
-  const entryOverridden = !!overrides?.[kind]?.[id]
+  const entryOverridden = !isCreate && !!overrides?.[kind]?.[id]
   /** 图有没有被改过 */
-  const patternOverridden = isPatternOverridden(id)
+  const patternOverridden = !isCreate && isPatternOverridden(id)
 
   /* Esc 关闭（确认框开着时先关确认框，别把编辑器一起关了） */
   useEffect(() => {
@@ -123,6 +143,41 @@ export function RuleEditor({ kind, id, entry: entryProp, title, initialTab, base
   }
 
   async function doSave() {
+    // ---- 新增：一条都没有，整份提交（图一起带上 —— 画图即条件）----
+    if (isCreate) {
+      // id 留空也行：保存这一刻才生成（打开弹层时不生成，后台更不写）
+      const entryId = String(draft.id ?? '').trim() || makeRuleId()
+      if (!/^[A-Za-z0-9_-]{2,64}$/.test(entryId)) {
+        setEntryError('条目 id 只能用字母、数字、下划线、短横线，长度 2~64 —— 或点「自动生成」。')
+        setTab('entry')
+        return
+      }
+      if (kind === 'rule' && normalizePatterns(patternDraft).length === 0) {
+        setEntryError('新建的依脉用方条目必须画一张脉象图 —— 这张图就是它的命中条件。')
+        setTab('pattern')
+        return
+      }
+      setSaving(true)
+      setEntryError(null)
+      setPatternError(null)
+      try {
+        await createLibraryEntry(kind, {
+          ...draft,
+          id: entryId,
+          ...(kind === 'rule' ? { patterns: normalizePatterns(patternDraft) } : {}),
+        })
+        onClose()
+      } catch (e) {
+        setEntryError(e instanceof Error ? e.message : String(e))
+        // ⚠️ 错误渲染在「条目」页 —— 用户可能是在「脉象图」页点的保存，
+        //    不切过去就只能看到底部一句「原因见上面的提示」，找不到那条提示。
+        setTab('entry')
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
+
     const changed = changedFields()
     const hasEntryChange = Object.keys(changed).length > 0
     const hasPatternChange = patternsChanged(patternDraft, currentPatterns)
@@ -145,6 +200,8 @@ export function RuleEditor({ kind, id, entry: entryProp, title, initialTab, base
       } catch (e) {
         entryOk = false
         setEntryError(e instanceof Error ? e.message : String(e))
+        // 同上：错误文字在「条目」页，切过去让用户当场看见
+        setTab('entry')
       }
     }
 
@@ -155,6 +212,8 @@ export function RuleEditor({ kind, id, entry: entryProp, title, initialTab, base
       } catch (e) {
         patternOk = false
         setPatternError(e instanceof Error ? e.message : String(e))
+        // 图存失败：切到「脉象图」页（错误文字就在那儿）
+        setTab('pattern')
       }
     }
 
@@ -202,9 +261,9 @@ export function RuleEditor({ kind, id, entry: entryProp, title, initialTab, base
           onClick={(e) => e.stopPropagation()}
         >
           <header className="pr-ps-modal-head">
-            <h4>编辑条目</h4>
+            <h4>{isCreate ? '新增条目' : '编辑条目'}</h4>
             <span className="pr-ed-subject" title={title}>
-              {title}
+              {isCreate ? String(draft.condition ?? '还没填条件') : title}
             </span>
             <button type="button" className="pr-ps-close" onClick={onClose} disabled={saving}>
               ✕
@@ -267,6 +326,8 @@ export function RuleEditor({ kind, id, entry: entryProp, title, initialTab, base
                   kind={kind}
                   draft={draft}
                   onChange={setField}
+                  creating={isCreate}
+                  onGenerateId={makeRuleId}
                 />
                 {entryError ? <p className="pr-ed-error">{entryError}</p> : null}
               </section>
@@ -287,16 +348,27 @@ export function RuleEditor({ kind, id, entry: entryProp, title, initialTab, base
 
           <footer className="pr-ed-foot">
             {entryError || patternError ? (
+              /*
+               ⚠️ 这里**不写「请看上面的提示」这种空话**：
+                  出错时已经自动切到对应页签（错误红字就在页内），
+                  页内显示着就不再重复一遍全文，免得同一句话出现两次像 bug；
+                  用户又切走了的话，底部就写全文，仍然知道错在哪。
+              */
               <span className="pr-ed-error">
-                {entryError && patternError
-                  ? '条目的改动与脉象图的改动都没存成（看上面的提示）。'
-                  : entryError
-                    ? '条目的改动没存成（脉象图的不受影响）。'
-                    : '脉象图的改动没存成（条目的已存好）。'}
+                {(() => {
+                  const shownHere =
+                    (tab === 'entry' && !!entryError) || (tab === 'pattern' && !!patternError)
+                  if (shownHere) return '没存成（原因见上方红字）。'
+                  if (isCreate) return entryError ?? patternError
+                  if (entryError && patternError) return `两处都没存成：${entryError}；${patternError}`
+                  return entryError ? `条目没存成：${entryError}` : `脉象图没存成：${patternError}`
+                })()}
               </span>
             ) : (
               <span className="pr-ed-tip">
-                两处一起保存，写进服务端覆盖层，所有账号共享一份；仓库里的基线文件不动。
+                {isCreate
+                  ? '新增的条目写进服务端覆盖层，所有账号共享；「脉象图」页画的那张图就是它的命中条件。'
+                  : '两处一起保存，写进服务端覆盖层，所有账号共享一份；仓库里的基线文件不动。'}
               </span>
             )}
             <button type="button" className="pr-ghost" onClick={onClose} disabled={saving}>

@@ -115,6 +115,7 @@ import { groupOverrides } from './library-schema.mjs'
 // 用方知识库 · 运行时编辑（网站端 ③ 的「编辑／删除」按钮走这里）
 import {
   LibraryError,
+  createLibraryEntry,
   deleteLibraryEntry,
   libraryKindsPayload,
   patchLibraryEntry,
@@ -673,6 +674,35 @@ export async function handleApi(req, res) {
     }
 
     const libEntry = path.match(/^\/api\/library\/entries\/([^/]+)\/([^/]+)(\/(restore|revive))?$/)
+    const libCreate = path.match(/^\/api\/library\/entries\/([^/]+)$/)
+    // **新增**：POST /api/library/entries/:kind（body: { entry }）
+    // 与命令行 `library add` 同一件事；p44 条目必须自带脉象图（画图即条件）。
+    // ⚠️ 单独成块：两段路径只认 POST，其它方法回 405 ——
+    //    不能落进下面的 libEntry 分支（那里 libEntry 是 null）。
+    if (libCreate) {
+      if (!isAdmin(user)) {
+        sendJson(res, 403, {
+          error: '只有管理员能改用方知识库（这一份是所有账号共享的公共资料）。',
+        })
+        return
+      }
+      if (method !== 'POST') {
+        sendJson(res, 405, { error: '这个地址只支持 POST（新增一条条目）。' })
+        return
+      }
+      const kind = decodeURIComponent(libCreate[1])
+      const by = String(user.login_name ?? user.loginName ?? user.id ?? 'admin')
+      try {
+        const body = await readJson(req)
+        const out = await createLibraryEntry(db, kind, body?.entry, by)
+        sendJson(res, 200, { ok: true, ...out })
+      } catch (err) {
+        const status = err instanceof LibraryError ? err.status : 500
+        if (status >= 500) console.error('[臧氏脉学] 用方知识库新增失败：', err)
+        sendJson(res, status, { error: err?.message ?? String(err) })
+      }
+      return
+    }
     if (libEntry) {
       if (!isAdmin(user)) {
         sendJson(res, 403, {

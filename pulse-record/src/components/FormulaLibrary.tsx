@@ -100,6 +100,24 @@ const DIM_LABEL: Record<Dim, string> = {
 }
 
 /**
+ * 新增条目用的空骨架。
+ *
+ * ⓘ `id` 留空 —— 让管理员自己取（字母／数字／下划线／短横线，2~64 位）。
+ *   用自动生成的 id 会让人在 `library apply` 之后对不上号。
+ * ⓘ `formulas`／`adds` 给空数组：编辑表单里它们是数组字段，`undefined` 会渲染成「未填」。
+ */
+const EMPTY_NEW_RULE: Record<string, unknown> = {
+  id: '',
+  route: '',
+  condition: '',
+  therapy: '',
+  formulas: [],
+  source: '',
+  quote: '',
+  kind: '主线',
+}
+
+/**
  * 知识库里的条目**不是命中项** —— 它没有「命中记录」可写。
  * 这里造一个空 `cells` 的命中项，渲染时用 `srcNote` 改掉出处行。
  */
@@ -137,6 +155,8 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding, canEdit 
     entry: Record<string, unknown>
     title: string
   } | null>(null)
+  /** 正在**新增**一条（`RuleEditor` 的 create 模式） */
+  const [creating, setCreating] = useState(false)
   /** 顶部提示（操作结果／出错原因） */
   const [toast, setToast] = useState<string | null>(null)
   /** 刚删掉的那一条 —— 提示条上的「撤销」用它 */
@@ -428,6 +448,24 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding, canEdit 
               ))}
             </div>
             {/*
+              **新增一整条**（只有管理员看得到）。
+              ⓘ 新条目走「画图即条件」：新建弹层里画的那张脉象图就是它的命中判定，
+                不需要（也没法）回头改代码。老条目仍然用 EVALUATORS 里的手写判定。
+            */}
+            {canEdit ? (
+              <button
+                type="button"
+                className="pr-led-btn pr-flib-add"
+                title="新增一条依脉用方（要画一张脉象图 —— 那张图就是它的命中条件）"
+                onClick={() => {
+                  setToast(null)
+                  setCreating(true)
+                }}
+              >
+                ＋ 新增条目
+              </button>
+            ) : null}
+            {/*
               常驻条目开关 —— 与② 命中区共用同一个（状态在 App 里）。
               常驻条目不依脉象，关掉后知识库里那一组（「用药禁忌」）整组消失。
             */}
@@ -650,6 +688,22 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding, canEdit 
           entry={editing.entry}
           title={editing.title}
           onClose={() => setEditing(null)}
+        />
+      )}
+
+      {/*
+        新增一整条 —— 空骨架交给 `RuleEditor` 的 create 模式。
+        默认落在「脉象图」页：那张图就是命中条件，先画它最要紧。
+      */}
+      {creating && (
+        <RuleEditor
+          mode="create"
+          kind="rule"
+          id=""
+          entry={EMPTY_NEW_RULE}
+          title="新条目"
+          initialTab="pattern"
+          onClose={() => setCreating(false)}
         />
       )}
 

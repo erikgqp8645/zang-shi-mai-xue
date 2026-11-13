@@ -52,7 +52,7 @@ export interface LibraryKindField {
   key: string
   /** 字段的中文标签（表单上显示的） */
   label: string
-  type: 'string' | 'number' | 'positiveInt' | 'boolean' | 'string[]' | 'enum' | 'page'
+  type: 'string' | 'number' | 'positiveInt' | 'boolean' | 'string[]' | 'enum' | 'page' | 'json'
   required?: boolean
   /** `type === 'enum'` 时的可选值 */
   values?: string[]

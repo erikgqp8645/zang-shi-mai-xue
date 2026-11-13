@@ -632,6 +632,156 @@ await check('RE14 删除／恢复默认的确认走站内确认框：不用 wind
   return [problems.length === 0, problems.join('；')]
 })
 
+/* ------------------------------------------------------------------ */
+/* RE15 · 新增整条（2026-11-12）：画图即条件                            */
+/*                                                                     */
+/* ⓘ p44 条目原来**不能新增**（判定写在 EVALUATORS 里）。现在开放了，      */
+/*   但只认「自带脉象图」的新增 —— 那张图就是它的命中条件。               */
+/* ------------------------------------------------------------------ */
+
+const NEW_ID = 're15-damai'
+
+/** 一张「右关浮大」的图 —— 新建条目必须带它 */
+const NEW_PATTERN = {
+  title: '大脉',
+  cells: [{ cell: 'R|关|浮', term: '大' }],
+  source: '网站端自建',
+}
+
+const NEW_ENTRY = {
+  id: NEW_ID,
+  route: '自建',
+  condition: '大脉（网站端新增）',
+  therapy: '自建治法',
+  formulas: ['自建方'],
+  source: '网站端自建',
+  quote: '网站端自建条目，用于回归。',
+  kind: '主线',
+}
+
+await check('RE15 新增条目必须带脉象图：没图的当场 400（不会留下永远不命中的条目）', async () => {
+  const res = await http(admin.base, 'POST', '/api/library/entries/rule', {
+    body: { entry: { ...NEW_ENTRY } },
+  })
+  if (res.status !== 400) return [false, `status=${res.status} ${res.text}`]
+  const msg = String(res.body?.error ?? '')
+  if (!msg.includes('脉象图')) return [false, `原因里没提脉象图：${msg}`]
+  const ov = await readOverrides(admin.base)
+  if (ov.rule?.[NEW_ID]) return [false, '被拒了却还是写进了覆盖层']
+  return [true, '400 ＋ 点名脉象图']
+})
+
+await check('RE16 带图新增：落进覆盖层，且浏览器侧生效集里真的多出这一条', async () => {
+  const res = await http(admin.base, 'POST', '/api/library/entries/rule', {
+    body: { entry: { ...NEW_ENTRY, patterns: [NEW_PATTERN] } },
+  })
+  if (res.status !== 200) return [false, `status=${res.status} ${res.text}`]
+
+  const ov = await readOverrides(admin.base)
+  const row = ov.rule?.[NEW_ID]
+  if (!row || row.deleted) return [false, '覆盖层里没有这一行']
+
+  // 浏览器侧合并（与网站端跑的是同一份 library-merge.mjs）
+  const merged = effective(ov)
+  const hit = merged.ruleData.find((r) => String(r.id) === NEW_ID)
+  if (!hit) return [false, '生效集里没有这一条']
+  if (!Array.isArray(hit.patterns) || hit.patterns.length === 0) {
+    return [false, '生效集里这一条没有带脉象图']
+  }
+  return [true, `生效集 ${merged.ruleData.length} 条（基线 ${baselineRules.length} ＋ 新增 1）`]
+})
+
+await check('RE17 新增的 id 不许与基线／覆盖层重名；没登记的字段不许带', async () => {
+  const dup = await http(admin.base, 'POST', '/api/library/entries/rule', {
+    body: { entry: { ...NEW_ENTRY, patterns: [NEW_PATTERN] } },
+  })
+  if (dup.status !== 409) return [false, `重名应当 409，实际 ${dup.status}`]
+
+  const baseDup = await http(admin.base, 'POST', '/api/library/entries/rule', {
+    body: { entry: { ...NEW_ENTRY, id: PATCH_ID, patterns: [NEW_PATTERN] } },
+  })
+  if (baseDup.status !== 409) return [false, `与基线重名应当 409，实际 ${baseDup.status}`]
+
+  const extra = await http(admin.base, 'POST', '/api/library/entries/rule', {
+    body: { entry: { ...NEW_ENTRY, id: 're17-extra', 瞎写的字段: 1, patterns: [NEW_PATTERN] } },
+  })
+  if (extra.status !== 400) return [false, `没登记字段应当 400，实际 ${extra.status}`]
+  if (!String(extra.body?.error ?? '').includes('瞎写的字段')) {
+    return [false, `原因里没点名那个字段：${extra.body?.error}`]
+  }
+  return [true, '重名 409（覆盖层＋基线都查）、未知字段 400']
+})
+
+await check('RE18 新增条目的判定＝它自己的脉象图（右关浮大命中、别处大不命中）', async () => {
+  const rule = {
+    id: NEW_ID,
+    route: NEW_ENTRY.route,
+    condition: NEW_ENTRY.condition,
+    therapy: NEW_ENTRY.therapy,
+    formulas: NEW_ENTRY.formulas,
+    source: NEW_ENTRY.source,
+    quote: NEW_ENTRY.quote,
+    kind: NEW_ENTRY.kind,
+    patterns: [NEW_PATTERN],
+  }
+  // 用共享包（与网站端同一份）载入：EVALUATORS 里没有这个 id ⇒ 用图建判定
+  const rules = loadRulesFrom([rule])
+  if (rules.length !== 1) return [false, `载入后条数=${rules.length}`]
+
+  const ctxOf = (cells) => ({
+    layout: 'nine',
+    get: (hand, organ, depth) => cells[`${hand}|${organ}|${depth}`] ?? [],
+    depths: () => ['浮', '中', '沉'],
+  })
+
+  const hit = rules[0].evaluate(ctxOf({ 'R|关|浮': ['++'] }))
+  if (hit.length === 0) return [false, '右关浮大没有命中']
+
+  const miss = rules[0].evaluate(ctxOf({ 'L|关|浮': ['++'] }))
+  if (miss.length > 0) return [false, '左关浮大不该命中（图上是右关）']
+
+  const weak = rules[0].evaluate(ctxOf({ 'R|关|浮': ['+'] }))
+  if (weak.length > 0) return [false, '「有」不该算「大」']
+
+  // 没图的条目 ⇒ 载入时抛错（不许静默变成永不命中）
+  let threw = false
+  try {
+    loadRulesFrom([{ ...rule, patterns: undefined, id: 're18-nograph' }])
+  } catch {
+    threw = true
+  }
+  if (!threw) return [false, '没图的条目载入居然没报错']
+
+  return [true, '右关浮大命中；左关／「有」不命中；无图条目载入报错']
+})
+
+await check('RE19 新增的脉象图要**能用**：非法格键／空格当场 400，两段地址的其它方法 405', async () => {
+  const mk = (id, cells) => ({
+    entry: { ...NEW_ENTRY, id, patterns: [{ cells, source: 'x' }] },
+  })
+
+  // ① 格键形状不对（前端 `cellKey()` 是 `L|关|浮`）
+  const badKey = await http(admin.base, 'POST', '/api/library/entries/rule', {
+    body: mk('re19-badkey', [{ cell: '右关浮', term: '大' }]),
+  })
+  if (badKey.status !== 400) return [false, `非法格键应 400，实际 ${badKey.status}`]
+  if (!String(badKey.body?.error ?? '').includes('不合法')) {
+    return [false, `原因里没点名格键：${badKey.body?.error}`]
+  }
+
+  // ② 既没 term 也没 codes ＝ 这格没有要求（永远不命中）
+  const emptyCell = await http(admin.base, 'POST', '/api/library/entries/rule', {
+    body: mk('re19-emptycell', [{ cell: 'R|关|浮' }]),
+  })
+  if (emptyCell.status !== 400) return [false, `空格应 400，实际 ${emptyCell.status}`]
+
+  // ③ 两段地址只认 POST；GET 要 405（不能掉进 libEntry 分支炸成 500）
+  const wrongMethod = await http(admin.base, 'GET', '/api/library/entries/rule')
+  if (wrongMethod.status !== 405) return [false, `GET 应 405，实际 ${wrongMethod.status}`]
+
+  return [true, '非法格键 400、空格 400、GET 405']
+})
+
 await admin.stop()
 await multi.stop()
 rmSync(dir, { recursive: true, force: true })

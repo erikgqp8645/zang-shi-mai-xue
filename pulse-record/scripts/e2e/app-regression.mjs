@@ -686,6 +686,286 @@ try {
   )
   await sleep(500)
 
+  /* ---- ⑪-补 ③ 知识库：方名 chip 能新增 ---- */
+  console.log('\n【⑪-补】③ 知识库：方名 chip 能新增（只追加，不动已有项）')
+  const chipEntry = 'rule-fx-dl3-bianmai-wuli'
+
+  /**
+   * 读某条目上的「方名 chip」。
+   *
+   * ⚠️ `count` 是**原始元素个数**（不吃「＋ 添加」那个按钮）——
+   *    不能只用文本判断：空白方名渲染出来是个空 chip，文本过滤会把它藏掉，
+   *    于是「多出一个空方名」会看着像「什么都没变」（break-test 的 mutation C 抓过这个）。
+   */
+  const readChips = () =>
+    chrome.ev(`(()=>{
+      const el=document.getElementById('${chipEntry}');
+      if(!el) return null;
+      const nodes=[...el.querySelectorAll('.pr-formula-chip:not(.pr-formula-chip-add)')];
+      return {
+        count: nodes.length,
+        texts: nodes
+          .map(s=>s.textContent.replace(/[✎✕]/g,'').trim())
+          .filter(Boolean),
+      };
+    })()`)
+
+  // 先确保这一条是「讲稿原序」维度下可见的，并点开
+  const before = await readChips()
+  const hasAddBtn = await chrome.ev(
+    `!!document.querySelector('#${chipEntry} .pr-formula-chip-add')`,
+  )
+  c.check('管理员在 ③ 里看得到「＋ 添加」按钮', hasAddBtn === true)
+  c.check(
+    '新增前先有已有的方名（不是空数组）',
+    !!before && before.texts.length > 0,
+    JSON.stringify(before),
+  )
+
+  // 点「＋ 添加」→ 出输入框
+  await chrome.ev(`document.querySelector('#${chipEntry} .pr-formula-chip-add')?.click()`)
+  await sleep(300)
+  const inputShown = await chrome.ev(
+    `!!document.querySelector('#${chipEntry} .pr-formula-chip.is-adding input')`,
+  )
+  c.check('点「＋ 添加」后就地出现输入框（不弹窗）', inputShown === true)
+
+  // 输入并回车 —— React 受控输入要用原生 setter 再派发 input 事件
+  await chrome.ev(`(()=>{
+    const inp=document.querySelector('#${chipEntry} .pr-formula-chip.is-adding input');
+    if(!inp) return 0;
+    const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;
+    set.call(inp,'验收新增方');
+    inp.dispatchEvent(new Event('input',{bubbles:true}));
+    inp.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
+    return 1;
+  })()`)
+  await sleep(900)
+
+  const after = await readChips()
+  console.log(`  新增前：${JSON.stringify(before)}\n  新增后：${JSON.stringify(after)}`)
+  c.check(
+    '回车后新方名真的加进了 chip 列表',
+    !!after && after.texts.includes('验收新增方'),
+    JSON.stringify(after),
+  )
+  c.check(
+    '新增只追加一项 —— 原有的方名一个不少（不整条覆盖丢项）',
+    !!after &&
+      !!before &&
+      after.count === before.count + 1 &&
+      before.texts.every((v) => after.texts.includes(v)),
+    `前 ${before?.count} → 后 ${after?.count}`,
+  )
+  c.check('新增后输入框收起（回到「＋ 添加」状态）', !(await chrome.ev(
+    `!!document.querySelector('#${chipEntry} .pr-formula-chip.is-adding input')`,
+  )))
+
+  // 空文字不落库：点开 → 直接回车 → 数量不变
+  const beforeEmpty = await readChips()
+  await chrome.ev(`document.querySelector('#${chipEntry} .pr-formula-chip-add')?.click()`)
+  await sleep(250)
+  await chrome.ev(`(()=>{
+    const inp=document.querySelector('#${chipEntry} .pr-formula-chip.is-adding input');
+    if(!inp) return 0;
+    const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;
+    set.call(inp,'   ');
+    inp.dispatchEvent(new Event('input',{bubbles:true}));
+    inp.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
+    return 1;
+  })()`)
+  await sleep(700)
+  const afterEmpty = await readChips()
+  c.check(
+    '空白的输入不落库（chip 数量不变，没多出空方名）',
+    !!afterEmpty && !!beforeEmpty && afterEmpty.count === beforeEmpty.count,
+    `${beforeEmpty?.count} → ${afterEmpty?.count}`,
+  )
+
+  /* ---- ⑪-补2 ③ 知识库：新增整条（画图即条件） ---- */
+  console.log('\n【⑪-补2】③ 知识库：能新增一整条（画图即条件）')
+  const addEntryBtn = await chrome.ev(
+    `(()=>{const b=[...document.querySelectorAll('#pr-flib .pr-flib-add')];return {n:b.length,text:b[0]?.textContent.trim()||''}})()`,
+  )
+  c.check(
+    '管理员在 ③ 里看得到「＋ 新增条目」',
+    addEntryBtn.n === 1 && addEntryBtn.text.includes('新增条目'),
+    JSON.stringify(addEntryBtn),
+  )
+
+  await chrome.ev(`document.querySelector('#pr-flib .pr-flib-add')?.click()`)
+  await sleep(600)
+  const createDlg = await chrome.ev(`(()=>{
+    const h=document.querySelector('.pr-ps-modal-box.is-editor h4');
+    if(!h) return null;
+    const tabs=[...document.querySelectorAll('.pr-ed-tab')].map(t=>({t:t.textContent.trim(),on:t.getAttribute('aria-selected')==='true'}));
+    return {title:h.textContent.trim(),tabs};
+  })()`)
+  console.log(`  ${JSON.stringify(createDlg)}`)
+  c.check('点「＋ 新增条目」弹出新增弹层', createDlg?.title === '新增条目', JSON.stringify(createDlg))
+  c.check(
+    '新增时默认落在「脉象图」页（那张图就是命中条件）',
+    Array.isArray(createDlg?.tabs) && createDlg.tabs.some((t) => t.t.startsWith('脉象图') && t.on),
+    JSON.stringify(createDlg?.tabs),
+  )
+
+  // 「条目」页签里 id 必须可填（编辑态才只读）
+  await chrome.ev(
+    `(()=>{const b=[...document.querySelectorAll('.pr-ed-tab')].find(b=>b.textContent.trim()==='条目');b&&b.click();return 1})()`,
+  )
+  await sleep(400)
+  const idField = await chrome.ev(`(()=>{
+    const labels=[...document.querySelectorAll('.pr-led-field')];
+    for(const l of labels){
+      const span=l.querySelector('.pr-led-label');
+      if(!span||!span.textContent.includes('条目 id')) continue;
+      const inp=l.querySelector('input');
+      return inp?{readOnly:inp.readOnly,disabled:inp.disabled,value:inp.value}:null;
+    }
+    return null;
+  })()`)
+  c.check(
+    '新增时「条目 id」可填写（编辑态才只读）',
+    !!idField && idField.readOnly === false && idField.disabled === false,
+    JSON.stringify(idField),
+  )
+
+  // 「自动生成」：点一下把 id 填进输入框（**只填框，不落库**）
+  const genBtn = await chrome.ev(`(()=>{
+    const b=document.querySelector('.pr-ps-modal-box.is-editor .pr-led-idgen');
+    return b?{text:b.textContent.trim()}:null;
+  })()`)
+  c.check('「条目 id」旁有「自动生成」按钮', !!genBtn && genBtn.text.includes('自动生成'), JSON.stringify(genBtn))
+
+  await chrome.ev(`document.querySelector('.pr-ps-modal-box.is-editor .pr-led-idgen')?.click()`)
+  await sleep(400)
+  const generatedId = await chrome.ev(`(()=>{
+    const labels=[...document.querySelectorAll('.pr-ps-modal-box.is-editor .pr-led-field')];
+    for(const l of labels){
+      const span=l.querySelector('.pr-led-label');
+      if(!span||!span.textContent.includes('条目 id')) continue;
+      return l.querySelector('input')?.value ?? '';
+    }
+    return '';
+  })()`)
+  console.log(`  自动生成的 id：${generatedId}`)
+  c.check(
+    '点「自动生成」后填入了合法 id（u-YYMMDD-xxxx，符合服务端的字符集）',
+    /^u-\d{6}-[a-z0-9]{4}$/.test(String(generatedId)),
+    String(generatedId),
+  )
+  c.check(
+    '生成之后输入框仍然可改（自动生成只是填一个默认值）',
+    (await chrome.ev(`(()=>{
+      const labels=[...document.querySelectorAll('.pr-ps-modal-box.is-editor .pr-led-field')];
+      for(const l of labels){
+        const span=l.querySelector('.pr-led-label');
+        if(!span||!span.textContent.includes('条目 id')) continue;
+        const i=l.querySelector('input');
+        return !!(i && i.readOnly === false && i.disabled === false);
+      }
+      return false;
+    })()`)) === true,
+  )
+
+  // 关掉弹层，别影响后面的段落
+  await chrome.ev(`document.querySelector('.pr-ps-modal-box.is-editor .pr-ps-close')?.click()`)
+  await sleep(400)
+
+  /* ---- ⑪-补3 新增整条：图里打完字**不失焦**直接保存也能成 ---- */
+  /*
+   ⚠️ 2026-11-13 用户实测踩到：在脉象图格子里填完值、直接点「保存」，
+      报「脉象图至少要标一个格子」—— 因为格值原来只在 blur 时才写进图。
+      这条断言盯的就是那个回归：**输入后不失焦，保存必须能成**。
+  */
+  console.log('\n【⑪-补3】新增整条：图里填完不失焦直接保存也能成')
+  await chrome.ev(`document.querySelector('#pr-flib .pr-flib-add')?.click()`)
+  await sleep(700)
+
+  // 1) 条目页：id（自动生成）+ 必填
+  await chrome.ev(`(()=>{const b=[...document.querySelectorAll('.pr-ed-tab')].find(b=>b.textContent.trim()==='条目');b&&b.click();return 1})()`)
+  await sleep(400)
+  await chrome.ev(`document.querySelector('.pr-ps-modal-box.is-editor .pr-led-idgen')?.click()`)
+  await sleep(300)
+  const fillField = (label, value) =>
+    chrome.ev(`(()=>{
+      const box=document.querySelector('.pr-ps-modal-box.is-editor');
+      const labels=[...box.querySelectorAll('.pr-led-field')];
+      for(const l of labels){
+        const s=l.querySelector('.pr-led-label');
+        if(!s||!s.textContent.includes(${JSON.stringify(label)})) continue;
+        const i=l.querySelector('input,textarea');
+        if(!i) return 0;
+        const set=Object.getOwnPropertyDescriptor(i.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value').set;
+        set.call(i, ${JSON.stringify(value)});
+        i.dispatchEvent(new Event('input',{bubbles:true}));
+        return 1;
+      }
+      return 0;
+    })()`)
+  await fillField('所属讲次／路线', '回归自测')
+  await fillField('条件', '回归·不失焦保存')
+  await fillField('治法', '回归治法')
+  await fillField('出处', '回归自测')
+  await fillField('原文', '回归自测：填完格子不失焦直接保存。')
+  // 方名（string[]：先加一项再填）
+  await chrome.ev(`(()=>{
+    const box=document.querySelector('.pr-ps-modal-box.is-editor');
+    const f=[...box.querySelectorAll('.pr-led-field')].find(l=>l.querySelector('.pr-led-label')?.textContent.includes('方名'));
+    f?.querySelector('.pr-led-add')?.click();
+    return 1;
+  })()`)
+  await sleep(300)
+  await fillField('方名', '回归方')
+
+  // 2) 脉象图页：填一格，**不失焦**
+  await chrome.ev(`(()=>{const b=[...document.querySelectorAll('.pr-ed-tab')].find(b=>b.textContent.trim().startsWith('脉象图'));b&&b.click();return 1})()`)
+  await sleep(500)
+  await chrome.ev(`(()=>{
+    const box=document.querySelector('.pr-ps-modal-box.is-editor');
+    const add=[...box.querySelectorAll('button')].find(b=>b.textContent.includes('新增一张'));
+    add?.click();
+    return 1;
+  })()`)
+  await sleep(700)
+  await chrome.ev(`(()=>{
+    const inp=document.querySelector('.pr-ps-modal-box.is-editor input[aria-label="右关浮"]');
+    if(!inp) return 0;
+    inp.focus();
+    const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;
+    set.call(inp,'++');
+    inp.dispatchEvent(new Event('input',{bubbles:true}));
+    // ⚠️ 关键：**不 blur**，直接去点保存
+    return 1;
+  })()`)
+  await sleep(300)
+
+  // 3) 直接保存
+  await chrome.ev(`(()=>{
+    const box=document.querySelector('.pr-ps-modal-box.is-editor');
+    const b=[...box.querySelectorAll('.pr-ed-foot button')].find(b=>b.textContent.includes('保存'));
+    b?.click();
+    return 1;
+  })()`)
+  await sleep(2500)
+
+  const noBlurSaved = await chrome.ev(`(()=>{
+    const modal=document.querySelector('.pr-ps-modal-box.is-editor');
+    const err=modal?.querySelector('.pr-ed-error')?.textContent?.trim() || null;
+    const hit=[...document.querySelectorAll('#pr-flib .pr-formula-compact')]
+      .some(e=>(e.textContent||'').includes('回归·不失焦保存'));
+    return {modalOpen:!!modal, error:err, hit};
+  })()`)
+  console.log(`  ${JSON.stringify(noBlurSaved)}`)
+  c.check(
+    '图里填完不失焦、直接点保存：保存成功（不再报「至少要标一个格子」）',
+    noBlurSaved.modalOpen === false && noBlurSaved.hit === true,
+    JSON.stringify(noBlurSaved),
+  )
+  // 关掉可能残留的弹层
+  await chrome.ev(`document.querySelector('.pr-ps-modal-box.is-editor .pr-ps-close')?.click()`)
+  await sleep(300)
+
   /* ---- ⑤ 控制台 ---- */
   console.log('\n【⑤】控制台异常')
   console.log('  ', chrome.errors.length ? chrome.errors : '（无）')

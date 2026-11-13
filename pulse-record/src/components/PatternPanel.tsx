@@ -91,12 +91,25 @@ export function PatternPanel({ value, onChange, formulaLabel, entrySource }: Pro
     return cellText(entry?.cells.find((c) => c.cell === cell))
   }
 
-  /** 把一格写入草稿（归一后的 codes） */
-  function commitCell(cell: string, text: string) {
+  /**
+   * 把一格文本**即时**写进图（不等失焦）。
+   *
+   * ⚠️ 2026-11-13 修：原来只有 `commitCell`（blur）才写 cells ⇒
+   *    在格子里打完字**直接点「保存」**时，那一格还没提交，
+   *    保存拿到的是空图 ⇒ 与「至少要标一个格子」的校验撞上，看着像功能坏了。
+   *    现在输入、点符号、清空都同步写 cells；`raw` 只负责「输入框里显示什么」。
+   */
+  function writeLive(cell: string, text: string) {
     if (!entry) return
     const codes = parseCodes(text)
     const cells = withCell(entry.cells, cell, codes)
     onChange(value.map((p, i) => (i === active ? { ...p, cells } : p)))
+  }
+
+  /** 失焦时收尾：把值写进图，并清掉这一格的原始输入 */
+  function commitCell(cell: string, text: string) {
+    if (!entry) return
+    writeLive(cell, text)
     setRaw((prev) => {
       if (!(cell in prev)) return prev
       const next = { ...prev }
@@ -115,7 +128,9 @@ export function PatternPanel({ value, onChange, formulaLabel, entrySource }: Pro
       setError('先点一个格子，再点符号')
       return
     }
-    setRaw((prev) => ({ ...prev, [focused]: textOf(focused) + code }))
+    const next = textOf(focused) + code
+    setRaw((prev) => ({ ...prev, [focused]: next }))
+    writeLive(focused, next)
     setError(null)
   }
 
@@ -125,6 +140,7 @@ export function PatternPanel({ value, onChange, formulaLabel, entrySource }: Pro
       return
     }
     setRaw((prev) => ({ ...prev, [focused]: '' }))
+    writeLive(focused, '')
   }
 
   /** 换图前先把当前这格的输入收掉，否则切回来会串格 */
@@ -279,7 +295,12 @@ export function PatternPanel({ value, onChange, formulaLabel, entrySource }: Pro
                           <td key={hand} className={`pr-ed-cell${dirty ? ' is-dirty' : ''}`}>
                             <input
                               value={textOf(key)}
-                              onChange={(e) => setRaw((prev) => ({ ...prev, [key]: e.target.value }))}
+                              onChange={(e) => {
+                                const text = e.target.value
+                                setRaw((prev) => ({ ...prev, [key]: text }))
+                                // 实时写进图：打完字直接点「保存」也不会漏这一格
+                                writeLive(key, text)
+                              }}
                               onFocus={() => setFocused(key)}
                               onBlur={(e) => commitCell(key, e.target.value)}
                               onKeyDown={(e) => {

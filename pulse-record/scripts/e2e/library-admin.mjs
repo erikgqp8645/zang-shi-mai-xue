@@ -521,18 +521,65 @@ await check('G3 restore 之后 verify 恢复通过', async () => {
 /* H 段：讲义 p44 的架构性边界                                         */
 /* ------------------------------------------------------------------ */
 
-await check('H1 p44 不能新增（判定逻辑在代码里）', async () => {
+await check('H1 p44 新增只认「带可用脉象图」的：没图的当场拒', async () => {
   const f = join(dir, 'new-rule.json')
   writeFileSync(
     f,
     JSON.stringify({
       id: 'fx-test', route: '肾虚', condition: 'x', therapy: 'y',
-      formulas: [], source: 's', quote: '', kind: '主线',
+      formulas: [], source: 's', quote: '原文（测试）', kind: '主线',
     }),
     'utf8',
   )
   const r = cli(['add', 'rule', '--file', f])
-  return [r.code !== 0 && r.out.includes('EVALUATORS'), `exit=${r.code} ${r.out.slice(0, 200)}`]
+  return [r.code !== 0 && r.out.includes('脉象图'), `exit=${r.code} ${r.out.slice(0, 200)}`]
+})
+
+await check('H1-补 p44 带脉象图的新增：命令行也加得进（与网站端同一套边界）', async () => {
+  const f = join(dir, 'new-rule-graph.json')
+  writeFileSync(
+    f,
+    JSON.stringify({
+      id: 'fx-test-graph', route: '肾虚', condition: 'x', therapy: 'y',
+      formulas: [], source: 's', quote: '原文（测试）', kind: '主线',
+      patterns: [{ cells: [{ cell: 'R|关|浮', term: '大' }], source: 's' }],
+    }),
+    'utf8',
+  )
+  const r = cli(['add', 'rule', '--file', f])
+  const ok = r.code === 0 && r.out.includes('已新增')
+  // 加完立刻删掉，别影响后面的段落
+  if (ok) cli(['del', 'rule', 'fx-test-graph'])
+  return [ok, `exit=${r.code} ${r.out.slice(0, 200)}`]
+})
+
+await check('H1-补2 带图的 p44 新增能 apply 进基线，且固化后仍自带那张图', async () => {
+  const f = join(dir, 'new-rule-graph2.json')
+  writeFileSync(
+    f,
+    JSON.stringify({
+      id: 'fx-test-graph2', route: '肾虚', condition: 'x', therapy: 'y',
+      formulas: [], source: 's', quote: '原文（测试）', kind: '主线',
+      patterns: [{ cells: [{ cell: 'R|关|浮', term: '大' }], source: 's' }],
+    }),
+    'utf8',
+  )
+  const add = cli(['add', 'rule', '--file', f])
+  if (add.code !== 0) return [false, `新增失败：${add.out.slice(0, 200)}`]
+
+  const r = applyFresh()
+  const rules = tempJson('formula-rules.json').rules
+  const hit = rules.find((x) => x.id === 'fx-test-graph2')
+  const ok =
+    r.code === 0 &&
+    !!hit &&
+    Array.isArray(hit.patterns) &&
+    hit.patterns.length > 0 &&
+    hit.patterns[0]?.cells?.length > 0
+
+  // 清理：覆盖层那行删掉（apply 只写临时目录，仓库基线没动）
+  cli(['del', 'rule', 'fx-test-graph2'])
+  return [ok, `exit=${r.code} patterns=${hit ? JSON.stringify(hit.patterns ?? null).slice(0, 80) : '缺条目'}`]
 })
 
 await check('H2 p44 改字段是可以的', async () => {

@@ -19,3 +19,9 @@ export declare function removeChip(
 
 /** 加一个标签（＋）：空文字不算，重复的不加 */
 export declare function addChip(list: string[] | null | undefined, text: string): string[]
+
+/** 两个方名数组内容是否一样（顺序也算）—— 判「要不要落库」只用这一份 */
+export declare function sameChips(
+  a: string[] | null | undefined,
+  b: string[] | null | undefined,
+): boolean

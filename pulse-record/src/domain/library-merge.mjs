@@ -32,11 +32,18 @@
 import { cascadeCleanup, mergeKind } from './library-core.mjs'
 
 /**
- * 只保留**基线里有的**那些覆盖行。
+ * 只保留**能安全进生效集**的那些覆盖行。
  *
  * ⚠️ 为什么必须滤：覆盖层里若有一条基线没有的 id（命令行手滑造的），
  *   `mergeKind` 会把它**新增**进生效集 ⇒ 前端 `loadRules` 找不到判定函数 ⇒ 抛错 ⇒ 崩。
- *   ⇒ 陌生 id 一律跳过，并**报出来**（服务端 `library verify` 也盯着这件事）。
+ *
+ * ## 例外：**自带脉象图的新增**（2026-11-12）
+ *
+ * 管理员在网站上「＋ 新增条目」造的 p44 条目，基线里当然没有 —— 但它
+ * **自带 `patterns`（脉象图），图即判定**（`src/domain/pulse-pattern.ts` 的
+ * `evaluatePattern`）⇒ 前端载入得动 ⇒ 放行。
+ *
+ * `drug`（讲稿方剂）是**纯数据**，没有判定函数这回事 ⇒ 陌生 id 一律放行。
  *
  * @param {object} overrides  覆盖层（按种类分组）
  * @param {string} kind       种类（`rule`／`drug`）
@@ -47,8 +54,24 @@ export function onlyBaseline(overrides, kind, baselineIds) {
   const kept = {}
   const stray = []
   for (const [id, row] of Object.entries(overrides?.[kind] ?? {})) {
-    if (baselineIds.has(id)) kept[id] = row
-    else stray.push(id)
+    if (baselineIds.has(id)) {
+      kept[id] = row
+      continue
+    }
+    // 基线里没有 ＝ 新增。删掉的（墓碑）不算新增，交给下面的 stray 逻辑。
+    const isNew = !row?.deleted
+    if (isNew && kind === 'rule') {
+      const patterns = row?.payload?.patterns
+      if (Array.isArray(patterns) && patterns.length > 0) {
+        kept[id] = row // 画图即条件：有图就有判定
+        continue
+      }
+    }
+    if (isNew && kind === 'drug') {
+      kept[id] = row // 讲稿方剂是纯数据，不需要判定函数
+      continue
+    }
+    stray.push(id)
   }
   return { kept, stray }
 }
@@ -88,7 +111,8 @@ export function mergeLibrary(kinds, overrides, baselineRules, baselineDrugs) {
   const drugOv = onlyBaseline(overrides, 'drug', drugIds)
   for (const id of ruleOv.stray) {
     problems.push(
-      `覆盖层里有一条讲义 p44 条目「${id}」不在内置基线里 —— 已跳过（前端没有它的判定函数）`,
+      `覆盖层里有一条讲义 p44 条目「${id}」不在内置基线里，也没带脉象图 —— 已跳过` +
+        `（前端既没有它的判定函数、也没有图可当条件）`,
     )
   }
   for (const id of drugOv.stray) {

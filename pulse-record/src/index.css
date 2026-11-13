@@ -1014,6 +1014,7 @@ button:disabled {
 }
 .pr-history-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 12px;
   border-bottom: 1px solid var(--divider);
@@ -1026,7 +1027,12 @@ button:disabled {
   letter-spacing: 0.04em;
 }
 .pr-history-head .pr-muted {
-  flex: 1;
+  flex: 1 1 200px;
+  /* 这一行写的是库文件路径（/var/lib/pulse-record/history.sqlite）——
+     长串默认不换行，手机上会把整页撑出横向滚动（2026-11-13 实测 465 > 375）。
+     `anywhere` 让它在任意位置断开，路径仍然完整可读。 */
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: 11px;
 }
 /* 搜索框：姓名 / 日期标签 / 脉象符号（如 ↑）都能搜 */
@@ -2707,7 +2713,14 @@ button:disabled {
 }
 
 .pr-formula-row-title {
+  /*
+   桌面：标题不收缩、疗法截断（原来的做法，一直是对的）。
+   ⚠️ 窄屏不同 —— 见下面 @media：那里标题要能收缩，
+      否则长条件（「（五）右关比较浮软，偏迟，或弱，或无力，或浮取无（内伤虚寒）」）
+      会把整行撑到 390px（手机视口只有 375）⇒ 整页横向滚动（2026-11-13 实测）。
+  */
   flex-shrink: 0;
+  min-width: 0;
   font-size: 13px;
   font-weight: 600;
 }
@@ -2721,6 +2734,25 @@ button:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/*
+ 窄屏：标题与疗法都要能收缩 —— 两行都单行省略，各让一半。
+ 不这么写，长条件会把整页撑出横向滚动（2026-11-13 实测 465 > 375）。
+*/
+@media (max-width: 620px) {
+  .pr-formula-row-title {
+    flex: 1 1 auto;
+    max-width: 62%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pr-formula-row-therapy {
+    flex: 1 1 0;
+    max-width: 38%;
+  }
 }
 
 .pr-formula-compact .pr-formula-list-inline {
@@ -2789,6 +2821,27 @@ button:disabled {
   border-radius: 2px;
   padding: 1px 7px;
   color: #24402a;
+}
+
+/** 「＋ 添加」chip —— 虚线圈、低调，悬停才显形（只有管理员看得到） */
+.pr-formula-chip-add {
+  font-family: inherit;
+  background: transparent;
+  border: 1px dashed #b9cdbd;
+  color: var(--sage);
+  cursor: pointer;
+  opacity: 0.75;
+}
+
+.pr-formula-chip-add:hover {
+  opacity: 1;
+  border-color: var(--sage);
+}
+
+/** 新增方名时的输入态 —— 与普通 chip 同尺寸，不跳版 */
+.pr-formula-chip.is-adding {
+  background: #fff;
+  border-color: var(--clay);
 }
 
 .pr-formula-quote {
@@ -4633,6 +4686,23 @@ button:disabled {
 .pr-led-hint {
   font-size: 10px;
   color: var(--sage);
+}
+
+/** 「条目 id」＋「自动生成」并排 —— 只在新增时有这个按钮 */
+.pr-led-idrow {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.pr-led-idrow input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pr-led-idgen {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .pr-led-field input,

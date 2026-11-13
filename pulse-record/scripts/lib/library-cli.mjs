@@ -43,6 +43,7 @@ import {
   effectiveEntry,
   effectiveEntries,
   validateEntry,
+  validateRulePatterns,
   validatePrimaryKeys,
   checkRuleAddBoundary,
   readEvaluatorIds,
@@ -464,6 +465,15 @@ async function cmdAdd(db, opts, positional) {
 
   const errors = validateEntry(kind, entry)
   if (errors.length > 0) fail(`这一条不合规：\n  · ${errors.join('\n  · ')}`)
+
+  // 「画图即条件」：p44 新条目的判定就是它的脉象图 —— 与网站端同一套校验
+  // （放在 `library-schema.mjs`，两处共用；否则会出现「网站加得进、命令行加不进」）
+  if (kind === 'rule') {
+    const patternErrors = validateRulePatterns(entry.patterns)
+    if (patternErrors.length > 0) {
+      fail(`这一条的脉象图不能用（它就是命中条件）：\n  · ${patternErrors.join('\n  · ')}`)
+    }
+  }
 
   const ok = await putLibraryItem(db, kind, id, entry, {
     deleted: 0,
