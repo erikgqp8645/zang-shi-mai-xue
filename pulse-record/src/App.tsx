@@ -21,6 +21,7 @@ import {
   type TriadStep,
 } from './components/TriadFrame'
 import { TriadImage } from './components/TriadImage'
+import sealUrl from './assets/seal-mai-an.png'
 import { FormulaLibrary } from './components/FormulaLibrary'
 import { PatternsProvider } from './state/patterns'
 import { LibraryProvider, useLibrary } from './state/library'
@@ -785,11 +786,14 @@ export default function App() {
       <TriadImage />
 
       <header className="pr-header">
-        <div>
+        {/* 左上角的朱砂印章（AI 生成的「脉案」篆刻）—— multiply 混入宣纸底 */}
+        <img className="pr-seal" src={sealUrl} alt="脉案" />
+        <div className="pr-header-main">
           <h1>臧氏脉学 · 脉象记录表生成器</h1>
           <p className="pr-sub">
             表格体例据讲义 2026-10 PDF p34「④ 脉象记录」实例表；判读提示逐条出自讲稿 2010 第十四讲等处，
             依脉用方据讲义 p44「依脉用方」与 p46 附表一「治疗」列。
+            <strong className="pr-sub-warn">本工具只做记录，不构成诊断。</strong>
           </p>
         </div>
         <div className="pr-header-actions">
@@ -909,7 +913,7 @@ export default function App() {
         </div>
 
         <div className="pr-field pr-field-wide">
-          病例记录（存本机 SQLite）
+          病例记录
           <div className="pr-sessions">
             <button type="button" className="pr-ghost" onClick={() => setHistoryOpen((v) => !v)}>
               {historyOpen ? '收起病例记录' : `病例记录 ${patients.length}`}

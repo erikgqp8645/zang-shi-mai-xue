@@ -216,7 +216,7 @@ export function HistoryPanel({
           )}
         </span>
         <span className="pr-muted">
-          {dbPath ? `存于本机 SQLite：${dbPath}` : '存于本机 SQLite'}
+          {dbPath ? `存于 ${dbPath}` : '存于服务端数据库'}
           {kw ? `　搜索「${kw}」命中 ${list.length} 位患者` : patients.length > 0 ? `　共 ${patients.length} 位患者` : ''}
         </span>
         <button type="button" className="pr-ghost" onClick={onRefresh}>

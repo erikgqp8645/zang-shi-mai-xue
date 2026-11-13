@@ -4,6 +4,10 @@
 # spec-workflow 工具的工作目录（模板拷贝与临时 spec，不是项目产物）
 .spec-workflow/
 
+# 工具自动安装的 skill 目录（.agents/ 与 .claude/）—— 本机用，不进版本库
+.agents/
+.claude/
+
 # 临时转换产物（docx/pdf 抽取中间件）
 *.tmp
 ~$*

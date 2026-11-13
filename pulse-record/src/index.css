@@ -1,21 +1,47 @@
 /* 臧氏脉学 · 脉象记录表生成器
-   配色沿用宣纸/墨/黛/陶一族；表格取色自讲义 PDF p34 实例表 */
+   配色沿用宣纸/墨/朱砂/黛青一族（素雅宋刻）；表格取色自讲义 PDF p34 实例表 */
 
 :root {
-  --paper: #fdfbf7;
-  --ink: #2c2925;
-  --sage: #7c8974;
-  --clay: #b48464;
-  --divider: #e6e2d6;
-  --card: #ffffff;
+  /* —— 纸 —— */
+  --paper: #f4efe4;        /* 宣纸底 */
+  --card: #fbf8f1;         /* 纸面（卡片） */
+  --paper-raised: #fbf8f1;
+  --paper-sunk: #ebe3d2;   /* 凹处（表格底、槽） */
 
+  /* —— 墨 —— */
+  --ink: #2b2622;          /* 浓墨：标题 */
+  --ink-2: #4d463d;        /* 正墨：正文 */
+  --ink-3: #857c6f;        /* 淡墨：辅助文字 */
+  --sage: #6a7a5e;         /* 药柜绿（原 #7c8974 的深一档） */
+  --clay: #a8763e;         /* 赭石（原 #b48464 更暖） */
+  --divider: #e4dccb;      /* 淡墨线 */
+  --line-soft: #cfc5b0;
+
+  /* —— 朱砂 —— */
+  --cinnabar: #9c3a2f;
+  --cinnabar-soft: #bf6154;
+  --cinnabar-wash: rgba(156, 58, 47, 0.08);
+
+  /* —— 黛青 —— */
+  --dai: #3f5a5e;
+  --dai-soft: #6f8d8f;
+
+  /* —— 表格（讲义原表体例，不改）—— */
   --cell: #cce8cf;   /* 讲义原表底色 */
   --organ: #ffc000;  /* 讲义原表部位标签色 */
   --line: #000000;
 
-  --high: #b03a2e;
-  --warn: #b48464;
-  --info: #7c8974;
+  --high: #9c3a2f;
+  --warn: #a8763e;
+  --info: #6a7a5e;
+
+  /* —— 字体 —— */
+  --font-serif: 'Songti SC', 'STSong', 'Noto Serif CJK SC', 'SimSun', serif;
+
+  /* —— 宣纸纤维纹理（SVG feTurbulence，零依赖、几 KB、任意缩放不糊）—— */
+  --fiber: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23f)' opacity='0.05'/%3E%3C/svg%3E");
+  /* —— 抄纸的帘纹（极淡的竖条）—— */
+  --lian: repeating-linear-gradient(90deg, rgba(120,105,80,.028) 0 1px, transparent 1px 34px);
 }
 
 * {
@@ -24,11 +50,15 @@
 
 body {
   margin: 0;
-  background: var(--paper);
-  color: var(--ink);
+  /* 宣纸：纤维纹理 ＋ 抄纸帘纹 */
+  background-color: var(--paper);
+  background-image: var(--fiber), var(--lian);
+  background-attachment: fixed;
+  color: var(--ink-2);
   font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
 }
 
 .pr-app {
@@ -43,47 +73,87 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 24px;
+  gap: 20px;
   flex-wrap: wrap;
   padding-bottom: 16px;
-  border-bottom: 2px solid var(--ink);
+  border-bottom: 1px solid var(--line-soft);
+  position: relative;
+}
+
+/* 页口「鱼尾」：一条朱砂短线（古籍书口的标记） */
+.pr-header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: 64px;
+  height: 2px;
+  background: var(--cinnabar);
+}
+
+/* 左上角的朱砂印章（AI 生成的「脉案」篆刻） */
+.pr-seal {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  margin-top: 2px;
+  /* multiply：白底融入宣纸 —— 不用去背也能不出方块 */
+  mix-blend-mode: multiply;
+  opacity: 0.88;
+}
+
+.pr-header-main {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .pr-header h1 {
   margin: 0 0 4px;
-  font-size: 22px;
-  letter-spacing: 0.03em;
+  font-family: var(--font-serif);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--ink);
 }
 
 .pr-sub {
   margin: 0;
-  color: var(--sage);
-  font-size: 13px;
-  max-width: 760px;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  line-height: 1.85;
+  max-width: 82ch;
 }
 
 .pr-header-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  align-items: center;
+  /* ⚠️ 不能写 `flex: 0 0 auto` —— 窄屏（手机上）按钮组不换行会撑出横向滚动 */
+  flex: 0 1 auto;
+  padding-top: 4px;
 }
 
 .pr-header-actions button,
 .pr-toolbar button,
 .pr-panel button {
   font: inherit;
-  border: 1px solid var(--ink);
+  font-size: 13px;
+  border: 1px solid var(--line-soft);
   background: var(--card);
-  color: var(--ink);
-  padding: 5px 12px;
-  border-radius: 3px;
+  color: var(--ink-2);
+  padding: 5px 13px;
+  border-radius: 2px;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 
 .pr-header-actions button:hover,
 .pr-toolbar button:hover,
 .pr-panel button:hover:not(:disabled) {
-  background: var(--divider);
+  border-color: var(--ink-3);
+  color: var(--ink);
+  background: #fffdf7;
 }
 
 button:disabled {
@@ -97,17 +167,28 @@ button:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: 18px 28px;
-  padding: 16px 0;
-  border-bottom: 1px solid var(--divider);
-  margin-bottom: 20px;
+  align-items: flex-end;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  background: var(--card);
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset;
 }
 
+/* 字段标签：宋体、拉开字距，像药签上的名目 */
 .pr-field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
   font-size: 12px;
-  color: var(--sage);
+  color: var(--ink-3);
+}
+
+.pr-field > span:first-child,
+.pr-field > label:first-child {
+  font-family: var(--font-serif);
+  letter-spacing: 0.1em;
 }
 
 .pr-field-wide {
@@ -248,15 +329,22 @@ button:disabled {
 
 /* ---------- 表格 ---------- */
 
+/* 主表：裱在一张纸面上（讲义原表的黑线体例不变，只是外面衬一层纸） */
 .pr-table-wrap {
   overflow-x: auto;
-  padding-bottom: 8px;
+  padding: 6px 6px 10px;
+  margin-bottom: 18px;
+  background: var(--card);
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset;
 }
 
 .pr-table {
   border-collapse: collapse;
   background: var(--card);
   font-size: 16px;
+  font-family: var(--font-serif);
 }
 
 .pr-table th,
@@ -310,7 +398,7 @@ button:disabled {
   background: #f2efe4;
 }
 .pr-table .pr-date.is-active {
-  background: #e8e2cd;
+  background: var(--paper-sunk);
   box-shadow: inset 0 -3px 0 var(--clay);
 }
 
@@ -351,15 +439,15 @@ button:disabled {
 }
 
 .pr-table td.pr-cell.is-hit {
-  background: #ffe9a8;
+  background: #f7dfa0;
 }
 
 /* 当前日期列（与寸关尺图示同步） */
 .pr-table td.pr-cell.is-active {
-  background: #f4f1e4;
+  background: var(--paper-sunk);
 }
 .pr-table td.pr-cell.is-active:hover {
-  background: #e8e2cd;
+  background: var(--paper-sunk);
 }
 .pr-table td.pr-cell.is-selected {
   outline: 2px solid var(--ink);
@@ -408,7 +496,7 @@ button:disabled {
   padding: 2px 10px;
   border: 1px solid var(--divider);
   border-radius: 12px;
-  background: #fff;
+  background: var(--card);
   color: var(--ink);
   cursor: pointer;
 }
@@ -418,7 +506,7 @@ button:disabled {
 .pr-diagram-date.is-active {
   background: var(--ink);
   border-color: var(--ink);
-  color: #fdfbf7;
+  color: var(--paper);
 }
 .pr-diagram-canvas {
   position: relative;
@@ -442,7 +530,7 @@ button:disabled {
   cursor: pointer;
 }
 .pr-diagram-row:hover rect {
-  fill: #e8e2cd;
+  fill: var(--paper-sunk);
 }
 .pr-diagram-note {
   margin: 8px 0 0;
@@ -670,7 +758,7 @@ button:disabled {
   background: var(--divider) !important;
 }
 .pr-picker-item.is-on {
-  background: #f6efe2 !important;
+  background: var(--paper-sunk) !important;
 }
 .pr-picker-no {
   color: var(--sage);
@@ -865,7 +953,7 @@ button:disabled {
 /* 讲稿第二讲的组成／服法（原文照录，只读） */
 .pr-med-ref {
   border-left: 3px solid var(--clay);
-  background: #faf6ee;
+  background: var(--card);
   padding: 8px 12px;
   margin: 4px 0 12px;
   font-size: 13px;
@@ -898,7 +986,7 @@ button:disabled {
   max-width: 100%;
   border: 1px solid var(--divider);
   border-radius: 3px;
-  background: #fff;
+  background: var(--card);
   color: var(--ink);
 }
 .pr-med-search:focus {
@@ -947,7 +1035,7 @@ button:disabled {
 .pr-chip-btn.on {
   background: var(--clay);
   border-color: var(--clay);
-  color: #fff;
+  color: var(--card);
 }
 
 /* 配伍与剂量单元格 */
@@ -998,18 +1086,19 @@ button:disabled {
 
 .pr-panel {
   background: var(--card);
-  border: 1px solid var(--divider);
-  border-radius: 4px;
-  padding: 14px 16px 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+  padding: 16px 18px 18px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset;
 }
 
 /* ---------- 历史记录面板（存本机 SQLite） ---------- */
 
 .pr-history {
   background: var(--card);
-  border: 1px solid var(--divider);
-  border-radius: 4px;
-  padding: 12px 16px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+  padding: 14px 18px 16px;
   margin-bottom: 12px;
 }
 .pr-history-head {
@@ -1047,7 +1136,7 @@ button:disabled {
   padding: 3px 20px 3px 7px;
   border: 1px solid var(--divider);
   border-radius: 3px;
-  background: #fff;
+  background: var(--card);
   color: var(--ink);
 }
 .pr-history-search input:focus {
@@ -1098,7 +1187,7 @@ button:disabled {
 }
 .pr-history-list tr.is-editing td,
 .pr-med-table tr.is-focus td {
-  background: #f6efe2;
+  background: var(--paper-sunk);
 }
 .pr-history-name {
   font-family: 'Songti SC', 'STSong', serif;
@@ -1173,25 +1262,50 @@ button:disabled {
   color: var(--sage);
 }
 
+/* 面板头：左侧一道朱砂「题签」，标题用宋体并拉开字距 */
 .pr-panel-head {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
   gap: 12px;
-  border-bottom: 1px solid var(--divider);
-  padding-bottom: 8px;
-  margin-bottom: 12px;
+  border-bottom: 1px solid var(--line-soft);
+  padding-bottom: 9px;
+  margin-bottom: 13px;
 }
 
 .pr-panel-head h2 {
   margin: 0;
-  font-size: 15px;
-  letter-spacing: 0.04em;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--ink);
+}
+
+/* 题签：标题左侧的朱砂竖条 */
+.pr-panel-head h2::before {
+  content: '';
+  width: 3px;
+  height: 15px;
+  background: var(--cinnabar);
+  transform: translateY(2px);
+  align-self: center;
+}
+
+.pr-panel-head h2 small {
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
+  font-size: 11.5px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--ink-3);
 }
 
 .pr-target {
   font-size: 12px;
-  color: var(--sage);
+  color: var(--ink-3);
 }
 
 /* ---------- 符号面板 ---------- */
@@ -1212,19 +1326,31 @@ button:disabled {
   gap: 6px;
 }
 
+/* 符号：像药屉里的一格格标签 */
 .pr-sym {
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-width: 52px;
-  padding: 4px 8px !important;
-  border-radius: 3px;
-  font-family: 'Songti SC', 'STSong', serif;
+  min-width: 48px;
+  padding: 5px 8px !important;
+  border-radius: 2px !important;
+  background: #fffdf8 !important;
+  border: 1px solid var(--line-soft) !important;
+  color: var(--ink);
+  font-family: var(--font-serif);
+  transition: border-color 0.12s ease, background 0.12s ease;
 }
 
+.pr-sym:hover:not(:disabled) {
+  border-color: var(--dai-soft) !important;
+  background: #fff !important;
+}
+
+/* 选中：朱砂描边 + 淡朱砂底（不用讲义部位黄 —— 那是表格的专用色） */
 .pr-sym.is-on {
-  background: var(--organ) !important;
-  border-color: var(--ink);
+  background: var(--cinnabar-wash) !important;
+  border-color: var(--cinnabar) !important;
+  color: var(--cinnabar);
 }
 
 .pr-sym-code {
@@ -1330,14 +1456,14 @@ button:disabled {
 }
 
 .pr-finding {
-  border-left: 3px solid var(--divider);
-  padding: 8px 0 8px 10px;
+  border-left: 3px solid var(--dai-soft);
+  padding: 9px 0 9px 12px;
   margin-bottom: 10px;
   cursor: pointer;
 }
 
 .pr-finding:hover {
-  background: #faf6ef;
+  background: var(--card);
 }
 
 .pr-finding.is-high {
@@ -1361,7 +1487,7 @@ button:disabled {
   font-size: 11px;
   padding: 1px 6px;
   border-radius: 2px;
-  color: #fff;
+  color: var(--card);
   flex-shrink: 0;
 }
 
@@ -1395,7 +1521,7 @@ button:disabled {
   padding: 12px 14px 14px;
   border: 1px solid var(--divider);
   border-left: 3px solid var(--high);
-  background: #fffdf9;
+  background: var(--card);
 }
 
 .pr-triad-title {
@@ -1418,7 +1544,7 @@ button:disabled {
 }
 
 .pr-triad-stage.is-therapy {
-  border-left: 3px solid #6ba3c4;
+  border-left: 3px solid var(--dai-soft);
 }
 
 .pr-triad-stage.is-prescribe {
@@ -1480,14 +1606,14 @@ button:disabled {
 /* 判定菱形：是＝命中，pass＝已排除，unknown＝尚未判定 */
 .pr-triad-node.is-decision {
   border-color: var(--clay);
-  background: #fdf6ef;
+  background: var(--card);
   justify-content: center;
   align-self: flex-start;
 }
 
 .pr-triad-node.is-decision.is-yes {
   border-color: var(--high);
-  background: #fbeeeb;
+  background: var(--cinnabar-wash);
 }
 
 .pr-triad-node.is-decision.is-yes .pr-triad-node-label {
@@ -1530,7 +1656,7 @@ button:disabled {
 
 .pr-triad-node.is-constitution.is-on {
   border-color: var(--high);
-  background: #fbeeeb;
+  background: var(--cinnabar-wash);
 }
 
 .pr-triad-node.is-constitution.is-on .pr-triad-node-label {
@@ -1547,12 +1673,12 @@ button:disabled {
   flex: 1 1 150px;
   align-items: center;
   text-align: center;
-  border-color: #6ba3c4;
+  border-color: var(--dai-soft);
 }
 
 .pr-triad-node.is-therapy.is-on {
   border-color: var(--high);
-  background: #fbeeeb;
+  background: var(--cinnabar-wash);
 }
 
 .pr-triad-node.is-therapy.is-on .pr-triad-node-label {
@@ -1631,7 +1757,7 @@ button:disabled {
   margin: 0;
   padding: 5px 9px;
   border-left: 2px solid var(--clay);
-  background: #fdf6ef;
+  background: var(--card);
   font-size: 11px;
   color: var(--ink);
 }
@@ -1666,7 +1792,7 @@ button:disabled {
 /* 走到的分支实线、未选中但走到的分支淡色、没走到的置灰 */
 .pr-triad-node.is-constitution.is-on {
   border-color: var(--high);
-  background: #fbeeeb;
+  background: var(--cinnabar-wash);
 }
 
 .pr-triad-node.is-constitution.is-on .pr-triad-node-label {
@@ -1707,7 +1833,7 @@ button:disabled {
 }
 
 .pr-triad-hit:hover {
-  background: #fdf6ef;
+  background: var(--card);
 }
 
 .pr-flow-loop {
@@ -1744,7 +1870,7 @@ button:disabled {
 }
 
 .pr-triad-basis-cell:hover {
-  background: #fdf6ef;
+  background: var(--card);
 }
 
 .pr-triad-hint {
@@ -1760,7 +1886,7 @@ button:disabled {
   padding: 12px 14px 14px;
   border: 1px solid var(--divider);
   border-left: 3px solid var(--clay);
-  background: #fffdf9;
+  background: var(--card);
 }
 
 .pr-flow-title {
@@ -1880,7 +2006,7 @@ button:disabled {
 .pr-flow-step.is-lit,
 .pr-flow-gate.is-lit {
   border-left-color: var(--clay);
-  background: #fdf6ef;
+  background: var(--card);
 }
 
 .pr-flow-step.is-lit .pr-flow-step-title,
@@ -2015,10 +2141,11 @@ button:disabled {
   gap: 14px;
   flex-wrap: wrap;
   margin: 0 0 12px;
-  padding: 9px 14px;
-  border: 1px solid var(--divider);
-  border-left: 3px solid var(--high);
-  background: #fffdf9;
+  padding: 10px 16px;
+  border: 1px solid var(--line-soft);
+  border-left: 3px solid var(--cinnabar);
+  border-radius: 2px;
+  background: var(--card);
 }
 
 .pr-triad-head-left {
@@ -2028,15 +2155,16 @@ button:disabled {
 }
 
 .pr-triad-head-title {
-  font-size: 13px;
+  font-family: var(--font-serif);
+  font-size: 14px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.12em;
   color: var(--ink);
 }
 
 .pr-triad-head-src {
   font-size: 10.5px;
-  color: var(--sage);
+  color: var(--ink-3);
 }
 
 .pr-triad-steps {
@@ -2054,7 +2182,7 @@ button:disabled {
   align-items: baseline;
   gap: 5px;
   padding: 3px 14px 3px 10px;
-  border-left: 1px solid var(--divider);
+  border-left: 1px solid var(--line-soft);
 }
 
 .pr-triad-step:first-child {
@@ -2078,18 +2206,21 @@ button:disabled {
 
 .pr-triad-step-no {
   font-size: 12px;
-  color: var(--sage);
+  color: var(--ink-3);
 }
 
 .pr-triad-step-title {
-  font-size: 12.5px;
-  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--ink-2);
 }
 
+/* 当前步：朱砂色（与题签一致） */
 .pr-triad-step.is-current .pr-triad-step-no,
 .pr-triad-step.is-current .pr-triad-step-title {
   font-weight: 600;
-  color: var(--high);
+  color: var(--cinnabar);
 }
 
 .pr-triad-step.is-done .pr-triad-step-no,
@@ -2194,7 +2325,7 @@ button:disabled {
 }
 
 .pr-triad-box.is-② {
-  border-left: 3px solid #6ba3c4;
+  border-left: 3px solid var(--dai-soft);
 }
 
 .pr-triad-box.is-③ {
@@ -2212,7 +2343,7 @@ button:disabled {
 }
 
 .pr-triad-box.is-current .pr-triad-box-head {
-  background: #fdf6ef;
+  background: var(--card);
 }
 
 .pr-triad-box-flag {
@@ -2230,7 +2361,7 @@ button:disabled {
   gap: 8px;
   flex-wrap: wrap;
   padding: 7px 12px;
-  background: #faf7f0;
+  background: var(--card);
   border-bottom: 1px solid var(--divider);
 }
 
@@ -2267,7 +2398,7 @@ button:disabled {
   margin: 0 0 8px;
   padding: 5px 9px;
   border-left: 2px solid var(--clay);
-  background: #fdf6ef;
+  background: var(--card);
   font-size: 11px;
   color: var(--ink);
 }
@@ -2305,7 +2436,7 @@ button:disabled {
 
 .pr-triad-state.is-on {
   border-color: var(--high);
-  background: #fbeeeb;
+  background: var(--cinnabar-wash);
   color: var(--high);
 }
 
@@ -2366,7 +2497,7 @@ button:disabled {
 }
 
 .pr-triad-hit:hover {
-  background: #fdf6ef;
+  background: var(--card);
 }
 
 /* ---------- 判读面板：风险提示 / 依脉用方 ---------- */
@@ -2563,7 +2694,7 @@ button:disabled {
 .pr-attr-main {
   font-family: 'Songti SC', 'STSong', serif;
   font-size: 11px;
-  background: #f6efe2;
+  background: var(--paper-sunk);
   border: 1px solid #e0d2b8;
   border-radius: 2px;
   padding: 1px 6px;
@@ -2623,7 +2754,7 @@ button:disabled {
 }
 
 .pr-formula:hover {
-  background: #faf6ef;
+  background: var(--card);
 }
 
 .pr-formula.is-挡路 {
@@ -2681,7 +2812,7 @@ button:disabled {
 }
 
 .pr-formula-compact.is-open {
-  background: #faf6ef;
+  background: var(--card);
   margin-bottom: 8px;
   padding-bottom: 4px;
 }
@@ -2702,7 +2833,7 @@ button:disabled {
 }
 
 .pr-formula-row:hover {
-  background: #faf6ef;
+  background: var(--card);
 }
 
 .pr-formula-caret {
@@ -2792,7 +2923,7 @@ button:disabled {
 }
 
 .pr-drug-row:hover {
-  background: #f6f1e7;
+  background: var(--paper-sunk);
 }
 
 .pr-drug-row-name {
@@ -2813,14 +2944,15 @@ button:disabled {
   gap: 5px;
 }
 
+/* 方名标签：像贴在药柜上的一枚签条 */
 .pr-formula-chip {
-  font-family: 'Songti SC', 'STSong', serif;
-  font-size: 12px;
-  background: #eef4ee;
-  border: 1px solid #cfe0d2;
+  font-family: var(--font-serif);
+  font-size: 12.5px;
+  background: #eef2e6;
+  border: 1px solid #d5ddc7;
   border-radius: 2px;
-  padding: 1px 7px;
-  color: #24402a;
+  padding: 1px 9px;
+  color: #3d4a33;
 }
 
 /** 「＋ 添加」chip —— 虚线圈、低调，悬停才显形（只有管理员看得到） */
@@ -2840,7 +2972,7 @@ button:disabled {
 
 /** 新增方名时的输入态 —— 与普通 chip 同尺寸，不跳版 */
 .pr-formula-chip.is-adding {
-  background: #fff;
+  background: var(--card);
   border-color: var(--clay);
 }
 
@@ -2898,12 +3030,12 @@ button:disabled {
 .pr-drug {
   border: 1px solid var(--divider);
   border-radius: 3px;
-  background: #faf8f2;
+  background: var(--card);
   padding: 7px 9px 6px;
 }
 
 .pr-drug:hover {
-  background: #f6f1e7;
+  background: var(--paper-sunk);
 }
 
 .pr-drug-head {
@@ -2989,11 +3121,64 @@ button:disabled {
 }
 
 /* ---------- 置顶：讲义 p47「开方三部曲」原图 ---------- */
+/* ──────────────────────────────────────────────────────────────
+   开方三部曲 · 卷轴
+   ──────────────────────────────────────────────────────────────
+   原图是讲义扫描件（纯白底），直接放在宣纸底上会显得是块补丁 ⇒
+   外面套一层「卷轴」（绢面 ＋ 上下轴头），原图裱成一张「册页」贴在绢面上。
+   原图的**颜色一字不改**（它是资料图）。
+   */
 .pr-triad-fig {
-  margin: 0 0 16px;
-  padding: 10px 12px 8px;
+  margin: 22px 0 26px;
+  padding: 18px 20px 14px;
+  position: relative;
   background: var(--card);
-  border: 1px solid var(--divider);
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 10px 26px -20px rgba(60, 45, 25, 0.6);
+}
+
+/* 上下轴头（卷轴的杆） */
+.pr-triad-fig::before,
+.pr-triad-fig::after {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  height: 7px;
+  border-radius: 2px;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(168, 118, 62, 0.5),
+      rgba(168, 118, 62, 0.14) 22%,
+      rgba(168, 118, 62, 0.14) 78%,
+      rgba(168, 118, 62, 0.5)
+    ),
+    repeating-linear-gradient(90deg, rgba(120, 95, 60, 0.09) 0 3px, transparent 3px 7px);
+}
+
+.pr-triad-fig::before {
+  top: -3px;
+}
+
+.pr-triad-fig::after {
+  bottom: -3px;
+}
+
+/* 册页：原图裱在一张白纸上 */
+.pr-triad-fig-btn {
+  display: block;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 10px 14px 6px;
+  background: #ffffff;
+  border: 1px solid #ded5c2;
+  box-shadow: 0 2px 10px -4px rgba(70, 52, 30, 0.35);
+  cursor: zoom-in;
 }
 
 .pr-triad-fig-btn {
@@ -3017,9 +3202,10 @@ button:disabled {
 }
 
 .pr-triad-fig-cap {
-  margin-top: 6px;
+  margin-top: 10px;
   font-size: 11.5px;
-  color: var(--sage);
+  color: var(--ink-3);
+  letter-spacing: 0.04em;
   text-align: center;
 }
 
@@ -3050,7 +3236,7 @@ button:disabled {
   height: 34px;
   font-size: 20px;
   line-height: 1;
-  color: #fff;
+  color: var(--card);
   background: rgba(255, 255, 255, 0.16);
   border: 1px solid rgba(255, 255, 255, 0.45);
   border-radius: 50%;
@@ -3061,7 +3247,7 @@ button:disabled {
 .pr-triad-pick {
   margin-bottom: 10px;
   padding: 10px 12px 12px;
-  background: #fbf8f2;
+  background: var(--card);
   border: 1px solid var(--divider);
 }
 
@@ -3123,7 +3309,7 @@ button:disabled {
 }
 
 .pr-triad-pick-opt.is-on {
-  background: #fdf1e7;
+  background: var(--cinnabar-wash);
   border-color: var(--clay);
   box-shadow: inset 0 0 0 1px var(--clay);
 }
@@ -3303,7 +3489,7 @@ button:disabled {
   font-size: 13px;
   font-weight: 600;
   color: var(--ink);
-  background: #faf7f0;
+  background: var(--card);
   border-top: 1px solid var(--line);
   text-align: center;
 }
@@ -3311,13 +3497,13 @@ button:disabled {
 .pr-tfoot-cell {
   padding: 4px 6px;
   border-top: 1px solid var(--line);
-  background: #fdfbf7;
+  background: var(--paper);
   text-align: center;
   vertical-align: top;
 }
 
 .pr-tfoot-cell.is-active {
-  background: #fdf1e7;
+  background: var(--cinnabar-wash);
 }
 
 .pr-tfoot-val {
@@ -3387,7 +3573,7 @@ button:disabled {
 
 .pr-tfoot-opt.is-on {
   border-color: var(--clay);
-  background: #fdf1e7;
+  background: var(--cinnabar-wash);
 }
 
 .pr-tfoot-opt.is-on em {
@@ -3419,25 +3605,46 @@ button:disabled {
   padding: 32px 20px;
 }
 
+/* 登录卡：一张贴在宣纸上的笺 */
 .pr-login-card {
+  position: relative;
   width: 100%;
   max-width: 420px;
   background: var(--card);
-  border: 1px solid var(--divider);
-  border-radius: 10px;
-  padding: 28px 26px 24px;
-  box-shadow: 0 6px 24px rgba(44, 41, 37, 0.06);
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+  padding: 30px 28px 24px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 14px 34px -24px rgba(60, 45, 25, 0.6);
+}
+
+/* 右下角一枚淡朱砂印 */
+.pr-login-card::after {
+  content: '';
+  position: absolute;
+  right: 18px;
+  bottom: 16px;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--cinnabar-soft);
+  border-radius: 2px;
+  opacity: 0.5;
+  transform: rotate(-6deg);
 }
 
 .pr-login-card h1 {
   margin: 0 0 6px;
-  font-size: 19px;
-  letter-spacing: 0.5px;
+  font-family: var(--font-serif);
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--ink);
 }
 
 .pr-login-note {
   margin: 0 0 16px;
-  color: var(--sage);
+  color: var(--ink-3);
   font-size: 13px;
 }
 
@@ -3460,18 +3667,21 @@ button:disabled {
 .pr-login-tab {
   flex: 1;
   padding: 7px 0;
-  border: 1px solid var(--divider);
-  border-radius: 6px;
-  background: var(--paper);
-  color: var(--sage);
+  border: 1px solid var(--line-soft);
+  border-radius: 2px;
+  background: var(--card);
+  color: var(--ink-3);
   cursor: pointer;
   font-size: 14px;
+  font-family: var(--font-serif);
+  letter-spacing: 0.1em;
 }
 
+/* 选中页签：淡朱砂底 ＋ 朱砂字（不再是实心绿） */
 .pr-login-tab-on {
-  background: var(--sage);
-  border-color: var(--sage);
-  color: #fff;
+  background: var(--cinnabar-wash);
+  border-color: var(--cinnabar-soft);
+  color: var(--cinnabar);
 }
 
 .pr-login-form {
@@ -3490,16 +3700,17 @@ button:disabled {
 
 .pr-login-label input {
   padding: 8px 10px;
-  border: 1px solid var(--divider);
-  border-radius: 6px;
+  border: 1px solid var(--line-soft);
+  border-radius: 2px;
   font-size: 14px;
   color: var(--ink);
-  background: #fff;
+  background: #fffdf8;
 }
 
 .pr-login-label input:focus {
   outline: none;
-  border-color: var(--sage);
+  border-color: var(--dai-soft);
+  box-shadow: 0 0 0 2px rgba(111, 141, 143, 0.16);
 }
 
 .pr-login-error {
@@ -3508,15 +3719,24 @@ button:disabled {
   font-size: 13px;
 }
 
+/* 登录按钮：一方朱砂印 */
 .pr-login-submit {
   margin-top: 4px;
-  padding: 9px 0;
-  border: none;
-  border-radius: 6px;
-  background: var(--sage);
-  color: #fff;
+  padding: 10px 0;
+  border: 1px solid var(--cinnabar);
+  border-radius: 2px;
+  background: var(--cinnabar);
+  color: #fdf8f0;
+  font-family: var(--font-serif);
   font-size: 15px;
+  letter-spacing: 0.22em;
   cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.pr-login-submit:hover:not(:disabled) {
+  background: var(--cinnabar-soft);
+  border-color: var(--cinnabar-soft);
 }
 
 .pr-login-submit:disabled {
@@ -3527,9 +3747,9 @@ button:disabled {
 .pr-login-tip {
   margin: 16px 0 0;
   padding-top: 12px;
-  border-top: 1px solid var(--divider);
+  border-top: 1px solid var(--line-soft);
   font-size: 12px;
-  color: var(--sage);
+  color: var(--ink-3);
 }
 
 .pr-login-tip b {
@@ -3546,13 +3766,15 @@ button:disabled {
   font-size: 13px;
 }
 
+/* 模式徽章：一方黛青小印（不再是深绿药丸） */
 .pr-mode-badge {
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: var(--sage);
-  color: #fff;
-  font-size: 12px;
-  letter-spacing: 0.5px;
+  padding: 2px 9px;
+  border-radius: 2px;
+  background: var(--dai);
+  color: #f2f6f4;
+  font-size: 11.5px;
+  font-family: var(--font-serif);
+  letter-spacing: 0.08em;
 }
 
 .pr-mode-single {
@@ -3567,8 +3789,8 @@ button:disabled {
 
 .pr-flib {
   margin: 4px 0 14px;
-  border: 1px solid var(--divider);
-  border-radius: 6px;
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
   background: var(--card);
 }
 
@@ -3596,13 +3818,16 @@ button:disabled {
 }
 
 .pr-flib-title {
-  font-size: 13.5px;
-  font-weight: 700;
+  font-family: var(--font-serif);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--ink);
 }
 
 .pr-flib-count {
   font-size: 11px;
-  color: var(--sage);
+  color: var(--ink-3);
 }
 
 .pr-flib-hint {
@@ -3799,7 +4024,7 @@ button:disabled {
   min-width: 16px;
   text-align: right;
   font-size: 10.5px;
-  color: #a49a86;
+  color: var(--ink-3);
 }
 
 .pr-flib-extra-name {
@@ -3858,7 +4083,7 @@ button:disabled {
 }
 
 .pr-ps-count {
-  color: #a49a86;
+  color: var(--ink-3);
 }
 
 .pr-ps-edit {
@@ -3893,7 +4118,7 @@ button:disabled {
   padding: 4px;
   border: 1px solid var(--divider);
   border-radius: 3px;
-  background: #fdfbf7;
+  background: var(--paper);
   cursor: zoom-in;
   font: inherit;
 }
@@ -3921,7 +4146,7 @@ button:disabled {
   max-width: 132px;
   font-size: 9px;
   line-height: 1.25;
-  color: #a49a86;
+  color: var(--ink-3);
   text-align: center;
 }
 
@@ -3988,7 +4213,7 @@ button:disabled {
   padding: 6px 7px;
   border: 1px dashed var(--divider);
   border-radius: 3px;
-  background: #faf7f0;
+  background: var(--card);
   font-size: 10px;
   color: var(--ink);
   text-align: left;
@@ -4025,10 +4250,13 @@ button:disabled {
   max-width: 440px;
   max-height: 86vh;
   overflow: auto;
-  padding: 14px 16px 16px;
-  border-radius: 4px;
-  background: var(--paper);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  padding: 16px 18px 18px;
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+  background: var(--card);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 16px 40px -22px rgba(60, 45, 25, 0.7);
 }
 
 .pr-ps-modal-head {
@@ -4128,7 +4356,7 @@ button:disabled {
 
 .pr-ps-add:hover {
   border-color: var(--clay);
-  background: #faf4ea;
+  background: var(--card);
 }
 
 .pr-ps-manual {
@@ -4185,7 +4413,7 @@ button:disabled {
   gap: 2px;
   padding: 0 14px;
   border-bottom: 1px solid var(--divider);
-  background: #fbf8f2;
+  background: var(--card);
 }
 
 .pr-ed-tab {
@@ -4282,12 +4510,12 @@ button:disabled {
   padding: 2px 4px;
   border: 1px solid var(--divider);
   border-radius: 3px;
-  background: #fff;
+  background: var(--card);
 }
 
 .pr-ed-item.is-on {
   border-color: var(--clay);
-  background: #faf4ea;
+  background: var(--card);
 }
 
 .pr-ed-item-main {
@@ -4369,7 +4597,7 @@ button:disabled {
 
 .pr-ed-add button:hover {
   border-color: var(--clay);
-  background: #faf4ea;
+  background: var(--card);
 }
 
 /* 右：矩阵编辑器 */
@@ -4406,7 +4634,7 @@ button:disabled {
   padding: 3px 6px;
   border: 1px solid var(--divider);
   border-radius: 2px;
-  background: #fff;
+  background: var(--card);
   color: var(--ink);
   font: inherit;
   font-size: 12px;
@@ -4446,7 +4674,7 @@ button:disabled {
 }
 
 .pr-ed-cell input:focus {
-  background: #fffdf4;
+  background: var(--card);
   box-shadow: inset 0 0 0 2px #1a73e8;
 }
 
@@ -4478,7 +4706,7 @@ button:disabled {
   padding: 2px 5px;
   border: 1px solid var(--divider);
   border-radius: 2px;
-  background: #fff;
+  background: var(--card);
   font-family: 'Songti SC', 'STSong', serif;
   font-size: 12px;
   cursor: pointer;
@@ -4486,7 +4714,7 @@ button:disabled {
 
 .pr-ed-code:hover {
   border-color: var(--clay);
-  background: #faf4ea;
+  background: var(--card);
 }
 
 .pr-ed-code.is-wide {
@@ -4524,7 +4752,7 @@ button:disabled {
   padding: 4px 14px;
   border: 1px solid var(--divider);
   border-radius: 3px;
-  background: #fff;
+  background: var(--card);
   font: inherit;
   font-size: 12px;
   cursor: pointer;
@@ -4533,7 +4761,7 @@ button:disabled {
 .pr-ed-foot button:last-child {
   border-color: var(--clay);
   background: var(--clay);
-  color: #fff;
+  color: var(--card);
 }
 
 .pr-ed-foot button:disabled {
@@ -4574,7 +4802,7 @@ button:disabled {
   padding: 1px 8px;
   border: 1px solid var(--divider);
   border-radius: 2px;
-  background: #fff;
+  background: var(--card);
   color: var(--sage);
   font: inherit;
   font-size: 11px;
@@ -4627,7 +4855,7 @@ button:disabled {
   padding: 0 3px;
   border: 1px solid var(--clay);
   border-radius: 2px;
-  background: #fff;
+  background: var(--card);
   color: var(--ink);
   font: inherit;
   font-size: 12px;
@@ -4642,7 +4870,7 @@ button:disabled {
   padding: 4px 10px;
   border: 1px solid var(--divider);
   border-radius: 3px;
-  background: #fff;
+  background: var(--card);
   color: var(--sage);
   font-size: 12px;
 }
@@ -4711,7 +4939,7 @@ button:disabled {
   padding: 3px 6px;
   border: 1px solid var(--divider);
   border-radius: 2px;
-  background: #fff;
+  background: var(--card);
   color: var(--ink);
   font: inherit;
   font-size: 12px;
@@ -4725,7 +4953,7 @@ button:disabled {
 .pr-led-field input:disabled,
 .pr-led-field select:disabled,
 .pr-led-field textarea:disabled {
-  background: #f6f4ee;
+  background: var(--paper-sunk);
   color: var(--sage);
 }
 
@@ -4759,7 +4987,7 @@ button:disabled {
   padding: 1px 7px;
   border: 1px solid var(--divider);
   border-radius: 2px;
-  background: #fff;
+  background: var(--card);
   color: var(--sage);
   font: inherit;
   font-size: 11px;
@@ -4811,5 +5039,5 @@ button:disabled {
 .pr-confirm-foot button.is-danger {
   border-color: var(--high);
   background: var(--high);
-  color: #fff;
+  color: var(--card);
 }
