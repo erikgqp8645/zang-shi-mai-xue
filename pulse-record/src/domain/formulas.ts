@@ -768,6 +768,14 @@ export const FORMULA_RULES: FormulaRule[] = loadRules(RULE_DATA.rules, EVALUATOR
  */
 export const LIBRARY_SETTINGS = {
   hideGroupTitles: LIBRARY_DATA.library.hideGroupTitles === true,
+  /**
+   * 区块大标题（「讲义 p44「依脉用方」· 全量条目」「讲稿 2010 · 全量方剂」）要不要显示。
+   *
+   * ⓘ 默认**隐藏**（2026-11-13 用户定）：这些标题信息量低，手机上很占版面。
+   * ⓘ 同样是**共享层**设置（内容层 `library-settings.json`），
+   *   不做成本机开关 —— 同一个显隐两处真源迟早不一致。
+   */
+  hideRouteTitles: (LIBRARY_DATA.library as { hideRouteTitles?: boolean }).hideRouteTitles !== false,
 }
 
 /**

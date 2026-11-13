@@ -541,12 +541,20 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding, canEdit 
               <>
                 {/* ---- 讲义 p44 依脉用方（全量） ---- */}
                 <section className="pr-formula-group">
-                  <h3 className="pr-formula-route">讲义 p44「依脉用方」· 全量条目</h3>
-                  <p className="pr-target-line">
-                    {dim === 'route'
-                      ? '按讲稿原序排列：讲义 p44 四个挡路 → 讲稿第四~六讲「清挡路一~六」→ 讲稿第二讲「叁、用方」「肆、依脉辨证论治」。'
-                      : '同一条按脏腑／左右手归位；条件、治法、原文仍照讲义原样转录。'}
-                  </p>
+                  {/*
+                    区块大标题默认不显示（共享层 `hideRouteTitles`，内容层可改）。
+                    这些标题信息量低，手机上占掉半屏 —— 分组标题另有开关（`hideGroupTitles`）。
+                  */}
+                  {!LIBRARY_SETTINGS.hideRouteTitles && (
+                    <>
+                      <h3 className="pr-formula-route">讲义 p44「依脉用方」· 全量条目</h3>
+                      <p className="pr-target-line">
+                        {dim === 'route'
+                          ? '按讲稿原序排列：讲义 p44 四个挡路 → 讲稿第四~六讲「清挡路一~六」→ 讲稿第二讲「叁、用方」「肆、依脉辨证论治」。'
+                          : '同一条按脏腑／左右手归位；条件、治法、原文仍照讲义原样转录。'}
+                      </p>
+                    </>
+                  )}
                   {ruleGroups.map((g) => {
                     const items = g.items.filter((r) => hitRules.has(r.id))
                     // 整组都被筛掉就整组不渲染 —— 留个空标题只会让人以为下面还有东西
@@ -596,14 +604,18 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding, canEdit 
 
                 {/* ---- 讲稿 2010 方剂（全量） ---- */}
                 <section className="pr-formula-group">
-                  <h3 className="pr-formula-route">
-                    {dim === 'route'
-                      ? '讲稿 2010·第二讲「叁、用方」· 全量方剂'
-                      : `讲稿方剂 · ${DIM_LABEL[dim]}`}
-                  </h3>
-                  <p className="pr-target-line">
-                    组成、服法、科学中药、加减与禁忌**原样转录**，不替读者加减方。
-                  </p>
+                  {!LIBRARY_SETTINGS.hideRouteTitles && (
+                    <>
+                      <h3 className="pr-formula-route">
+                        {dim === 'route'
+                          ? '讲稿 2010·第二讲「叁、用方」· 全量方剂'
+                          : `讲稿方剂 · ${DIM_LABEL[dim]}`}
+                      </h3>
+                      <p className="pr-target-line">
+                        组成、服法、科学中药、加减与禁忌原样转录，不替读者加减方。
+                      </p>
+                    </>
+                  )}
                   {drugGroups.map((g) => {
                     const items = g.items.filter((d) => hitDrugs.has(d.id))
                     if (items.length === 0) return null

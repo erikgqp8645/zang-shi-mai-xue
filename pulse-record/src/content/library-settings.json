@@ -1,6 +1,7 @@
 {
   "$schema": "./schema/library-settings.schema.json",
   "library": {
-    "hideGroupTitles": true
+    "hideGroupTitles": true,
+    "hideRouteTitles": true
   }
 }

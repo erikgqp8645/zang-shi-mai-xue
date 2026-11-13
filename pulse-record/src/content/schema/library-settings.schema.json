@@ -4,15 +4,24 @@
   "title": "用方知识库 · 显示设置",
   "description": "「用方知识库」这个区块**自己的**显示设置（共享层，全站一致）。ⓘ 这里只有「知识库」这一个区块的设置，所以表里固定一行（id＝library）。ⓘ **这一版的编辑面是本地后台（Directus）＋发布管道** —— 后台改完跑发布命令，才会推到远端并同步回仓库快照。",
   "type": "object",
-  "required": ["library"],
+  "required": [
+    "library"
+  ],
   "properties": {
-    "$schema": { "type": "string" },
+    "$schema": {
+      "type": "string"
+    },
     "library": {
       "type": "object",
       "properties": {
         "hideGroupTitles": {
           "type": "boolean",
           "description": "true＝知识库里**不显示分组标题**（直接显示内容）；false＝照常显示分组标题。"
+        },
+        "hideRouteTitles": {
+          "type": "boolean",
+          "title": "隐藏区块标题",
+          "description": "「讲义 p44 依脉用方 · 全量条目」「讲稿 2010 …」这类**区块大标题**要不要显示。默认隐藏：这些标题信息量低，手机上很占版面。"
         }
       }
     }

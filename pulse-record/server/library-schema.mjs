@@ -98,8 +98,11 @@ export const LIBRARY_KINDS = {
       { key: 'formulas', label: '方名（用哪些方）', type: 'string[]', required: true },
       { key: 'adds', label: '添加药', type: 'string[]' },
       { key: 'drugs', label: '关联的讲稿方剂 id', type: 'string[]' },
-      { key: 'source', label: '出处', type: 'string', required: true },
-      { key: 'quote', label: '原文', type: 'string', required: true, long: true },
+      // 出处：**非必填**，且表单里**默认不显示**（2026-11-13 用户定）
+      // —— 它是转录元信息，日常编辑用不着；数据仍原样保留，只是不占表单版面。
+      { key: 'source', label: '出处', type: 'string', hidden: true },
+      // 「原文」改叫「说明」：这一栏实际写的是补充说明，不是逐字原文
+      { key: 'quote', label: '说明', type: 'string', long: true },
       { key: 'kind', label: '类别', type: 'enum', values: ['主线', '挡路', '加味', '禁忌'], required: true },
       { key: 'always', label: '是否常驻条目', type: 'boolean' },
       // 「这一条要不要在用方知识库里显示」——
@@ -144,8 +147,9 @@ export const LIBRARY_KINDS = {
       { key: 'adjustments', label: '加减', type: 'string[]' },
       { key: 'indication', label: '适用脉象', type: 'string', long: true },
       { key: 'contraindication', label: '禁忌', type: 'string', long: true },
-      { key: 'source', label: '出处', type: 'string', required: true },
-      { key: 'quote', label: '原文', type: 'string' },
+      // 见 rule 的同名字段：出处非必填、默认不显示；「原文」改叫「说明」
+      { key: 'source', label: '出处', type: 'string', hidden: true },
+      { key: 'quote', label: '说明', type: 'string' },
       // 「这一方要不要在用方知识库里显示」—— 同 rule 的 visible，语义一样。
       { key: 'visible', label: '是否在知识库里显示', type: 'boolean' },
     ],

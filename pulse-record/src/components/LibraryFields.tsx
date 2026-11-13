@@ -165,7 +165,7 @@ export function LibraryFields({ kinds, kind, draft, onChange, creating, onGenera
         它由「脉象图」页签的编辑器负责，在这里渲染只会多出一个没意义的输入框。
       */}
       {spec.fields
-        .filter((field) => field.type !== 'json')
+        .filter((field) => field.type !== 'json' && !field.hidden)
         .map((field) => (
           <label key={field.key} className={`pr-led-field${field.long ? ' is-long' : ''}`}>
             <span className="pr-led-label">

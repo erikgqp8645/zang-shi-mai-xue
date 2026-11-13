@@ -58,6 +58,13 @@ export interface LibraryKindField {
   values?: string[]
   /** 长文本（编辑时用多行框，不用单行） */
   long?: boolean
+  /**
+   * 表单里**默认不显示**这一栏（数据仍保留）。
+   *
+   * ⓘ 用于「出处」这类转录元信息：日常编辑用不着，但删掉字段会丢数据 ⇒
+   *   只是不渲染，值原样留着。2026-11-13 用户定。
+   */
+  hidden?: boolean
 }
 
 /** 注册表里的一类（服务端 `LIBRARY_KINDS` 的形状） */
