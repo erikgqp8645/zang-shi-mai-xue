@@ -8,6 +8,7 @@
  * 声明（登录页也要有）：本工具只做记录，不构成诊断。
  */
 
+import inkMountain from '../assets/ink-mountain.webp'
 import { useState } from 'react'
 import { login, register, type AuthUser } from '../api/auth'
 
@@ -19,6 +20,15 @@ export interface LoginPanelProps {
   /** 登录／注册成功后回调 */
   onLoggedIn: (user: AuthUser) => void
 }
+
+/**
+ * 登录页背景：淡墨远山（AI 生成，22KB WebP）。
+ *
+ * ⓘ 为什么走 JS import 而不是 CSS 里的 `url()`：
+ *   本项目的 CSS `url('../assets/*.webp')` 没被打包成 hash 资源（产物里根本没有那个文件，
+ *   部署后就是 404）。用 import 拿到地址再经由 CSS 变量注入，Vite 一定会处理。
+ */
+const inkStyle = { ['--login-ink' as string]: `url(${inkMountain})` } as React.CSSProperties
 
 export function LoginPanel({ single, onEnterSingle, onLoggedIn }: LoginPanelProps) {
   const [tab, setTab] = useState<'login' | 'register'>('login')
@@ -49,7 +59,7 @@ export function LoginPanel({ single, onEnterSingle, onLoggedIn }: LoginPanelProp
 
   if (single) {
     return (
-      <div className="pr-login">
+      <div className="pr-login" style={inkStyle}>
         <div className="pr-login-card">
           <h1>臧氏脉学 · 脉象记录表生成器</h1>
           <p className="pr-login-mode">当前是<b>单机模式</b>：这台机器上的数据只有本机能读写，不用登录。</p>
@@ -63,7 +73,7 @@ export function LoginPanel({ single, onEnterSingle, onLoggedIn }: LoginPanelProp
   }
 
   return (
-    <div className="pr-login">
+    <div className="pr-login" style={inkStyle}>
       <div className="pr-login-card">
         <h1>臧氏脉学 · 脉象记录表生成器</h1>
         <p className="pr-login-note">本工具只做记录，不构成诊断。</p>

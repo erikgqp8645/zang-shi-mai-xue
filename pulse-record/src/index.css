@@ -3597,12 +3597,46 @@ button:disabled {
 
 /* ---------- 登录页（多用户） ---------- */
 
+/* 登录页：淡墨远山作背景（AI 生成，22KB WebP）
+   ⓘ 图本身已经很淡（墨色含蓄、右侧大片留白），所以不再整体压暗 ——
+     只在**卡片周围**罩一层径向纸色，让表单落在干净的纸上，四角的山还看得见。 */
 .pr-login {
+  position: relative;
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 32px 20px;
+  background-color: var(--paper);
+  /* 图由组件经 CSS 变量注入（见 LoginPanel 的 inkStyle）——
+     ⓘ 写成 `url('../assets/…')` 时 rolldown 没打包它，产物里没有那个文件，部署后 404 */
+  background-image: var(--login-ink, none);
+  background-size: cover;
+  /* 山峦在左下缘 —— 定位偏左下，手机竖屏裁切时也留得住山 */
+  background-position: 28% bottom;
+  background-repeat: no-repeat;
+}
+
+.pr-login::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* 中央纸色 → 边缘透出山峦 */
+  background: radial-gradient(
+    62% 58% at 50% 46%,
+    rgba(244, 239, 228, 0.92) 0%,
+    rgba(244, 239, 228, 0.72) 42%,
+    rgba(244, 239, 228, 0.18) 78%,
+    rgba(244, 239, 228, 0) 100%
+  );
+}
+
+/* 卡片浮在蒙层之上 */
+.pr-login-card,
+.pr-login > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* 登录卡：一张贴在宣纸上的笺 */
@@ -3619,26 +3653,13 @@ button:disabled {
     0 14px 34px -24px rgba(60, 45, 25, 0.6);
 }
 
-/* 右下角一枚淡朱砂印 */
-.pr-login-card::after {
-  content: '';
-  position: absolute;
-  right: 18px;
-  bottom: 16px;
-  width: 22px;
-  height: 22px;
-  border: 1.5px solid var(--cinnabar-soft);
-  border-radius: 2px;
-  opacity: 0.5;
-  transform: rotate(-6deg);
-}
-
 .pr-login-card h1 {
   margin: 0 0 6px;
   font-family: var(--font-serif);
-  font-size: 21px;
+  /* 手机上（约 390px）一行放得下 12 个字，不折成两行 */
+  font-size: clamp(17px, 4.4vw, 21px);
   font-weight: 600;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   color: var(--ink);
 }
 
