@@ -9,6 +9,11 @@ Documentation=https://github.com/erikgqp8645/zang-shi-mai-xue
 After=network-online.target
 Wants=network-online.target
 
+# 崩溃回环：5 分钟内重启超过 5 次就停下来等人来看
+# ⚠ 这两项属于 [Unit]，写进 [Service] 会被静默忽略（systemd 只报 "Unknown key name"）
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
 [Service]
 Type=simple
 User=pulse
@@ -21,10 +26,6 @@ EnvironmentFile=/etc/pulse-record.env
 ExecStart=/usr/bin/node server/index.mjs
 Restart=always
 RestartSec=3
-
-# 崩溃回环：5 分钟内重启超过 5 次就停下来等人来看
-StartLimitIntervalSec=300
-StartLimitBurst=5
 
 # ---- 安全加固 ----
 # 病例数据敏感：只读代码目录，数据目录另放
@@ -39,7 +40,9 @@ ProtectControlGroups=true
 RestrictSUIDSGID=true
 RestrictNamespaces=true
 LockPersonality=true
-MemoryDenyWriteExecute=true
+# ⚠ 不要开 MemoryDenyWriteExecute：Node 24 的 V8 JIT 需要可写可执行内存，
+#   开启后进程在 v8::Isolate::Initialize 阶段直接 SIGTRAP（code=dumped），服务起不来。
+# MemoryDenyWriteExecute=true
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 SystemCallFilter=@system-service
 SystemCallErrorNumber=EPERM
