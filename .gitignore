@@ -1,6 +1,9 @@
 # macOS
 .DS_Store
 
+# spec-workflow 工具的工作目录（模板拷贝与临时 spec，不是项目产物）
+.spec-workflow/
+
 # 临时转换产物（docx/pdf 抽取中间件）
 *.tmp
 ~$*
