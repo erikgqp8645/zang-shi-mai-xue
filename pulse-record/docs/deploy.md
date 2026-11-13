@@ -291,7 +291,89 @@ npm run build:core      # 编共享包（小程序的知识库与绘制代码）
 
 ---
 
-## 7. 迁到 CloudBase
+## 7. 自建 PostgreSQL（先自建，之后再切 CloudBase）
+
+2026-11-13 起，同一台服务器上可以跑 **PostgreSQL** 作为存储后端，不必等 CloudBase。
+两条路共用同一套 PG 函数（`server/pg-functions.sql`，41 个），业务层不用改。
+
+### 7.1 装库与建账号
+
+```bash
+apt-get install -y postgresql postgresql-contrib
+
+PGPASS=$(openssl rand -hex 24)
+sudo -u postgres psql -c "CREATE ROLE pulse LOGIN PASSWORD '$PGPASS';"
+sudo -u postgres createdb -O pulse pulse_record
+
+cd /opt/pulse-record/server
+PGPASSWORD=$PGPASS psql -h 127.0.0.1 -U pulse -d pulse_record -f schema-pg.sql
+PGPASSWORD=$PGPASS psql -h 127.0.0.1 -U pulse -d pulse_record -f pg-functions.sql
+```
+
+### 7.2 切服务到 PG
+
+`/etc/pulse-record.env` 加两行（**密码只放这里**，文件 600）：
+
+```ini
+PULSE_STORE=pg
+PULSE_PG_URL=postgres://pulse:<密码>@127.0.0.1:5432/pulse_record
+```
+
+```bash
+systemctl restart pulse-record
+curl http://127.0.0.1:5178/api/health
+# {"ok":true,"db":"PostgreSQL（自建／直连）",...}
+```
+
+`db` 字段会区分 `PostgreSQL（自建／直连）` 与 `CloudBase PostgreSQL`。
+
+### 7.3 把 SQLite 里的数据搬过去
+
+**先备份**（源库只读打开，搬完原样不动）：
+
+```bash
+sqlite3 /var/lib/pulse-record/history.sqlite ".backup /tmp/history-before-pg.sqlite"
+
+cd /opt/pulse-record && npm install pg
+PULSE_PG_URL='postgres://pulse:…@127.0.0.1:5432/pulse_record' \
+  node scripts/migrate-sqlite-to-local-pg.mjs --sqlite /var/lib/pulse-record/history.sqlite
+```
+
+脚本搬 **9 张表**（含 `library_items` 与 `formula_patterns`），
+幂等（`ON CONFLICT DO NOTHING`），跑完逐表核对行数，对不上就报错。
+先加 `--dry-run` 只看计划。
+
+### 7.4 ⚠️ 备份要换成 PG 版
+
+**原来的 `pulse-backup.sh` 只备份 SQLite** —— 切到 PG 后它每天「成功」地备份
+一份**不再写入的死数据**。必须换 cron：
+
+```bash
+install -m 755 scripts/deploy/backup-pg.sh /usr/local/bin/pulse-backup-pg.sh
+cat > /etc/cron.d/pulse-record-backup <<'EOF'
+0 3 * * * root /usr/local/bin/pulse-backup-pg.sh >> /var/log/pulse-record-backup.log 2>&1
+EOF
+/usr/local/bin/pulse-backup-pg.sh    # 手动验证一次
+```
+
+恢复：`pg_restore --clean --if-exists -d "$PULSE_PG_URL" /backup/pulse-pg-<日期>.dump`
+
+### 7.5 回滚
+
+SQLite 库**一直没有被改动**：
+
+```bash
+# 去掉 PULSE_STORE / PULSE_PG_URL 两行
+cp /etc/pulse-record.env.bak-<时间戳> /etc/pulse-record.env
+# cron 换回 /usr/local/bin/pulse-backup.sh
+systemctl restart pulse-record
+```
+
+⚠️ 注意：切到 PG 之后**新产生的数据只在 PG 里**，回滚不会自动带回去。
+
+---
+
+## 8. 迁到 CloudBase
 
 代码侧的准备**已经做完**（存储抽象层、全 async、CORS、`VITE_API_BASE`）。
 迁移步骤、数据映射、坑位清单见 **[`docs/cloudbase-migration.md`](./cloudbase-migration.md)**。
