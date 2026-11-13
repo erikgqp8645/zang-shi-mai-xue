@@ -76,11 +76,24 @@ function getRdb() {
 /**
  * 调一个 PG 函数（RPC）
  *
+ * ## 两条通路（由 `PULSE_PG_URL` 决定）
+ *
+ * · **没设** → CloudBase SDK（`app.rdb().rpc()`，走 PG HTTP 网关）—— 线上托管那条路。
+ * · **设了** → **自建／本地 PostgreSQL 直连**（`PULSE_PG_URL=postgres://user:pass@host:5432/db`，
+ *   用 `pg` 包走 TCP）。2026-11-13 起支持：先在自有服务器上跑 PG，之后再整体切到 CloudBase。
+ *
+ * ⓘ 两条路**函数签名完全一样**（`(p_owner text, p_args jsonb) → jsonb`，
+ *   见 `server/pg-functions.sql`）⇒ 业务层（`db-pg.mjs` / `auth-pg.mjs`）
+ *   不用知道自己在连哪 —— 这正是「唯一碰 PG 的地方」这条约束的意义。
+ *
  * @param {string} fn   函数名（server/pg-functions.sql 里定义的那些）
  * @param {object} args 参数对象，形如 { p_owner, p_args }
  * @returns {Promise<any>} PG 返回的 jsonb
  */
 export async function rpc(fn, args) {
+  const localUrl = process.env.PULSE_PG_URL
+  if (localUrl) return localRpc(localUrl, fn, args)
+
   let result
   try {
     result = await getRdb().rpc(fn, args)
@@ -92,6 +105,50 @@ export async function rpc(fn, args) {
     throw new Error(`调用 PG 函数 ${fn} 出错：${error?.message ?? JSON.stringify(error)}`)
   }
   return data
+}
+
+/* ------------------------------------------------------------------ *
+ * 自建／本地 PostgreSQL 直连                                           *
+ * ------------------------------------------------------------------ */
+
+/** 连接池（懒加载 —— 只有真正配了 `PULSE_PG_URL` 才会去 require `pg`） */
+let localPool = null
+
+/**
+ * 走 TCP 直连调 PG 函数。
+ *
+ * ⚠️ 函数名直接拼进 SQL（`SELECT ${fn}(…)`）—— PG 不允许把标识符当参数绑。
+ *    所以这里**必须**先校验形状：只允许小写字母/数字/下划线。
+ *    调用方传的都是代码里的常量，这层是防手滑与防注入的兜底。
+ */
+async function localRpc(url, fn, args) {
+  if (!/^[a-z][a-z0-9_]{0,63}$/.test(String(fn))) {
+    throw new Error(`调用 PG 失败：函数名「${fn}」不合法`)
+  }
+
+  if (!localPool) {
+    let pg
+    try {
+      // ESM 动态 import：没配本地 PG 的部署不该因为缺 `pg` 而启动失败
+      pg = (await import('pg')).default ?? (await import('pg'))
+    } catch {
+      throw new Error('已设 PULSE_PG_URL，但没装 pg 驱动 —— 请 npm install pg')
+    }
+    localPool = new pg.Pool({ connectionString: url, max: 8 })
+    localPool.on('error', (e) => {
+      console.error('[臧氏脉学] 本地 PG 连接池出错：', e?.message ?? e)
+    })
+  }
+
+  try {
+    const { rows } = await localPool.query(
+      `SELECT ${fn}($1::text, $2::jsonb) AS data`,
+      [String(args?.p_owner ?? ''), JSON.stringify(args?.p_args ?? {})],
+    )
+    return rows?.[0]?.data ?? null
+  } catch (e) {
+    throw new Error(`调用 PG 函数 ${fn} 失败：${e?.message ?? e}`)
+  }
 }
 
 /**
@@ -110,4 +167,6 @@ export function authRpc(fn, args = {}) {
 }
 
 /** 存储位置的描述（只用于 /api/health 与页面提示，不参与业务逻辑） */
-export const DB_DESCRIPTION = 'CloudBase PostgreSQL'
+export const DB_DESCRIPTION = process.env.PULSE_PG_URL
+  ? 'PostgreSQL（自建／直连）'
+  : 'CloudBase PostgreSQL'

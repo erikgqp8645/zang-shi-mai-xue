@@ -22,14 +22,20 @@
  * PG 侧只负责存取，**不做形状规整**（`values` / `symbols` 在 PG 里是 JSON 字符串）。
  */
 
-import { dataRpc } from './pg-client.mjs'
+import { DB_DESCRIPTION, dataRpc } from './pg-client.mjs'
 import { CONSTITUTIONS, THERAPIES, normalizeValues, parseValues, pickEnum } from './values.mjs'
 import { RESERVED_SYMBOL_CODES, symbolInputError } from './symbol-codes.mjs'
 
 export { RESERVED_SYMBOL_CODES }
 
-/** 存储位置的描述（SQLite 版是文件路径，这里是文字说明） */
-export const DB_PATH = 'CloudBase PostgreSQL'
+/**
+ * 存储位置的描述（SQLite 版是文件路径，这里是文字说明）。
+ *
+ * ⓘ 文案**只有一个来源**：`pg-client.mjs` 的 `DB_DESCRIPTION` ——
+ *   它会区分「CloudBase」与「自建／直连（PULSE_PG_URL）」。这里写死过一次
+ *   「CloudBase PostgreSQL」，结果切到自建 PG 后 /api/health 还在报云的名字。
+ */
+export const DB_PATH = DB_DESCRIPTION
 
 /* ------------------------------------------------------------------ *
  * 打开／初始化

@@ -92,7 +92,8 @@
   "dependencies": {
     "@cloudbase/node-sdk": "^3.18.7",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "pg": "^8.13.1"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
