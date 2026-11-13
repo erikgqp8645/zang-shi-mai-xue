@@ -563,7 +563,7 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding, canEdit 
                               item={libraryRule(r)}
                               srcNote=" · 全量条目（知识库）"
                               compact
-                              autoOpen={focusId === formulaAnchor('rule', r.id)}
+                              autoOpen={!searching && focusId === formulaAnchor('rule', r.id)}
                               tools={
                                 canEdit
                                   ? {
@@ -613,7 +613,12 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding, canEdit 
                               drug={d}
                               showAttr={dim !== 'route'}
                               compact
-                              autoOpen={focusId === formulaAnchor('drug', d.id)}
+                              /*
+                                ⚠️ 搜索时**一律折叠**：搜索是「找条目」，不是「看某一条的详情」。
+                                   不加 `!searching` 时，之前跳转过的 focus 会让命中列表里的那一条
+                                   自动展开，手机上一下糊满屏，看着像「详情默认就摊开」（2026-11-13 反馈）。
+                              */
+                              autoOpen={!searching && focusId === formulaAnchor('drug', d.id)}
                               tools={canEdit ? { actions: entryActions('drug', d.id, d.name) } : undefined}
                             />
                           </div>

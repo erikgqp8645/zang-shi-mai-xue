@@ -217,9 +217,21 @@ export function DrugCard({
           <strong className="pr-drug-row-name">{drug.name}</strong>
           {showAttr && <AttrChip attr={attr} />}
         </button>
-        {/* ⚠️ 工具区在 button **外面** —— button 里不能套 button */}
-        {tools?.actions && <div className="pr-formula-tools">{tools.actions}</div>}
-        {open && <div className="pr-formula-detail">{detail}</div>}
+        {/*
+          ⚠️ 工具区在 button **外面** —— button 里不能套 button
+          ⓘ 展开时把它放到**原文下方**：看完「组成／服法／加减」想改，手就在同一处
+            （折叠时仍贴在行下方，不占额外高度）。
+        */}
+        {open ? (
+          <>
+            <div className="pr-formula-detail">{detail}</div>
+            {tools?.actions && (
+              <div className="pr-formula-tools is-after">{tools.actions}</div>
+            )}
+          </>
+        ) : (
+          tools?.actions && <div className="pr-formula-tools">{tools.actions}</div>
+        )}
       </div>
     )
   }

@@ -4819,21 +4819,32 @@ button:disabled {
   padding-left: 2px;
 }
 
+/* 展开时工具区贴在原文下方 —— 留一点距离，和上面那段内容分开 */
+.pr-formula-tools.is-after {
+  margin-top: 8px;
+  padding-top: 7px;
+  padding-left: 2px;
+  border-top: 1px dotted var(--line-soft);
+}
+
+/* 条目上的「编辑／删除」—— 原来 11px 淡绿，手机上几乎看不见（2026-11-13 反馈） */
 .pr-led-btn {
-  padding: 1px 8px;
-  border: 1px solid var(--divider);
+  padding: 3px 11px;
+  border: 1px solid var(--line-soft);
   border-radius: 2px;
   background: var(--card);
-  color: var(--sage);
+  color: var(--ink-2);
   font: inherit;
-  font-size: 11px;
-  line-height: 1.6;
+  font-size: 12px;
+  line-height: 1.5;
   cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
 }
 
 .pr-led-btn:hover {
-  border-color: var(--clay);
-  color: var(--clay);
+  border-color: var(--cinnabar-soft);
+  color: var(--cinnabar);
+  background: var(--cinnabar-wash);
 }
 
 .pr-led-btn.is-danger:hover {
