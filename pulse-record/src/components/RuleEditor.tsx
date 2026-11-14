@@ -8,6 +8,7 @@ import type { PulsePattern } from '../domain/pulse-pattern'
 import { ConfirmDialog } from './ConfirmDialog'
 import { LibraryFields } from './LibraryFields'
 import { PatternPanel } from './PatternPanel'
+import { DoseTab } from './DoseTab'
 
 /**
  * 用方知识库 · **统一编辑弹层**（条目 ＋ 脉象图，一个界面）
@@ -45,7 +46,7 @@ import { PatternPanel } from './PatternPanel'
  *   （点了「恢复默认」，页面就再也不响应，连刷新都救不回来）。
  */
 
-type Tab = 'entry' | 'pattern'
+type Tab = 'entry' | 'pattern' | 'dose'
 
 interface Props {
   /** `rule` ｜ `drug` */
@@ -67,6 +68,11 @@ interface Props {
    *   所以新建时默认落在「脉象图」页，保存时把图一起提交。
    */
   mode?: 'edit' | 'create'
+  /**
+   * 从剂量行点「编辑」进来时要自动展开的那一条剂量条目。
+   * 只有 `kind === 'rule'` 有「剂量」页签。
+   */
+  focusDose?: { kind: string; id: string } | null
   onClose: () => void
 }
 
@@ -78,6 +84,7 @@ export function RuleEditor({
   initialTab,
   baseline,
   mode = 'edit',
+  focusDose,
   onClose,
 }: Props) {
   const { kinds, overrides } = useLibrary()
@@ -258,6 +265,8 @@ export function RuleEditor({
   }
 
   const hasPatternTab = kind === 'rule'
+  /** 「剂量」页签：只有依脉用方（rule）引用方名，成方／方剂本身没有 */
+  const hasDoseTab = kind === 'rule' && !isCreate
 
   return (
     <>
@@ -301,6 +310,17 @@ export function RuleEditor({
                 {patternOverridden ? <i className="pr-ed-tab-dot" title="这一条的手改过图" /> : null}
               </button>
             )}
+            {hasDoseTab && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === 'dose'}
+                className={`pr-ed-tab${tab === 'dose' ? ' is-on' : ''}`}
+                onClick={() => setTab('dose')}
+              >
+                剂量
+              </button>
+            )}
             <span className="pr-ed-tabs-right">
               {tab === 'entry' && entryOverridden ? (
                 <button
@@ -326,7 +346,12 @@ export function RuleEditor({
           </nav>
 
           {/* ---- 内容 ---- */}
-          {tab === 'entry' ? (
+          {tab === 'dose' ? (
+            <DoseTab
+              formulas={Array.isArray(draft.formulas) ? (draft.formulas as string[]) : []}
+              focusDose={focusDose ?? null}
+            />
+          ) : tab === 'entry' ? (
             <div className="pr-ed-body">
               <section className="pr-ed-main">
                 <LibraryFields
@@ -374,7 +399,9 @@ export function RuleEditor({
               </span>
             ) : (
               <span className="pr-ed-tip">
-                {isCreate
+                {tab === 'dose'
+                  ? '剂量在「剂量」页各自保存 —— 改的是那一条方本身，所有引用同一个方名的条目都会变。'
+                  : isCreate
                   ? '新增的条目写进服务端覆盖层，所有账号共享；「脉象图」页画的那张图就是它的命中条件。'
                   : '两处一起保存，写进服务端覆盖层，所有账号共享一份；仓库里的基线文件不动。'}
               </span>

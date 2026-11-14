@@ -32,6 +32,8 @@ export interface FormulaDose {
   notes?: string[]
   /** 出处：照片页码（1~4） */
   page: number
+  /** 是否显示（不填＝显示；`false` 时剂量对照里不列这一条） */
+  visible?: boolean
 }
 
 /** 「科中」＝科学中药比例表（本表第 4 页）的一行 */

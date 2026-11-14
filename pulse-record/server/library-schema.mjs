@@ -190,6 +190,8 @@ export const LIBRARY_KINDS = {
       { key: 'composition', label: '组成（克）', type: 'string', required: true, long: true },
       { key: 'notes', label: '附注', type: 'string[]', long: true },
       { key: 'page', label: '页码', type: 'page', required: true },
+      // 「这一条要不要在剂量对照里显示」—— 与 drug 的 visible 同义（2026-11-14）
+      { key: 'visible', label: '是否显示', type: 'boolean' },
     ],
   },
 

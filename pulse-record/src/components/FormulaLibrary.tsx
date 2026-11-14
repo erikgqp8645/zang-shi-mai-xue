@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   getEffectiveRules,
   FORMULA_ROUTE_ORDER,
+  FORMULA_RULES,
   LIBRARY_SETTINGS,
   type FormulaRule,
 } from '../domain/formulas'
-import { DRUG_GROUPS, getVisibleDrugs, type Drug } from '../domain/drugs'
+import { DRUG_BY_ID, DRUG_GROUPS, getVisibleDrugs, type Drug } from '../domain/drugs'
+import { FORMULA_DOSE_BY_ID } from '../domain/formula-table'
 import { isVisible } from '../domain/visibility'
 import { FORMULA_REFERENCE } from '../domain/medication'
 import { formulaAnchor, formulaAnchorId, type FormulaLink } from '../domain/formula-links'
@@ -230,6 +232,10 @@ export function FormulaLibrary({
     id: string
     entry: Record<string, unknown>
     title: string
+    /** 打开时落在哪个页签（剂量行的「编辑」→ 'dose'） */
+    initialTab?: 'entry' | 'pattern' | 'dose'
+    /** 剂量页签里要自动展开的那一条 */
+    focusDose?: { kind: string; id: string } | null
   } | null>(null)
   /** 正在**新增**一条（`RuleEditor` 的 create 模式） */
   const [creating, setCreating] = useState(false)
@@ -249,18 +255,52 @@ export function FormulaLibrary({
    * 从「剂量对照」那几行点开的编辑 —— 目标是**另一个 kind 的条目**
    * （同和堂版成方 `dose` 或讲稿方剂 `drug`），不是外面这张卡本身。
    */
-  function openForeignEditor(kind: string, id: string, name: string) {
+  function openForeignEditor(
+    kind: string,
+    id: string,
+    name: string,
+    parent?: { kind: string; id: string },
+  ) {
+    /*
+     * 从**用方条目**的剂量行点「编辑」：打开那条 rule 的编辑弹层、落在「剂量」页。
+     *
+     * 以前这里直接打开 `dose`／`drug` 条目自己的弹层 —— 那是另一个只有
+     * 「条目」一个页签的界面，跟主条目弹层不是一回事（2026-11-14 用户要求归一）。
+     */
+    if (parent?.kind === 'rule') {
+      const rule = getEffectiveRuleRaw(parent.id)
+      if (!rule) {
+        setToast('这一条现在取不到（可能刚被删掉）—— 刷新页面再试。')
+        return
+      }
+      setToast(null)
+      setEditing({
+        kind: 'rule',
+        id: parent.id,
+        entry: rule,
+        title: String(rule.condition ?? parent.id),
+        initialTab: 'dose',
+        focusDose: { kind, id },
+      })
+      return
+    }
     openEditor(kind, id, name)
   }
 
   /** 打开编辑弹层 */
   function openEditor(kind: string, id: string, title: string) {
+    /*
+     * 先取生效集；取不到再回落**基线** ——
+     * 知识库数据还没加载完时 getter 会返回 null，界面就冒出「这一条现在取不到」
+     * （2026-11-14 用户截图里那一行红字）。基线总是有的。
+     */
     const entry =
       kind === 'rule'
-        ? getEffectiveRuleRaw(id)
+        ? (getEffectiveRuleRaw(id) ??
+          (FORMULA_RULES.find((r) => r.id === id) as unknown as Record<string, unknown> | undefined))
         : kind === 'dose'
-          ? getEffectiveDoseRaw(id)
-          : getEffectiveDrugRaw(id)
+          ? (getEffectiveDoseRaw(id) ?? (FORMULA_DOSE_BY_ID[id] as unknown as Record<string, unknown> | undefined))
+          : (getEffectiveDrugRaw(id) ?? (DRUG_BY_ID[id] as unknown as Record<string, unknown> | undefined))
     if (!entry) {
       setToast('这一条现在取不到（可能刚被删掉）—— 刷新页面再试。')
       return
@@ -868,6 +908,8 @@ export function FormulaLibrary({
           id={editing.id}
           entry={editing.entry}
           title={editing.title}
+          initialTab={editing.initialTab}
+          focusDose={editing.focusDose}
           onClose={() => setEditing(null)}
         />
       )}

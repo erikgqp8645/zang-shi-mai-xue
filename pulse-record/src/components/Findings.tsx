@@ -125,7 +125,13 @@ export interface LibraryTools {
    * ⓘ 用在「剂量对照」那几行：同和堂版成方（`dose`）与讲稿方剂（`drug`）
    *   是**两个不同的条目**，点哪一行的编辑，改的就是那一条。
    */
-  onEditEntry?: (kind: string, id: string, name: string) => void
+  onEditEntry?: (
+    kind: string,
+    id: string,
+    name: string,
+    /** 这一行剂量属于哪一条（rule）。给了就打开**那条 rule** 的编辑弹层，落在「剂量」页 */
+    parent?: { kind: string; id: string },
+  ) => void
 }
 
 /**
@@ -481,7 +487,9 @@ export function FormulaItem({
                 sources={hit.drugs && hit.drugs.length > 0 ? ['th'] : ['th', 'draft']}
                 skipWhenMissing
                 canEdit={!!tools?.onEditEntry}
-                onEdit={tools?.onEditEntry}
+                onEdit={(k, i, n) =>
+                  tools?.onEditEntry?.(k, i, n, { kind: 'rule', id: item.hit.id })
+                }
               />
             ))}
         </div>

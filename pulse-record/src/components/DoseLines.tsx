@@ -84,8 +84,15 @@ function DoseBlock({
       </p>
     )
   }
+  /*
+   * 使用者自己关掉的条目不列（`visible === false`）。
+   * 全被关掉时整块不渲染 —— 留个空标题只会让人以为加载失败。
+   */
+  const shown = view.entries.filter((e) => e.visible !== false)
+  if (shown.length === 0) return null
+
   /** 候选（不含母方）—— 母方是**另一个方**，不算「同名不同号」 */
-  const cands = view.entries.filter((e) => e.role !== 'parent')
+  const cands = shown.filter((e) => e.role !== 'parent')
   /** 名称里含查询词的候选：多条时不替读者选，只有一条时说清是「含」不是「同」 */
   const note =
     cands.length > 1
@@ -98,7 +105,7 @@ function DoseBlock({
         {view.matched === 'contains' && note}
         {view.matched === 'alias' && '　别名对照（有明确对照依据）'}
       </span>
-      {view.entries.map((e) => {
+      {shown.map((e) => {
         /** 别名对照：用名不同，但有明确对照依据；母方是另一个方，名字一定要露出来 */
         const showName =
           view.matched === 'contains' || view.matched === 'alias' || e.role === 'parent'

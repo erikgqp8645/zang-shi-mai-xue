@@ -48,6 +48,18 @@ export interface DoseEntry {
   id?: string
   /** 组成与剂量（原文照录） */
   composition?: string
+  /** 这一条要不要显示（`false` ＝ 使用者自己关掉了） */
+  visible?: boolean
+  /** 关联的「科中」条目 id（有才能编辑比例） */
+  scienceId?: string
+  /**
+   * 这一条的完整原始 JSON（当前生效值）。
+   *
+   * ⓘ 编辑弹层直接用它，不再回头按 id 去 store 里查 —— 知识库数据还没加载完
+   *   （或刚好没下发这一类）时，`getEffectiveDoseRaw` 会返回 null，界面上就冒出
+   *   「这一条现在取不到」（2026-11-14 用户截图）。数据本来就在手里，别绕一圈。
+   */
+  raw?: Record<string, unknown>
   /** 科中／科学中药比例 */
   science?: string
   /** 服法（讲稿 2010 才有） */
@@ -110,12 +122,24 @@ function effectiveDrugs(): Drug[] {
 function toEntry(d: FormulaDose): DoseEntry {
   const sciName = DOSE_SCIENCE_NAME[d.id]
   const sci = sciName ? FORMULA_SCIENCE_BY_NAME[sciName] : undefined
+  /*
+   * 「科中」的比例也可能被管理员改过（覆盖层 `science` 分组）——
+   * 这里要取**生效值**，否则刚改完比例，剂量行还显示老的那一串。
+   */
+  const sciOv = sci ? getLibraryState().overrides?.science?.[sci.id] : undefined
+  const sciRatio =
+    sciOv && !sciOv.deleted && typeof sciOv.payload?.ratio === 'string'
+      ? String(sciOv.payload.ratio)
+      : sci?.ratio
   return {
     kind: 'dose',
     id: d.id,
     name: d.name,
     composition: d.composition,
-    science: sci?.ratio,
+    visible: d.visible,
+    scienceId: sci?.id,
+    science: sciRatio,
+    raw: { ...d },
     source: `《臧氏脉学方剂汇总统表（同和堂版）》· 第 ${d.page} 页 · 单位：克`,
   }
 }
@@ -310,6 +334,7 @@ function toDraftEntry(d: Drug): DoseEntry {
     science: d.science,
     usage: d.usage,
     source: d.source,
+    raw: { ...d },
   }
 }
 

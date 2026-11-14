@@ -4681,6 +4681,113 @@ button:disabled {
   margin: 8px 14px 0;
 }
 
+/* ---- 「剂量」页签：在同一个编辑弹层里改引用的成方／方剂 ---- */
+
+/*
+ * ⚠️ `.pr-ed-body` 本身是横向 flex（「条目」页是左边方名、右边表单）。
+ *    剂量页是一列一列往下排的，必须覆盖成 block —— 否则每个方名分组
+ *    会被挤成并排的窄列，文字竖着跑（2026-11-14 实际踩到）。
+ */
+/* 特异性要压过后面定义的 `.pr-ed-body { display: flex }`（同权重时后者赢） */
+.pr-ed-body.pr-dosetab {
+  display: block;
+  max-height: min(60vh, 620px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.pr-dosetab-hint {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--clay);
+  background: var(--paper-raised);
+  color: var(--ink-3);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+.pr-dosetab-hint b {
+  color: var(--ink-2);
+}
+
+.pr-dosetab-saved {
+  margin: 0 0 10px;
+  color: var(--sage);
+  font-size: 12.5px;
+}
+
+.pr-dosetab-group {
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.pr-dosetab-group:last-child {
+  border-bottom: 0;
+}
+
+.pr-dosetab-name {
+  margin: 0 0 6px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pr-dosetab-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+.pr-dosetab-src {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  border-radius: 2px;
+  background: var(--paper-sunk);
+  color: var(--ink-3);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.pr-dosetab-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--ink-2);
+}
+
+/* 被隐藏的条目：仍列出来（管理员要能放回去），但压暗并打标 */
+.pr-dosetab-row.is-hidden .pr-dosetab-text {
+  opacity: 0.55;
+}
+
+.pr-dosetab-tag {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: 2px;
+  background: var(--paper-sunk);
+  color: var(--ink-3);
+  font-size: 11px;
+}
+
+.pr-dosetab-form {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px dashed var(--line-soft);
+  border-radius: 3px;
+  background: var(--card);
+}
+
+.pr-dosetab-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
 .pr-ed-body {
   display: flex;
   gap: 14px;
