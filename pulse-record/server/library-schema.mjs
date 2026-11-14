@@ -207,7 +207,8 @@ export const LIBRARY_KINDS = {
     fields: [
       { key: 'id', label: '科中 id', type: 'string', required: true },
       { key: 'name', label: '科中名', type: 'string', required: true },
-      { key: 'ratio', label: '比例', type: 'string', required: true },
+      // 可以为空 —— 清空表示「这一条没有科中比例」（2026-11-15 用户要求）
+      { key: 'ratio', label: '比例', type: 'string' },
       { key: 'page', label: '页码', type: 'page', required: true },
     ],
   },
