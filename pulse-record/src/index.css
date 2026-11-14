@@ -1085,25 +1085,10 @@ button:disabled {
 }
 
 /* 「剂量对照」每行末尾的编辑按钮 —— 贴着出处，改的就是这一条 */
+/* 编辑按钮的外观统一由 `.pr-led-btn` 给，这里只定位置 */
 .pr-dose-edit {
   margin-left: 6px;
-  padding: 0 7px;
-  font: inherit;
-  font-size: 11px;
-  line-height: 1.7;
-  color: var(--ink-3);
-  background: transparent;
-  border: 1px solid var(--line-soft);
-  border-radius: 2px;
-  cursor: pointer;
   vertical-align: baseline;
-  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
-}
-
-.pr-dose-edit:hover {
-  border-color: var(--cinnabar-soft);
-  color: var(--cinnabar);
-  background: var(--cinnabar-wash);
 }
 
 .pr-panel {
@@ -4304,20 +4289,9 @@ button:disabled {
   color: var(--ink-3);
 }
 
+/* 编辑按钮的外观统一由 `.pr-led-btn` 给，这里只定位置 */
 .pr-ps-edit {
   margin-left: auto;
-  font: inherit;
-  font-size: 11px;
-  padding: 1px 8px;
-  border: 1px solid var(--divider);
-  border-radius: 2px;
-  background: var(--card);
-  color: var(--clay);
-  cursor: pointer;
-}
-
-.pr-ps-edit:hover {
-  border-color: var(--clay);
 }
 
 .pr-ps-list {

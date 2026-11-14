@@ -118,14 +118,14 @@ function DoseBlock({
             {canEdit && onEdit && e.id && e.kind ? (
               <button
                 type="button"
-                className="pr-dose-edit"
+                className="pr-led-btn pr-dose-edit"
                 title={`编辑这一条：${e.name}（${kindLabel(e.kind)}）`}
                 onClick={(ev) => {
                   ev.stopPropagation()
                   onEdit(e.kind as string, e.id as string, e.name)
                 }}
               >
-                ✎ 编辑
+                编辑
               </button>
             ) : null}
           </p>

@@ -82,7 +82,8 @@ export function PatternStrip({ formulaId, formulaLabel, baseline }: Props) {
         <span className="pr-ps-count">
           {patterns.length > 1 ? `${patterns.length} 张` : '条件示意'}
         </span>
-        <button type="button" className="pr-ps-edit" onClick={() => setEditing(true)}>
+        {/* 与条目上的「编辑／删除」同一套按钮样式（`pr-led-btn`），只留定位 */}
+        <button type="button" className="pr-led-btn pr-ps-edit" onClick={() => setEditing(true)}>
           编辑
         </button>
       </div>
