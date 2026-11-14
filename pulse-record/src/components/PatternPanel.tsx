@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { groupRows } from '../domain/layout'
 import { cellKey, type Hand, type LayoutMode } from '../domain/types'
-import { COMMON_GROUPS, SYMBOL_BY_CODE, parseCodes } from '../domain/symbols'
+import { COMMON_GROUPS, SYMBOL_BY_CODE, parseCodes, type CustomSymbol } from '../domain/symbols'
+import { listCustomSymbols } from '../api/symbols'
 import { allCells, termOf, type CellRequirement, type PulsePattern } from '../domain/pulse-pattern'
 
 /**
@@ -79,6 +80,30 @@ export function PatternPanel({ value, onChange, formulaLabel, entrySource }: Pro
   const [focused, setFocused] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  /*
+   * 自定义符号（使用者自建的，如 涩＝S）。
+   *
+   * ⚠️ 之前这一页只认固定的 14 个代码：主页面符号面板里有的自定义符号，
+   *    到了脉象图编辑就「消失」了 —— 同一套符号被分成两套（2026-11-14 用户反馈）。
+   *    现在与主页面共用同一份 `/api/symbols`，符号条里多出一行「自定义」。
+   */
+  const [customs, setCustoms] = useState<CustomSymbol[]>([])
+  useEffect(() => {
+    let alive = true
+    listCustomSymbols()
+      .then((list) => {
+        if (alive) setCustoms(list)
+      })
+      .catch(() => {
+        /* 取不到就只用固定符号 —— 不让它挡住画图 */
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
+  /** 解析时要把自定义代码一起认上，否则手打 `S` 会被当垃圾字符丢掉 */
+  const extraCodes = useMemo(() => customs.map((c) => c.code), [customs])
+
   const entry = value[active] as PulsePattern | undefined
   const layout = entry?.layout ?? 'nine'
   const groups = useMemo(() => groupRows(layout), [layout])
@@ -101,7 +126,7 @@ export function PatternPanel({ value, onChange, formulaLabel, entrySource }: Pro
    */
   function writeLive(cell: string, text: string) {
     if (!entry) return
-    const codes = parseCodes(text)
+    const codes = parseCodes(text, extraCodes)
     const cells = withCell(entry.cells, cell, codes)
     onChange(value.map((p, i) => (i === active ? { ...p, cells } : p)))
   }
@@ -147,7 +172,7 @@ export function PatternPanel({ value, onChange, formulaLabel, entrySource }: Pro
   function switchTo(index: number) {
     if (entry && Object.keys(raw).length > 0) {
       let cells = entry.cells
-      for (const [cell, text] of Object.entries(raw)) cells = withCell(cells, cell, parseCodes(text))
+      for (const [cell, text] of Object.entries(raw)) cells = withCell(cells, cell, parseCodes(text, extraCodes))
       onChange(value.map((p, i) => (i === active ? { ...p, cells } : p)))
       setRaw({})
     }
@@ -338,6 +363,22 @@ export function PatternPanel({ value, onChange, formulaLabel, entrySource }: Pro
                   ))}
                 </div>
               ))}
+              {customs.length > 0 ? (
+                <div className="pr-ed-pal-row">
+                  <span className="pr-ed-pal-title">自定义</span>
+                  {customs.map((c) => (
+                    <button
+                      key={c.code}
+                      type="button"
+                      className="pr-ed-code"
+                      title={`${c.name}（自定义符号，与主页面共用）`}
+                      onClick={() => appendCode(c.code)}
+                    >
+                      {c.code}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               <div className="pr-ed-pal-row">
                 <span className="pr-ed-pal-title">操作</span>
                 <button type="button" className="pr-ed-code is-wide" onClick={clearFocused}>
