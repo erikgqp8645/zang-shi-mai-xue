@@ -3849,6 +3849,162 @@ button:disabled {
 
 /* ---------- 用方知识库（③ 开方药档里的可折叠全量视图） ---------- */
 
+/* ==================================================================
+   用方知识库 · 四种呈现方式
+   ------------------------------------------------------------------
+   内容只有一份（FormulaLibrary 的 `content`），这里只管外壳：
+   当前位置 / 弹窗 / 侧边栏 / 单独页面。
+   ⚠️ 动画只用 opacity —— 一旦给浮层加 transform，里面的 `position: fixed`
+     子元素（RuleEditor / ConfirmDialog）会被这个浮层当成包含块，整块跑位。
+   ================================================================== */
+
+/* ---- 独立页面 /library ---- */
+.pr-lib-page {
+  max-width: 1200px;
+}
+
+.pr-lib-page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.pr-lib-page-titles h1 {
+  margin: 0 0 4px;
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+}
+
+.pr-lib-page-back {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border: 1px solid var(--divider);
+  border-radius: 2px;
+  color: var(--ink-2);
+  font-size: 13px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.pr-lib-page-back:hover {
+  border-color: var(--line-soft);
+  background: var(--paper-raised);
+  color: var(--ink);
+}
+
+/* 独立页面里内容走文档流：整页滚，别再套一层 70vh 的滚动框 */
+.pr-lib-standalone .pr-flib {
+  margin: 0;
+}
+
+.pr-lib-standalone .pr-flib-body {
+  max-height: none;
+  overflow: visible;
+}
+
+/* ---- 入口条：浮层形态关掉后，③ 里留的那一条 ---- */
+.pr-lib-entry {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+  background: var(--card);
+}
+
+.pr-lib-entry-btn {
+  flex: 1 1 260px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--divider);
+  border-radius: 3px;
+  background: var(--paper-raised);
+  color: var(--ink-2);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pr-lib-entry-btn:hover {
+  border-color: var(--line-soft);
+  background: #fff;
+}
+
+.pr-lib-entry-title {
+  color: var(--ink);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pr-lib-entry-count {
+  flex: 1;
+  min-width: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+/* ---- 形态切换（头部与入口条共用） ---- */
+.pr-lib-mode-switch {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.pr-lib-mode-btn {
+  padding: 2px 8px;
+  border: 1px solid var(--divider);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pr-lib-mode-btn:hover {
+  color: var(--ink-2);
+  border-color: var(--line-soft);
+}
+
+.pr-lib-mode-btn.is-on {
+  background: var(--cinnabar-wash);
+  border-color: var(--cinnabar-soft);
+  color: var(--cinnabar);
+}
+
+.pr-flib-modebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+@media (max-width: 640px) {
+  .pr-lib-entry-btn {
+    flex: 1 1 100%;
+  }
+
+  .pr-lib-entry-count {
+    display: none;
+  }
+}
+
 .pr-flib {
   margin: 4px 0 14px;
   border: 1px solid var(--line-soft);

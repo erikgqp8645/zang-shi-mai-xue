@@ -23,6 +23,7 @@ import {
 import { TriadImage } from './components/TriadImage'
 import sealUrl from './assets/seal-mai-an.png'
 import { FormulaLibrary } from './components/FormulaLibrary'
+import { LibraryStandalonePage } from './components/LibraryStandalonePage'
 import { PatternsProvider } from './state/patterns'
 import { LibraryProvider, useLibrary } from './state/library'
 import type { FormulaLink } from './domain/formula-links'
@@ -56,6 +57,16 @@ import { ApiError, UNAUTHORIZED_EVENT } from './api/http'
 
 function uid(): string {
   return `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+}
+
+/**
+ * 用方知识库的独立地址 `/library`。
+ *
+ * 服务端静态托管带 SPA 回退（`server/index.mjs`：找不到文件就回 `index.html`），
+ * 所以不需要路由库，这里按 pathname 分一下就够了。
+ */
+function isLibraryRoute(): boolean {
+  return window.location.pathname.replace(/\/+$/, '') === '/library'
 }
 
 /** 用药记录的 id（与就诊 id 同族，但前缀不同） */
@@ -775,6 +786,21 @@ export default function App() {
         onEnterSingle={() => setUser({ id: 'local', loginName: 'local', displayName: '本机用户', role: 'admin' })}
         onLoggedIn={setUser}
       />
+    )
+  }
+
+  /**
+   * 用方知识库的独立地址 —— 单独一个页面，方便收藏、新标签页并排看、
+   * 手机上直接打开（对着病例查方时最顺手）。
+   * 只渲染知识库，不加载记录表那一整套。
+   */
+  if (isLibraryRoute()) {
+    return (
+      <LibraryProvider>
+        <PatternsProvider>
+          <LibraryStandalonePage canEdit={user.role === 'admin'} />
+        </PatternsProvider>
+      </LibraryProvider>
     )
   }
 

@@ -88,6 +88,13 @@ interface Props {
    * ⓘ 非管理员看到的**内容**与管理员完全一样（知识库是公共资料）。
    */
   canEdit: boolean
+  /**
+   * 强制某种形态（独立页面 `/library` 用）。
+   *
+   * 传了就不再读 localStorage、也不显示形态切换与关闭按钮 ——
+   * 这个地址本身就是「单独页面」，在它上面切形态没有意义。
+   */
+  forceMode?: LibMode
 }
 
 /** 依脉开方的分组维度：讲稿原序 / 按五行 / 按左右手（与 ② 面板同一套） */
@@ -129,8 +136,77 @@ function libraryRule(rule: FormulaRule): SessionFormulaHit {
   }
 }
 
-export function FormulaLibrary({ focus, showStanding, onToggleStanding, canEdit }: Props) {
+/* ------------------------------------------------------------------ */
+/* 两种呈现方式（同一份内容，换的是外壳）                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 知识库的呈现方式 —— 内容完全相同，只换容器：
+ *
+ * - `inline` 当前位置：③ 档里的折叠块
+ * - `page`   单独页面：**另一个地址** `/library`（`LibraryStandalonePage`）
+ *
+ * ⚠️ 只是外壳不同 —— 内容、搜索、编辑、定位逻辑一份，不复制。
+ *    粘在一起的那种「两套实现」，改一处漏一处。
+ */
+type LibMode = 'inline' | 'page'
+
+const LIB_MODES: { key: LibMode; label: string; hint: string }[] = [
+  { key: 'inline', label: '当前位置', hint: '留在 ③ 开方药里，向下展开' },
+  { key: 'page', label: '单独页面', hint: '在 /library 打开，方便收藏与并排查看' },
+]
+
+const LIB_MODE_KEY = 'pulse.library.view'
+
+function readLibMode(): LibMode {
+  try {
+    const v = localStorage.getItem(LIB_MODE_KEY)
+    /*
+     * 「弹窗」「侧边栏」两种形态 2026-11-14 按用户要求删掉了。
+     * 老浏览器里可能还存着这两个值 —— 一律回落「当前位置」，
+     * 免得留下一个选不中任何按钮的残留状态。
+     */
+    if (v === 'page') return 'page'
+  } catch {
+    /* 隐私模式下取不到 localStorage —— 回落默认值即可 */
+  }
+  return 'inline'
+}
+
+/** 呈现方式的小按钮（头部与入口条各放一处，两个入口都能切） */
+function ModeSwitch({ mode, onChange }: { mode: LibMode; onChange: (m: LibMode) => void }) {
+  return (
+    <div className="pr-lib-mode-switch" role="group" aria-label="用方知识库的呈现方式">
+      {LIB_MODES.map((m) => (
+        <button
+          key={m.key}
+          type="button"
+          className={`pr-lib-mode-btn${mode === m.key ? ' is-on' : ''}`}
+          aria-pressed={mode === m.key}
+          title={m.hint}
+          onClick={() => onChange(m.key)}
+        >
+          {m.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+export function FormulaLibrary({
+  focus,
+  showStanding,
+  onToggleStanding,
+  canEdit,
+  forceMode,
+}: Props) {
   const [open, setOpen] = useState(false)
+  /** 用户主动关掉过 —— 用来压住「focus／搜索自动展开」（否则关不掉） */
+  const [hidden, setHidden] = useState(false)
+  /** 呈现方式：两处入口都能切，记住上次的选择 */
+  const [savedMode, setMode] = useState<LibMode>(readLibMode)
+  /** 独立页面强制整页形态，不跟 localStorage 走 */
+  const mode: LibMode = forceMode ?? savedMode
   const [dim, setDim] = useState<Dim>('route')
   const [query, setQuery] = useState('')
   /** 合并层读数：手填的脉象图也要能被搜到 */
@@ -264,8 +340,59 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding, canEdit 
 
   const searching = query.trim() !== ''
 
-  /** 有 focus 或正在搜索时**强制展开** —— 不展开就没法滚到里面／看见结果 */
-  const expanded = open || !!focus || searching
+  /**
+   * 有 focus 或正在搜索时**强制展开** —— 不展开就没法滚到里面／看见结果。
+   * `hidden` 压在上面：用户按了关闭就是关了，哪怕还挂着 focus。
+   * 独立页面（`forceMode`）永远展开 —— 那个地址上没有「折叠」这回事。
+   */
+  const expanded = forceMode ? true : !hidden && (open || !!focus || searching)
+
+  /** 收起 */
+  function closeLibrary() {
+    setHidden(true)
+    setOpen(false)
+  }
+
+  /** 展开（`inline` 下就是折叠块打开） */
+  function openLibrary() {
+    setHidden(false)
+    setOpen(true)
+  }
+
+  function toggleOpen() {
+    if (expanded) closeLibrary()
+    else openLibrary()
+  }
+
+  /**
+   * 换呈现方式。
+   *
+   * 切回「当前位置」时顺手清 `hidden` —— 用户点的是形态，不是关闭，
+   * 切完还得看得见内容。
+   */
+  function changeMode(next: LibMode) {
+    setMode(next)
+    try {
+      localStorage.setItem(LIB_MODE_KEY, next)
+    } catch {
+      /* 存不下只影响记忆，不影响本次切换 */
+    }
+    if (next === 'page') {
+      // 「单独页面」= **另一个地址**：当场打开。
+      // ⚠️ 被浏览器拦了也不要紧 —— 入口条上是一枚真链接，点它一样能开。
+      window.open('/library', '_blank', 'noopener')
+      return
+    }
+    setHidden(false)
+  }
+
+  /** focus 进来时一律重新打开（可能刚被关掉，或还停在别的形态） */
+  useEffect(() => {
+    if (focus) {
+      setHidden(false)
+      setOpen(true)
+    }
+  }, [focus])
 
   /** 当前要高亮的锚点 id（由 focus 推出，不用另外存 state） */
   const focusId = focus ? formulaAnchorId(focus) : ''
@@ -395,13 +522,25 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding, canEdit 
   const hitCount = hitRules.size + hitDrugs.size
   const nothing = searching && hitCount === 0 && hitRefs.length === 0
 
-  return (
+  /**
+   * 内容本体 —— 两种形态共用这一份（外壳不同，内容不复制）。
+   * ⚠️ 不要为了独立页面再写一遍列表，两条渲染路径迟早会长歪。
+   */
+  const content = (
     <section className={`pr-flib${expanded ? ' is-open' : ''}`} id="pr-flib">
       <header className="pr-flib-head">
+        {/*
+          形态切换放在 header 里是因为它**不受折叠影响** —— 收起时也得切得回来。
+        */}
+        <div className="pr-flib-modebar">
+          {/* 独立页面上不显示形态切换 —— 它本身就是「单独页面」 */}
+          {!forceMode && <ModeSwitch mode={mode} onChange={changeMode} />}
+        </div>
+
         <button
           type="button"
           className="pr-flib-toggle"
-          onClick={() => setOpen(!open)}
+          onClick={toggleOpen}
           aria-expanded={expanded}
         >
           <span className="pr-flib-caret">{expanded ? '▾' : '▸'}</span>
@@ -424,7 +563,11 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding, canEdit 
             value={query}
             placeholder="搜方名 · 脉象（如 五味异功散、右寸）"
             aria-label="搜索用方知识库"
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              // 一打字就要看得见结果 —— 收起状态下也得自动展开
+              setHidden(false)
+            }}
           />
           {query !== '' && (
             <button
@@ -767,4 +910,28 @@ export function FormulaLibrary({ focus, showStanding, onToggleStanding, canEdit 
       )}
     </section>
   )
+
+  /* ---------------- ② 单独页面本体（地址 /library） ---------------- */
+  if (forceMode) {
+    return <div className="pr-lib-standalone">{content}</div>
+  }
+
+  /* ---------------- ② 单独页面：③ 里只放一枚真链接 ---------------- */
+  if (mode === 'page') {
+    return (
+      <div className="pr-lib-entry">
+        <a className="pr-lib-entry-btn" href="/library" target="_blank" rel="noreferrer">
+          <span className="pr-lib-entry-title">用方知识库</span>
+          <span className="pr-lib-entry-count">
+            讲义 p44 依脉用方 {visibleRules.length} 条 · 讲稿方剂 {getVisibleDrugs().length} 方
+          </span>
+        </a>
+        {/* 入口条上也能切形态 —— 免得选了「单独页面」就回不来 */}
+        <ModeSwitch mode={mode} onChange={changeMode} />
+      </div>
+    )
+  }
+
+  /* ---------------- ① 当前位置：原样留在页面流里 ---------------- */
+  return content
 }
