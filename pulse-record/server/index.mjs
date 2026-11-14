@@ -62,6 +62,7 @@
 
 import { createServer } from 'node:http'
 import { existsSync, readFileSync, statSync } from 'node:fs'
+import { brotliCompressSync, gzipSync, constants as zlibConstants } from 'node:zlib'
 import { join, extname, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -273,9 +274,78 @@ function serveStatic(req, res) {
     sendJson(res, 404, { error: 'not found' })
     return
   }
-  const body = readFileSync(file)
-  res.writeHead(200, { 'content-type': MIME[extname(file)] ?? 'application/octet-stream', 'cache-control': 'no-store' })
+  const type = MIME[extname(file)] ?? 'application/octet-stream'
+  const raw = readFileSync(file)
+
+  /*
+   * 缓存策略 —— 走 Cloudflare 的手机端，这一条影响最大。
+   *
+   * 原来一律 `no-store`：每次打开页面都要重新下载整包 JS/CSS，手机（尤其是
+   * 经 Cloudflare 的跨境链路）慢得肉眼可见。改成：
+   *   /assets/*   构建产物文件名带内容哈希 ⇒ 一年 immutable，浏览器与 CF 都直接用缓存
+   *   index.html  每次回来验一下（它才是指向哪个哈希的那份清单）
+   *   其它        （图标、底图等）一小时
+   */
+  const cacheControl =
+    safe === '/index.html'
+      ? 'no-cache'
+      : safe.startsWith('/assets/')
+        ? 'public, max-age=31536000, immutable'
+        : 'public, max-age=3600'
+
+  const { body, encoding } = encodedStatic(
+    file,
+    raw,
+    type,
+    String(req.headers['accept-encoding'] ?? ''),
+  )
+
+  const headers = { 'content-type': type, 'cache-control': cacheControl }
+  if (encoding) {
+    headers['content-encoding'] = encoding
+    headers.vary = 'Accept-Encoding'
+  }
+  res.writeHead(200, headers)
   res.end(body)
+}
+
+/**
+ * 静态资源编码缓存：key = 路径 ＋ mtime。
+ *
+ * 不缓存的话，每个请求都要把 JS（500KB 级）压一遍 —— 省了带宽、费了 CPU，
+ * 首屏反而更慢。构建产物换版本时文件名会变，mtime 也变，旧条目自然失效。
+ */
+const STATIC_ENCODED = new Map()
+
+/** 只压文本类：图片／字体本身就是压缩格式，再压没收益还费 CPU */
+const COMPRESSIBLE = /^(text\/|application\/(javascript|json|xml)|image\/svg\+xml)/
+
+function encodedStatic(file, body, type, acceptEncoding) {
+  if (!COMPRESSIBLE.test(type) || body.length < 1024) return { body, encoding: null }
+
+  const key = `${file}:${statSync(file).mtimeMs}`
+  let entry = STATIC_ENCODED.get(key)
+  if (!entry) {
+    // 构建产物就那么几个文件；超了说明来回换过版本，整张表清掉即可
+    if (STATIC_ENCODED.size > 64) STATIC_ENCODED.clear()
+    entry = {}
+    STATIC_ENCODED.set(key, entry)
+  }
+
+  if (/\bbr\b/.test(acceptEncoding)) {
+    // quality 5：压缩率与耗时折中（11 会把首次请求拖慢几百毫秒）
+    entry.br ??= brotliCompressSync(body, {
+      params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 5 },
+    })
+    return { body: entry.br, encoding: 'br' }
+  }
+
+  if (/\bgzip\b/.test(acceptEncoding)) {
+    entry.gz ??= gzipSync(body)
+    return { body: entry.gz, encoding: 'gzip' }
+  }
+
+  return { body, encoding: null }
 }
 
 /* ------------------------------ 账号接口 ------------------------------ */
