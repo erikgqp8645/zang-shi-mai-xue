@@ -280,7 +280,7 @@ export function RuleEditor({
           <header className="pr-ps-modal-head">
             <h4>{isCreate ? '新增条目' : '编辑条目'}</h4>
             <span className="pr-ed-subject" title={title}>
-              {isCreate ? String(draft.condition ?? '还没填条件') : title}
+              {isCreate ? String(draft.condition ?? '还没填脉象') : title}
             </span>
             <button type="button" className="pr-ps-close" onClick={onClose} disabled={saving}>
               ✕

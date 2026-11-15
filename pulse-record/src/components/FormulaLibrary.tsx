@@ -509,9 +509,11 @@ export function FormulaLibrary({
     // 讲稿原序：按 route 分组，顺序依 FORMULA_ROUTE_ORDER
     const map = new Map<string, FormulaRule[]>()
     for (const r of visibleRules) {
-      const list = map.get(r.route) ?? []
+      // 「所属讲次／路线」现在可以为空 —— 归到「未标注」这一组，别留一个空标题
+      const key = (r.route ?? '').trim() || '（未标注所属讲次）'
+      const list = map.get(key) ?? []
       list.push(r)
-      map.set(r.route, list)
+      map.set(key, list)
     }
     const order = [
       ...FORMULA_ROUTE_ORDER,

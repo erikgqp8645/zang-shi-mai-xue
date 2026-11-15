@@ -180,7 +180,8 @@ export function toMarkdown(
     for (const { session, hit } of formulaHits) {
       if (hit.route !== route) {
         route = hit.route
-        lines.push(`**${route}**`)
+        // 讲次可为空 —— 别输出一个「****」
+        lines.push(`**${(route ?? '').trim() || '（未标注所属讲次）'}**`)
         lines.push('')
       }
       const f = hit.formulas.length > 0 ? `　方：${hit.formulas.join('、')}` : ''

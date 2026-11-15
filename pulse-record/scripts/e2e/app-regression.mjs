@@ -904,7 +904,7 @@ try {
       return 0;
     })()`)
   await fillField('所属讲次／路线', '回归自测')
-  await fillField('条件', '回归·不失焦保存')
+  await fillField('脉象', '回归·不失焦保存')
   await fillField('治法', '回归治法')
   await fillField('出处', '回归自测')
   await fillField('原文', '回归自测：填完格子不失焦直接保存。')

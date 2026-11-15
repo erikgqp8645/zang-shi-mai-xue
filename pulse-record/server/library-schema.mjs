@@ -92,8 +92,9 @@ export const LIBRARY_KINDS = {
     deletable: true,
     fields: [
       { key: 'id', label: '条目 id', type: 'string', required: true },
-      { key: 'route', label: '所属讲次／路线', type: 'string', required: true },
-      { key: 'condition', label: '条件', type: 'string', required: true },
+      // 可以为空 —— 不是每条都归属某个讲次（2026-11-15 用户要求）
+      { key: 'route', label: '所属讲次／路线', type: 'string' },
+      { key: 'condition', label: '脉象', type: 'string', required: true },
       { key: 'therapy', label: '治法', type: 'string', required: true },
       { key: 'formulas', label: '方名（用哪些方）', type: 'string[]', required: true },
       { key: 'adds', label: '添加药', type: 'string[]' },

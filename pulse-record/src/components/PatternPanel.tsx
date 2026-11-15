@@ -254,27 +254,26 @@ export function PatternPanel({ value, onChange, formulaLabel, entrySource }: Pro
         {entry ? (
           <>
             <div className="pr-ed-fields">
-              {multi ? (
-                <label className="pr-ed-field">
-                  <span>这张图的区分名</span>
-                  <input
-                    value={entry.title ?? ''}
-                    onChange={(e) => patchEntry({ title: e.target.value })}
-                    placeholder="如「浮大版」「兼尺弱」"
-                  />
-                  <small className="pr-led-hint">
-                    一条条目有多张图时才要区分；只有一张时，图名就是这条的方名。
-                  </small>
-                </label>
-              ) : (
-                <label className="pr-ed-field is-readonly">
-                  <span>图名</span>
-                  <b className="pr-ed-fixed">{entry.title || '（未命名）'}</b>
-                  <small className="pr-led-hint">
-                    图名就是本条目的方名（见「条目」页），不在这里另编一个。
-                  </small>
-                </label>
-              )}
+              {/*
+                图名**始终可改**。
+                ⚠️ 原来只有「一张条目下有多张图」时才给输入框，单图走只读分支 ——
+                  用户看到图名不对却改不了，只能先「新增一张」才解锁（2026-11-15 反馈）。
+                  图名是这张图自己的字段，与「条目」页的方名是两个东西，单图改它
+                  不会影响条目，所以没有理由锁住。
+              */}
+              <label className="pr-ed-field">
+                <span>{multi ? '这张图的区分名' : '图名'}</span>
+                <input
+                  value={entry.title ?? ''}
+                  onChange={(e) => patchEntry({ title: e.target.value })}
+                  placeholder={multi ? '如「浮大版」「兼尺弱」' : '如「三号上焦方（护航）」'}
+                />
+                <small className="pr-led-hint">
+                  {multi
+                    ? '一条条目有多张图时用来区分。'
+                    : '这张图的名字（与「条目」页的方名各自独立，改这里不会动方名）。'}
+                </small>
+              </label>
               <label className="pr-ed-field is-narrow">
                 <span>体例</span>
                 <select
