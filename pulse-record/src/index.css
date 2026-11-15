@@ -4244,6 +4244,17 @@ button:disabled {
   margin-bottom: 14px;
 }
 
+/* 已隐藏的条目（勾掉了「是否在知识库里显示」）—— 只有打开「已隐藏条目」开关时才出现 */
+.pr-flib-hidden-tag {
+  display: inline-block;
+  margin: 0 0 4px;
+  padding: 1px 8px;
+  border-radius: 2px;
+  background: var(--paper-sunk);
+  color: var(--ink-3);
+  font-size: 11.5px;
+}
+
 .pr-flib-anchor {
   scroll-margin-top: 80px;
   border-radius: 6px;

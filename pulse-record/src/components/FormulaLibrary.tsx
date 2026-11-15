@@ -6,7 +6,7 @@ import {
   LIBRARY_SETTINGS,
   type FormulaRule,
 } from '../domain/formulas'
-import { DRUG_BY_ID, DRUG_GROUPS, getVisibleDrugs, type Drug } from '../domain/drugs'
+import { DRUG_BY_ID, DRUG_GROUPS, getEffectiveDrugs, getVisibleDrugs, type Drug } from '../domain/drugs'
 import { FORMULA_DOSE_BY_ID } from '../domain/formula-table'
 import { isVisible } from '../domain/visibility'
 import { FORMULA_REFERENCE } from '../domain/medication'
@@ -213,6 +213,13 @@ export function FormulaLibrary({
   const [query, setQuery] = useState('')
   /** 合并层读数：手填的脉象图也要能被搜到 */
   const { patternsOf } = usePatterns()
+  /**
+   * 把「已隐藏」的条目也列出来（默认不列）。
+   *
+   * ⚠️ 没有这个开关时，把某条的「是否在知识库里显示」取消勾选 = **再也找不到它**
+   *   （2026-11-15 用户把「右关浮大」勾掉后找不到了）。
+   */
+  const [showHidden, setShowHidden] = useState(false)
 
   /**
    * 运行期生效集（基线 ⊕ 服务端覆盖层）。
@@ -478,9 +485,21 @@ export function FormulaLibrary({
    */
   const visibleRules = useMemo(
     () =>
-      getEffectiveRules().filter((r) => isVisible(r) && (showStanding || !r.always)),
+      getEffectiveRules().filter(
+        (r) => (showHidden || isVisible(r)) && (showStanding || !r.always),
+      ),
     // ⚠️ `ruleData` 在依赖里：覆盖层变了 ⇒ 生效集变了 ⇒ 这一组要重算
-    [showStanding, ruleData],
+    [showStanding, ruleData, showHidden],
+  )
+
+  /** 被隐藏的条目数（开关上显示） */
+  const hiddenRuleCount = useMemo(
+    () => getEffectiveRules().filter((r) => !isVisible(r)).length,
+    [ruleData],
+  )
+  const hiddenDrugCount = useMemo(
+    () => getEffectiveDrugs().filter((d) => !isVisible(d)).length,
+    [drugData],
   )
 
   /** 讲义 p44 依脉用方：按维度分组（全量，不是只列命中的） */
@@ -510,7 +529,7 @@ export function FormulaLibrary({
 
   /** 讲稿 2010 方剂：按维度分组（全量里**要显示**的那些） */
   const drugGroups = useMemo<Group<Drug>[]>(() => {
-    const visible = getVisibleDrugs()
+    const visible = getEffectiveDrugs().filter((d) => showHidden || isVisible(d))
     if (dim === 'wuxing') return groupByWuxing(visible, (d) => d.id)
     if (dim === 'hand') return groupByHand(visible, (d) => d.id)
     // 讲稿原序：按讲稿第二讲「叁、用方」的三种疗法
@@ -671,6 +690,24 @@ export function FormulaLibrary({
               常驻条目开关 —— 与② 命中区共用同一个（状态在 App 里）。
               常驻条目不依脉象，关掉后知识库里那一组（「用药禁忌」）整组消失。
             */}
+            {/*
+              把「已隐藏」的条目也列出来（默认不列）。
+              ⚠️ 少了它，取消「是否在知识库里显示」= 条目彻底找不到。
+            */}
+            <button
+              type="button"
+              className={`pr-filter-chip${showHidden ? ' is-on' : ''}`}
+              aria-pressed={showHidden}
+              onClick={() => setShowHidden(!showHidden)}
+              title="勾掉了「是否在知识库里显示」的条目也列出来（标「已隐藏」），方便重新勾回"
+            >
+              <span className="pr-filter-key">已隐藏条目</span>
+              <span className="pr-filter-num">
+                {hiddenRuleCount + hiddenDrugCount > 0
+                  ? `${hiddenRuleCount + hiddenDrugCount} 条`
+                  : '无'}
+              </span>
+            </button>
             <button
               type="button"
               className={`pr-filter-chip pr-standing-toggle${showStanding ? ' is-on' : ''}`}
@@ -769,6 +806,9 @@ export function FormulaLibrary({
                               route 标题已经表达了结构（详见 Findings.tsx 的 FormulaItem）。
                               从 ③ 的方名跳进来时（focusId 对上）自动展开那一条。
                             */}
+                            {!isVisible(r) ? (
+                              <span className="pr-flib-hidden-tag">已隐藏（取消勾选「是否在知识库里显示」）</span>
+                            ) : null}
                             <FormulaItem
                               item={libraryRule(r)}
                               srcNote=" · 全量条目（知识库）"
@@ -824,6 +864,9 @@ export function FormulaLibrary({
                             className={`pr-flib-anchor${focusId === formulaAnchor('drug', d.id) ? ' is-focus' : ''}`}
                           >
                             {/* 与上面同一种紧凑一行 —— 讲稿方剂也要能一眼扫完 */}
+                            {!isVisible(d) ? (
+                              <span className="pr-flib-hidden-tag">已隐藏（取消勾选「是否在知识库里显示」）</span>
+                            ) : null}
                             <DrugCard
                               drug={d}
                               showAttr={dim !== 'route'}
