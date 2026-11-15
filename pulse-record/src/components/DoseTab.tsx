@@ -66,17 +66,27 @@ export function DoseTab({ formulas, focusDose }: Props) {
 
   /** 按方名分组：每个方名下面并列两套资料 */
   const groups = useMemo(() => {
+    /** 覆盖层里是墓碑（删掉了）的条目 —— 直接不列，别让「隐藏」撞上 409 */
+    const isDeleted = (e: DoseEntry) =>
+      !!e.kind && !!e.id && !!overrides?.[e.kind]?.[e.id]?.deleted
+
     return formulas
       .map((name) => {
         const rows: Row[] = []
         const th = thDoseView(name)
-        for (const e of th.entries) rows.push({ key: `th:${e.kind}:${e.id ?? e.name}`, label: '同和堂版（克）', entry: e })
+        for (const e of th.entries) {
+          if (isDeleted(e)) continue
+          rows.push({ key: `th:${e.kind}:${e.id ?? e.name}`, label: '同和堂版（克）', entry: e })
+        }
         const dr = draftDoseView(name)
-        for (const e of dr.entries) rows.push({ key: `dr:${e.kind}:${e.id ?? e.name}`, label: '讲稿 2010（比例制）', entry: e })
+        for (const e of dr.entries) {
+          if (isDeleted(e)) continue
+          rows.push({ key: `dr:${e.kind}:${e.id ?? e.name}`, label: '讲稿 2010（比例制）', entry: e })
+        }
         return { name, rows }
       })
       .filter((g) => g.rows.length > 0)
-    // ⚠️ `overrides` 只是依赖：保存后要重新查一遍，否则还显示旧组成
+    // ⚠️ `overrides` 是依赖：保存后要重新查一遍，否则还显示旧组成／已删条目
   }, [formulas, overrides])
 
   function startEdit(entry: DoseEntry) {
