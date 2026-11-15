@@ -30,3 +30,43 @@ export function ymdToTimestamp(ymd: string): number {
   if (!m) return Date.now()
   return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime()
 }
+
+/**
+ * 同一天的**第几次**记录标签。
+ *
+ * 第一条就是 `261115`；同一天再来一条变成 `261115-2`、`261115-3`……
+ * 依据是讲稿自己的体例：同一天有多个分节时记作 `99/6/13-2`（后缀表示当次第几个分节）。
+ *
+ * ## 怎么数「同一天」
+ *
+ * 按 `at`（当天 00:00 的时间戳）落在这一天内来数，**不看标签文字** ——
+ * 标签可能被手工改过（如改成「261115 复诊」），拿文字比会漏算。
+ *
+ * ## 序号怎么取
+ *
+ * 取当天**还没被用的最小序号**（从 2 开始往上找）。
+ *
+ * ⚠️ 不能用「当天条数 + 1」：第一条、第二条、第三条里删掉第二条后，
+ *    条数是 2，算出来 `-3` —— 与已有的 `-3` 撞号。找空位就不会。
+ *    删掉中间那条后再新增，会复用那个空位（`-2`），这没问题。
+ */
+export function daySessionLabel(
+  ymd: string,
+  sessions: { label: string; at?: number }[],
+): string {
+  const base = ymdToLabel(ymd)
+  if (!base) return ''
+
+  const start = ymdToTimestamp(ymd)
+  const end = start + 86_400_000
+  const sameDay = sessions.filter((s) => {
+    const at = typeof s.at === 'number' ? s.at : null
+    return at !== null && at >= start && at < end
+  })
+  if (sameDay.length === 0) return base
+
+  const used = new Set(sameDay.map((s) => s.label))
+  let n = 1
+  while (used.has(n === 1 ? base : `${base}-${n}`)) n += 1
+  return n === 1 ? base : `${base}-${n}`
+}

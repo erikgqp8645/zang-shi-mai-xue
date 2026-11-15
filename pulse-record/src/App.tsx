@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Constitution, LayoutMode, RecordSet, Session, Therapy } from './domain/types'
 import { cellKey } from './domain/types'
 import { groupRows } from './domain/layout'
-import { todayYmd, ymdToLabel, ymdToTimestamp } from './domain/dates'
+import { daySessionLabel, todayYmd, ymdToLabel, ymdToTimestamp } from './domain/dates'
 import { evaluateRules, type RuleContext } from './domain/rules'
 import { evaluateFormulas } from './domain/formulas'
 import { PulseTable, type CellRef } from './components/PulseTable'
@@ -456,7 +456,8 @@ export default function App() {
 
   const addSession = () => {
     // 日期标签用六位年月日（YYMMDD），如 261102；未选日期则退回「第 N 次」
-    const label = newDate ? ymdToLabel(newDate) : `第 ${set.sessions.length + 1} 次`
+    // 同一天第 2 次起加序号：261115-2、261115-3（讲稿体例 99/6/13-2）
+    const label = newDate ? daySessionLabel(newDate, set.sessions) : `第 ${set.sessions.length + 1} 次`
     const at = newDate ? ymdToTimestamp(newDate) : Date.now()
     const s = { id: uid(), label, at, values: {} as Record<string, string[]> }
     setSet((prev) => ({ ...prev, sessions: [...prev.sessions, s] }))
@@ -915,6 +916,7 @@ export default function App() {
           </div>
           <span className="pr-field-hint">
             日期按年月日六位记，如 <b>{ymdToLabel(newDate) || '——'}</b>
+            ；同一天再记一次会自动变成 <b>{ymdToLabel(newDate) || '——'}-2</b>（依次 -3…）
           </span>
         </div>
 
