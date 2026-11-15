@@ -548,7 +548,12 @@ button:disabled {
 
 .pr-bottom {
   display: grid;
-  grid-template-columns: minmax(520px, 620px) 1fr;
+  /*
+   * 两列**均分**（2026-11-15 用户要求）。
+   * 原来是 `minmax(520px, 620px) 1fr`：左列被钉死在 520~620，右列的图示
+   * 却吃掉剩下的全部宽度，两块看着一窄一宽。
+   */
+  grid-template-columns: 1fr 1fr;
   gap: 20px;
   margin-top: 20px;
   align-items: start;
