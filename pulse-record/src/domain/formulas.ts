@@ -808,18 +808,27 @@ let effectiveCache: { data: RuleDataJson[]; rules: FormulaRule[] } | null = null
 
 /** 当前生效的规则集（覆盖层没加载时＝基线） */
 export function getEffectiveRules(): FormulaRule[] {
-  const data = getLibraryState().ruleData
-  if (!data) return FORMULA_RULES
-  if (effectiveCache && effectiveCache.data === data) return effectiveCache.rules
+  const state = getLibraryState()
+  const data = state.ruleData
+
+  /*
+   * 与 `getEffectiveDrugs` 同一个道理：回落基线时**也要剔掉墓碑**，
+   * 否则知识库数据还没加载完时，已删除的条目会全部复活。
+   */
+  const ov = state.overrides?.rule
+  const strip = (list: FormulaRule[]) => (ov ? list.filter((r) => !ov[r.id]?.deleted) : list)
+
+  if (!data) return strip(FORMULA_RULES)
+  if (effectiveCache && effectiveCache.data === data) return strip(effectiveCache.rules)
   try {
     const rules = loadRulesFrom(data)
     effectiveCache = { data, rules }
-    return rules
+    return strip(rules)
   } catch (e) {
     // 生效集装不起来（多半是覆盖层里塞了没有判定函数的 id）⇒ 退回基线，**不崩**
     console.error('[臧氏脉学] 生效规则集载入失败，改用内置基线：', e)
     effectiveCache = { data, rules: FORMULA_RULES }
-    return FORMULA_RULES
+    return strip(FORMULA_RULES)
   }
 }
 

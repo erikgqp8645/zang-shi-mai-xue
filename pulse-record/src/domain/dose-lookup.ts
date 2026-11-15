@@ -50,6 +50,8 @@ export interface DoseEntry {
   composition?: string
   /** 这一条要不要显示（`false` ＝ 使用者自己关掉了） */
   visible?: boolean
+  /** 覆盖层里是墓碑（这一条被删了）—— 任何展示处都不该再列它 */
+  deleted?: boolean
   /** 关联的「科中」条目 id（有才能编辑比例） */
   scienceId?: string
   /**
@@ -98,9 +100,23 @@ export interface DoseLookup {
  * ⚠️ 别再直接 `FORMULA_DOSES.find(...)` —— 那样管理员改了也查不到（静默不生效）。
  */
 function effectiveDoses(): FormulaDose[] {
-  const merged = getLibraryState().doseData
-  if (Array.isArray(merged) && merged.length > 0) return merged as FormulaDose[]
-  return FORMULA_DOSES
+  const state = getLibraryState()
+  const merged = state.doseData
+  const ov = state.overrides?.dose
+  // 回落基线时同样要剔墓碑（见 drugs.ts 的同名注释）
+  const strip = (list: FormulaDose[]) => (ov ? list.filter((d) => !ov[d.id]?.deleted) : list)
+  if (Array.isArray(merged) && merged.length > 0) return strip(merged as FormulaDose[])
+  return strip(FORMULA_DOSES)
+}
+
+/**
+ * 当前生效的成方列表（已剔除墓碑）。
+ *
+ * ⓘ ② 的「方剂备查」与导出以前直接列 `FORMULA_DOSES` 全量 ——
+ *   删掉的成方照样出现在备查里（2026-11-15 排查）。
+ */
+export function getEffectiveDoseList(): FormulaDose[] {
+  return effectiveDoses()
 }
 
 /** 按 id 取生效的那一条（对照表 `doseId`／`parentDoseId` 用） —— 同样优先生效集 */
@@ -114,9 +130,12 @@ function effectiveDoseById(id: string): FormulaDose | undefined {
  * 与 `effectiveDoses()` 同理：管理员改了讲稿方剂，剂量对照里那一行要跟着变。
  */
 function effectiveDrugs(): Drug[] {
-  const merged = getLibraryState().drugData
-  if (Array.isArray(merged) && merged.length > 0) return merged as Drug[]
-  return DRUGS
+  const state = getLibraryState()
+  const merged = state.drugData
+  const ov = state.overrides?.drug
+  const strip = (list: Drug[]) => (ov ? list.filter((d) => !ov[d.id]?.deleted) : list)
+  if (Array.isArray(merged) && merged.length > 0) return strip(merged as Drug[])
+  return strip(DRUGS)
 }
 
 function toEntry(d: FormulaDose): DoseEntry {
@@ -137,6 +156,7 @@ function toEntry(d: FormulaDose): DoseEntry {
     name: d.name,
     composition: d.composition,
     visible: d.visible,
+    deleted: !!getLibraryState().overrides?.dose?.[d.id]?.deleted,
     scienceId: sci?.id,
     science: sciRatio,
     raw: { ...d },
@@ -329,6 +349,7 @@ function toDraftEntry(d: Drug): DoseEntry {
   return {
     kind: 'drug',
     id: d.id,
+    deleted: !!getLibraryState().overrides?.drug?.[d.id]?.deleted,
     name: d.name,
     composition: d.composition,
     science: d.science,

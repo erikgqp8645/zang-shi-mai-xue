@@ -67,8 +67,7 @@ export function DoseTab({ formulas, focusDose }: Props) {
   /** 按方名分组：每个方名下面并列两套资料 */
   const groups = useMemo(() => {
     /** 覆盖层里是墓碑（删掉了）的条目 —— 直接不列，别让「隐藏」撞上 409 */
-    const isDeleted = (e: DoseEntry) =>
-      !!e.kind && !!e.id && !!overrides?.[e.kind]?.[e.id]?.deleted
+    const isDeleted = (e: DoseEntry) => !!e.deleted
 
     return formulas
       .map((name) => {

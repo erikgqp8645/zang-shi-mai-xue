@@ -294,8 +294,14 @@ export function FormulaLibrary({
      * 知识库数据还没加载完时 getter 会返回 null，界面就冒出「这一条现在取不到」
      * （2026-11-14 用户截图里那一行红字）。基线总是有的。
      */
-    const entry =
-      kind === 'rule'
+    /*
+     * 已删除（墓碑）的一律当作「取不到」——
+     * 否则下面那层「回落基线」会把它又找回来，编辑已删条目只会撞 409。
+     */
+    const tomb = !!overrides?.[kind]?.[id]?.deleted
+    const entry = tomb
+      ? null
+      : kind === 'rule'
         ? (getEffectiveRuleRaw(id) ??
           (FORMULA_RULES.find((r) => r.id === id) as unknown as Record<string, unknown> | undefined))
         : kind === 'dose'

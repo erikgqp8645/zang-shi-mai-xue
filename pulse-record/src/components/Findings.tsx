@@ -7,11 +7,11 @@ import {
   type FormulaHit,
 } from '../domain/formulas'
 import { getDrugById, type Drug } from '../domain/drugs'
+import { getEffectiveDoseList } from '../domain/dose-lookup'
 import { addChip, removeChip, sameChips, setChip } from '../domain/library-chips.mjs'
 import { useLibrary } from '../state/library'
 import {
   DOSE_SCIENCE_NAME,
-  FORMULA_DOSES,
   FORMULA_SCIENCES,
   FORMULA_SCIENCE_BY_NAME,
   type FormulaDose,
@@ -1041,9 +1041,11 @@ export function Findings({
             {[1, 2, 3].map((page) => (
               <div key={page} className="pr-drug-group">
                 <h4 className="pr-drug-group-title">第 {page} 页</h4>
-                {FORMULA_DOSES.filter((d) => d.page === page).map((d) => (
-                  <DoseCard key={d.id} dose={d} />
-                ))}
+                {getEffectiveDoseList()
+                  .filter((d) => d.page === page && d.visible !== false)
+                  .map((d) => (
+                    <DoseCard key={d.id} dose={d} />
+                  ))}
               </div>
             ))}
             <div className="pr-drug-group">

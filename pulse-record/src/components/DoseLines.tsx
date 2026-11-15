@@ -1,4 +1,5 @@
 import { draftDoseView, thDoseView, type DoseSourceView } from '../domain/dose-lookup'
+import { useLibrary } from '../state/library'
 
 /**
  * 两套资料的组成 —— 并列显示，各自带出处与单位。
@@ -76,6 +77,8 @@ function DoseBlock({
   onEdit?: (kind: string, id: string, name: string) => void
   canEdit?: boolean
 }) {
+  /** 覆盖层 —— 判断这一条是不是被删了（墓碑） */
+  const { overrides } = useLibrary()
   if (view.matched === 'none') {
     return (
       <p className="pr-dose-line is-missing">
@@ -85,10 +88,17 @@ function DoseBlock({
     )
   }
   /*
-   * 使用者自己关掉的条目不列（`visible === false`）。
-   * 全被关掉时整块不渲染 —— 留个空标题只会让人以为加载失败。
+   * 两种条目都不列：
+   *   · 使用者自己关掉的（`visible === false`）
+   *   · 覆盖层里是墓碑的（被删了 —— 删除比隐藏彻底，删了就不该再露头）
+   *
+   * ⚠️ 墓碑判断直接读图层，不依赖查询结果带 `deleted` 字段：
+   *    剂量查询有几条不同的组装路径，漏一条就又会冒出来（2026-11-15 用户截图）。
+   * 全被过滤掉时整块不渲染 —— 留个空标题只会让人以为加载失败。
    */
-  const shown = view.entries.filter((e) => e.visible !== false)
+  const shown = view.entries.filter(
+    (e) => e.visible !== false && !(e.kind && e.id && overrides?.[e.kind]?.[e.id]?.deleted),
+  )
   if (shown.length === 0) return null
 
   /** 候选（不含母方）—— 母方是**另一个方**，不算「同名不同号」 */

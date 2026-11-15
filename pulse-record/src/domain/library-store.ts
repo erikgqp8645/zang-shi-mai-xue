@@ -158,7 +158,10 @@ export function setLibraryState(next: Partial<LibraryState>): void {
  * @returns 原始条目；没有（或已被删掉）⇒ null
  */
 export function getEffectiveRuleRaw(id: string): Record<string, unknown> | null {
-  const data = getLibraryState().ruleData
+  const state = getLibraryState()
+  // 墓碑：这一条被删了 —— 当作「没有」
+  if (state.overrides?.rule?.[id]?.deleted) return null
+  const data = state.ruleData
   if (!data) return null
   const hit = data.find((r) => String(r.id) === String(id))
   return hit ? ({ ...hit } as unknown as Record<string, unknown>) : null
@@ -171,7 +174,9 @@ export function getEffectiveRuleRaw(id: string): Record<string, unknown> | null 
  *   （「剂量对照」那几行点「编辑」时按 id 取）。
  */
 export function getEffectiveDoseRaw(id: string): Record<string, unknown> | null {
-  const list = getLibraryState().doseData
+  const state = getLibraryState()
+  if (state.overrides?.dose?.[id]?.deleted) return null
+  const list = state.doseData
   if (!Array.isArray(list)) return null
   const hit = list.find((d) => String((d as { id?: string })?.id) === String(id))
   return hit ? ({ ...(hit as object) } as Record<string, unknown>) : null
@@ -179,7 +184,9 @@ export function getEffectiveDoseRaw(id: string): Record<string, unknown> | null 
 
 /** 同上，讲稿方剂 */
 export function getEffectiveDrugRaw(id: string): Record<string, unknown> | null {
-  const data = getLibraryState().drugData
+  const state = getLibraryState()
+  if (state.overrides?.drug?.[id]?.deleted) return null
+  const data = state.drugData
   if (!data) return null
   const hit = data.find((d) => String(d.id) === String(id))
   return hit ? ({ ...hit } as unknown as Record<string, unknown>) : null

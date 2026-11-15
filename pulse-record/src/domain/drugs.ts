@@ -82,13 +82,26 @@ let effectiveCache: { data: Drug[]; drugs: Drug[]; byId: Record<string, Drug> } 
 
 /** 当前生效的方剂（覆盖层没加载时＝基线） */
 export function getEffectiveDrugs(): Drug[] {
-  const data = getLibraryState().drugData
-  if (!data) return DRUGS
-  if (effectiveCache && effectiveCache.data === data) return effectiveCache.drugs
+  const state = getLibraryState()
+  const data = state.drugData
+
+  /*
+   * ⚠️ 回落基线时**也要剔掉墓碑**。
+   *
+   * 知识库数据还没加载完（`drugData` 为 null）时，这里会退回 `DRUGS`
+   * ——那是仓库里的基线，**包含已删除的条目**。于是「删掉的方」在页面上
+   * 全部复活（2026-11-15 用户截图：删了「右关尺浮大（增液汤加减）」，
+   * 剂量对照里照样列着）。
+   */
+  const ov = state.overrides?.drug
+  const strip = (list: Drug[]) => (ov ? list.filter((d) => !ov[d.id]?.deleted) : list)
+
+  if (!data) return strip(DRUGS)
+  if (effectiveCache && effectiveCache.data === data) return strip(effectiveCache.drugs)
   const drugs = data
   const byId = toRecord(drugs.map((d) => [d.id, d] as [string, Drug]))
   effectiveCache = { data, drugs, byId }
-  return drugs
+  return strip(drugs)
 }
 
 /** 当前生效的方剂里**要显示**的那些（`visible=false` 的不列） */
@@ -98,7 +111,10 @@ export function getVisibleDrugs(): Drug[] {
 
 /** 按 id 取当前生效的方剂（查不到＝undefined） */
 export function getDrugById(id: string): Drug | undefined {
-  const data = getLibraryState().drugData
+  const state = getLibraryState()
+  const data = state.drugData
+  // 已删除的一律当作「没有这一条」
+  if (state.overrides?.drug?.[id]?.deleted) return undefined
   if (!data) return DRUG_BY_ID[id]
   if (effectiveCache && effectiveCache.data === data) return effectiveCache.byId[id]
   return getEffectiveDrugs().find((d) => d.id === id)

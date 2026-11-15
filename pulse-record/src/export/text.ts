@@ -5,9 +5,9 @@ import { formatCodes, buildCustomLegend, collectUsedCodes, type CustomSymbol } f
 import { evaluateRules, type RuleContext } from '../domain/rules'
 import { evaluateFormulas, getStandingRules, CONSTITUTION_TABLE, type FormulaHit } from '../domain/formulas'
 import { getDrugById, getEffectiveDrugs, DRUG_GROUPS } from '../domain/drugs'
+import { getEffectiveDoseList } from '../domain/dose-lookup'
 import {
   DOSE_SCIENCE_NAME,
-  FORMULA_DOSES,
   FORMULA_SCIENCES,
   FORMULA_SCIENCE_BY_NAME,
 } from '../domain/formula-table'
@@ -316,7 +316,7 @@ export function toMarkdown(
   lines.push('')
   for (const page of [1, 2, 3]) {
     lines.push(`- **第 ${page} 页**`)
-    for (const d of FORMULA_DOSES.filter((x) => x.page === page)) {
+    for (const d of getEffectiveDoseList().filter((x) => x.page === page && x.visible !== false)) {
       lines.push(`  - **${d.name}**`)
       lines.push(`    - 组成：${d.composition}`)
       for (const n of d.notes ?? []) lines.push(`    - 注：${n}`)
