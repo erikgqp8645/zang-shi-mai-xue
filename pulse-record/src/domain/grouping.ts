@@ -583,12 +583,20 @@ export function attribOf(id: string, own?: OwnAttrib): Attribution | undefined {
    *   · 键存在、值是空串 ⇒ 管理员**明确清空了**归类 ⇒ 就是「未归类」，
    *     不能再回落到静态表（否则清空没反应 —— 2026-11-15 实测踩到）。
    */
-  const hasWx = !!own && 'wuxing' in own
-  const hasSide = !!own && 'side' in own
+  // 用局部变量收窄，避免 `own!` 非空断言（断言一旦失效就是运行时空指针）
+  const ownWxRaw = own && 'wuxing' in own ? (own.wuxing as string | undefined) : undefined
+  const ownSideRaw = own && 'side' in own ? (own.side as string | undefined) : undefined
+  const hasWx = ownWxRaw !== undefined
+  const hasSide = ownSideRaw !== undefined
 
-  const ownWx = hasWx && WUXING_ORDER.includes(own!.wuxing as Wuxing) ? (own!.wuxing as Wuxing) : null
+  const ownWx =
+    ownWxRaw !== undefined && WUXING_ORDER.includes(ownWxRaw as Wuxing)
+      ? (ownWxRaw as Wuxing)
+      : null
   const ownSide =
-    hasSide && HAND_ORDER.includes(own!.side as HandSide) ? (own!.side as HandSide) : null
+    ownSideRaw !== undefined && HAND_ORDER.includes(ownSideRaw as HandSide)
+      ? (ownSideRaw as HandSide)
+      : null
 
   // 两个键都不存在 ⇒ 用静态表（老数据走这条路）
   if (!hasWx && !hasSide) return base
@@ -598,11 +606,21 @@ export function attribOf(id: string, own?: OwnAttrib): Attribution | undefined {
   if (!wx && !side) return undefined
 
   const info = wx ? WUXING_INFO[wx] : null
+  /*
+   * ⚠️ 换了五行 ⇒ **兼涉脏（`also`）要一起清掉**。
+   *
+   * 静态表里「肾·水，兼心脾肺」（三焦疗法养心肺/脾/肾）是**配套的**。
+   * 用户把这条改成「木」之后，脏变成「肝」，但兼心脾肺还留着 ⇒
+   * 界面显示「木·肝 兼心脾肺」，自相矛盾。
+   *
+   * 判据：自选的五行与静态表的不一致 ⇒ 旧的兼涉脏不再适用。
+   */
+  const wuxingChanged = !!ownWx && !!base?.wuxing && ownWx !== base.wuxing
   return {
     // 自选了五行 ⇒ 脏与脉位跟着换（否则会出现「木·脾」这种自相矛盾）
     zang: info?.zang ?? base?.zang ?? '',
     wuxing: (wx ?? '') as Wuxing,
-    also: base?.also,
+    also: wuxingChanged ? undefined : base?.also,
     site: info?.site ?? base?.site ?? '',
     side: (side ?? '') as HandSide,
     basis: base?.basis ?? '',
