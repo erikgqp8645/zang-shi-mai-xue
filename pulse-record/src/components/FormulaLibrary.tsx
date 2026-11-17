@@ -34,7 +34,7 @@ import {
 import { getEffectiveDoseRaw, getEffectiveDrugRaw, getEffectiveRuleRaw } from '../domain/library-store'
 import { DrugCard, FormulaItem, type SessionFormulaHit } from './Findings'
 import { RuleEditor } from './RuleEditor'
-import { LibraryCards } from './LibraryCards'
+import { LibraryCards, LibraryDrugCards } from './LibraryCards'
 import { ConfirmDialog } from './ConfirmDialog'
 
 /**
@@ -819,29 +819,23 @@ export function FormulaLibrary({
                   /*
                    * 卡片也**按当前维度分组** —— 否则点「按五行／按左右手」时
                    * 卡片顺序一点不变，看着像按钮坏了（2026-11-17 反馈）。
-                   * 分组标题与列表视图同一个开关（`hideGroupTitles`）。
+                   *
+                   * ⚠️ **一个网格装下所有分组**（不是每组一个）：
+                   *    每组一个 grid 的话，组内条目数不是 4 的倍数时末尾空格子
+                   *    露出来是一大块脏灰（容器底色＝分隔线颜色）。
+                   *    组标题作为跨四列的一行（`grid-column: 1 / -1`）⇒ 只有
+                   *    整个列表最后一行才可能不满。
                    */
-                  ruleGroups.map((g) => {
-                    const items = g.items.filter((r) => hitRules.has(r.id))
-                    if (items.length === 0) return null
-                    return (
-                      <section key={g.key} className="pr-formula-group">
-                        {!hideGroupTitles && (
-                          <h4 className="pr-drug-group-title">
-                            {dim === 'route' ? g.label : groupShortLabel(dim, g.key)}
-                            {searching && <span className="pr-flib-group-hit">{items.length}</span>}
-                          </h4>
-                        )}
-                        {dim !== 'route' && <p className="pr-target-line">{g.note}</p>}
-                        <LibraryCards
-                          rules={items}
-                          patternsOf={patternsOf}
-                          canEdit={canEdit}
-                          onEdit={(r) => openEditor('rule', r.id, r.condition)}
-                        />
-                      </section>
-                    )
-                  })
+                  <LibraryCards
+                    groups={ruleGroups
+                      .map((g) => ({ ...g, items: g.items.filter((r) => hitRules.has(r.id)) }))
+                      .filter((g) => g.items.length > 0)}
+                    patternsOf={patternsOf}
+                    canEdit={canEdit}
+                    showGroupTitles={!hideGroupTitles}
+                    groupLabel={(g) => (dim === 'route' ? g.label : groupShortLabel(dim, g.key))}
+                    onEdit={(r) => openEditor('rule', r.id, r.condition)}
+                  />
                 ) : (
                 <section className="pr-formula-group">
                   {/*
@@ -923,7 +917,22 @@ export function FormulaLibrary({
                       </p>
                     </>
                   )}
-                  {drugGroups.map((g) => {
+                  {/*
+                   * 卡片视图下方剂也走卡片 —— 否则同一页上半截是网格、下半截是
+                   * 单列列表，两种排版混着看（2026-11-17 用户要求整页形态统一）。
+                   */}
+                  {view === 'cards' ? (
+                    <LibraryDrugCards
+                      groups={drugGroups
+                        .map((g) => ({ ...g, items: g.items.filter((d) => hitDrugs.has(d.id)) }))
+                        .filter((g) => g.items.length > 0)}
+                      canEdit={canEdit}
+                      showGroupTitles={!hideGroupTitles}
+                      groupLabel={(g) => (dim === 'route' ? g.label : groupShortLabel(dim, g.key))}
+                      onEdit={openForeignEditor}
+                    />
+                  ) : (
+                  drugGroups.map((g) => {
                     const items = g.items.filter((d) => hitDrugs.has(d.id))
                     if (items.length === 0) return null
                     return (
@@ -968,7 +977,8 @@ export function FormulaLibrary({
                         ))}
                       </div>
                     )
-                  })}
+                  })
+                  )}
                   {dim !== 'route' && groupOrder.length > 0 && drugGroups.length === 0 && (
                     <p className="pr-empty">当前维度下没有方剂。</p>
                   )}

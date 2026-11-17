@@ -966,6 +966,58 @@ try {
   await chrome.ev(`document.querySelector('.pr-ps-modal-box.is-editor .pr-ps-close')?.click()`)
   await sleep(300)
 
+  /* ---- ④-补 卡片视图：一行四个、容器透明、组标题跨列 ---- */
+  console.log('\n【④-补】③ 知识库 · 卡片视图')
+  // 切到卡片视图
+  await chrome.ev(
+    `(()=>{const b=[...document.querySelectorAll('.pr-lib-view-switch .pr-lib-mode-btn')].find(b=>b.textContent.trim()==='卡片');b?.click();return 1})()`,
+  )
+  await sleep(900)
+  const cardView = await chrome.ev(`(()=>{
+    const grids=[...document.querySelectorAll('.pr-libcards')];
+    const cards=[...document.querySelectorAll('.pr-libcard')];
+    const heads=[...document.querySelectorAll('.pr-libcards-head')];
+    const first=cards[0];
+    const rowTops={};
+    cards.slice(0,12).forEach(c=>{const t=Math.round(c.getBoundingClientRect().top);rowTops[t]=(rowTops[t]||0)+1});
+    return {
+      grids:grids.length,
+      // ⚠️ 容器底色必须透明 —— 它原来是分隔线颜色，一有空格就变成一大块脏灰
+      gridBg:grids.map(g=>getComputedStyle(g).backgroundColor),
+      cards:cards.length,
+      heads:heads.length,
+      headCol:heads[0]?getComputedStyle(heads[0]).gridColumn:null,
+      cardBorder:first?getComputedStyle(first).borderTopWidth:null,
+      rowTops,
+    };
+  })()`)
+  console.log(`  ${JSON.stringify(cardView)}`)
+  c.check(
+    '卡片视图：网格容器底色透明（空格子不会露出灰块）',
+    cardView.grids > 0 && cardView.gridBg.every((bg) => bg === 'rgba(0, 0, 0, 0)'),
+    JSON.stringify(cardView.gridBg),
+  )
+  c.check(
+    '卡片视图：卡片自带边框（分隔线不靠容器底色）',
+    cardView.cardBorder === '1px',
+    JSON.stringify(cardView.cardBorder),
+  )
+  c.check(
+    '卡片视图：一行四张（同一 top 的卡片数是 4 的倍数）',
+    Object.values(cardView.rowTops).every((n) => n % 4 === 0),
+    JSON.stringify(cardView.rowTops),
+  )
+  c.check(
+    '卡片视图：讲稿方剂也出卡片（依脉用方 ＋ 方剂两段）',
+    cardView.grids >= 2 && cardView.cards > 60,
+    `grids=${cardView.grids} cards=${cardView.cards}`,
+  )
+  // 切回列表视图，别影响后面的断言
+  await chrome.ev(
+    `(()=>{const b=[...document.querySelectorAll('.pr-lib-view-switch .pr-lib-mode-btn')].find(b=>b.textContent.trim()==='列表');b?.click();return 1})()`,
+  )
+  await sleep(600)
+
   /* ---- ⑤ 控制台 ---- */
   console.log('\n【⑤】控制台异常')
   console.log('  ', chrome.errors.length ? chrome.errors : '（无）')

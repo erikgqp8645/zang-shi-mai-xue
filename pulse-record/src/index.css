@@ -3921,22 +3921,30 @@ button:disabled {
 
 .pr-libcards {
   /*
-   * 网格（不是瀑布流）：一行四个、上下对齐、卡片之间有分隔线。
+   * 网格：一行四个、上下对齐、卡片之间有分隔线。
    *
-   * ⚠️ 原来用 `column-count` 做瀑布流 —— 卡片在列间流动，同一「行」的卡片
-   *    上下错开，看着像排版乱了（2026-11-17 用户截图标注）。
-   *
-   * 分隔线用「1px gap ＋ 容器底色」实现：容器背景是线色，卡片自己盖住一块，
-   * 间隙就露出细线 —— 比给每张卡���加 border 少一层边框、也不会出现双线。
+   * ⚠️ 两处曾经的坑，别走回头路：
+   *   ① `column-count` 瀑布流 —— 卡片在列间流动，同一「行」上下错开（2026-11-17 反馈）
+   *   ② 「1px gap ＋ 容器底色露线」—— 容器底色就是分隔线颜色，一旦有空格
+   *      就变成一大块脏灰（每组一个 grid 时，组末尾空 3 格就是一块灰）
+   * ⇒ 现在：**容器透明**，分隔线由**每张卡片自己的边框**提供，空位就是空位。
    */
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 1px;
+  gap: 8px;
   margin: 4px 0 8px;
-  background: var(--line-soft);
-  border: 1px solid var(--line-soft);
-  border-radius: 4px;
-  overflow: hidden;
+  background: transparent;
+}
+
+/* 跨列的分组标题（grid-column: 1 / -1）—— 让所有分组的卡片连成一片 */
+.pr-libcards-head {
+  grid-column: 1 / -1;
+  margin: 6px 0 0;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--divider);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--clay);
 }
 
 @media (max-width: 1280px) {
@@ -3958,8 +3966,9 @@ button:disabled {
   min-width: 0;
   margin: 0;
   padding: 12px 14px 10px;
-  border: 0;
-  border-radius: 0;
+  /* 分隔线靠卡片自己的边框（容器是透明的） */
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
   background: var(--card);
 }
 
