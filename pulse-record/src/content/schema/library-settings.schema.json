@@ -47,6 +47,14 @@
           "default": false,
           "json": "library.hideGroupTitles",
           "comment": "true＝不显示分组标题，直接显示内容"
+        },
+        {
+          "name": "hide_route_titles",
+          "type": "bool",
+          "notNull": true,
+          "default": false,
+          "json": "library.hideRouteTitles",
+          "comment": "「讲义 p44 依脉用方 · 全量条目」这类区块大标题要不要显示；true＝不显示"
         }
       ]
     }

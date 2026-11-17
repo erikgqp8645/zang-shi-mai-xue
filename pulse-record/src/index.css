@@ -2706,6 +2706,16 @@ button:disabled {
   flex-shrink: 0;
 }
 
+/* 未归类（还没定五行／左右手归属）—— 在「讲稿原序」维度下标出来 */
+.pr-attr.is-unclassified {
+  padding: 1px 6px;
+  border: 1px dashed var(--line-soft);
+  border-radius: 2px;
+  background: var(--paper-sunk);
+  color: var(--ink-3);
+  font-size: 10.5px;
+}
+
 .pr-attr-main {
   font-family: 'Songti SC', 'STSong', serif;
   font-size: 11px;
@@ -3994,6 +4004,17 @@ button:disabled {
 .pr-libcard-kind.is-dai { color: var(--dai); }
 .pr-libcard-kind.is-sage { color: var(--sage); }
 .pr-libcard-kind.is-muted { color: var(--ink-3); }
+
+/* 卡片上的「未分类」标记 */
+.pr-libcard-unclassified {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  border: 1px dashed var(--line-soft);
+  border-radius: 2px;
+  background: var(--paper-sunk);
+  color: var(--ink-3);
+  font-size: 10.5px;
+}
 
 .pr-libcard-title {
   margin: 0;

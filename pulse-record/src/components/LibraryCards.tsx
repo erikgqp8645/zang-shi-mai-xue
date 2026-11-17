@@ -2,6 +2,7 @@ import { Fragment, useMemo } from 'react'
 import type { FormulaRule } from '../domain/formulas'
 import type { Drug } from '../domain/drugs'
 import type { Group } from '../domain/grouping'
+import { attribOf } from '../domain/grouping'
 import { hasCells } from './PatternSheet'
 import { PatternSheet } from './PatternSheet'
 import type { PulsePattern } from '../domain/pulse-pattern'
@@ -105,6 +106,10 @@ export function LibraryCards({
                 <header className="pr-libcard-head">
                   <span className={`pr-libcard-kind is-${role}`}>{r.kind}</span>
                   <h4 className="pr-libcard-title">{r.condition}</h4>
+                  {/* 没定归类的标一下 —— 按讲次排时看不出哪些待补（2026-11-15） */}
+                  {attribOf(r.id, r) ? null : (
+                    <span className="pr-libcard-unclassified">未分类</span>
+                  )}
                 </header>
 
                 {/* 有格子才画；关系型条目这里什么都不渲染 */}

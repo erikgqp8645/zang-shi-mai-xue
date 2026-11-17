@@ -59,6 +59,14 @@ function FieldInput({
         disabled={readOnly}
         onChange={(e) => onChange(e.target.value)}
       >
+        {/*
+         * 非必填的 enum 给一个空选项 ——
+         * 「五行组」「左右手组」这类字段要能**清回未归类**，
+         * 没有空选项就只能选一个、再也退不回去（2026-11-15）。
+         */}
+        {field.required ? null : (
+          <option value="">{field.emptyLabel ?? '（未选）'}</option>
+        )}
         {(field.values ?? []).map((v) => (
           <option key={v} value={v}>
             {v}

@@ -531,8 +531,8 @@ export function FormulaLibrary({
 
   /** 讲义 p44 依脉用方：按维度分组（全量，不是只列命中的） */
   const ruleGroups = useMemo<Group<FormulaRule>[]>(() => {
-    if (dim === 'wuxing') return groupByWuxing(visibleRules, (r) => r.id)
-    if (dim === 'hand') return groupByHand(visibleRules, (r) => r.id)
+    if (dim === 'wuxing') return groupByWuxing(visibleRules, (r) => r.id, (r) => r)
+    if (dim === 'hand') return groupByHand(visibleRules, (r) => r.id, (r) => r)
     // 讲稿原序：按 route 分组，顺序依 FORMULA_ROUTE_ORDER
     const map = new Map<string, FormulaRule[]>()
     for (const r of visibleRules) {
@@ -559,8 +559,8 @@ export function FormulaLibrary({
   /** 讲稿 2010 方剂：按维度分组（全量里**要显示**的那些） */
   const drugGroups = useMemo<Group<Drug>[]>(() => {
     const visible = getEffectiveDrugs().filter((d) => showHidden || isVisible(d))
-    if (dim === 'wuxing') return groupByWuxing(visible, (d) => d.id)
-    if (dim === 'hand') return groupByHand(visible, (d) => d.id)
+    if (dim === 'wuxing') return groupByWuxing(visible, (d) => d.id, (d) => d)
+    if (dim === 'hand') return groupByHand(visible, (d) => d.id, (d) => d)
     // 讲稿原序：按讲稿第二讲「叁、用方」的三种疗法
     return DRUG_GROUPS.map((g) => ({
       key: g.therapy,

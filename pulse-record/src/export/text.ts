@@ -12,7 +12,7 @@ import {
   FORMULA_SCIENCE_BY_NAME,
 } from '../domain/formula-table'
 import { FORMULA_REFERENCE, formulaDoseView } from '../domain/medication'
-import { groupByHand, groupByWuxing, DIM_ORDER, groupShortLabel, RULE_OR_DRUG_ATTRIB, STANDING_DISPLAY } from '../domain/grouping'
+import { groupByHand, groupByWuxing, DIM_ORDER, groupShortLabel, attribOf, UNCLASSIFIED_KEY, STANDING_DISPLAY } from '../domain/grouping'
 import { MARKS, layoutDepths, markDepths } from '../domain/diagram'
 
 /** 导出时的分组筛选：按五行／按左右手各打开哪些组（与页面筛选开关同一份状态） */
@@ -217,9 +217,9 @@ export function toMarkdown(
       const keys = filterKeysFor(dim, filters)
       const groups = (
         dim === 'wuxing'
-          ? groupByWuxing(allHits, (h) => h.hit.id)
-          : groupByHand(allHits, (h) => h.hit.id)
-      ).filter((g) => g.key === '未归类' || keys.includes(g.key))
+          ? groupByWuxing(allHits, (h) => h.hit.id, (h) => h.hit)
+          : groupByHand(allHits, (h) => h.hit.id, (h) => h.hit)
+      ).filter((g) => g.key === UNCLASSIFIED_KEY || keys.includes(g.key))
       lines.push(`#### 依脉开方 · ${dim === 'wuxing' ? '按五行' : '按左右手'}`)
       lines.push('')
       lines.push(
@@ -239,7 +239,7 @@ export function toMarkdown(
         lines.push(`> ${g.note}`)
         lines.push('')
         for (const { hit, sessions } of mergeByRule(g.items)) {
-          const attr = RULE_OR_DRUG_ATTRIB[hit.id]
+          const attr = attribOf(hit.id, hit)
           const f = hit.formulas.length > 0 ? `　方：${hit.formulas.join('、')}` : ''
           const also = attr?.also && attr.also.length > 0 ? `　兼涉：${attr.also.join('、')}` : ''
           lines.push(`- **${hit.condition}** → ${hit.therapy}${f}${also}　〔${hit.source}〕`)
@@ -355,9 +355,9 @@ export function toMarkdown(
     const keys = filterKeysFor(dim, filters)
     const groups = (
       dim === 'wuxing'
-        ? groupByWuxing(getEffectiveDrugs(), (d) => d.id)
-        : groupByHand(getEffectiveDrugs(), (d) => d.id)
-    ).filter((g) => g.key === '未归类' || keys.includes(g.key))
+        ? groupByWuxing(getEffectiveDrugs(), (d) => d.id, (d) => d)
+        : groupByHand(getEffectiveDrugs(), (d) => d.id, (d) => d)
+    ).filter((g) => g.key === UNCLASSIFIED_KEY || keys.includes(g.key))
     lines.push(`#### 方剂备查 · ${dim === 'wuxing' ? '按五行' : '按左右手'}`)
     lines.push('')
     const note = filterNote(dim, keys)
@@ -369,7 +369,7 @@ export function toMarkdown(
       lines.push(`- **${g.label}**`)
       lines.push(`  - ${g.note}`)
       for (const d of g.items) {
-        const attr = RULE_OR_DRUG_ATTRIB[d.id]
+        const attr = attribOf(d.id, d)
         lines.push(`  - **${d.name}**（${d.therapy}）`)
         if (d.composition) lines.push(`    - 组成：${d.composition}`)
         if (d.usage) lines.push(`    - 服法：${d.usage}`)

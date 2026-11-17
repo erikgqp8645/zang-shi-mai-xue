@@ -27,7 +27,8 @@ import {
   groupByHand,
   groupByWuxing,
   groupShortLabel,
-  RULE_OR_DRUG_ATTRIB,
+  attribOf,
+  UNCLASSIFIED_KEY,
   STANDING_DISPLAY,
   type Attribution,
   type Group,
@@ -86,8 +87,20 @@ const DIM_HINT: Record<Dim, string> = {
 }
 
 /** 归类标记：本脏·五行 ＋ 兼涉本脏 */
+/**
+ * 归类标记（五行·脏 / 兼涉脏 / 主脉位）。
+ *
+ * ⚠️ 没有归类时**不静默** —— 在「讲稿原序」维度下，条目按讲次排，
+ *    看不出哪些还没归类 ⇒ 标一个「未分类」（2026-11-15 用户要求）。
+ */
 function AttrChip({ attr }: { attr: Attribution | undefined }) {
-  if (!attr) return null
+  if (!attr) {
+    return (
+      <span className="pr-attr is-unclassified" title="这一条还没定归类 —— 点「编辑」补上">
+        未分类
+      </span>
+    )
+  }
   return (
     <span className="pr-attr" title={attr.basis}>
       <span className="pr-attr-main">
@@ -160,7 +173,8 @@ export function DrugCard({
   /** ③ 知识库里的管理员工具（② 命中区不传） */
   tools?: LibraryTools
 }) {
-  const attr = RULE_OR_DRUG_ATTRIB[drug.id]
+  // 归类：条目自己选的优先，静态表兜底（2026-11-15）
+  const attr = attribOf(drug.id, drug)
   const [open, setOpen] = useState(!!autoOpen)
 
   /** 焦点落在这一条时就展开（同 FormulaItem：初值只在挂载时读一次，得跟着变） */
@@ -230,7 +244,11 @@ export function DrugCard({
           <span className="pr-formula-caret">{open ? '▾' : '▸'}</span>
           <span className="pr-drug-therapy">{drug.therapy}</span>
           <strong className="pr-drug-row-name">{drug.name}</strong>
-          {showAttr && <AttrChip attr={attr} />}
+          {/*
+           * 「讲稿原序」维度下 showAttr 是 false（不显示五行·脏那一套），
+           * 但**没归类的条目要标出来** —— 按讲次排时看不出哪些待补。
+           */}
+          {(showAttr || !attr) && <AttrChip attr={attr} />}
         </button>
         {/*
           ⚠️ 工具区在 button **外面** —— button 里不能套 button
@@ -256,7 +274,7 @@ export function DrugCard({
       <div className="pr-drug-head">
         <span className="pr-drug-therapy">{drug.therapy}</span>
         <strong>{drug.name}</strong>
-        {showAttr && <AttrChip attr={attr} />}
+        {(showAttr || !attr) && <AttrChip attr={attr} />}
       </div>
       {detail}
     </div>
@@ -367,7 +385,7 @@ export function FormulaItem({
   tools?: LibraryTools
 }) {
   const { sessionLabel, hit } = item
-  const attr = RULE_OR_DRUG_ATTRIB[hit.id]
+  const attr = attribOf(hit.id, hit)
   /**
    * 这一条的脉象图是不是**只有关系注记、没有格子**（如「任意格变脉且有力」）。
    *
@@ -521,7 +539,11 @@ export function FormulaItem({
           <span className="pr-formula-row-therapy" title={hit.therapy}>
             {hit.therapy}
           </span>
-          {showAttr && <AttrChip attr={attr} />}
+          {/*
+           * 「讲稿原序」维度下 showAttr 是 false（不显示五行·脏那一套），
+           * 但**没归类的条目要标出来** —— 按讲次排时看不出哪些待补。
+           */}
+          {(showAttr || !attr) && <AttrChip attr={attr} />}
         </button>
         {/*
           ⚠️ 方名 chip 在 button **外面** —— chip 上有「✎／✕」按钮，
@@ -634,7 +656,7 @@ export function FormulaItem({
       <div className="pr-formula-head">
         <span className="pr-formula-kind">{hit.kind}</span>
         <strong>{hit.condition}</strong>
-        {showAttr && <AttrChip attr={attr} />}
+        {(showAttr || !attr) && <AttrChip attr={attr} />}
       </div>
       {detail}
     </div>
@@ -723,8 +745,9 @@ export function Findings({
    */
   const dimGroups = useMemo<Group<SessionFormulaHit>[]>(() => {
     const all = showStanding ? [...formulaHits, ...standingHits()] : [...formulaHits]
-    if (dim === 'wuxing') return groupByWuxing(all, (h) => h.hit.id)
-    if (dim === 'hand') return groupByHand(all, (h) => h.hit.id)
+    // `ownOf` 传条目自己带的归类字段 —— 管理员在网站端选过的归类要算数（2026-11-15）
+    if (dim === 'wuxing') return groupByWuxing(all, (h) => h.hit.id, (h) => h.hit)
+    if (dim === 'hand') return groupByHand(all, (h) => h.hit.id, (h) => h.hit)
     return []
     // ⚠️ `ruleData` 在依赖里：覆盖层变了 ⇒ 生效集变了 ⇒ 常驻条目要重算
   }, [dim, formulaHits, showStanding, ruleData])
@@ -739,8 +762,8 @@ export function Findings({
     const map = new Map<string, number>()
     if (!showStanding) return map
     for (const h of standingHits()) {
-      const attrib = RULE_OR_DRUG_ATTRIB[h.hit.id]
-      const key = dim === 'hand' ? (attrib?.side ?? '未归类') : (attrib?.wuxing ?? '未归类')
+      const attrib = attribOf(h.hit.id, h.hit)
+      const key = dim === 'hand' ? (attrib?.side ?? UNCLASSIFIED_KEY) : (attrib?.wuxing ?? UNCLASSIFIED_KEY)
       map.set(key, (map.get(key) ?? 0) + 1)
     }
     return map
@@ -773,7 +796,7 @@ export function Findings({
 
   /** 依筛选后要显示的分组（「未归类」为异常兜底组，始终保留） */
   const shownGroups = useMemo(
-    () => dimGroups.filter((g) => g.key === '未归类' || activeKeys.includes(g.key)),
+    () => dimGroups.filter((g) => g.key === UNCLASSIFIED_KEY || activeKeys.includes(g.key)),
     [dimGroups, activeKeys],
   )
 

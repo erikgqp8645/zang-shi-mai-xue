@@ -76,6 +76,16 @@ export interface FormulaRule {
    */
   visible?: boolean
   /**
+   * 归类：五行组（木／火／土／金／水）—— 管理员在网站端自选。
+   *
+   * ⓘ 空串＝未归类（落进「未归类」兜底组）。
+   * ⓘ 脏与脉位由它推出（`domain/grouping.ts` 的 `WUXING_INFO`），用户不分别填。
+   * ⚠️ 基线每一条都得有这个键（哪怕空串）—— 后端编辑的 knownKeys 取自基线。
+   */
+  wuxing?: string
+  /** 归类：左右手组（左手／右手／尺肾／双手相兼）；空串＝未归类 */
+  side?: string
+  /**
    * 本条的**脉象图**（条件示意）—— 讲稿／讲义写明的格位要求。
    *
    * 与 `evaluate` 的方向相反：`evaluate` 是拿已录的脉象去算命中，

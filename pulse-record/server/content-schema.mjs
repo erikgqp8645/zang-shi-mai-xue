@@ -536,6 +536,9 @@ export function buildRows(content) {
     quote: d.quote,
     // ⭐ 「是否显示」：缺省＝显示；写 false 才是隐藏
     visible: d.visible === false ? 0 : 1,
+    // 归类：五行组／左右手组；空串＝未归类（NOT NULL，用空串不用 NULL）
+    wuxing: d.wuxing ?? '',
+    side: d.side ?? '',
   }))
 
   rows.content_formula_rules = rules.map((r) => ({
@@ -550,6 +553,9 @@ export function buildRows(content) {
     adds: r.adds ? JSON.stringify(r.adds) : null,
     // ⭐ 「是否显示」：缺省＝显示；写 false 才是隐藏
     visible: r.visible === false ? 0 : 1,
+    // 归类：五行组／左右手组；空串＝未归类（NOT NULL，用空串不用 NULL）
+    wuxing: r.wuxing ?? '',
+    side: r.side ?? '',
   }))
 
   // 方名是**原文写法**，不是外键 ⇒ 存文本
@@ -627,6 +633,9 @@ export function buildRows(content) {
     {
       id: 'library',
       hide_group_titles: lib.hideGroupTitles ? 1 : 0,
+      // ⚠️ 这一列以前漏登记 —— 只在 schema 的 properties 里有、表里没有
+      //    ⇒ 每次「库 → JSON 快照」都会把它**丢掉**（A8 往返不一致报的就是它）。
+      hide_route_titles: lib.hideRouteTitles ? 1 : 0,
     },
   ]
 
@@ -835,6 +844,7 @@ export function buildContentFromRows(inputRows) {
   const libRow = rows.content_library_settings[0] || {}
   const library = {
     hideGroupTitles: !!libRow.hide_group_titles,
+    hideRouteTitles: !!libRow.hide_route_titles,
   }
 
   // ⭐ 每个文件都带上 `$schema` 指针（指向自己那份 schema 文件）

@@ -533,6 +533,82 @@ export const RULE_OR_DRUG_ATTRIB: Record<string, Attribution> = {
   ...DRUG_ATTRIB,
 }
 
+/**
+ * 「未归类」兜底组的 key —— 散在好几处，抽成常量（2026-11-15）。
+ *
+ * ⚠️ 改这个字符串要一起改所有引用点（分组函数、筛选保留、导出）。
+ */
+export const UNCLASSIFIED_KEY = '未归类'
+
+/**
+ * 条目上**自带的归类字段**（管理员在网站端选的）。
+ *
+ * ⚠️ 这两个键**每一条基线条目里都必须存在**（没归类的写空串）——
+ *    后端编辑路径的 knownKeys 取自基线条目的键，缺了就改不动。
+ */
+export interface OwnAttrib {
+  wuxing?: string
+  side?: string
+}
+
+/**
+ * 取一条目的归类 —— **条目自己选的优先，其次静态表**。
+ *
+ * ## 为什么条目字段优先
+ *
+ * 归类原本只存在于代码里的静态表（`RULE_ATTRIB`／`DRUG_ATTRIB`），
+ * 网站端新建的条目在里面查不到 ⇒ 落进「未归类」兜底组。
+ * 2026-11-15 起管理员可以自己给条目选归类，值存在条目上（`wuxing`／`side`），
+ * 这一层优先于静态表。
+ *
+ * ## 五行组与左右手组是**成组**的
+ *
+ * 五行↔脏↔脉位绑定（`WUXING_INFO`），手组↔脏也绑定（`HAND_INFO`）
+ * ⇒ 用户选「木」时，`zang` 只能是「肝」、`site` 只能是「左手关」，
+ * 由 `WUXING_INFO` 推出来，不必让用户分别选。
+ *
+ * ## 兼涉脏（`also`）与归类依据（`basis`）不推导
+ *
+ * 这两项静态表里有就保留、没有就留空 —— 用户不填。
+ *
+ * @param id    条目 id
+ * @param own   条目自己带的 `wuxing`／`side`（可能是空串＝未归类）
+ */
+export function attribOf(id: string, own?: OwnAttrib): Attribution | undefined {
+  const base = RULE_OR_DRUG_ATTRIB[id]
+
+  /*
+   * ⚠️ 区分「**键不存在**」与「**键存在但值是空串**」：
+   *   · 键不存在 ⇒ 这一条没自选过归类 ⇒ 用静态表
+   *   · 键存在、值是空串 ⇒ 管理员**明确清空了**归类 ⇒ 就是「未归类」，
+   *     不能再回落到静态表（否则清空没反应 —— 2026-11-15 实测踩到）。
+   */
+  const hasWx = !!own && 'wuxing' in own
+  const hasSide = !!own && 'side' in own
+
+  const ownWx = hasWx && WUXING_ORDER.includes(own!.wuxing as Wuxing) ? (own!.wuxing as Wuxing) : null
+  const ownSide =
+    hasSide && HAND_ORDER.includes(own!.side as HandSide) ? (own!.side as HandSide) : null
+
+  // 两个键都不存在 ⇒ 用静态表（老数据走这条路）
+  if (!hasWx && !hasSide) return base
+
+  const wx = hasWx ? ownWx : (base?.wuxing ?? null)
+  const side = hasSide ? ownSide : (base?.side ?? null)
+  if (!wx && !side) return undefined
+
+  const info = wx ? WUXING_INFO[wx] : null
+  return {
+    // 自选了五行 ⇒ 脏与脉位跟着换（否则会出现「木·脾」这种自相矛盾）
+    zang: info?.zang ?? base?.zang ?? '',
+    wuxing: (wx ?? '') as Wuxing,
+    also: base?.also,
+    site: info?.site ?? base?.site ?? '',
+    side: (side ?? '') as HandSide,
+    basis: base?.basis ?? '',
+  }
+}
+
 export interface Group<T> {
   key: string
   label: string
@@ -540,12 +616,26 @@ export interface Group<T> {
   items: T[]
 }
 
-/** 按五行分组（顺序：木火土金水） */
-export function groupByWuxing<T>(items: T[], idOf: (item: T) => string): Group<T>[] {
+/**
+ * 按五行分组（顺序：木火土金水）。
+ *
+ * @param items   条目
+ * @param idOf    取条目 id
+ * @param ownOf   取条目**自己带的**归类字段（可选；不传＝只看静态表）
+ *
+ * ⚠️ `ownOf` 存在时，条目自选的五行**优先于**静态表 —— 管理员在网站端
+ *    选过归类的条目跟着他走（2026-11-15）。
+ */
+export function groupByWuxing<T>(
+  items: T[],
+  idOf: (item: T) => string,
+  ownOf?: (item: T) => OwnAttrib | undefined,
+): Group<T>[] {
   const out: Group<T>[] = []
+  const attrib = (it: T) => attribOf(idOf(it), ownOf?.(it))
   for (const wx of WUXING_ORDER) {
     const info = WUXING_INFO[wx]
-    const bucket = items.filter((it) => RULE_OR_DRUG_ATTRIB[idOf(it)]?.wuxing === wx)
+    const bucket = items.filter((it) => attrib(it)?.wuxing === wx)
     if (bucket.length === 0) continue
     out.push({
       key: wx,
@@ -554,25 +644,46 @@ export function groupByWuxing<T>(items: T[], idOf: (item: T) => string): Group<T
       items: bucket,
     })
   }
-  const rest = items.filter((it) => !RULE_OR_DRUG_ATTRIB[idOf(it)])
+  const rest = items.filter((it) => !attrib(it)?.wuxing)
   if (rest.length > 0) {
-    out.push({ key: '未归类', label: '未归类', note: '本条未标注五行归属，待补。', items: rest })
+    out.push({
+      key: UNCLASSIFIED_KEY,
+      label: UNCLASSIFIED_KEY,
+      note: '这一条还没定五行归属 —— 点「编辑」在「五行组」里选一个。',
+      items: rest,
+    })
   }
   return out
 }
 
-/** 按左右手分组（顺序：左手 / 右手 / 尺肾 / 双手相兼） */
-export function groupByHand<T>(items: T[], idOf: (item: T) => string): Group<T>[] {
+/**
+ * 按左右手分组（顺序：左手 / 右手 / 尺肾 / 双手相兼）。
+ *
+ * @param items   条目
+ * @param idOf    取条目 id
+ * @param ownOf   取条目**自己带的**归类字段（可选；不传＝只看静态表）
+ */
+export function groupByHand<T>(
+  items: T[],
+  idOf: (item: T) => string,
+  ownOf?: (item: T) => OwnAttrib | undefined,
+): Group<T>[] {
   const out: Group<T>[] = []
+  const attrib = (it: T) => attribOf(idOf(it), ownOf?.(it))
   for (const side of HAND_ORDER) {
     const info = HAND_INFO[side]
-    const bucket = items.filter((it) => RULE_OR_DRUG_ATTRIB[idOf(it)]?.side === side)
+    const bucket = items.filter((it) => attrib(it)?.side === side)
     if (bucket.length === 0) continue
     out.push({ key: side, label: info.title, note: info.note, items: bucket })
   }
-  const rest = items.filter((it) => !RULE_OR_DRUG_ATTRIB[idOf(it)])
+  const rest = items.filter((it) => !attrib(it)?.side)
   if (rest.length > 0) {
-    out.push({ key: '未归类', label: '未归类', note: '本条未标注左右手归属，待补。', items: rest })
+    out.push({
+      key: UNCLASSIFIED_KEY,
+      label: UNCLASSIFIED_KEY,
+      note: '这一条还没定左右手归属 —— 点「编辑」在「左右手组」里选一个。',
+      items: rest,
+    })
   }
   return out
 }

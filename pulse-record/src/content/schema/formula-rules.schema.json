@@ -92,6 +92,14 @@
         "visible": {
           "type": "boolean",
           "description": "**是否在「用方知识库」里显示这一条**（共享层，全站一致）。false＝这一条不展示。ⓘ 判读判定逻辑不受影响（`evaluate` 仍按脉象命中），只是这条内容不出现在列表里。"
+        },
+        "wuxing": {
+          "type": "string",
+          "description": "归类用：五行组（木=肝=左手关／火=心=左手寸／土=脾=右手关／金=肺=右手寸／水=肾=尺·双侧）。空串＝未归类。⚠️ 这两个键必须在每一条里存在（哪怕是空串）—— 编辑路径的 knownKeys 取自基线条目的键，缺了管理员一改就被 validateEntry 拒。"
+        },
+        "side": {
+          "type": "string",
+          "description": "归类用：左右手组（左手=心肝·血分／右手=肺脾·气分／尺肾=肾·水／双手相兼）。空串＝未归类。"
         }
       }
     }
@@ -162,6 +170,22 @@
           "default": true,
           "json": "rules.items.visible",
           "comment": "是否在「用方知识库」里显示这一条（共享层，全站一致）"
+        },
+        {
+          "name": "wuxing",
+          "type": "text",
+          "notNull": true,
+          "default": "",
+          "json": "rules.items.wuxing",
+          "comment": "归类：五行组（木／火／土／金／水）；空串＝未归类。管理员在网站端自选。"
+        },
+        {
+          "name": "side",
+          "type": "text",
+          "notNull": true,
+          "default": "",
+          "json": "rules.items.side",
+          "comment": "归类：左右手组（左手／右手／尺肾／双手相兼）；空串＝未归类。"
         }
       ]
     },

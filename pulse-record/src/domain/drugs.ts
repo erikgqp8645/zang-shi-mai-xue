@@ -45,6 +45,14 @@ export interface Drug {
    * ⓘ 判据统一走 `src/domain/visibility.ts` 的 `isVisible`。
    */
   visible?: boolean
+  /**
+   * 归类：五行组（木／火／土／金／水）—— 管理员在网站端自选；空串＝未归类。
+   * ⓘ 脏与脉位由它推出（`domain/grouping.ts` 的 `WUXING_INFO`）。
+   * ⚠️ 基线每一条都得有这个键（哪怕空串）—— 后端编辑的 knownKeys 取自基线。
+   */
+  wuxing?: string
+  /** 归类：左右手组（左手／右手／尺肾／双手相兼）；空串＝未归类 */
+  side?: string
 }
 
 export const DRUGS: Drug[] = DRUG_DATA.drugs as Drug[]

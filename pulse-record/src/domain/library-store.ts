@@ -56,6 +56,8 @@ export interface LibraryKindField {
   required?: boolean
   /** `type === 'enum'` 时的可选值 */
   values?: string[]
+  /** 非必填 enum 的空选项文案（如「（未归类）」）；不给就用「（未选）」 */
+  emptyLabel?: string
   /**
    * 缺省值（表单渲染时用）。
    *

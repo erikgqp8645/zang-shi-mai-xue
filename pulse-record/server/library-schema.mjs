@@ -113,6 +113,14 @@ export const LIBRARY_KINDS = {
       // 缺省时**是显示**（`visible !== false`）—— 表单里的复选框要照这个渲染，
       // 否则会出现「框里是『否』、实际却在显示」的骗人状态（2026-11-17 用户反馈）。
       { key: 'visible', label: '是否在知识库里显示', type: 'boolean', defaultValue: true },
+      // 归类（2026-11-15 用户要求：条目可自选归类，不再只认代码里的静态表）。
+      // ⚠️ 这两个键**必须同时写进基线 JSON**（formula-rules.json / drugs.json）：
+      //    编辑路径的 knownKeys 取自基线条目的键，基线里没有 ⇒ 管理员一改就被
+      //    validateEntry 拒（server/library-service.mjs:338）。
+      //    取值是「组」而不是单值：五行↔脏↔脉位绑定、左手组↔脏绑定（见
+      //    src/domain/grouping.ts 的 WUXING_INFO / HAND_INFO），所以下拉直接给成组的。
+      { key: 'wuxing', label: '五行组', type: 'enum', values: ['木', '火', '土', '金', '水'], emptyLabel: '（未归类）' },
+      { key: 'side', label: '左右手组', type: 'enum', values: ['左手', '右手', '尺肾', '双手相兼'], emptyLabel: '（未归类）' },
       // 「画图即条件」：管理员新建的条目，**脉象图就是它的判定条件**
       // （src/domain/formulas.ts 的 loadRules：EVALUATORS 没有该 id 时，用这里的图建判定）。
       // 基线里的 61 条没有这个字段（判定在 EVALUATORS 里），不受影响。
@@ -155,6 +163,9 @@ export const LIBRARY_KINDS = {
       { key: 'quote', label: '说明', type: 'string' },
       // 「这一方要不要在用方知识库里显示」—— 同 rule 的 visible，语义一样。
       { key: 'visible', label: '是否在知识库里显示', type: 'boolean', defaultValue: true },
+      // 归类：同 rule 的 wuxing／side（见上面的说明）
+      { key: 'wuxing', label: '五行组', type: 'enum', values: ['木', '火', '土', '金', '水'], emptyLabel: '（未归类）' },
+      { key: 'side', label: '左右手组', type: 'enum', values: ['左手', '右手', '尺肾', '双手相兼'], emptyLabel: '（未归类）' },
     ],
   },
 
