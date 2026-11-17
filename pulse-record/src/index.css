@@ -2616,6 +2616,9 @@ button:disabled {
   padding: 3px 10px;
   border-radius: 3px;
   cursor: pointer;
+  /* 工具行按钮多起来时**换行**，不要各自压扁（文字被挤成两截很难看） */
+  flex: 0 0 auto;
+  white-space: nowrap;
   transition: all 0.15s ease;
 }
 .pr-filter-chip:hover {
@@ -3921,10 +3924,24 @@ button:disabled {
    * 瀑布流而不是等高网格：
    * 没有脉象图的条目（关系型）卡片本来就只有两三行，跟带图的一起
    * 等高会把空白拉得很难看；按内容高、逐列流动最自然。
+   *
+   * 列数固定 4 列（2026-11-17 用户要求），窄屏逐级减少。
    */
-  column-width: 300px;
+  column-count: 4;
   column-gap: 14px;
   padding: 4px 0 8px;
+}
+
+@media (max-width: 1280px) {
+  .pr-libcards { column-count: 3; }
+}
+
+@media (max-width: 960px) {
+  .pr-libcards { column-count: 2; }
+}
+
+@media (max-width: 640px) {
+  .pr-libcards { column-count: 1; }
 }
 
 .pr-libcard {

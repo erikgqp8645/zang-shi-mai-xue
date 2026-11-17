@@ -816,12 +816,32 @@ export function FormulaLibrary({
               <>
                 {/* ---- 讲义 p44 依脉用方（全量） ---- */}
                 {view === 'cards' ? (
-                  <LibraryCards
-                    rules={visibleRules.filter((r) => hitRules.has(r.id))}
-                    patternsOf={patternsOf}
-                    canEdit={canEdit}
-                    onEdit={(r) => openEditor('rule', r.id, r.condition)}
-                  />
+                  /*
+                   * 卡片也**按当前维度分组** —— 否则点「按五行／按左右手」时
+                   * 卡片顺序一点不变，看着像按钮坏了（2026-11-17 反馈）。
+                   * 分组标题与列表视图同一个开关（`hideGroupTitles`）。
+                   */
+                  ruleGroups.map((g) => {
+                    const items = g.items.filter((r) => hitRules.has(r.id))
+                    if (items.length === 0) return null
+                    return (
+                      <section key={g.key} className="pr-formula-group">
+                        {!hideGroupTitles && (
+                          <h4 className="pr-drug-group-title">
+                            {dim === 'route' ? g.label : groupShortLabel(dim, g.key)}
+                            {searching && <span className="pr-flib-group-hit">{items.length}</span>}
+                          </h4>
+                        )}
+                        {dim !== 'route' && <p className="pr-target-line">{g.note}</p>}
+                        <LibraryCards
+                          rules={items}
+                          patternsOf={patternsOf}
+                          canEdit={canEdit}
+                          onEdit={(r) => openEditor('rule', r.id, r.condition)}
+                        />
+                      </section>
+                    )
+                  })
                 ) : (
                 <section className="pr-formula-group">
                   {/*
