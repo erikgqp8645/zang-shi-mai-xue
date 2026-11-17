@@ -3921,38 +3921,45 @@ button:disabled {
 
 .pr-libcards {
   /*
-   * 瀑布流而不是等高网格：
-   * 没有脉象图的条目（关系型）卡片本来就只有两三行，跟带图的一起
-   * 等高会把空白拉得很难看；按内容高、逐列流动最自然。
+   * 网格（不是瀑布流）：一行四个、上下对齐、卡片之间有分隔线。
    *
-   * 列数固定 4 列（2026-11-17 用户要求），窄屏逐级减少。
+   * ⚠️ 原来用 `column-count` 做瀑布流 —— 卡片在列间流动，同一「行」的卡片
+   *    上下错开，看着像排版乱了（2026-11-17 用户截图标注）。
+   *
+   * 分隔线用「1px gap ＋ 容器底色」实现：容器背景是线色，卡片自己盖住一块，
+   * 间隙就露出细线 —— 比给每张卡���加 border 少一层边框、也不会出现双线。
    */
-  column-count: 4;
-  column-gap: 14px;
-  padding: 4px 0 8px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  margin: 4px 0 8px;
+  background: var(--line-soft);
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+  overflow: hidden;
 }
 
 @media (max-width: 1280px) {
-  .pr-libcards { column-count: 3; }
+  .pr-libcards { grid-template-columns: repeat(3, 1fr); }
 }
 
 @media (max-width: 960px) {
-  .pr-libcards { column-count: 2; }
+  .pr-libcards { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 640px) {
-  .pr-libcards { column-count: 1; }
+  .pr-libcards { grid-template-columns: 1fr; }
 }
 
 .pr-libcard {
   display: flex;
   flex-direction: column;
-  /* 瀑布流里一张卡别被拆到两列 */
-  break-inside: avoid;
-  margin: 0 0 14px;
+  /* 同一行的卡片等高（编辑按钮沉到卡底），顶部对齐 */
+  min-width: 0;
+  margin: 0;
   padding: 12px 14px 10px;
-  border: 1px solid var(--line-soft);
-  border-radius: 4px;
+  border: 0;
+  border-radius: 0;
   background: var(--card);
 }
 
