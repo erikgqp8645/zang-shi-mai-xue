@@ -73,7 +73,8 @@ function applyReplacements(original, replacements) {
   let lf = original.replace(/\r\n/g, '\n')
   for (const r of replacements) {
     if (!lf.includes(r.from)) return null
-    lf = lf.replace(r.from, r.to)
+    // `all: true` ⇒ 替换**全部**出现处（同一段代码有多处时只换一处会漏）
+    lf = r.all ? lf.split(r.from).join(r.to) : lf.replace(r.from, r.to)
   }
   return lf.split('\n').join(eol)
 }
@@ -121,8 +122,12 @@ const MUTATIONS = [
         path: INDEX,
         replacements: [
           {
+            // ⚠️ 源码里有**两处**同样的闸门（新增 POST／条目 PATCH-DELETE）；
+            //    `String.replace` 只换第一处 ⇒ 第二处还在，RE2 不会红。
+            //    这里用 `replaceAll`（锚点带全文，替换全部出现处）。
             from: '      if (!isAdmin(user)) {',
             to: '      if (false) { // （故意写坏：闸门摘掉）',
+            all: true,
           },
         ],
       },
@@ -249,8 +254,8 @@ const MUTATIONS = [
         path: MERGE,
         replacements: [
           {
-            from: '    if (baselineIds.has(id)) kept[id] = row\n    else stray.push(id)',
-            to: '    kept[id] = row // （故意写坏：陌生 id 也合并）',
+            from: '    if (baselineIds.has(id)) {',
+            to: '    if (true) { // （故意写坏：陌生 id 也合并）',
           },
         ],
       },

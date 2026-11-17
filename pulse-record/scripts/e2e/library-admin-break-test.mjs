@@ -74,7 +74,8 @@ function applyReplacements(original, replacements) {
   let lf = original.replace(/\r\n/g, '\n')
   for (const r of replacements) {
     if (!lf.includes(r.from)) return null
-    lf = lf.replace(r.from, r.to)
+    // `all: true` ⇒ 替换**全部**出现处
+    lf = r.all ? lf.split(r.from).join(r.to) : lf.replace(r.from, r.to)
   }
   return lf.split('\n').join(eol)
 }
@@ -186,8 +187,18 @@ const MUTATIONS = [
         path: LIB,
         replacements: [
           {
-            from: '    if (known ? known.has(itemId) : baseIds.has(itemId)) continue',
+            // ⚠️ 锚点跟着源码演进过：现在是两行分开判
+            //   `if (baseIds.has(itemId)) continue`（基线已有的）
+            //   `if (known && known.has(itemId)) continue`（代码里有判定函数的）
+            // 两条**都要**放行才等于「新增也不拦」⇒ 用 `all` 一起换。
+            from: '    if (baseIds.has(itemId)) continue',
             to: '    if (true) continue // （故意写坏：新增也不拦了）',
+            all: true,
+          },
+          {
+            from: '    if (known && known.has(itemId)) continue',
+            to: '    if (true) continue // （故意写坏：新增也不拦了）',
+            all: true,
           },
         ],
       },
@@ -340,13 +351,9 @@ const MUTATIONS = [
         replacements: [
           {
             from:
-              '      // 不写＝按显示算（缺省显示），所以它不是必填。\n' +
-              '      { key: \'visible\', label: \'是否在知识库里显示\', type: \'boolean\' },\n' +
-              '    ],',
+              '      { key: \'visible\', label: \'是否在知识库里显示\', type: \'boolean\', defaultValue: true },\n',
             to:
-              '      // 不写＝按显示算（缺省显示），所以它不是必填。\n' +
-              '      // （故意写坏：visible 的字段登记被删掉了）\n' +
-              '    ],',
+              '      // （故意写坏：visible 的字段登记被删掉了）\n',
           },
         ],
       },

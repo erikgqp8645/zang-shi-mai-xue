@@ -32,15 +32,22 @@ function FieldInput({
   onChange: (next: unknown) => void
 }) {
   if (field.type === 'boolean') {
+    /*
+     * 缺省值参与判断 —— 否则「可见性」这类字段会出现骗人状态：
+     * 数据里没有这个键（= 按语义应当**显示**），复选框却渲染成未勾选，
+     * 用户以为已经设成不显示、实际它正显示着；而「取消勾选」一个本来就
+     * 未勾的框**不触发 change** ⇒ 什么也存不进去（2026-11-17 用户反馈）。
+     */
+    const on = value === undefined ? field.defaultValue === true : value === true
     return (
       <label className="pr-led-check">
         <input
           type="checkbox"
-          checked={value === true}
+          checked={on}
           disabled={readOnly}
           onChange={(e) => onChange(e.target.checked)}
         />
-        <span>{value === true ? '是' : '否'}</span>
+        <span>{on ? '是' : '否'}</span>
       </label>
     )
   }

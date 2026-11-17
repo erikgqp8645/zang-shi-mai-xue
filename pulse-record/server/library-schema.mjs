@@ -110,7 +110,9 @@ export const LIBRARY_KINDS = {
       // 2026-11-12 用户标注2：「这里每一条都可以单独编辑文字和是否显示」。
       // true＝显示；false＝知识库列表里不列这一条（**判读命中不受影响**）。
       // 不写＝按显示算（缺省显示），所以它不是必填。
-      { key: 'visible', label: '是否在知识库里显示', type: 'boolean' },
+      // 缺省时**是显示**（`visible !== false`）—— 表单里的复选框要照这个渲染，
+      // 否则会出现「框里是『否』、实际却在显示」的骗人状态（2026-11-17 用户反馈）。
+      { key: 'visible', label: '是否在知识库里显示', type: 'boolean', defaultValue: true },
       // 「画图即条件」：管理员新建的条目，**脉象图就是它的判定条件**
       // （src/domain/formulas.ts 的 loadRules：EVALUATORS 没有该 id 时，用这里的图建判定）。
       // 基线里的 61 条没有这个字段（判定在 EVALUATORS 里），不受影响。
@@ -152,7 +154,7 @@ export const LIBRARY_KINDS = {
       { key: 'source', label: '出处', type: 'string', hidden: true },
       { key: 'quote', label: '说明', type: 'string' },
       // 「这一方要不要在用方知识库里显示」—— 同 rule 的 visible，语义一样。
-      { key: 'visible', label: '是否在知识库里显示', type: 'boolean' },
+      { key: 'visible', label: '是否在知识库里显示', type: 'boolean', defaultValue: true },
     ],
   },
 
@@ -192,7 +194,7 @@ export const LIBRARY_KINDS = {
       { key: 'notes', label: '附注', type: 'string[]', long: true },
       { key: 'page', label: '页码', type: 'page', required: true },
       // 「这一条要不要在剂量对照里显示」—— 与 drug 的 visible 同义（2026-11-14）
-      { key: 'visible', label: '是否显示', type: 'boolean' },
+      { key: 'visible', label: '是否显示', type: 'boolean', defaultValue: true },
     ],
   },
 

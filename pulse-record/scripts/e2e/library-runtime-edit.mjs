@@ -262,7 +262,9 @@ await check('RE4 未知字段／枚举非法／必填缺失／改 id：逐条 40
   const cases = [
     { patch: { nosuchfield: '瞎写的' }, must: 'nosuchfield' },
     { patch: { kind: '乱写的类别' }, must: 'kind' },
-    { patch: { route: '' }, must: 'route' },
+    // ⚠️ `route`（所属讲次）2026-11-15 起**可以为空**，不再用它当「必填缺失」的样本；
+    //    改用仍必填的 `condition`（脉象）。
+    { patch: { condition: '' }, must: 'condition' },
     { patch: { id: '换个 id' }, must: 'id' },
   ]
   for (const c of cases) {

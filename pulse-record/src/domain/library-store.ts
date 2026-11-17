@@ -56,6 +56,15 @@ export interface LibraryKindField {
   required?: boolean
   /** `type === 'enum'` 时的可选值 */
   values?: string[]
+  /**
+   * 缺省值（表单渲染时用）。
+   *
+   * ⓘ 布尔字段尤其要紧：「是否在知识库里显示」缺省时**是显示**
+   *   （`visible !== false`）⇒ 复选框必须渲染成**勾选**。
+   *   否则会出现「框里是『否』、实际却在显示」的骗人状态 ——
+   *   用户以为已经设成不显示，其实一点 change 都不会触发（2026-11-17 用户反馈）。
+   */
+  defaultValue?: unknown
   /** 长文本（编辑时用多行框，不用单行） */
   long?: boolean
   /**
