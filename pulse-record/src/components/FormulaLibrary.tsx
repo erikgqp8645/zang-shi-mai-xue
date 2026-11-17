@@ -34,6 +34,7 @@ import {
 import { getEffectiveDoseRaw, getEffectiveDrugRaw, getEffectiveRuleRaw } from '../domain/library-store'
 import { DrugCard, FormulaItem, type SessionFormulaHit } from './Findings'
 import { RuleEditor } from './RuleEditor'
+import { LibraryCards } from './LibraryCards'
 import { ConfirmDialog } from './ConfirmDialog'
 
 /**
@@ -153,6 +154,10 @@ function libraryRule(rule: FormulaRule): SessionFormulaHit {
  */
 type LibMode = 'inline' | 'page'
 
+/** 列表 ｜ 卡片（卡片是可选的第二种看法） */
+type LibView = 'list' | 'cards'
+const LIB_VIEW_KEY = 'pulse.library.layout'
+
 const LIB_MODES: { key: LibMode; label: string; hint: string }[] = [
   { key: 'inline', label: '当前位置', hint: '留在 ③ 开方药里，向下展开' },
   { key: 'page', label: '单独页面', hint: '在 /library 打开，方便收藏与并排查看' },
@@ -220,6 +225,28 @@ export function FormulaLibrary({
    *   （2026-11-15 用户把「右关浮大」勾掉后找不到了）。
    */
   const [showHidden, setShowHidden] = useState(false)
+
+  /**
+   * 用方条目的显示方式：`list`（默认，一行一条）｜ `cards`（一张一条，四个字段）。
+   *
+   * ⓘ 默认仍是列表 —— 卡片是**可选的第二种看法**，不是替代（2026-11-17 用户要求）。
+   */
+  const [view, setView] = useState<LibView>(() => {
+    try {
+      return localStorage.getItem(LIB_VIEW_KEY) === 'cards' ? 'cards' : 'list'
+    } catch {
+      return 'list'
+    }
+  })
+
+  function changeView(next: LibView) {
+    setView(next)
+    try {
+      localStorage.setItem(LIB_VIEW_KEY, next)
+    } catch {
+      /* 存不下只影响记忆 */
+    }
+  }
 
   /**
    * 运行期生效集（基线 ⊕ 服务端覆盖层）。
@@ -692,6 +719,26 @@ export function FormulaLibrary({
               常驻条目开关 —— 与② 命中区共用同一个（状态在 App 里）。
               常驻条目不依脉象，关掉后知识库里那一组（「用药禁忌」）整组消失。
             */}
+            {/* 列表 ｜ 卡片：默认列表，卡片是另一种看法 */}
+            <div className="pr-lib-view-switch" role="group" aria-label="条目显示方式">
+              <button
+                type="button"
+                className={`pr-lib-mode-btn${view === 'list' ? ' is-on' : ''}`}
+                aria-pressed={view === 'list'}
+                onClick={() => changeView('list')}
+              >
+                列表
+              </button>
+              <button
+                type="button"
+                className={`pr-lib-mode-btn${view === 'cards' ? ' is-on' : ''}`}
+                aria-pressed={view === 'cards'}
+                title="一张一条：脉象图 · 脉象 · 治法 · 说明"
+                onClick={() => changeView('cards')}
+              >
+                卡片
+              </button>
+            </div>
             {/*
               把「已隐藏」的条目也列出来（默认不列）。
               ⚠️ 少了它，取消「是否在知识库里显示」= 条目彻底找不到。
@@ -768,6 +815,14 @@ export function FormulaLibrary({
             ) : (
               <>
                 {/* ---- 讲义 p44 依脉用方（全量） ---- */}
+                {view === 'cards' ? (
+                  <LibraryCards
+                    rules={visibleRules.filter((r) => hitRules.has(r.id))}
+                    patternsOf={patternsOf}
+                    canEdit={canEdit}
+                    onEdit={(r) => openEditor('rule', r.id, r.condition)}
+                  />
+                ) : (
                 <section className="pr-formula-group">
                   {/*
                     区块大标题默认不显示（共享层 `hideRouteTitles`，内容层可改）。
@@ -832,6 +887,7 @@ export function FormulaLibrary({
                     )
                   })}
                 </section>
+                )}
 
                 {/* ---- 讲稿 2010 方剂（全量） ---- */}
                 <section className="pr-formula-group">

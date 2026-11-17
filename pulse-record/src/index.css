@@ -3900,6 +3900,125 @@ button:disabled {
   overflow: visible;
 }
 
+/* ---- 用方知识库 · 卡片视图（列表之外的第二种看法） ---- */
+.pr-lib-view-switch {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 0;
+}
+
+.pr-lib-view-switch .pr-lib-mode-btn:first-child {
+  border-radius: 2px 0 0 2px;
+}
+
+.pr-lib-view-switch .pr-lib-mode-btn:last-child {
+  border-left: 0;
+  border-radius: 0 2px 2px 0;
+}
+
+.pr-libcards {
+  /*
+   * 瀑布流而不是等高网格：
+   * 没有脉象图的条目（关系型）卡片本来就只有两三行，跟带图的一起
+   * 等高会把空白拉得很难看；按内容高、逐列流动最自然。
+   */
+  column-width: 300px;
+  column-gap: 14px;
+  padding: 4px 0 8px;
+}
+
+.pr-libcard {
+  display: flex;
+  flex-direction: column;
+  /* 瀑布流里一张卡别被拆到两列 */
+  break-inside: avoid;
+  margin: 0 0 14px;
+  padding: 12px 14px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+  background: var(--card);
+}
+
+.pr-libcard-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pr-libcard-kind {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  font-size: 11px;
+  line-height: 1.6;
+  opacity: 0.9;
+}
+
+.pr-libcard-kind.is-cinnabar { color: var(--cinnabar); }
+.pr-libcard-kind.is-clay { color: var(--clay); }
+.pr-libcard-kind.is-dai { color: var(--dai); }
+.pr-libcard-kind.is-sage { color: var(--sage); }
+.pr-libcard-kind.is-muted { color: var(--ink-3); }
+
+.pr-libcard-title {
+  margin: 0;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+/* 脉象图：卡片里按小尺寸画（行高由 `.pr-psheet.is-compact` 控制） */
+.pr-libcard-diagram {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 8px;
+}
+
+/* 卡片里的图再收一档：图本来只占半张卡，太大了会把文字挤到底部 */
+.pr-libcard-diagram .pr-psheet.is-compact {
+  width: 152px;
+}
+
+.pr-libcard-meta {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 4px 8px;
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.pr-libcard-meta dt {
+  color: var(--ink-3);
+  font-size: 12px;
+  padding-top: 1px;
+}
+
+.pr-libcard-meta dd {
+  margin: 0;
+  color: var(--ink-2);
+  line-height: 1.65;
+}
+
+/* 说明只留两行（全文在列表视图 / 编辑弹层里看） */
+.pr-libcard-quote {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--ink-3);
+}
+
+.pr-libcard-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px dashed var(--divider);
+}
+
 /* ---- 入口条：浮层形态关掉后，③ 里留的那一条 ---- */
 .pr-lib-entry {
   display: flex;
