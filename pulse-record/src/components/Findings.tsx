@@ -93,8 +93,16 @@ const DIM_HINT: Record<Dim, string> = {
  * ⚠️ 没有归类时**不静默** —— 在「讲稿原序」维度下，条目按讲次排，
  *    看不出哪些还没归类 ⇒ 标一个「未分类」（2026-11-15 用户要求）。
  */
-function AttrChip({ attr }: { attr: Attribution | undefined }) {
+function AttrChip({
+  attr,
+  markUnclassified = false,
+}: {
+  attr: Attribution | undefined
+  /** 没有归类时标一个「未分类」徽章（只在知识库里要，② 命中区不要） */
+  markUnclassified?: boolean
+}) {
   if (!attr) {
+    if (!markUnclassified) return null
     return (
       <span className="pr-attr is-unclassified" title="这一条还没定归类 —— 点「编辑」补上">
         未分类
@@ -163,6 +171,7 @@ export function DrugCard({
   compact,
   autoOpen,
   tools,
+  markUnclassified,
 }: {
   drug: Drug
   showAttr?: boolean
@@ -172,6 +181,8 @@ export function DrugCard({
   autoOpen?: boolean
   /** ③ 知识库里的管理员工具（② 命中区不传） */
   tools?: LibraryTools
+  /** 没有归类时标「未分类」（③ 知识库传 true；② 命中区不传） */
+  markUnclassified?: boolean
 }) {
   // 归类：条目自己选的优先，静态表兜底（2026-11-15）
   const attr = attribOf(drug.id, drug)
@@ -248,7 +259,9 @@ export function DrugCard({
            * 「讲稿原序」维度下 showAttr 是 false（不显示五行·脏那一套），
            * 但**没归类的条目要标出来** —— 按讲次排时看不出哪些待补。
            */}
-          {(showAttr || !attr) && <AttrChip attr={attr} />}
+          {(showAttr || markUnclassified) && (
+            <AttrChip attr={attr} markUnclassified={markUnclassified} />
+          )}
         </button>
         {/*
           ⚠️ 工具区在 button **外面** —— button 里不能套 button
@@ -274,7 +287,9 @@ export function DrugCard({
       <div className="pr-drug-head">
         <span className="pr-drug-therapy">{drug.therapy}</span>
         <strong>{drug.name}</strong>
-        {(showAttr || !attr) && <AttrChip attr={attr} />}
+        {(showAttr || markUnclassified) && (
+          <AttrChip attr={attr} markUnclassified={markUnclassified} />
+        )}
       </div>
       {detail}
     </div>
@@ -368,6 +383,7 @@ export function FormulaItem({
   compact,
   autoOpen,
   tools,
+  markUnclassified,
 }: {
   item: SessionFormulaHit
   showAttr?: boolean
@@ -383,6 +399,8 @@ export function FormulaItem({
   autoOpen?: boolean
   /** ③ 知识库里的管理员工具（② 命中区不传） */
   tools?: LibraryTools
+  /** 没有归类时标「未分类」（③ 知识库传 true；② 命中区不传） */
+  markUnclassified?: boolean
 }) {
   const { sessionLabel, hit } = item
   const attr = attribOf(hit.id, hit)
@@ -543,7 +561,9 @@ export function FormulaItem({
            * 「讲稿原序」维度下 showAttr 是 false（不显示五行·脏那一套），
            * 但**没归类的条目要标出来** —— 按讲次排时看不出哪些待补。
            */}
-          {(showAttr || !attr) && <AttrChip attr={attr} />}
+          {(showAttr || markUnclassified) && (
+          <AttrChip attr={attr} markUnclassified={markUnclassified} />
+        )}
         </button>
         {/*
           ⚠️ 方名 chip 在 button **外面** —— chip 上有「✎／✕」按钮，
@@ -656,7 +676,9 @@ export function FormulaItem({
       <div className="pr-formula-head">
         <span className="pr-formula-kind">{hit.kind}</span>
         <strong>{hit.condition}</strong>
-        {(showAttr || !attr) && <AttrChip attr={attr} />}
+        {(showAttr || markUnclassified) && (
+          <AttrChip attr={attr} markUnclassified={markUnclassified} />
+        )}
       </div>
       {detail}
     </div>

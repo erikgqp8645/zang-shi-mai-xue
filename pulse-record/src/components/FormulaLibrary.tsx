@@ -884,6 +884,8 @@ export function FormulaLibrary({
                               item={libraryRule(r)}
                               srcNote=" · 全量条目（知识库）"
                               compact
+                              /* 知识库里给未归类的条目标「未分类」 */
+                              markUnclassified
                               autoOpen={!searching && focusId === formulaAnchor('rule', r.id)}
                               tools={
                                 canEdit
@@ -958,6 +960,8 @@ export function FormulaLibrary({
                               drug={d}
                               showAttr={dim !== 'route'}
                               compact
+                              /* 知识库里给未归类的条目标「未分类」 */
+                              markUnclassified
                               /*
                                 ⚠️ 搜索时**一律折叠**：搜索是「找条目」，不是「看某一条的详情」。
                                    不加 `!searching` 时，之前跳转过的 focus 会让命中列表里的那一条
