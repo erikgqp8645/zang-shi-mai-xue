@@ -32,6 +32,7 @@
 
 import type { Drug } from './drugs'
 import type { RuleDataJson } from './formulas'
+import { FORMULA_SCIENCE_BY_ID } from './formula-table'
 
 /** 覆盖层的一行（服务端 `groupOverrides` 的形状） */
 export interface LibraryOverrideRow {
@@ -201,4 +202,24 @@ export function getEffectiveDrugRaw(id: string): Record<string, unknown> | null 
   if (!data) return null
   const hit = data.find((d) => String(d.id) === String(id))
   return hit ? ({ ...hit } as unknown as Record<string, unknown>) : null
+}
+
+/**
+ * 同上，「科中」比例行（`science` 这一类）。
+ *
+ * ⓘ 这一类**不进生效集**（`doseData` 里只有成方），所以只能从基线 ＋ 覆盖层拼：
+ *    覆盖层里被删掉的行当作「没有」；改过比例的行取覆盖层的值。
+ */
+export function getEffectiveScienceRaw(id: string): Record<string, unknown> | null {
+  const state = getLibraryState()
+  const ov = state.overrides?.science?.[id]
+  if (ov?.deleted) return null
+  const base = FORMULA_SCIENCE_BY_ID[id]
+  if (!base) return null
+  const payload = ov?.payload as { name?: unknown; ratio?: unknown } | undefined
+  return {
+    ...base,
+    ...(typeof payload?.name === 'string' ? { name: payload.name } : {}),
+    ...(typeof payload?.ratio === 'string' ? { ratio: payload.ratio } : {}),
+  } as unknown as Record<string, unknown>
 }

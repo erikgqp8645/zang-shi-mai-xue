@@ -7,14 +7,23 @@ import {
   type FormulaRule,
 } from '../domain/formulas'
 import { DRUG_BY_ID, DRUG_GROUPS, getEffectiveDrugs, getVisibleDrugs, type Drug } from '../domain/drugs'
-import { FORMULA_DOSE_BY_ID } from '../domain/formula-table'
+import {
+  FORMULA_DOSE_BY_ID,
+  DOSE_SCIENCE_NAME,
+  FORMULA_SCIENCE_BY_ID,
+  FORMULA_SCIENCE_BY_NAME,
+  type FormulaDose,
+} from '../domain/formula-table'
+import { getEffectiveDoseList, getEffectiveScienceList } from '../domain/dose-lookup'
 import { isVisible } from '../domain/visibility'
 import { FORMULA_REFERENCE } from '../domain/medication'
 import { formulaAnchor, formulaAnchorId, type FormulaLink } from '../domain/formula-links'
 import {
+  buildDoseIndex,
   buildDrugIndex,
   buildRefIndex,
   buildRuleIndex,
+  buildScienceIndex,
   searchEntries,
 } from '../domain/library-search'
 import {
@@ -31,10 +40,15 @@ import {
   undoLibraryDelete,
   useLibrary,
 } from '../state/library'
-import { getEffectiveDoseRaw, getEffectiveDrugRaw, getEffectiveRuleRaw } from '../domain/library-store'
+import {
+  getEffectiveDoseRaw,
+  getEffectiveDrugRaw,
+  getEffectiveRuleRaw,
+  getEffectiveScienceRaw,
+} from '../domain/library-store'
 import { DrugCard, FormulaItem, type SessionFormulaHit } from './Findings'
 import { RuleEditor } from './RuleEditor'
-import { LibraryCards, LibraryDrugCards } from './LibraryCards'
+import { LibraryCards, LibraryDoseCards, LibraryDrugCards, LibraryScienceCards } from './LibraryCards'
 import { ConfirmDialog } from './ConfirmDialog'
 
 /**
@@ -254,7 +268,7 @@ export function FormulaLibrary({
    * ⚠️ 必须订阅：管理员在 ③ 里改过／删过条目 ⇒ 生效集变了 ⇒
    *    ③ 的列表、计数、搜索都要跟着变（刷新页面才变是不行的）。
    */
-  const { ruleData, drugData, overrides } = useLibrary()
+  const { ruleData, drugData, doseData, overrides } = useLibrary()
 
   /* ------------------------------------------------------------------ */
   /* 管理员的编辑／删除（只有管理员看得到）                                 */
@@ -340,7 +354,10 @@ export function FormulaLibrary({
           (FORMULA_RULES.find((r) => r.id === id) as unknown as Record<string, unknown> | undefined))
         : kind === 'dose'
           ? (getEffectiveDoseRaw(id) ?? (FORMULA_DOSE_BY_ID[id] as unknown as Record<string, unknown> | undefined))
-          : (getEffectiveDrugRaw(id) ?? (DRUG_BY_ID[id] as unknown as Record<string, unknown> | undefined))
+          : kind === 'science'
+            ? (getEffectiveScienceRaw(id) ??
+              (FORMULA_SCIENCE_BY_ID[id] as unknown as Record<string, unknown> | undefined))
+            : (getEffectiveDrugRaw(id) ?? (DRUG_BY_ID[id] as unknown as Record<string, unknown> | undefined))
     if (!entry) {
       setToast('这一条现在取不到（可能刚被删掉）—— 刷新页面再试。')
       return
@@ -575,6 +592,45 @@ export function FormulaLibrary({
   const groupOrder = dim === 'wuxing' ? DIM_ORDER.wuxing : dim === 'hand' ? DIM_ORDER.hand : []
 
   /**
+   * 「科中」（科学中药比例）—— 同和堂版第 4 页那张表，**独立的一张表**。
+   *
+   * ⚠️ 17 行里只有 15 行能对上成方（「双关+秦艽」「双关+天王」两行没有对应成方），
+   *    所以它**不能只挂在成方行里** —— 得整表列出来。
+   */
+  // ⚠️ `overrides` 也在依赖里：改了某一行的比例后要立刻重算，不能等整份数据重载
+  const scienceRows = useMemo(() => getEffectiveScienceList(), [doseData, overrides])
+
+  /**
+   * 同和堂版成方（全量）—— 按**原文页序**分组（第 1~4 页）。
+   *
+   * ⚠️ **不参与「按五行／按左右手」维度**：那两个维度是**讲稿条目**（依脉用方／
+   *    讲稿方剂）的归类维度；成方是「怎么抓药」，不是「什么脏腑用」——
+   *    硬塞进五行组是臆断。
+   *
+   * ⓘ 这一节存在的理由：② 命中区的「方剂备查」2026-11-19 已删（与③ 重复），
+   *    而 ③ 原先只在**条目里顺带**显示某个方名的组成 ⇒ 17 个成方（多为「+」组合方）
+   *    没有可浏览的落点。成方的全量清单放这里。
+   */
+  const doseGroups = useMemo<Group<FormulaDose>[]>(() => {
+    const visible = getEffectiveDoseList().filter((d) => showHidden || isVisible(d))
+    const byPage = new Map<number, FormulaDose[]>()
+    for (const d of visible) {
+      const arr = byPage.get(d.page) ?? []
+      arr.push(d)
+      byPage.set(d.page, arr)
+    }
+    return [...byPage.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([page, items]) => ({
+        key: `dose-p${page}`,
+        label: `第 ${page} 页`,
+        note: '《臧氏脉学方剂汇总统表（同和堂版）》· 原页序',
+        items,
+      }))
+    // ⚠️ `doseData` 在依赖里：覆盖层变了 ⇒ 生效集变了 ⇒ 这一组要重算
+  }, [doseData, showHidden])
+
+  /**
    * 分组标题显不显示 —— **共享层**的设置（后台改完发布，全站一致）。
    *
    * ⓘ 只在「讲稿原序」维度生效：
@@ -598,6 +654,13 @@ export function FormulaLibrary({
   )
   const drugIndex = useMemo(() => buildDrugIndex(getVisibleDrugs()), [drugData])
   const refIndex = useMemo(() => buildRefIndex(FORMULA_REFERENCE), [])
+  /** 成方索引 —— 成方全量在下面那节里，搜方名要搜得到它 */
+  const doseIndex = useMemo(
+    () => buildDoseIndex(doseGroups.flatMap((g) => g.items)),
+    [doseGroups],
+  )
+  /** 「科中」比例行索引 —— 科中自己也是可搜的条目 */
+  const scienceIndex = useMemo(() => buildScienceIndex(scienceRows), [scienceRows])
 
   /** 命中 id 集合 —— 查询为空时是全集，所以渲染侧只有一套过滤逻辑 */
   const hitRules = useMemo(
@@ -608,12 +671,25 @@ export function FormulaLibrary({
     () => new Set(searchEntries(drugIndex, query).map((e) => e.item.id)),
     [drugIndex, query],
   )
+  const hitDoses = useMemo(
+    () => new Set(searchEntries(doseIndex, query).map((e) => e.item.id)),
+    [doseIndex, query],
+  )
+  const hitSciences = useMemo(
+    () => new Set(searchEntries(scienceIndex, query).map((e) => e.item.id)),
+    [scienceIndex, query],
+  )
+  /** 「科中」里命中的那几行（渲染侧用） */
+  const hitScienceRows = useMemo(
+    () => scienceRows.filter((s) => hitSciences.has(s.id)),
+    [scienceRows, hitSciences],
+  )
   const hitRefs = useMemo(
     () => (searching ? searchEntries(refIndex, query).map((e) => e.item) : []),
     [refIndex, query, searching],
   )
 
-  const hitCount = hitRules.size + hitDrugs.size
+  const hitCount = hitRules.size + hitDrugs.size + hitDoses.size + hitSciences.size
   const nothing = searching && hitCount === 0 && hitRefs.length === 0
 
   /**
@@ -640,7 +716,8 @@ export function FormulaLibrary({
           <span className="pr-flib-caret">{expanded ? '▾' : '▸'}</span>
           <span className="pr-flib-title">用方知识库</span>
           <span className="pr-flib-count">
-            讲义 p44 依脉用方 {visibleRules.length} 条 · 讲稿方剂 {getVisibleDrugs().length} 方
+            讲义 p44 依脉用方 {visibleRules.length} 条 · 讲稿方剂 {getVisibleDrugs().length} 方 · 同和堂版成方{' '}
+            {doseGroups.reduce((n, g) => n + g.items.length, 0)} 方
           </span>
         </button>
         {/* 计数说明放在按钮外面 —— 按钮里的数字是「现在显示了多少」 */}
@@ -985,6 +1062,138 @@ export function FormulaLibrary({
                   )}
                   {dim !== 'route' && groupOrder.length > 0 && drugGroups.length === 0 && (
                     <p className="pr-empty">当前维度下没有方剂。</p>
+                  )}
+                </section>
+
+                {/* ---- 同和堂版成方（全量） ---- */}
+                {/*
+                  ⓘ 为什么这一节在 ③ 而不在 ②：
+                     ② 命中区的「方剂备查」2026-11-19 已删（与③ 重复）；
+                     ③ 原先只在**条目里顺带**显示某个方名的组成 ⇒ 17 个成方
+                     （多为「+」组合方）没有可浏览的落点。成方的全量清单放这里。
+                  ⓘ 不参与「按五行／按左右手」维度 —— 成方是「怎么抓药」，不是「什么脏腑用」。
+                */}
+                <section className="pr-formula-group">
+                  {!LIBRARY_SETTINGS.hideRouteTitles && (
+                    <>
+                      <h3 className="pr-formula-route">
+                        同和堂版《臧氏脉学方剂汇总统表》· 全量成方
+                      </h3>
+                      <p className="pr-target-line">
+                        成方（药味＋**克**）原样转录，第 4 页「科中」比例并列；组合方照录原文的「＋」写法，
+                        不替读者展开。
+                      </p>
+                    </>
+                  )}
+                  {view === 'cards' ? (
+                    <LibraryDoseCards
+                      groups={doseGroups
+                        .map((g) => ({ ...g, items: g.items.filter((d) => hitDoses.has(d.id)) }))
+                        .filter((g) => g.items.length > 0)}
+                      canEdit={canEdit}
+                      showGroupTitles={!hideGroupTitles}
+                      onEdit={openForeignEditor}
+                    />
+                  ) : (
+                    doseGroups.map((g) => {
+                      const items = g.items.filter((d) => hitDoses.has(d.id))
+                      if (items.length === 0) return null
+                      return (
+                        <div key={g.key} className="pr-flib-group">
+                          {!hideGroupTitles && (
+                            <h4 className="pr-drug-group-title">
+                              {g.label}
+                              {searching && <span className="pr-flib-group-hit">{items.length}</span>}
+                            </h4>
+                          )}
+                          {items.map((d) => {
+                            const sciName = DOSE_SCIENCE_NAME[d.id]
+                            const sci = sciName ? FORMULA_SCIENCE_BY_NAME[sciName] : undefined
+                            return (
+                              <div
+                                key={d.id}
+                                id={formulaAnchor('dose', d.id)}
+                                className={`pr-flib-anchor${focusId === formulaAnchor('dose', d.id) ? ' is-focus' : ''}`}
+                              >
+                                {!isVisible(d) ? (
+                                  <span className="pr-flib-hidden-tag">已隐藏（取消勾选「是否在知识库里显示」）</span>
+                                ) : null}
+                                <div className="pr-dose-row pr-dose-item">
+                                  <div className="pr-dose-row-head">
+                                    <strong className="pr-dose-row-name">{d.name}</strong>
+                                    {/*
+                                      ⓘ 单位必须每行都写明：讲稿那套是**比例制**，
+                                      这里是**克** —— 两套不换算、不混写。
+                                      共享层把分组标题关了，这一行就是读者唯一能看到的标识。
+                                    */}
+                                    <span className="pr-dose-row-unit">同和堂版 · 克</span>
+                                    <span className="pr-dose-row-page">第 {d.page} 页</span>
+                                  </div>
+                                  <div className="pr-dose-row-comp">{d.composition || '—'}</div>
+                                  {sci ? (
+                                    <div className="pr-dose-row-sci">
+                                      <span className="pr-dose-row-sci-tag">科中</span>
+                                      {sci.ratio}
+                                    </div>
+                                  ) : null}
+                                  {d.notes && d.notes.length > 0 ? (
+                                    <div className="pr-dose-row-notes">附注：{d.notes.join('；')}</div>
+                                  ) : null}
+                                  {canEdit ? (
+                                    <div className="pr-dose-row-tools">
+                                      {entryActions('dose', d.id, d.name)}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )
+                    })
+                  )}
+
+                  {/* ---- 「科中」（科学中药比例）—— 第 4 页那张独立的表 ---- */}
+                  {/*
+                    ⚠️ 17 行里只有 15 行能对上成方（「双关+秦艽」「双关+天王」没有
+                       对应成方）⇒ 这份**不能只挂在成方行里**，得整表列出来。
+                  */}
+                  {hitScienceRows.length > 0 && (
+                    <>
+                      {!hideGroupTitles && (
+                        <h4 className="pr-drug-group-title">
+                          第 4 页 · 科中（科学中药比例）
+                          {searching && (
+                            <span className="pr-flib-group-hit">{hitScienceRows.length}</span>
+                          )}
+                        </h4>
+                      )}
+                      {view === 'cards' ? (
+                        <LibraryScienceCards
+                          rows={hitScienceRows}
+                          canEdit={canEdit}
+                          onEdit={openForeignEditor}
+                        />
+                      ) : (
+                        <div className="pr-flib-group">
+                          {hitScienceRows.map((s) => (
+                            <div key={s.id} className="pr-dose-row pr-science-item">
+                              <div className="pr-dose-row-head">
+                                <strong className="pr-dose-row-name">{s.name}</strong>
+                                <span className="pr-dose-row-unit">科中 · g</span>
+                                <span className="pr-dose-row-page">第 {s.page} 页</span>
+                              </div>
+                              <div className="pr-dose-row-comp">{s.ratio || '—'}</div>
+                              {canEdit ? (
+                                <div className="pr-dose-row-tools">
+                                  {entryActions('science', s.id, s.name)}
+                                </div>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
                   )}
                 </section>
 

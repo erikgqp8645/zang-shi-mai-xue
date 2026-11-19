@@ -7,16 +7,8 @@ import {
   type FormulaHit,
 } from '../domain/formulas'
 import { getDrugById, type Drug } from '../domain/drugs'
-import { getEffectiveDoseList } from '../domain/dose-lookup'
 import { addChip, removeChip, sameChips, setChip } from '../domain/library-chips.mjs'
 import { useLibrary } from '../state/library'
-import {
-  DOSE_SCIENCE_NAME,
-  FORMULA_SCIENCES,
-  FORMULA_SCIENCE_BY_NAME,
-  type FormulaDose,
-  type FormulaScience,
-} from '../domain/formula-table'
 import { FlowPath } from './FlowPath'
 import { DoseLines } from './DoseLines'
 import { PatternStrip } from './PatternStrip'
@@ -292,62 +284,6 @@ export function DrugCard({
         )}
       </div>
       {detail}
-    </div>
-  )
-}
-
-/**
- * 同和堂版《臧氏脉学方剂汇总统表》的一条成方 —— 药味＋**克**，原样转录。
- *
- * 与 `DrugCard`（讲稿 2010，组成用比例制）是**两套资料**，不合并：
- * 单位不同，不可互相换算。
- */
-function DoseCard({ dose }: { dose: FormulaDose }) {
-  const science = FORMULA_SCIENCE_BY_NAME[DOSE_SCIENCE_NAME[dose.id] ?? '']
-  return (
-    <div className="pr-drug" onClick={(e) => e.stopPropagation()}>
-      <div className="pr-drug-head">
-        <span className="pr-drug-therapy">同和堂版</span>
-        <strong>{dose.name}</strong>
-      </div>
-      <p className="pr-drug-line">
-        <span className="pr-drug-key">组成</span>
-        {dose.composition}
-      </p>
-      {dose.notes?.map((n, i) => (
-        <p key={i} className="pr-drug-line">
-          <span className="pr-drug-key">注</span>
-          {n}
-        </p>
-      ))}
-      {science && (
-        <p className="pr-drug-line">
-          <span className="pr-drug-key">科中</span>
-          {science.ratio}
-        </p>
-      )}
-      <p className="pr-finding-src">
-        〔《臧氏脉学方剂汇总统表（同和堂版）》· 第 {dose.page} 页 · 单位：克〕
-      </p>
-    </div>
-  )
-}
-
-/** 「科中」（科学中药）一行 */
-function ScienceLine({ s }: { s: FormulaScience }) {
-  return (
-    <div className="pr-drug" onClick={(e) => e.stopPropagation()}>
-      <div className="pr-drug-head">
-        <span className="pr-drug-therapy">科中</span>
-        <strong>{s.name}</strong>
-      </div>
-      <p className="pr-drug-line">
-        <span className="pr-drug-key">比例</span>
-        {s.ratio}
-      </p>
-      <p className="pr-finding-src">
-        〔《臧氏脉学方剂汇总统表（同和堂版）》· 第 {s.page} 页 · 单位：g〕
-      </p>
     </div>
   )
 }
@@ -1072,34 +1008,14 @@ export function Findings({
             已删：讲稿方剂一律去 ③ 知识库查（那里可搜索、可点开看详情）；
             ② 命中条目本身已内嵌该条的组成／服法／加减／禁忌，判读不受影响。
 
-            ⚠️ 同和堂版成方（下一节）**保留** —— ③ 知识库里没有这一份，不重复。
+            ⚠️ 同和堂版成方（原下一节「方剂备查（同和堂版《臧氏脉学方剂汇总统表》）」）
+            也**已删**（2026-11-19 用户提出「它和用方知识库重复了」）：成方 49 方与科中 17 条
+            在 **③ 用方知识库的「剂量对照」**、以及**用药记录里的「讲义 p42 原表对照 ·
+            配伍与剂量」列**都能看到 ⇒ 一律去 ③ 查。
+            ② 命中条目本身已内嵌该条的组成／服法／加减／禁忌，判读不受影响。
           */}
 
           {/* 同和堂版成方：三个维度都显示（它没有五行／左右手归属，不参与分组筛选） */}
-          <section className="pr-formula-group">
-            <h3 className="pr-formula-route">方剂备查（同和堂版《臧氏脉学方剂汇总统表》）</h3>
-            <p className="pr-target-line">
-              纸质讲义第 1~4 页原样转录：成方（药味＋**克**）与第 4 页「科中」科学中药比例。
-              单位是克，与讲稿 2010 的比例制不同 —— 两套**不可互相换算**，也不合并。
-              {dim !== 'route' && '　本组条目无五行／左右手归属，不参与上面的分组筛选。'}
-            </p>
-            {[1, 2, 3].map((page) => (
-              <div key={page} className="pr-drug-group">
-                <h4 className="pr-drug-group-title">第 {page} 页</h4>
-                {getEffectiveDoseList()
-                  .filter((d) => d.page === page && d.visible !== false)
-                  .map((d) => (
-                    <DoseCard key={d.id} dose={d} />
-                  ))}
-              </div>
-            ))}
-            <div className="pr-drug-group">
-              <h4 className="pr-drug-group-title">第 4 页 · 科中（科学中药）</h4>
-              {FORMULA_SCIENCES.map((s) => (
-                <ScienceLine key={s.id} s={s} />
-              ))}
-            </div>
-          </section>
         </>
       )}
     </section>

@@ -68,6 +68,11 @@ export const FORMULA_SCIENCE_BY_NAME: Record<string, FormulaScience> = toRecord(
   FORMULA_SCIENCES.map((s) => [s.name, s] as [string, FormulaScience]),
 )
 
+/** 按「科中」id 取比例行（编辑弹层按 id 取生效的那一条） */
+export const FORMULA_SCIENCE_BY_ID: Record<string, FormulaScience> = toRecord(
+  FORMULA_SCIENCES.map((s) => [s.id, s] as [string, FormulaScience]),
+)
+
 /** 成方条目 → 对应的「科中」行（原文第 4 页按方名索引） */
 export const DOSE_SCIENCE_NAME: Record<string, string> = DOSE_DATA.scienceByDoseId
 

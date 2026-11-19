@@ -1,6 +1,8 @@
 import { Fragment, useMemo } from 'react'
 import type { FormulaRule } from '../domain/formulas'
 import type { Drug } from '../domain/drugs'
+import type { FormulaDose, FormulaScience } from '../domain/formula-table'
+import { DOSE_SCIENCE_NAME, FORMULA_SCIENCE_BY_NAME } from '../domain/formula-table'
 import type { Group } from '../domain/grouping'
 import { attribOf } from '../domain/grouping'
 import { hasCells } from './PatternSheet'
@@ -137,6 +139,142 @@ export function LibraryCards({
             )
           })}
         </Fragment>
+      ))}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* 同和堂版成方 · 卡片                                                 */
+/* ------------------------------------------------------------------ */
+
+interface DoseCardsProps {
+  groups: CardGroup<FormulaDose>[]
+  canEdit: boolean
+  /** 点「编辑」—— 走同一个编辑弹层（`openForeignEditor`） */
+  onEdit: (kind: string, id: string, name: string) => void
+  showGroupTitles: boolean
+  groupLabel?: (g: CardGroup<FormulaDose>) => string
+}
+
+/**
+ * 同和堂版成方的卡片。
+ *
+ * 成方**没有脉象图、也没有治法** —— 它只有方名、组成（克）、科中比例与原文附注。
+ * 卡面字段：组成 / 科中 / 附注 / 出处。
+ */
+export function LibraryDoseCards({
+  groups,
+  canEdit,
+  onEdit,
+  showGroupTitles,
+  groupLabel,
+}: DoseCardsProps) {
+  const total = groups.reduce((n, g) => n + g.items.length, 0)
+  if (total === 0) {
+    return <p className="pr-flib-empty">没有匹配的成方。</p>
+  }
+
+  return (
+    <div className="pr-libcards">
+      {groups.map((g) => (
+        <Fragment key={g.key}>
+          {showGroupTitles ? (
+            <h4 className="pr-libcards-head">{groupLabel ? groupLabel(g) : g.label}</h4>
+          ) : null}
+          {g.items.map((d) => {
+            const sciName = DOSE_SCIENCE_NAME[d.id]
+            const sci = sciName ? FORMULA_SCIENCE_BY_NAME[sciName] : undefined
+            return (
+              <article key={d.id} className="pr-libcard is-muted pr-dose-item">
+                <header className="pr-libcard-head">
+                  <span className="pr-libcard-kind is-muted">成方（克）</span>
+                  <h4 className="pr-libcard-title">{d.name}</h4>
+                </header>
+
+                <dl className="pr-libcard-meta">
+                  <dt>组成</dt>
+                  <dd>{d.composition || '—'}</dd>
+                  {sci ? (
+                    <>
+                      <dt>科中</dt>
+                      <dd>{sci.ratio}</dd>
+                    </>
+                  ) : null}
+                  {d.notes && d.notes.length > 0 ? (
+                    <>
+                      <dt>附注</dt>
+                      <dd>{d.notes.join('；')}</dd>
+                    </>
+                  ) : null}
+                  <dt>出处</dt>
+                  <dd>第 {d.page} 页</dd>
+                </dl>
+
+                {canEdit ? (
+                  <footer className="pr-libcard-foot">
+                    <button
+                      type="button"
+                      className="pr-led-btn"
+                      onClick={() => onEdit('dose', d.id, d.name)}
+                    >
+                      编辑
+                    </button>
+                  </footer>
+                ) : null}
+              </article>
+            )
+          })}
+        </Fragment>
+      ))}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* 「科中」比例行 · 卡片                                                */
+/* ------------------------------------------------------------------ */
+
+interface ScienceCardsProps {
+  rows: FormulaScience[]
+  canEdit: boolean
+  /** 点「编辑」—— 走同一个编辑弹层（`openForeignEditor`） */
+  onEdit: (kind: string, id: string, name: string) => void
+}
+
+/**
+ * 「科中」（科学中药比例）—— 同和堂版第 4 页那张**独立的表**。
+ *
+ * ⚠️ 17 行里只有 15 行能对上成方 ⇒ 这份不能只挂在成方行里，得自己成组。
+ */
+export function LibraryScienceCards({ rows, canEdit, onEdit }: ScienceCardsProps) {
+  if (rows.length === 0) return null
+  return (
+    <div className="pr-libcards">
+      {rows.map((s) => (
+        <article key={s.id} className="pr-libcard is-muted pr-science-item">
+          <header className="pr-libcard-head">
+            <span className="pr-libcard-kind is-muted">科中</span>
+            <h4 className="pr-libcard-title">{s.name}</h4>
+          </header>
+          <dl className="pr-libcard-meta">
+            <dt>比例</dt>
+            <dd>{s.ratio || '—'}</dd>
+            <dt>出处</dt>
+            <dd>第 {s.page} 页</dd>
+          </dl>
+          {canEdit ? (
+            <footer className="pr-libcard-foot">
+              <button
+                type="button"
+                className="pr-led-btn"
+                onClick={() => onEdit('science', s.id, s.name)}
+              >
+                编辑
+              </button>
+            </footer>
+          ) : null}
+        </article>
       ))}
     </div>
   )

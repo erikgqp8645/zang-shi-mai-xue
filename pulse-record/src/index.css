@@ -4446,6 +4446,82 @@ button:disabled {
   padding-left: 8px;
 }
 
+/* ------------------------------------------------------------------ */
+/* 同和堂版成方 · 知识库列表行                                          */
+/* 一行一条：方名 ｜ 组成（克）｜ 科中 ｜ 附注                            */
+/* ------------------------------------------------------------------ */
+
+.pr-dose-row {
+  padding: 7px 9px;
+  margin-bottom: 1px;
+  border-radius: 4px;
+}
+
+.pr-dose-row:hover {
+  background: var(--paper-sunk);
+}
+
+.pr-dose-row-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pr-dose-row-name {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.pr-dose-row-page {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+/* 单位标识 —— 「克」与讲稿的「比例制」不能混看，每行都要写明 */
+.pr-dose-row-unit {
+  padding: 0 5px;
+  border: 1px solid var(--line-soft);
+  border-radius: 2px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.pr-dose-row-comp {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+
+.pr-dose-row-sci {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.pr-dose-row-sci-tag {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--line-soft);
+  border-radius: 2px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.pr-dose-row-notes {
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+.pr-dose-row-tools {
+  margin-top: 5px;
+  display: flex;
+  gap: 6px;
+}
+
 /* 方名对不上知识库条目时，明说「用方页未载」 */
 .pr-triad-rx-unknown {
   font-size: 11px;

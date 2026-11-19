@@ -25,7 +25,9 @@ import {
   FORMULA_DOSE_BY_ID,
   FORMULA_DOSES,
   FORMULA_SCIENCE_BY_NAME,
+  FORMULA_SCIENCES,
   type FormulaDose,
+  type FormulaScience,
 } from './formula-table'
 import { FORMULA_ALIAS, FORMULA_REFERENCE, type FormulaReference } from './medication'
 import { getLibraryState } from './library-store'
@@ -117,6 +119,32 @@ function effectiveDoses(): FormulaDose[] {
  */
 export function getEffectiveDoseList(): FormulaDose[] {
   return effectiveDoses()
+}
+
+/**
+ * 当前生效的「科中」比例行（同和堂版第 4 页那张表，17 行）。
+ *
+ * ⚠️ **科中不是成方的附属**：17 行里只有 15 行能对上成方，
+ *    「双关+秦艽」「双关+天王」两行**没有**对应的成方条目 ——
+ *    所以「科中」得整表列出来，不能只挂在成方行里。
+ *
+ * 覆盖层 `science` 分组可改比例或删行 —— 这里取生效值，
+ * 与 `toEntry()` 里取比例的写法保持一致。
+ */
+export function getEffectiveScienceList(): FormulaScience[] {
+  const ov = getLibraryState().overrides?.science
+  const out: FormulaScience[] = []
+  for (const s of FORMULA_SCIENCES) {
+    const o = ov?.[s.id]
+    if (o?.deleted) continue
+    const p = o?.payload
+    out.push({
+      ...s,
+      name: typeof p?.name === 'string' ? p.name : s.name,
+      ratio: typeof p?.ratio === 'string' ? p.ratio : s.ratio,
+    })
+  }
+  return out
 }
 
 /** 按 id 取生效的那一条（对照表 `doseId`／`parentDoseId` 用） —— 同样优先生效集 */

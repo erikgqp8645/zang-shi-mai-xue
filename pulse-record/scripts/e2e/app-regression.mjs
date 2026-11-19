@@ -519,7 +519,10 @@ try {
   // （依脉用方那部分**不是**重复：② 只列命中的 35 条，③ 是全量 61 条，是子集⊆全集。）
   //
   // 处置：删掉② 那一节，讲稿方剂一律去③ 查；chip 上的「· K 方备查」也一并删掉。
-  // ⚠️ 同和堂版成方**保留** —— ③ 知识库里没有这一份，不重复。
+  // ⚠️ 同和堂版成方在 2026-11-19 也从② 删掉了 —— 但**不是**因为③ 本来就有：
+  //   ③ 原先只在**条目里顺带**显示某个方名的组成 ⇒ 17 个成方（多为「+」组合方）
+  //   没有可浏览的落点。所以同时给③ 加了一节「同和堂版成方（全量）」，
+  //   49 方在那里一条不少 —— 这才是「不重复」的完整形态。
   //
   // ③ 知识库默认是折着的 ⇒ 先把它展开，否则数不到那 30 条。
   await chrome.ev(
@@ -541,10 +544,15 @@ try {
       const panelScript=[...panel.querySelectorAll('.pr-drug')].filter(isScript);
       const panelTonghe=[...panel.querySelectorAll('.pr-drug')].filter(e=>!isScript(e));
       const libScript=[...document.querySelectorAll('#pr-flib .pr-drug-compact')];
+      // 同和堂版成方那一节的标题（② 已删，这里要确认它不在了）
+      const doseSection=heads.filter(t=>t.includes('方剂汇总统表'));
+      // ③ 里的同和堂版成方（列表行与卡片都带 .pr-dose-item 这个钩子）
+      const libDose=[...document.querySelectorAll('#pr-flib .pr-dose-item')];
+      const libDoseNames=new Set(libDose.map(e=>{const s=e.querySelector('.pr-dose-row-name,.pr-libcard-title');return s?s.textContent.trim():''}));
       // ② 里出现的讲稿方剂**去重后**有几个？—— 命中条目内嵌的只是「这次用到的那些」，
       // 不该是全部 30 方（全部 30 方在③ 知识库里）。
       const panelNames=new Set(panelScript.map(e=>{const s=e.querySelector('.pr-drug-head strong');return s?s.textContent.trim():''}));
-      return {scriptSection,panelScript:panelScript.length,panelNames:panelNames.size,panelTonghe:panelTonghe.length,libScript:libScript.length};
+      return {scriptSection,doseSection,panelScript:panelScript.length,panelNames:panelNames.size,panelTonghe:panelTonghe.length,libScript:libScript.length,libDose:libDose.length,libDoseNames:libDoseNames.size};
     })()`,
   )
   console.log(`  ${JSON.stringify(dupStat)}`)
@@ -564,9 +572,14 @@ try {
     `② 去重后 ${dupStat.panelNames} 个方名（卡片 ${dupStat.panelScript} 张）`,
   )
   c.check(
-    '② 的同和堂版成方保留（③ 知识库里没有这一份，不重复）',
-    dupStat.panelTonghe > 0,
-    `② 同和堂版 ${dupStat.panelTonghe} 张`,
+    '② 面板里没有「同和堂版成方」那一节了（2026-11-19 并入③）',
+    dupStat.doseSection.length === 0 && dupStat.panelTonghe === 0,
+    `节标题 ${dupStat.doseSection.length} 个 · 同和堂版卡片 ${dupStat.panelTonghe} 张`,
+  )
+  c.check(
+    '③ 知识库里 49 方成方一条不少（② 删了，这里得全）',
+    dupStat.libDoseNames === 49,
+    `③ 成方 ${dupStat.libDoseNames} 方（条目 ${dupStat.libDose} 条）`,
   )
 
   /* ---- ⑪ 知识库：共享层的「显示模式」＋「每条是否显示」 ---- */

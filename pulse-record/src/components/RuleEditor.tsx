@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createLibraryEntry, restoreLibraryDefault, saveLibraryPatch, useLibrary } from '../state/library'
 import { usePatterns } from '../state/patterns'
-import { getEffectiveDoseRaw, getEffectiveDrugRaw, getEffectiveRuleRaw } from '../domain/library-store'
+import {
+  getEffectiveDoseRaw,
+  getEffectiveDrugRaw,
+  getEffectiveRuleRaw,
+  getEffectiveScienceRaw,
+} from '../domain/library-store'
 import { diffEntryFields, normalizePatterns, patternsChanged } from '../domain/unified-editor.mjs'
 import { makeRuleId } from '../domain/rule-id'
 import type { PulsePattern } from '../domain/pulse-pattern'
@@ -97,9 +102,10 @@ export function RuleEditor({
   const effective = useMemo(() => {
     if (entryProp) return entryProp
     if (isCreate) return null
-    // 三类各自有自己的 getter（dose ＝ 同和堂版成方）
+    // 三类各自有自己的 getter（dose ＝ 同和堂版成方，science ＝ 科中比例行）
     if (kind === 'rule') return getEffectiveRuleRaw(id)
     if (kind === 'dose') return getEffectiveDoseRaw(id)
+    if (kind === 'science') return getEffectiveScienceRaw(id)
     return getEffectiveDrugRaw(id)
   }, [entryProp, kind, id, isCreate])
 

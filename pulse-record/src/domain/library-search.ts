@@ -25,6 +25,7 @@ import { HAND_LABEL, type Hand } from './types'
 import type { Drug } from './drugs'
 import type { FormulaRule } from './formulas'
 import type { FormulaReference } from './medication'
+import type { FormulaDose, FormulaScience } from './formula-table'
 import type { PulsePattern } from './pulse-pattern'
 
 /* ------------------------------------------------------------------ */
@@ -126,6 +127,19 @@ export function refSearchText(ref: FormulaReference): string {
   return out.join('\n')
 }
 
+/**
+ * 一条成方（同和堂版《方剂汇总统表》，单位克）的可检索文字。
+ *
+ * 成方只有方名与组成两样能查（科中比例与附注由 `dose-lookup` 那边取），
+ * 这里把能搜的都摊平：方名、组成里的每一味、原文附注。
+ */
+export function doseSearchText(dose: FormulaDose): string {
+  const out: string[] = [dose.id, dose.name]
+  if (dose.composition) out.push(dose.composition)
+  for (const n of dose.notes ?? []) out.push(n)
+  return out.join('\n')
+}
+
 /* ------------------------------------------------------------------ */
 /* 查询                                                                 */
 /* ------------------------------------------------------------------ */
@@ -182,4 +196,23 @@ export function buildDrugIndex(drugs: Drug[]): SearchEntry<Drug>[] {
 
 export function buildRefIndex(refs: FormulaReference[]): SearchEntry<FormulaReference>[] {
   return refs.map((ref) => ({ item: ref, text: refSearchText(ref) }))
+}
+
+/** 成方索引（同和堂版成方那 49 条） */
+export function buildDoseIndex(doses: FormulaDose[]): SearchEntry<FormulaDose>[] {
+  return doses.map((dose) => ({ item: dose, text: doseSearchText(dose) }))
+}
+
+/**
+ * 一条「科中」比例行的可检索文字。
+ *
+ * 科中**不是成方的附属**（17 行里 2 行没有对应成方）⇒ 它自己也是可搜的条目。
+ */
+export function scienceSearchText(science: FormulaScience): string {
+  return [science.id, science.name, science.ratio].join('\n')
+}
+
+/** 「科中」比例行索引 */
+export function buildScienceIndex(sciences: FormulaScience[]): SearchEntry<FormulaScience>[] {
+  return sciences.map((s) => ({ item: s, text: scienceSearchText(s) }))
 }

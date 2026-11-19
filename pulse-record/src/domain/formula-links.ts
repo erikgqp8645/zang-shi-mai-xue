@@ -32,8 +32,11 @@ import { getEffectiveDrugs } from './drugs'
 import { getEffectiveRules } from './formulas'
 import { FORMULA_ALIAS } from './medication'
 
-/** 锚点种类：`drug`＝讲稿方剂条目，`rule`＝讲义 p44 依脉用方条目 */
-export type FormulaLinkKind = 'drug' | 'rule'
+/**
+ * 锚点种类：`drug`＝讲稿方剂条目，`rule`＝讲义 p44 依脉用方条目，
+ * `dose`＝同和堂版成方条目（2026-11-19 起成方全量进了知识库）。
+ */
+export type FormulaLinkKind = 'drug' | 'rule' | 'dose'
 
 export interface FormulaLink {
   kind: FormulaLinkKind
