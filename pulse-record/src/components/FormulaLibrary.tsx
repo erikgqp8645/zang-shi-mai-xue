@@ -525,12 +525,18 @@ export function FormulaLibrary({
       setView('list')
       return
     }
-    // 本区块此时已是展开状态（expanded 含 focus），锚点元素已进 DOM
+    /*
+     * 锚点此时可能**还没进 DOM** —— 读者先把知识库收起来过（`hidden=true`）时，
+     * `expanded` 要等下面那个 effect 把 `hidden` 置回 false 才成立，
+     * 而这次 effect 已经跑过去了 ⇒ `el` 为 null、直接返回，然后**不会再跑**。
+     * 症状：知识库展开了、目标也高亮了，但页面没滚过去（手机上看就是「点了没反应」）。
+     * ⇒ 依赖里必须带 `expanded`：等内容真的挂上再滚一次。
+     */
     const el = document.getElementById(formulaAnchorId(focus))
     if (!el) return
     el.scrollIntoView({ behavior: 'smooth', block: 'center' })
     handledFocus.current = focus
-  }, [focus, query, view])
+  }, [focus, query, view, expanded])
 
   /* ------------------------------------------------------------------ */
   /* 数据：p44 依脉用方（全量）＋ 讲稿方剂（全量）                          */

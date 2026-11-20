@@ -400,6 +400,38 @@ try {
     JSON.stringify(pickHit),
   )
 
+  // 2026-11-20 用户报「点击在知识库查看无法跳转」：
+  // 知识库**被收起过**（hidden=true）之后，点 ② 的行会展开、会高亮，但**不滚动** ——
+  // 滚动 effect 跑在内容挂载之前（锚点还没进 DOM），之后依赖不变、不会重跑。
+  // 修法：effect 依赖里带 `expanded`。这条断言盯的就是「真的滚到视口里」。
+  await chrome.ev(
+    `(()=>{const t=document.querySelector('#pr-flib .pr-flib-toggle');if(t&&document.getElementById('pr-flib').classList.contains('is-open'))t.click();return 1})()`,
+  )
+  await sleep(600)
+  const jumpAfterClose = await chrome.ev(
+    `(()=>new Promise((res)=>{
+      const rows=[...document.querySelectorAll('.pr-findings-row .pr-hit-main')];
+      const row=rows[5]||rows[0];
+      if(!row){res({err:'no row'});return}
+      const title=row.querySelector('.pr-hit-title').textContent.trim();
+      row.click();
+      setTimeout(()=>{
+        const lib=document.getElementById('pr-flib');
+        const f=lib.querySelector('.pr-flib-anchor.is-focus');
+        const r=f?f.getBoundingClientRect():null;
+        res({title,open:lib.classList.contains('is-open'),top:r?Math.round(r.top):null,
+             inView:r?(r.top>0&&r.top<window.innerHeight):false,
+             viewport:window.innerHeight});
+      },1600);
+    }))()`,
+  )
+  console.log(`  收起后点行：${JSON.stringify(jumpAfterClose)}`)
+  c.check(
+    '知识库收起过之后，点 ② 的行仍会滚到目标那一条（不是只展开不滚）',
+    jumpAfterClose && jumpAfterClose.open === true && jumpAfterClose.inView === true,
+    JSON.stringify(jumpAfterClose),
+  )
+
   /* ---- ⑩ 常驻条目（用药禁忌）开关 ---- */
   console.log('\n【⑩】常驻条目（用药禁忌）开关')
   //
