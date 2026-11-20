@@ -1057,7 +1057,6 @@ export default function App() {
             hits={hits}
             formulaHits={formulaHits}
             onFocus={focusHit}
-            onOpenFormula={openFormula}
             showStanding={showStanding}
           />
         </div>

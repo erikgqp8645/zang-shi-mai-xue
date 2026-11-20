@@ -1,5 +1,0 @@
-- generic [ref=f6e4]:
-  - heading "臧氏脉学 · 脉象记录表生成器" [level=1] [ref=f6e5]
-  - paragraph [ref=f6e6]: 当前是单机模式：这台机器上的数据只有本机能读写，不用登录。
-  - paragraph [ref=f6e7]: 本工具只做记录，不构成诊断。
-  - button "进入" [ref=f6e8] [cursor=pointer]

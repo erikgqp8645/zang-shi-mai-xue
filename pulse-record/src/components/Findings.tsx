@@ -8,7 +8,6 @@ import {
 } from '../domain/formulas'
 import { getDrugById, type Drug } from '../domain/drugs'
 import { cellLabel } from '../domain/library-search'
-import type { FormulaLink } from '../domain/formula-links'
 import { addChip, removeChip, sameChips, setChip } from '../domain/library-chips.mjs'
 import { useLibrary } from '../state/library'
 import { DoseLines } from './DoseLines'
@@ -33,13 +32,6 @@ interface Props {
   hits: SessionHit[]
   formulaHits: SessionFormulaHit[]
   onFocus: (h: SessionHit) => void
-  /**
-   * 点命中行的一条 → 在 ③ 用方知识库里定位到它。
-   *
-   * ⓘ 2026-11-20 起 ② 只列摘要、不再渲染详情；详情（脉象图／原文／方剂卡／剂量）
-   *   只在 ③ 渲染一处，所以点条目必须能跳过去。
-   */
-  onOpenFormula?: (link: FormulaLink) => void
   /** 常驻条目（用药禁忌）显不显示 —— 与③ 用方知识库共用同一个开关（开关本身在 ③） */
   showStanding: boolean
 }
@@ -574,22 +566,12 @@ export function FormulaItem({
  * 同一张方剂卡在两处各渲染一遍。② 的职责只是「**这次命中了哪几条、用什么方**」；
  * 条目的详情（脉象图／原文／方剂卡／组成剂量／编辑入口）**只在 ③ 用方知识库渲染一处**。
  *
- * ## 两个动作
- *
- * - 点这一行 → 跳 ③ 并定位到该条（`onOpenFormula` → `FormulaLibrary.focus`）
- *
  * ⓘ 2026-11-20 用户要求「做减法」：出处行（〔讲稿 2010·第二讲…〕· 命中记录 …）、
- *    「看命中格子」链接、五行/左右手 chip 都从这一行撤掉了 —— 一行只留
- *    「kind ｜ 条目名 ｜ 命中脉位 ｜ 疗法 ｜ 方名 ｜ 在知识库看 →」。
+ *    「看命中格子」链接、五行/左右手 chip 都从这一行撤掉了。
+ * ⓘ 同日再砍一刀：「**在知识库看 →**」也撤了（用户要求砍掉这个功能）——
+ *    这一行现在是**纯文字**（不是按钮），只读不点。
  */
-function FormulaHitRow({
-  item,
-  onOpenFormula,
-}: {
-  item: SessionFormulaHit
-  /** 点整行 → 请在知识库里定位这一条 */
-  onOpenFormula?: (link: FormulaLink) => void
-}) {
+function FormulaHitRow({ item }: { item: SessionFormulaHit }) {
   const { hit, sessionId } = item
   const standing = sessionId === STANDING_ID
   /** 格键 → 「右尺浮」这种人话；不认识的键原样返回（宁可难看，也不拼错） */
@@ -597,19 +579,7 @@ function FormulaHitRow({
 
   return (
     <div className={`pr-formula pr-hit is-${hit.kind}`}>
-      <button
-        type="button"
-        className="pr-hit-main"
-        title="在 ③ 用方知识库看这一条的脉象图、原文与组成"
-        onClick={() =>
-          onOpenFormula?.({
-            kind: 'rule',
-            id: hit.id,
-            label: hit.condition,
-            basis: '② 判读提示的命中条目 —— 详情见 ③ 用方知识库',
-          })
-        }
-      >
+      <div className="pr-hit-main">
         <span className="pr-formula-kind">{hit.kind}</span>
         <strong className="pr-hit-title">{hit.condition}</strong>
         {/* 常驻条目不依脉象 —— 标一下，别让读者以为是这次摸出来的（2026-11-20） */}
@@ -625,9 +595,8 @@ function FormulaHitRow({
             {hit.therapy}
           </span>
         ) : null}
-        <span className="pr-hit-goto">在知识库看 →</span>
-      </button>
-      {/* 方名 chip 在 button 外面 —— 与 ③ 的紧凑行同一套做法 */}
+      </div>
+      {/* 方名 chips（纯文字） */}
       {hit.formulas.length > 0 && (
         <div className="pr-formula-list-inline">
           {hit.formulas.map((f, i) => (
@@ -679,7 +648,6 @@ export function Findings({
   hits,
   formulaHits,
   onFocus,
-  onOpenFormula,
   showStanding,
 }: Props) {
   const [tab, setTab] = useState<Tab>('risk')
@@ -800,7 +768,6 @@ export function Findings({
                       <FormulaHitRow
                         key={item.hit.id}
                         item={item}
-                        onOpenFormula={onOpenFormula}
                       />
                     ))}
                   </section>
@@ -810,7 +777,7 @@ export function Findings({
               <section className="pr-formula-group">
                 <h3 className="pr-formula-route">用药禁忌（常驻）</h3>
                 {getStandingRules().map((rule) => (
-                  <FormulaHitRow key={rule.id} item={standingHitOf(rule)} onOpenFormula={onOpenFormula} />
+                  <FormulaHitRow key={rule.id} item={standingHitOf(rule)} />
                 ))}
               </section>
             )}

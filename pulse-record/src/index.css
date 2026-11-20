@@ -2833,6 +2833,8 @@ button:disabled {
 .pr-hit {
   padding: 5px 0 5px 9px;
   margin-bottom: 2px;
+  /* 一行摘要只读不点（「在知识库看」2026-11-20 已砍）⇒ 不要手的指针 */
+  cursor: default;
 }
 
 .pr-hit-main {
@@ -2843,12 +2845,6 @@ button:disabled {
   width: 100%;
   margin: 0;
   padding: 0;
-  background: none;
-  border: 0;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
 }
 
 .pr-hit-title {
@@ -2874,17 +2870,6 @@ button:disabled {
   color: var(--ink-2);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.pr-hit-goto {
-  margin-left: auto;
-  font-size: 11.5px;
-  color: var(--sage);
-  white-space: nowrap;
-}
-
-.pr-hit-main:hover .pr-hit-goto {
-  text-decoration: underline;
 }
 
 /* 方名 chip 在 button 外面（与 ③ 的紧凑行同一套做法） */

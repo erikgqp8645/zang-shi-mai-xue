@@ -75,8 +75,9 @@ try {
   //
   // 2026-11-20 用户提出「② 和用方知识库显示重复」：
   // 同一张脉象图、同一段原文、同一张方剂卡在两处各渲染一遍。
-  // 处置：② 每条压成**一行摘要**（条目名 ｜ 命中脉位 ｜ 疗法 ｜ 方名 ｜ 在知识库看），
+  // 处置：② 每条压成**一行摘要**（kind ｜ 条目名 ｜ 命中脉位 ｜ 疗法 ｜ 方名），
   // 脉象图／原文／方剂卡／组成剂量**只在 ③ 渲染一处**。
+  // 同日再砍：行上的「在知识库看 →」也去掉了 —— ② 的这一行只读不点。
   console.log('\n【①】② 命中区＝一行摘要；详情只在 ③ 知识库')
   await chrome.ev(
     `(()=>{const b=[...document.querySelectorAll('.pr-tab')].find(b=>b.textContent.includes('依脉用方'));b&&b.click();return 1})()`,
@@ -106,8 +107,8 @@ try {
     JSON.stringify(summary),
   )
   c.check(
-    '② 每条都带「在知识库看」入口，且标出命中脉位',
-    summary.gotos === summary.rows && summary.cells > 0,
+    '② 不再有「在知识库看」入口（整行只读），但仍标出命中脉位',
+    summary.gotos === 0 && summary.rows > 0 && summary.cells > 0,
     `入口 ${summary.gotos}／行 ${summary.rows}｜命中脉位标记 ${summary.cells}`,
   )
 
@@ -398,38 +399,6 @@ try {
     '点「上焦方」链接仍然定位得到知识库那一条（没把功能改坏）',
     pickHit.open === true && pickHit.found === true && pickHit.focus === true,
     JSON.stringify(pickHit),
-  )
-
-  // 2026-11-20 用户报「点击在知识库查看无法跳转」：
-  // 知识库**被收起过**（hidden=true）之后，点 ② 的行会展开、会高亮，但**不滚动** ——
-  // 滚动 effect 跑在内容挂载之前（锚点还没进 DOM），之后依赖不变、不会重跑。
-  // 修法：effect 依赖里带 `expanded`。这条断言盯的就是「真的滚到视口里」。
-  await chrome.ev(
-    `(()=>{const t=document.querySelector('#pr-flib .pr-flib-toggle');if(t&&document.getElementById('pr-flib').classList.contains('is-open'))t.click();return 1})()`,
-  )
-  await sleep(600)
-  const jumpAfterClose = await chrome.ev(
-    `(()=>new Promise((res)=>{
-      const rows=[...document.querySelectorAll('.pr-findings-row .pr-hit-main')];
-      const row=rows[5]||rows[0];
-      if(!row){res({err:'no row'});return}
-      const title=row.querySelector('.pr-hit-title').textContent.trim();
-      row.click();
-      setTimeout(()=>{
-        const lib=document.getElementById('pr-flib');
-        const f=lib.querySelector('.pr-flib-anchor.is-focus');
-        const r=f?f.getBoundingClientRect():null;
-        res({title,open:lib.classList.contains('is-open'),top:r?Math.round(r.top):null,
-             inView:r?(r.top>0&&r.top<window.innerHeight):false,
-             viewport:window.innerHeight});
-      },1600);
-    }))()`,
-  )
-  console.log(`  收起后点行：${JSON.stringify(jumpAfterClose)}`)
-  c.check(
-    '知识库收起过之后，点 ② 的行仍会滚到目标那一条（不是只展开不滚）',
-    jumpAfterClose && jumpAfterClose.open === true && jumpAfterClose.inView === true,
-    JSON.stringify(jumpAfterClose),
   )
 
   /* ---- ⑩ 常驻条目（用药禁忌）开关 ---- */
