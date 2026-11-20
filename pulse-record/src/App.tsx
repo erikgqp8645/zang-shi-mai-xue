@@ -1077,6 +1077,7 @@ export default function App() {
             formulaHits={formulaHits}
             onFocus={focusHit}
             onFocusFormula={focusFormula}
+            onOpenFormula={openFormula}
             wuxingFilter={groupFilter.wuxing}
             handFilter={groupFilter.hand}
             onFilterChange={changeFilter}

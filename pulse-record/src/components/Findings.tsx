@@ -7,6 +7,8 @@ import {
   type FormulaHit,
 } from '../domain/formulas'
 import { getDrugById, type Drug } from '../domain/drugs'
+import { cellLabel } from '../domain/library-search'
+import type { FormulaLink } from '../domain/formula-links'
 import { addChip, removeChip, sameChips, setChip } from '../domain/library-chips.mjs'
 import { useLibrary } from '../state/library'
 import { FlowPath } from './FlowPath'
@@ -43,6 +45,13 @@ interface Props {
   formulaHits: SessionFormulaHit[]
   onFocus: (h: SessionHit) => void
   onFocusFormula: (h: SessionFormulaHit) => void
+  /**
+   * 点命中行的一条 → 在 ③ 用方知识库里定位到它。
+   *
+   * ⓘ 2026-11-20 起 ② 只列摘要、不再渲染详情；详情（脉象图／原文／方剂卡／剂量）
+   *   只在 ③ 渲染一处，所以点条目必须能跳过去。
+   */
+  onOpenFormula?: (link: FormulaLink) => void
   /** 按五行／按左右手时打开的分组（筛选开关，与 Markdown 导出同步） */
   wuxingFilter: string[]
   handFilter: string[]
@@ -314,9 +323,7 @@ export function FormulaItem({
   item,
   showAttr,
   sessions,
-  onFocusFormula,
   srcNote,
-  compact,
   autoOpen,
   tools,
   markUnclassified,
@@ -325,12 +332,8 @@ export function FormulaItem({
   showAttr?: boolean
   /** 按维度分组时，同一条规则合并多次命中，此处列出命中的记录 */
   sessions?: string[]
-  /** 「用方知识库」里的条目不是命中项，没有「定位到格子」这一步 */
-  onFocusFormula?: (h: SessionFormulaHit) => void
   /** 出处行后面的补充说明（「用方知识库」里写「全量条目」，命中区写命中记录） */
   srcNote?: string
-  /** 紧凑一行：折叠时只留一行摘要，点开才看详情 */
-  compact?: boolean
   /** 紧凑态默认展开（从 ③ 的方名跳进来时用，落在哪一条就展开哪一条） */
   autoOpen?: boolean
   /** ③ 知识库里的管理员工具（② 命中区不传） */
@@ -404,21 +407,12 @@ export function FormulaItem({
   }
 
   /**
-   * 详情区 —— 两种版式共用。
-   * 紧凑态的「疗法／方名」在折叠行上已经出现过，这里就不再重复一遍。
+   * 详情区 —— 折叠时不出，点开才出。
+   *
+   * ⓘ 「疗法／方名」在折叠行上已经有了，这里不再重复一遍。
    */
   const detail = (
     <>
-      {!compact && <p className="pr-formula-therapy">{hit.therapy}</p>}
-      {!compact && hit.formulas.length > 0 && (
-        <p className="pr-formula-list-inline">
-          {hit.formulas.map((f) => (
-            <span key={f} className="pr-formula-chip">
-              {f}
-            </span>
-          ))}
-        </p>
-      )}
       {/*
         脉象图：紧贴方名，说明「什么脉象才用这个方」。
         ⚠️ 只有关系注记（没有格子）的那几张**不单独占一块** —— 见下面 relationOnly 的说明。
@@ -479,8 +473,7 @@ export function FormulaItem({
     </>
   )
 
-  if (compact) {
-    return (
+  return (
       <div className={`pr-formula pr-formula-compact is-${hit.kind}${open ? ' is-open' : ''}`}>
         <button
           type="button"
@@ -604,19 +597,118 @@ export function FormulaItem({
         {tools?.actions && <div className="pr-formula-tools">{tools.actions}</div>}
         {open && <div className="pr-formula-detail">{detail}</div>}
       </div>
-    )
-  }
+  )
+}
+
+/**
+ * ② 命中区的**一行摘要**。
+ *
+ * ## 为什么要这一层
+ *
+ * 2026-11-20 用户提出「② 和用方知识库显示重复」：同一张脉象图、同一段原文、
+ * 同一张方剂卡在两处各渲染一遍。② 的职责只是「**这次命中了哪几条、用什么方**」；
+ * 条目的详情（脉象图／原文／方剂卡／组成剂量／编辑入口）**只在 ③ 用方知识库渲染一处**。
+ *
+ * ## 两个动作
+ *
+ * - 点这一行 → 跳 ③ 并定位到该条（`onOpenFormula` → `FormulaLibrary.focus`）
+ * - 点「看命中格子」→ 回 ① 脉象表，把这次命中的格子标出来（`onFocusFormula`）
+ *
+ * ⚠️ 「看命中格子」在**出处行**里、在 button **外面** —— 不建议把可点元素塞进
+ *    外层 button（见 AGENTS.md 的嵌套 button 那条）。
+ */
+function FormulaHitRow({
+  item,
+  sessions,
+  showAttr,
+  onOpenFormula,
+  onFocusFormula,
+}: {
+  item: SessionFormulaHit
+  /** 按五行／按左右手分组时，同一条规则可能被多次记录命中 */
+  sessions?: string[]
+  showAttr?: boolean
+  /** 点整行 → 请在知识库里定位这一条 */
+  onOpenFormula?: (link: FormulaLink) => void
+  /** 点「看命中格子」→ 回主表高亮 */
+  onFocusFormula?: (h: SessionFormulaHit) => void
+}) {
+  const { hit, sessionId, sessionLabel } = item
+  const attr = attribOf(hit.id, hit)
+  const standing = sessionId === STANDING_ID
+  /** 格键 → 「右尺浮」这种人话；不认识的键原样返回（宁可难看，也不拼错） */
+  const cells = hit.cells.map(cellLabel)
+  /** 同一条规则被多次记录命中 ⇒ 「看命中格子」只能落到其中一条上，不显示 */
+  const multiSession = !!sessions && sessions.length > 1
+  const tail = standing
+    ? '常驻条目（不依脉象）'
+    : multiSession
+      ? `命中记录 ${sessions!.join('、')}`
+      : `记录 ${sessionLabel}`
 
   return (
-    <div className={`pr-formula is-${hit.kind}`} onClick={() => onFocusFormula?.(item)}>
-      <div className="pr-formula-head">
+    <div className={`pr-formula pr-hit is-${hit.kind}`}>
+      <button
+        type="button"
+        className="pr-hit-main"
+        title="在 ③ 用方知识库看这一条的脉象图、原文与组成"
+        onClick={() =>
+          onOpenFormula?.({
+            kind: 'rule',
+            id: hit.id,
+            label: hit.condition,
+            basis: '② 判读提示的命中条目 —— 详情见 ③ 用方知识库',
+          })
+        }
+      >
         <span className="pr-formula-kind">{hit.kind}</span>
-        <strong>{hit.condition}</strong>
-        {(showAttr || markUnclassified) && (
-          <AttrChip attr={attr} markUnclassified={markUnclassified} />
+        <strong className="pr-hit-title">{hit.condition}</strong>
+        {showAttr && <AttrChip attr={attr} />}
+        {cells.length > 0 && (
+          <span className="pr-hit-cells">
+            <span className="pr-hit-cells-key">命中</span>
+            {cells.join('、')}
+          </span>
         )}
-      </div>
-      {detail}
+        {hit.therapy ? (
+          <span className="pr-hit-therapy" title={hit.therapy}>
+            {hit.therapy}
+          </span>
+        ) : null}
+        <span className="pr-hit-goto">在知识库看 →</span>
+      </button>
+      {/* 方名 chip 在 button 外面 —— 与 ③ 的紧凑行同一套做法 */}
+      {hit.formulas.length > 0 && (
+        <div className="pr-formula-list-inline">
+          {hit.formulas.map((f, i) => (
+            <span key={`${f}-${i}`} className="pr-formula-chip">
+              {f}
+            </span>
+          ))}
+        </div>
+      )}
+      <p className="pr-finding-src pr-hit-src">
+        〔{hit.source}〕· {tail}
+        {cells.length > 0 && !multiSession && onFocusFormula ? (
+          <span
+            role="button"
+            tabIndex={0}
+            className="pr-hit-locate"
+            title="回到 ① 的脉象表，把命中的格子标出来"
+            onClick={(e) => {
+              e.stopPropagation()
+              onFocusFormula(item)
+            }}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter' && e.key !== ' ') return
+              e.preventDefault()
+              onFocusFormula(item)
+            }}
+          >
+            看命中格子
+          </span>
+        ) : null}
+      </p>
     </div>
   )
 }
@@ -648,14 +740,25 @@ function mergeByRule(items: SessionFormulaHit[]): { item: SessionFormulaHit; ses
 
 /** 常驻条目（三不用、白虎汤／肾气丸）：不依赖脉象，始终列出 */
 const STANDING_LABEL = '常驻'
+const STANDING_ID = '__standing__'
+
+/**
+ * 一条常驻条目 → 命中项（不依脉象，所以 `cells` 为空）。
+ *
+ * ⚠️ 「讲稿原序」那一节与五行／左右手分组用的是**同一个**函数 ——
+ *    两处若各拼一份，出处行与显示名迟早会分叉。
+ */
+function standingHitOf(rule: Omit<FormulaHit, 'cells'>): SessionFormulaHit {
+  return {
+    sessionId: STANDING_ID,
+    sessionLabel: STANDING_LABEL,
+    hit: { ...rule, condition: STANDING_DISPLAY[rule.id] ?? rule.therapy, cells: [] },
+  }
+}
 
 /** 把常驻条目并入维度分组，避免在五行／左右手视图里丢失 */
 function standingHits(): SessionFormulaHit[] {
-  return getStandingRules().map((rule) => ({
-    sessionId: '__standing__',
-    sessionLabel: STANDING_LABEL,
-    hit: { ...rule, condition: STANDING_DISPLAY[rule.id] ?? rule.therapy, cells: [] },
-  }))
+  return getStandingRules().map(standingHitOf)
 }
 
 export function Findings({
@@ -663,6 +766,7 @@ export function Findings({
   formulaHits,
   onFocus,
   onFocusFormula,
+  onOpenFormula,
   wuxingFilter,
   handFilter,
   onFilterChange,
@@ -920,8 +1024,19 @@ export function Findings({
               ? grouped.map(({ route, items }) => (
                   <section key={route} className="pr-formula-group">
                     <h3 className="pr-formula-route">{route}</h3>
-                    {items.map((item) => (
-                      <FormulaItem key={`${item.sessionId}-${item.hit.id}`} item={item} onFocusFormula={onFocusFormula} />
+                    {/*
+                      同一条规则被多次记录命中 ⇒ **合并成一行**，出处行写「命中记录 …」。
+                      不合并的话（示例数据是 6 个日期），一行摘要会重复列出同一条件十几次 ——
+                      五行／左右手两个维度本来就是合并的，三个维度口径要一致。
+                    */}
+                    {mergeByRule(items).map(({ item, sessions }) => (
+                      <FormulaHitRow
+                        key={item.hit.id}
+                        item={item}
+                        sessions={sessions}
+                        onOpenFormula={onOpenFormula}
+                        onFocusFormula={onFocusFormula}
+                      />
                     ))}
                   </section>
                 ))
@@ -929,11 +1044,12 @@ export function Findings({
                   <section key={g.key} className="pr-formula-group">
                     <GroupHead group={g} />
                     {mergeByRule(g.items).map(({ item, sessions }) => (
-                      <FormulaItem
+                      <FormulaHitRow
                         key={item.hit.id}
                         item={item}
                         showAttr
                         sessions={sessions}
+                        onOpenFormula={onOpenFormula}
                         onFocusFormula={onFocusFormula}
                       />
                     ))}
@@ -944,31 +1060,12 @@ export function Findings({
               <section className="pr-formula-group">
                 <h3 className="pr-formula-route">用药禁忌（常驻）</h3>
                 {getStandingRules().map((rule) => (
-                  <div key={rule.id} className={`pr-formula is-${rule.kind}`}>
-                    <div className="pr-formula-head">
-                      <span className="pr-formula-kind">{rule.kind}</span>
-                      <strong>{rule.condition}</strong>
-                    </div>
-                    <p className="pr-formula-therapy">{rule.therapy}</p>
-                    {rule.formulas.length > 0 && (
-                      <p className="pr-formula-list-inline">
-                        {rule.formulas.map((f) => (
-                          <span key={f} className="pr-formula-chip">
-                            {f}
-                          </span>
-                        ))}
-                      </p>
-                    )}
-                    {rule.patterns && rule.patterns.length > 0 && (
-                      <PatternStrip
-                        formulaId={rule.id}
-                        formulaLabel={rule.condition}
-                        baseline={rule.patterns}
-                      />
-                    )}
-                    <p className="pr-formula-quote">{rule.quote}</p>
-                    <p className="pr-finding-src">〔{rule.source}〕</p>
-                  </div>
+                  <FormulaHitRow
+                    key={rule.id}
+                    item={standingHitOf(rule)}
+                    onOpenFormula={onOpenFormula}
+                    onFocusFormula={onFocusFormula}
+                  />
                 ))}
               </section>
             )}

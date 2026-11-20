@@ -38,7 +38,7 @@
  *             而开关与计数的几条断言**仍然绿**（只是排版写坏，不是功能坏了）
  *   J —— 把删掉的「讲稿方剂全量」那一节**加回来**（②③ 又重复渲染一遍）
  *        期望：「② 面板里没有『讲稿方剂全量』那一节了」与
- *             「② 里只出现『这次用到』的讲稿方剂」变红，
+ *             「② 里不再渲染讲稿方剂卡」变红，
  *             而「③ 知识库里 30 条讲稿方剂一条不少」「③ 知识库里 49 方成方一条不少」**仍然绿**
  *
  * ## 为什么要留「依脉象的禁忌条目」这一条断言
@@ -100,8 +100,11 @@ const RE_PANEL_ALL = /const all = showStanding \? \[\.\.\.formulaHits, \.\.\.sta
  *    mutation F 只破坏**常驻条目**那半边（`showStanding || !r.always` → 恒真），
  *    可见性那半边留着不动 —— F 测的是「开关」，不是「可见性」。
  */
+// ⚠️ 两处要点：数据源是 `getEffectiveRules()`（生效集，不是内置常量）；
+//    条件前面还有 `showHidden ||`（「已隐藏条目」开关）。
+//    写成老样子会在源码一变就静默失配 —— mutation 报「规则失效」，看不出真因。
 const RE_VISIBLE_RULES =
-  /FORMULA_RULES\.filter\(\(r\) => isVisible\(r\) && \(showStanding \|\| !r\.always\)\)/
+  /getEffectiveRules\(\)\.filter\(\s*\(r\) => \(showHidden \|\| isVisible\(r\)\) && \(showStanding \|\| !r\.always\),?\s*\)/
 
 /**
  * Findings.tsx：chip 上的数字文案
@@ -158,7 +161,10 @@ const MUTATIONS = [
     apply(src) {
       // showStanding 为真时本来就是全量；为假时也返回全量 ⇒ 开关在③ 里失效
       // （只破坏常驻条目那半边；可见性那半边留着 —— 那是另一条断言在管的事）
-      return src.replace(RE_VISIBLE_RULES, 'FORMULA_RULES.filter((r) => isVisible(r))')
+      return src.replace(
+        RE_VISIBLE_RULES,
+        'getEffectiveRules().filter((r) => (showHidden || isVisible(r)))',
+      )
     },
     expectRed: [
       '关掉后③ 知识库的常驻条目也没了（同一个开关）',
@@ -226,8 +232,8 @@ const MUTATIONS = [
       // ⚠️ 这段代码用了 DRUGS，而 DRUGS 的 import 也被一并删了 ⇒ mutation 必须把 import 一起加回来，
       //    否则 TS 编译失败、回归根本跑不到断言那条（测的就不是东西了）。
       const withImport = src.replace(
-        "import { DRUG_BY_ID, type Drug } from '../domain/drugs'",
-        "import { DRUG_BY_ID, DRUGS, type Drug } from '../domain/drugs'",
+        "import { getDrugById, type Drug } from '../domain/drugs'",
+        "import { DRUGS, getDrugById, type Drug } from '../domain/drugs'",
       )
       return withImport.replace(
         RE_DRUG_SECTION_ANCHOR,
@@ -244,7 +250,7 @@ const MUTATIONS = [
     },
     expectRed: [
       '② 面板里没有「讲稿方剂全量」那一节了',
-      '② 里只出现「这次用到」的讲稿方剂，不是全部 30 方（全部那 30 方在③ 里）',
+      '② 里不再渲染讲稿方剂卡（卡片的详情只在③）',
     ],
     // 关键：③ 知识库那一份**本来就在**，不受这次 mutation 影响 ⇒ 必须仍然绿
     expectGreen: [

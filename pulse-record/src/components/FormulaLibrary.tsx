@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   getEffectiveRules,
   FORMULA_ROUTE_ORDER,
@@ -230,6 +230,8 @@ export function FormulaLibrary({
   const mode: LibMode = forceMode ?? savedMode
   const [dim, setDim] = useState<Dim>('route')
   const [query, setQuery] = useState('')
+  /** 已经定位过的那一条（`focus` 从不清空，靠它区分「新的一次定位」） */
+  const handledFocus = useRef<FormulaLink | null>(null)
   /** 合并层读数：手填的脉象图也要能被搜到 */
   const { patternsOf } = usePatterns()
   /**
@@ -505,11 +507,30 @@ export function FormulaLibrary({
       setQuery('')
       return
     }
+    /*
+     * 已经定位过这一条就不再动。
+     *
+     * ⚠️ `formulaFocus` 在 App 里**从不清空**（没有超时淡出）⇒ 不加这个闸门的话，
+     *    读者后续切一次视图（卡片／列表）就会把 effect 再触发一遍，
+     *    定位逻辑又会把视图掰回列表 —— 看着像「卡片视图点了没反应」
+     *    （2026-11-20 实测到的回归）。
+     */
+    if (handledFocus.current === focus) return
+    /*
+     * 卡片视图**没有锚点 id**，定位无从谈起 ⇒ 定位时先切回列表视图。
+     * ⚠️ 只改本次的显示形态，**不写回 localStorage**（`changeView` 才写）——
+     *    读者下次打开仍是他自己选的那一种。
+     */
+    if (view === 'cards') {
+      setView('list')
+      return
+    }
     // 本区块此时已是展开状态（expanded 含 focus），锚点元素已进 DOM
     const el = document.getElementById(formulaAnchorId(focus))
     if (!el) return
     el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }, [focus, query])
+    handledFocus.current = focus
+  }, [focus, query, view])
 
   /* ------------------------------------------------------------------ */
   /* 数据：p44 依脉用方（全量）＋ 讲稿方剂（全量）                          */
@@ -960,7 +981,6 @@ export function FormulaLibrary({
                             <FormulaItem
                               item={libraryRule(r)}
                               srcNote=" · 全量条目（知识库）"
-                              compact
                               /* 知识库里给未归类的条目标「未分类」 */
                               markUnclassified
                               autoOpen={!searching && focusId === formulaAnchor('rule', r.id)}

@@ -88,8 +88,11 @@ const BROKEN_AUTOOPEN_EFFECT =
   'useEffect(() => {\n    /* 故意写坏：不跟随 autoOpen 展开 */\n  }, [autoOpen])\n'
 
 /** FormulaLibrary 里两个 autoOpen 属性 */
-const RE_AUTOOPEN_RULE = /\s*\n\s*autoOpen=\{focusId === formulaAnchor\('rule', r\.id\)\}/
-const RE_AUTOOPEN_DRUG = /\s*\n\s*autoOpen=\{focusId === formulaAnchor\('drug', d\.id\)\}/
+// ⚠️ 用宽松匹配：`autoOpen` 的条件里还有 `!searching &&`（搜索时一律折叠），
+//    写死整句会在条件一变就静默失配 —— mutation D 变成「apply 之后文件没变」，
+//    报的是「规则失效」，看不出真正原因（2026-11-20 踩到）。
+const RE_AUTOOPEN_RULE = /\s*\n\s*autoOpen=\{[^}]*formulaAnchor\('rule', r\.id\)[^}]*\}/
+const RE_AUTOOPEN_DRUG = /\s*\n\s*autoOpen=\{[^}]*formulaAnchor\('drug', d\.id\)[^}]*\}/
 
 /* ------------------------------ 跑回归 ------------------------------ */
 

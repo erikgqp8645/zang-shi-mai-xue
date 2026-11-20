@@ -2815,6 +2815,91 @@ button:disabled {
 }
 
 /* --------------------------------------------------------------------------
+   ② 命中区 · 一行摘要（2026-11-20）
+   --------------------------------------------------------------------------
+   ② 只答「这次命中了哪几条、用什么方」；详情（脉象图／原文／方剂卡／剂量）
+   只在 ③ 用方知识库渲染一处，点这一行跳过去。见 Findings.tsx 的 FormulaHitRow。
+   -------------------------------------------------------------------------- */
+
+.pr-hit {
+  padding: 5px 0 5px 9px;
+  margin-bottom: 2px;
+}
+
+.pr-hit-main {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  flex-wrap: wrap;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pr-hit-title {
+  font-size: 13px;
+}
+
+/* 命中脉位：这次是哪几个格子把它判出来的 */
+.pr-hit-cells {
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+.pr-hit-cells-key {
+  margin-right: 3px;
+  color: var(--clay);
+}
+
+/* 疗法名可能很长 —— 截断，别把一行撑成三行 */
+.pr-hit-therapy {
+  max-width: 46ch;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--ink-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pr-hit-goto {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--sage);
+  white-space: nowrap;
+}
+
+.pr-hit-main:hover .pr-hit-goto {
+  text-decoration: underline;
+}
+
+/* 方名 chip 在 button 外面（与 ③ 的紧凑行同一套做法） */
+.pr-hit .pr-formula-list-inline {
+  margin-top: 3px;
+}
+
+.pr-hit-src {
+  margin-top: 2px;
+}
+
+/* 「看命中格子」—— 回 ① 主表标出这次命中的格子 */
+.pr-hit-locate {
+  margin-left: 6px;
+  color: var(--sage);
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+
+.pr-hit-locate:hover {
+  text-decoration: underline;
+}
+
+/* --------------------------------------------------------------------------
    用方知识库 · 紧凑一行一条
    --------------------------------------------------------------------------
    61 条依脉用方 ＋ 30 方讲稿方剂，全展开是几十屏长，扫不动。

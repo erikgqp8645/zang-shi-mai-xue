@@ -71,22 +71,49 @@ try {
   await chrome.ev(`[...document.querySelectorAll('button')].find(b=>b.textContent.includes('载入示例'))?.click()`)
   await sleep(1800)
 
-  /* ---- ① 依脉用方：带剂量的条目数 ---- */
-  console.log('\n【①】依脉用方：条目带剂量')
+  /* ---- ① ② 命中区是摘要；详情只在 ③ ---- */
+  //
+  // 2026-11-20 用户提出「② 和用方知识库显示重复」：
+  // 同一张脉象图、同一段原文、同一张方剂卡在两处各渲染一遍。
+  // 处置：② 每条压成**一行摘要**（条目名 ｜ 命中脉位 ｜ 疗法 ｜ 方名 ｜ 在知识库看），
+  // 脉象图／原文／方剂卡／组成剂量**只在 ③ 渲染一处**。
+  console.log('\n【①】② 命中区＝一行摘要；详情只在 ③ 知识库')
   await chrome.ev(
     `(()=>{const b=[...document.querySelectorAll('.pr-tab')].find(b=>b.textContent.includes('依脉用方'));b&&b.click();return 1})()`,
   )
   await sleep(900)
-  const doseStat = await chrome.ev(
-    `(()=>{const all=[...document.querySelectorAll('.pr-formula')];const withDose=all.filter(c=>(c.querySelector('.pr-formula-doses')?.innerText||'').trim());return {total:all.length,withDose:withDose.length}})()`,
+  const summary = await chrome.ev(
+    `(()=>{
+      const panel=document.querySelector('.pr-findings-row');
+      const rows=[...panel.querySelectorAll('.pr-formula')];
+      return {
+        rows: rows.length,
+        diagrams: panel.querySelectorAll('.pr-psheet').length,
+        doses: panel.querySelectorAll('.pr-formula-doses').length,
+        drugs: panel.querySelectorAll('.pr-drug').length,
+        gotos: panel.querySelectorAll('.pr-hit-goto').length,
+        cells: panel.querySelectorAll('.pr-hit-cells').length,
+      };
+    })()`,
   )
-  console.log(`  ${doseStat.total} 条中 ${doseStat.withDose} 条带组成`)
-  c.check('依脉用方条目带上了组成', doseStat.withDose > 0, `实际 ${doseStat.withDose}`)
+  console.log(`  ${JSON.stringify(summary)}`)
+  c.check(
+    '② 命中区是摘要行（脉象图／组成／方剂卡都不在②）',
+    summary.rows > 0 &&
+      summary.diagrams === 0 &&
+      summary.doses === 0 &&
+      summary.drugs === 0,
+    JSON.stringify(summary),
+  )
+  c.check(
+    '② 每条都带「在知识库看」入口，且标出命中脉位',
+    summary.gotos === summary.rows && summary.cells > 0,
+    `入口 ${summary.gotos}／行 ${summary.rows}｜命中脉位标记 ${summary.cells}`,
+  )
 
-  const noise = await chrome.ev(
-    `[...document.querySelectorAll('.pr-formula-doses')].filter(d=>d.innerText.includes('黄芪鳖甲')&&d.innerText.includes('同名不同号')).length`,
-  )
-  c.check('「黄芪」没有撞成「黄芪鳖甲」', noise === 0, `实际 ${noise}`)
+  // ⚠️ 这里**不展开** ③ —— 展开会让知识库的条目提前挂载，
+  //    后面「落点自动展开」（mutation E）那两条断言的判别力就没了。
+  //    详情在 ③ 的检查放在 ⑩-补（那里本来就要展开知识库）。
 
   /* ---- ② ③开方药清单（三焦疗法）---- */
   console.log('\n【②】③开方药清单（三焦疗法）')
@@ -529,6 +556,25 @@ try {
     `(()=>{const t=document.querySelector('#pr-flib .pr-flib-toggle');if(t&&!document.getElementById('pr-flib').classList.contains('is-open'))t.click();return 1})()`,
   )
   await sleep(700)
+
+  // 展开一条 ③ 条目：详情（脉象图 ＋ 组成）确实落在这一处（② 那边什么都没了）
+  await chrome.ev(`(()=>{const b=document.querySelector('#pr-flib .pr-formula-row');b&&b.click();return 1})()`)
+  await sleep(700)
+  const libDetail = await chrome.ev(
+    `(()=>{const d=document.querySelector('#pr-flib .pr-formula-detail');return {open:!!d,doses:d?d.querySelectorAll('.pr-formula-doses').length:0,sheets:d?d.querySelectorAll('.pr-psheet').length:0}})()`,
+  )
+  console.log(`  ③ 展开后的详情：${JSON.stringify(libDetail)}`)
+  c.check(
+    '③ 展开后有脉象图与组成（详情只在这一处）',
+    libDetail.open && libDetail.sheets > 0 && libDetail.doses > 0,
+    JSON.stringify(libDetail),
+  )
+
+  // 查组成时「黄芪」不得撞成「黄芪鳖甲」（同名不同号要明说，不能顶替）
+  const noise = await chrome.ev(
+    `[...document.querySelectorAll('#pr-flib .pr-formula-doses')].filter(d=>d.innerText.includes('黄芪鳖甲')&&d.innerText.includes('同名不同号')).length`,
+  )
+  c.check('「黄芪」没有撞成「黄芪鳖甲」', noise === 0, `实际 ${noise}`)
   const dupStat = await chrome.ev(
     `(()=>{
       // ⚠️ 范围要卡在② 判读提示面板里（.pr-findings-row 只此一处用）——
@@ -567,9 +613,9 @@ try {
     `③ ${dupStat.libScript} 条`,
   )
   c.check(
-    '② 里只出现「这次用到」的讲稿方剂，不是全部 30 方（全部那 30 方在③ 里）',
-    dupStat.panelNames > 0 && dupStat.panelNames < 30,
-    `② 去重后 ${dupStat.panelNames} 个方名（卡片 ${dupStat.panelScript} 张）`,
+    '② 里不再渲染讲稿方剂卡（卡片的详情只在③）',
+    dupStat.panelScript === 0 && dupStat.panelNames === 0,
+    `② 讲稿方剂卡 ${dupStat.panelScript} 张（去重后 ${dupStat.panelNames} 个方名）`,
   )
   c.check(
     '② 面板里没有「同和堂版成方」那一节了（2026-11-19 并入③）',
