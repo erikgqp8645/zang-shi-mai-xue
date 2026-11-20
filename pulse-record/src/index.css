@@ -1467,6 +1467,15 @@ button:disabled {
   overflow-y: auto;
 }
 
+/*
+ * 「依脉用方」那一栏的内容区 —— 与风险提示同一套「面板内滚动」（2026-11-20 用户要求）。
+ * 维度／筛选控件留在滚动区外面，滚动时它们不跟着跑。
+ */
+.pr-findings-scroll {
+  max-height: 460px;
+  overflow-y: auto;
+}
+
 .pr-finding {
   border-left: 3px solid var(--dai-soft);
   padding: 9px 0 9px 12px;

@@ -111,6 +111,17 @@ try {
     `入口 ${summary.gotos}／行 ${summary.rows}｜命中脉位标记 ${summary.cells}`,
   )
 
+  // 依脉用方自己有一根下拉条 —— 与「风险提示」同一套面板内滚动（2026-11-20 用户要求）
+  const scrollStat = await chrome.ev(
+    `(()=>{const b=document.querySelector('.pr-findings-scroll');if(!b)return null;const s=getComputedStyle(b);return {maxH:s.maxHeight,ov:s.overflowY,scrollable:b.scrollHeight>b.clientHeight+1}})()`,
+  )
+  console.log(`  依脉用方滚动区：${JSON.stringify(scrollStat)}`)
+  c.check(
+    '依脉用方有自己的下拉条（与风险提示同一套面板内滚动）',
+    !!scrollStat && scrollStat.maxH === '460px' && scrollStat.ov === 'auto' && scrollStat.scrollable,
+    JSON.stringify(scrollStat),
+  )
+
   // ⚠️ 这里**不展开** ③ —— 展开会让知识库的条目提前挂载，
   //    后面「落点自动展开」（mutation E）那两条断言的判别力就没了。
   //    详情在 ③ 的检查放在 ⑩-补（那里本来就要展开知识库）。

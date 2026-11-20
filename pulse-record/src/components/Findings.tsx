@@ -1002,6 +1002,11 @@ export function Findings({
           )}
 
           {/*
+            内容区自己滚动，与「风险提示」那一栏同一套（`.pr-findings` 也是 460px 封顶）。
+            维度／筛选那两个控件留在滚动区**外面** —— 滚动时它们不该跟着跑掉。
+          */}
+          <div className="pr-findings-scroll">
+          {/*
             没有命中、又把关掉的常驻条目藏起来时，面板会空着 —— 给一句话。
             ⚠️ 原来写的是 `grouped.length === 0 && STANDING_FORMULA_RULES.length === 0`，
             后半个条件恒为 false（常驻条目恒有 2 条），所以这句话从来没出现过。
@@ -1095,6 +1100,7 @@ export function Findings({
               </tbody>
             </table>
           </section>
+          </div>
 
           {/*
             ⭐ 这里原来还有一节「方剂备查（讲稿 2010·第二讲 叁、用方）」——
