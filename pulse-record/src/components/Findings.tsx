@@ -11,22 +11,11 @@ import { cellLabel } from '../domain/library-search'
 import type { FormulaLink } from '../domain/formula-links'
 import { addChip, removeChip, sameChips, setChip } from '../domain/library-chips.mjs'
 import { useLibrary } from '../state/library'
-import { FlowPath } from './FlowPath'
 import { DoseLines } from './DoseLines'
 import { PatternStrip } from './PatternStrip'
 import { hasCells } from './PatternSheet'
 import { usePatterns } from '../state/patterns'
-import {
-  DIM_ORDER,
-  groupByHand,
-  groupByWuxing,
-  groupShortLabel,
-  attribOf,
-  UNCLASSIFIED_KEY,
-  STANDING_DISPLAY,
-  type Attribution,
-  type Group,
-} from '../domain/grouping'
+import { attribOf, STANDING_DISPLAY, type Attribution } from '../domain/grouping'
 
 export interface SessionHit {
   sessionId: string
@@ -44,7 +33,6 @@ interface Props {
   hits: SessionHit[]
   formulaHits: SessionFormulaHit[]
   onFocus: (h: SessionHit) => void
-  onFocusFormula: (h: SessionFormulaHit) => void
   /**
    * 点命中行的一条 → 在 ③ 用方知识库里定位到它。
    *
@@ -52,13 +40,8 @@ interface Props {
    *   只在 ③ 渲染一处，所以点条目必须能跳过去。
    */
   onOpenFormula?: (link: FormulaLink) => void
-  /** 按五行／按左右手时打开的分组（筛选开关，与 Markdown 导出同步） */
-  wuxingFilter: string[]
-  handFilter: string[]
-  onFilterChange: (dim: 'wuxing' | 'hand', keys: string[]) => void
-  /** 常驻条目（用药禁忌）显不显示 —— 与③ 用方知识库共用同一个开关 */
+  /** 常驻条目（用药禁忌）显不显示 —— 与③ 用方知识库共用同一个开关（开关本身在 ③） */
   showStanding: boolean
-  onToggleStanding: () => void
 }
 
 const SEVERITY_LABEL: Record<RuleHit['severity'], string> = {
@@ -68,24 +51,6 @@ const SEVERITY_LABEL: Record<RuleHit['severity'], string> = {
 }
 
 type Tab = 'risk' | 'formula'
-
-/** 依脉开方的分组维度：讲稿原序 / 按五行 / 按左右手 */
-type Dim = 'route' | 'wuxing' | 'hand'
-
-const DIM_LABEL: Record<Dim, string> = {
-  route: '讲稿原序',
-  wuxing: '按五行',
-  hand: '按左右手',
-}
-
-const DIM_HINT: Record<Dim, string> = {
-  route:
-    '依讲稿原序排列：讲义 p44「依脉用方」四个挡路 → 讲稿第四~六讲「清挡路一~六」→ 讲稿第二讲「叁、用方」「肆、依脉辨证论治」。',
-  wuxing:
-    '按讲稿 2010·第一讲「五行归类」木火土金水→肝心脾肺肾重排；脏位对应据讲义 2026-10·p30（木＝左手关、火＝左手寸、土＝右手关、金＝右手寸、水＝尺）。',
-  hand:
-    '按讲义 2026-10·p30 的左右手脏位重排：左手＝寸心关肝（血分）、右手＝寸肺关脾（气分）、尺＝肾；主脉位横跨左右者入「双手相兼」。',
-}
 
 /** 归类标记：本脏·五行 ＋ 兼涉本脏 */
 /**
@@ -612,39 +577,23 @@ export function FormulaItem({
  * ## 两个动作
  *
  * - 点这一行 → 跳 ③ 并定位到该条（`onOpenFormula` → `FormulaLibrary.focus`）
- * - 点「看命中格子」→ 回 ① 脉象表，把这次命中的格子标出来（`onFocusFormula`）
  *
- * ⚠️ 「看命中格子」在**出处行**里、在 button **外面** —— 不建议把可点元素塞进
- *    外层 button（见 AGENTS.md 的嵌套 button 那条）。
+ * ⓘ 2026-11-20 用户要求「做减法」：出处行（〔讲稿 2010·第二讲…〕· 命中记录 …）、
+ *    「看命中格子」链接、五行/左右手 chip 都从这一行撤掉了 —— 一行只留
+ *    「kind ｜ 条目名 ｜ 命中脉位 ｜ 疗法 ｜ 方名 ｜ 在知识库看 →」。
  */
 function FormulaHitRow({
   item,
-  sessions,
-  showAttr,
   onOpenFormula,
-  onFocusFormula,
 }: {
   item: SessionFormulaHit
-  /** 按五行／按左右手分组时，同一条规则可能被多次记录命中 */
-  sessions?: string[]
-  showAttr?: boolean
   /** 点整行 → 请在知识库里定位这一条 */
   onOpenFormula?: (link: FormulaLink) => void
-  /** 点「看命中格子」→ 回主表高亮 */
-  onFocusFormula?: (h: SessionFormulaHit) => void
 }) {
-  const { hit, sessionId, sessionLabel } = item
-  const attr = attribOf(hit.id, hit)
+  const { hit, sessionId } = item
   const standing = sessionId === STANDING_ID
   /** 格键 → 「右尺浮」这种人话；不认识的键原样返回（宁可难看，也不拼错） */
   const cells = hit.cells.map(cellLabel)
-  /** 同一条规则被多次记录命中 ⇒ 「看命中格子」只能落到其中一条上，不显示 */
-  const multiSession = !!sessions && sessions.length > 1
-  const tail = standing
-    ? '常驻条目（不依脉象）'
-    : multiSession
-      ? `命中记录 ${sessions!.join('、')}`
-      : `记录 ${sessionLabel}`
 
   return (
     <div className={`pr-formula pr-hit is-${hit.kind}`}>
@@ -663,7 +612,8 @@ function FormulaHitRow({
       >
         <span className="pr-formula-kind">{hit.kind}</span>
         <strong className="pr-hit-title">{hit.condition}</strong>
-        {showAttr && <AttrChip attr={attr} />}
+        {/* 常驻条目不依脉象 —— 标一下，别让读者以为是这次摸出来的（2026-11-20） */}
+        {standing && <span className="pr-hit-standing">常驻</span>}
         {cells.length > 0 && (
           <span className="pr-hit-cells">
             <span className="pr-hit-cells-key">命中</span>
@@ -687,39 +637,7 @@ function FormulaHitRow({
           ))}
         </div>
       )}
-      <p className="pr-finding-src pr-hit-src">
-        〔{hit.source}〕· {tail}
-        {cells.length > 0 && !multiSession && onFocusFormula ? (
-          <span
-            role="button"
-            tabIndex={0}
-            className="pr-hit-locate"
-            title="回到 ① 的脉象表，把命中的格子标出来"
-            onClick={(e) => {
-              e.stopPropagation()
-              onFocusFormula(item)
-            }}
-            onKeyDown={(e) => {
-              if (e.key !== 'Enter' && e.key !== ' ') return
-              e.preventDefault()
-              onFocusFormula(item)
-            }}
-          >
-            看命中格子
-          </span>
-        ) : null}
-      </p>
     </div>
-  )
-}
-
-/** 分组标题 ＋ 分组说明 */
-function GroupHead({ group }: { group: Group<unknown> }) {
-  return (
-    <>
-      <h3 className="pr-formula-route">{group.label}</h3>
-      <p className="pr-target-line">{group.note}</p>
-    </>
   )
 }
 
@@ -756,38 +674,32 @@ function standingHitOf(rule: Omit<FormulaHit, 'cells'>): SessionFormulaHit {
   }
 }
 
-/** 把常驻条目并入维度分组，避免在五行／左右手视图里丢失 */
-function standingHits(): SessionFormulaHit[] {
-  return getStandingRules().map(standingHitOf)
-}
 
 export function Findings({
   hits,
   formulaHits,
   onFocus,
-  onFocusFormula,
   onOpenFormula,
-  wuxingFilter,
-  handFilter,
-  onFilterChange,
   showStanding,
-  onToggleStanding,
 }: Props) {
   const [tab, setTab] = useState<Tab>('risk')
-  const [dim, setDim] = useState<Dim>('route')
 
   /**
-   * 运行期生效集（基线 ⊕ 服务端覆盖层）。
+   * 订阅运行期生效集（基线 ⊕ 服务端覆盖层）。
    *
-   * ⚠️ 必须订阅：管理员在 ③ 里改过／删过条目 ⇒ 生效集变了 ⇒
-   *    ② 命中区要跟着变（常驻条目、方剂卡都从生效集里取）。
+   * ⚠️ 只为**订阅**：管理员在 ③ 里改过／删过条目 ⇒ 生效集变了 ⇒
+   *    ② 的常驻条目要跟着变。字段本身这里一个都不读。
    */
-  const { ruleData } = useLibrary()
+  useLibrary()
 
-  /** 依脉用方命中的路线名（供流程骨架标示位置用） */
-  const hitRoutes = useMemo(() => Array.from(new Set(formulaHits.map((h) => h.hit.route))), [formulaHits])
-
-  /** 依脉用方按讲稿原序（路线）分组，路线顺序依讲稿第四讲「一、二、三、四……第五、第六」 */
+  /**
+   * 依脉用方按讲稿原序（路线）分组，路线顺序依讲稿第四讲「一、二、三、四……第五、第六」。
+   *
+   * ⓘ 2026-11-20 用户要求「做减法」：**五行／左右手两个维度从这里撤掉**
+   *    （维度切换、维度说明、筛选分组 chip、每行的出处行一起去掉）。
+   *    归类维度在 ③ 用方知识库仍在（讲稿原序／按五行／按左右手三个视图），
+   *    只是不再占 ② 的版面。
+   */
   const grouped = useMemo(() => {
     const map = new Map<string, SessionFormulaHit[]>()
     for (const h of formulaHits) {
@@ -798,78 +710,6 @@ export function Findings({
     const order = [...FORMULA_ROUTE_ORDER, ...Array.from(map.keys()).filter((k) => !FORMULA_ROUTE_ORDER.includes(k))]
     return order.filter((r) => map.has(r)).map((r) => ({ route: r, items: map.get(r)! }))
   }, [formulaHits])
-
-  /**
-   * 按五行 / 按左右手分组。
-   *
-   * 常驻条目（三不用／白虎汤·肾气丸）不依脉象，**关掉开关就不并进来** ——
-   * 否则「本组几条」这个数会被常驻条目顶起来，看着像命中了很多。
-   */
-  const dimGroups = useMemo<Group<SessionFormulaHit>[]>(() => {
-    const all = showStanding ? [...formulaHits, ...standingHits()] : [...formulaHits]
-    // `ownOf` 传条目自己带的归类字段 —— 管理员在网站端选过的归类要算数（2026-11-15）
-    if (dim === 'wuxing') return groupByWuxing(all, (h) => h.hit.id, (h) => h.hit)
-    if (dim === 'hand') return groupByHand(all, (h) => h.hit.id, (h) => h.hit)
-    return []
-    // ⚠️ `ruleData` 在依赖里：覆盖层变了 ⇒ 生效集变了 ⇒ 常驻条目要重算
-  }, [dim, formulaHits, showStanding, ruleData])
-
-  /**
-   * 各组里的**常驻条目数** —— chip 上要单独标出来。
-   *
-   * 归属口径与 `groupByWuxing` / `groupByHand` 完全一致：
-   * 没标归属的进「未归类」兜底组。
-   */
-  const standingByGroup = useMemo(() => {
-    const map = new Map<string, number>()
-    if (!showStanding) return map
-    for (const h of standingHits()) {
-      const attrib = attribOf(h.hit.id, h.hit)
-      const key = dim === 'hand' ? (attrib?.side ?? UNCLASSIFIED_KEY) : (attrib?.wuxing ?? UNCLASSIFIED_KEY)
-      map.set(key, (map.get(key) ?? 0) + 1)
-    }
-    return map
-  }, [dim, showStanding])
-
-  /** 当前维度打开的分组；讲稿原序不分组筛选 */
-  const activeKeys = dim === 'wuxing' ? wuxingFilter : handFilter
-  const groupOrder = dim === 'wuxing' ? DIM_ORDER.wuxing : DIM_ORDER.hand
-
-  /**
-   * 筛选开关上的分组按钮：名称 ＋ 本组条目数（未命中的组显示 0，仍可打开）。
-   *
-   * ⚠️ 只剩一个数字了 —— 2026-11-12 删掉了原来的「· K 方备查」：
-   * 那个「方」数的是**讲稿方剂 30 方**里归到本组的方数，而那 30 方
-   * 原来在② 面板底部又渲染了一遍（与③ 知识库重复）⇒ 一并删掉。
-   * 现在 chip 上的数只有一个含义：本组在② 命中区里的依脉用方条目数。
-   */
-  const filterChips = useMemo(() => {
-    if (dim === 'route') return []
-    return groupOrder.map((key) => {
-      const g = dimGroups.find((x) => x.key === key)
-      return {
-        key,
-        label: groupShortLabel(dim, key),
-        rules: g ? mergeByRule(g.items).length : 0,
-        standing: standingByGroup.get(key) ?? 0,
-      }
-    })
-  }, [dim, groupOrder, dimGroups, standingByGroup])
-
-  /** 依筛选后要显示的分组（「未归类」为异常兜底组，始终保留） */
-  const shownGroups = useMemo(
-    () => dimGroups.filter((g) => g.key === UNCLASSIFIED_KEY || activeKeys.includes(g.key)),
-    [dimGroups, activeKeys],
-  )
-
-  /** 点一下开／关一组；全关时页面给出提示，不留空白 */
-  function toggleGroup(key: string) {
-    const on = activeKeys.includes(key)
-    onFilterChange(
-      dim as 'wuxing' | 'hand',
-      groupOrder.filter((k) => (k === key ? !on : activeKeys.includes(k))),
-    )
-  }
 
   return (
     <section className="pr-panel">
@@ -925,85 +765,8 @@ export function Findings({
             讲义 p44「依脉用方」＋ p46 附表一「治疗」列，讲稿第二讲「叁、用方」「肆、依脉辨证论治」与第三~六讲方剂为补充 · 只照抄原文写明的方，不加减方
           </p>
 
-          <div className="pr-dim">
-            <span className="pr-dim-label">依脉开方 · 分组维度</span>
-            {(Object.keys(DIM_LABEL) as Dim[]).map((d) => (
-              <button
-                key={d}
-                type="button"
-                className={`pr-dim-btn${dim === d ? ' is-on' : ''}`}
-                onClick={() => setDim(d)}
-              >
-                {DIM_LABEL[d]}
-              </button>
-            ))}
-          </div>
-          <p className="pr-target-line">{DIM_HINT[dim]}</p>
-
-          {dim !== 'route' && (
-            <div className="pr-filter">
-              <span className="pr-filter-label">筛选分组</span>
-              {filterChips.map((c) => {
-                const on = activeKeys.includes(c.key)
-                return (
-                  <button
-                    key={c.key}
-                    type="button"
-                    className={`pr-filter-chip${on ? ' is-on' : ''}`}
-                    aria-pressed={on}
-                    onClick={() => toggleGroup(c.key)}
-                  >
-                    <span className="pr-filter-key">{c.label}</span>
-                    <span className="pr-filter-num">
-                      {c.rules} 条用方{c.standing > 0 ? `（含常驻 ${c.standing}）` : ''}
-                    </span>
-                  </button>
-                )
-              })}
-              <button
-                type="button"
-                className="pr-filter-act"
-                onClick={() => onFilterChange(dim as 'wuxing' | 'hand', [...groupOrder])}
-              >
-                全选
-              </button>
-              <button
-                type="button"
-                className="pr-filter-act"
-                onClick={() => onFilterChange(dim as 'wuxing' | 'hand', [])}
-              >
-                清空
-              </button>
-              <button
-                type="button"
-                className={`pr-filter-chip pr-standing-toggle${showStanding ? ' is-on' : ''}`}
-                aria-pressed={showStanding}
-                onClick={onToggleStanding}
-                title="这两条不依脉象（讲稿第一讲：三不用／上盛用白虎汤·下虚用肾气丸），默认一直在；关掉后② 命中区与③ 用方知识库一起不再列它"
-              >
-                <span className="pr-filter-key">常驻条目（禁忌）</span>
-                <span className="pr-filter-num">{showStanding ? '显示中' : '已隐藏'}</span>
-              </button>
-            </div>
-          )}
-
-          {/*
-            口径说明 —— chip 上那个数量的不是「方」，是「本组在② 命中区里的条目数」。
-            放在 chip 行的正下方，挨着它，别塞进别处。
-            ⚠️ 只在按五行／按左右手维度下出现（讲稿原序没有分组 chip）。
-          */}
-          {dim !== 'route' && (
-            <p className="pr-target-line pr-filter-note">
-              「条」＝本组在② 命中区里的依脉用方条目（命中的规则；常驻条目另标在括号里）。
-              讲稿方剂一律在下方「用方知识库」里查（可搜索、可点开看组成服法加减禁忌）。
-              开关只管<strong>不依脉象的常驻条目</strong>（三不用／白虎汤·肾气丸）——
-              依脉象的禁忌条目（如「寸关浮大…下焦方进不去」）不在其中。
-            </p>
-          )}
-
           {/*
             内容区自己滚动，与「风险提示」那一栏同一套（`.pr-findings` 也是 460px 封顶）。
-            维度／筛选那两个控件留在滚动区**外面** —— 滚动时它们不该跟着跑掉。
           */}
           <div className="pr-findings-scroll">
           {/*
@@ -1011,66 +774,43 @@ export function Findings({
             ⚠️ 原来写的是 `grouped.length === 0 && STANDING_FORMULA_RULES.length === 0`，
             后半个条件恒为 false（常驻条目恒有 2 条），所以这句话从来没出现过。
           */}
-          {dim === 'route' && grouped.length === 0 && !showStanding && (
+          {grouped.length === 0 && !showStanding && (
             <p className="pr-empty">
               暂无命中的用方条目（常驻条目已隐藏）。录入脉象后，按讲义 p44
               的六个方框与讲稿第四讲「清挡路一~四」自动比对。
             </p>
           )}
 
-          {dim !== 'route' && shownGroups.length === 0 && (
-            <p className="pr-empty">当前筛选下没有分组，请在「筛选分组」里至少打开一组。</p>
-          )}
-
-          {dim === 'route' && <FlowPath hitRoutes={hitRoutes} />}
+          {/*
+            ⭐ 原来这里还有一条「总路线（流程骨架）」引导条（`FlowPath`）——
+            走一遍讲义 p44 ＋ 讲稿第二/四/五/六讲的先后次序，并标出哪几步有命中。
+            2026-11-20 用户要求「做减法」并确认去掉：它在手机上占 1952px，
+            要先划过它才看到命中的条目；而条目本来就按讲稿原序分组排列，
+            先后次序由分组标题（route）体现。
+            ⚠️ 组件与数据（`components/FlowPath.tsx`、`domain/sequence.ts`）**都还在**，
+               想放回来只需在这里加回一行 `<FlowPath hitRoutes={hitRoutes} />`。
+          */}
 
           <div className="pr-formula-list">
-            {dim === 'route'
-              ? grouped.map(({ route, items }) => (
+            {grouped.map(({ route, items }) => (
                   <section key={route} className="pr-formula-group">
                     <h3 className="pr-formula-route">{route}</h3>
-                    {/*
-                      同一条规则被多次记录命中 ⇒ **合并成一行**，出处行写「命中记录 …」。
-                      不合并的话（示例数据是 6 个日期），一行摘要会重复列出同一条件十几次 ——
-                      五行／左右手两个维度本来就是合并的，三个维度口径要一致。
-                    */}
-                    {mergeByRule(items).map(({ item, sessions }) => (
+                    {/* 同一条规则被多次记录命中 ⇒ 合并成一行（示例数据是 6 个日期） */}
+                    {mergeByRule(items).map(({ item }) => (
                       <FormulaHitRow
                         key={item.hit.id}
                         item={item}
-                        sessions={sessions}
                         onOpenFormula={onOpenFormula}
-                        onFocusFormula={onFocusFormula}
-                      />
-                    ))}
-                  </section>
-                ))
-              : shownGroups.map((g) => (
-                  <section key={g.key} className="pr-formula-group">
-                    <GroupHead group={g} />
-                    {mergeByRule(g.items).map(({ item, sessions }) => (
-                      <FormulaHitRow
-                        key={item.hit.id}
-                        item={item}
-                        showAttr
-                        sessions={sessions}
-                        onOpenFormula={onOpenFormula}
-                        onFocusFormula={onFocusFormula}
                       />
                     ))}
                   </section>
                 ))}
 
-            {dim === 'route' && showStanding && getStandingRules().length > 0 && (
+            {showStanding && getStandingRules().length > 0 && (
               <section className="pr-formula-group">
                 <h3 className="pr-formula-route">用药禁忌（常驻）</h3>
                 {getStandingRules().map((rule) => (
-                  <FormulaHitRow
-                    key={rule.id}
-                    item={standingHitOf(rule)}
-                    onOpenFormula={onOpenFormula}
-                    onFocusFormula={onFocusFormula}
-                  />
+                  <FormulaHitRow key={rule.id} item={standingHitOf(rule)} onOpenFormula={onOpenFormula} />
                 ))}
               </section>
             )}

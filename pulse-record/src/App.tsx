@@ -31,7 +31,6 @@ import { prescriptionsOf, readTriadReference, therapyOf } from './domain/triad'
 import { HistoryPanel, type EditingRef } from './components/HistoryPanel'
 import { MedicationPanel } from './components/MedicationPanel'
 import type { Medication } from './domain/medication'
-import { DIM_ORDER } from './domain/grouping'
 import { validateCustomSymbol, type CustomSymbol } from './domain/symbols'
 import { toCsv, toMarkdown } from './export/text'
 import { downloadPng } from './export/png'
@@ -214,16 +213,6 @@ export default function App() {
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
-
-  /** 分组筛选：按五行／按左右手时打开哪些组（页面与 Markdown 导出共用一份状态） */
-  const [groupFilter, setGroupFilter] = useState<{ wuxing: string[]; hand: string[] }>(() => ({
-    wuxing: [...DIM_ORDER.wuxing],
-    hand: [...DIM_ORDER.hand],
-  }))
-
-  function changeFilter(dim: 'wuxing' | 'hand', keys: string[]) {
-    setGroupFilter((prev) => ({ ...prev, [dim]: keys }))
-  }
 
   /**
    * 常驻条目（用药禁忌：三不用／上盛用白虎汤·下虚用肾气丸）显不显示。
@@ -480,14 +469,6 @@ export default function App() {
   }
 
   const focusHit = (h: SessionHit) => {
-    setHighlight(new Set(h.hit.cells.map((c) => `${h.sessionId}::${c}`)))
-    if (h.hit.cells.length > 0) {
-      const [hand, organ, depth] = h.hit.cells[0].split('|') as [CellRef['hand'], CellRef['organ'], CellRef['depth']]
-      setSelected({ sessionId: h.sessionId, hand, organ, depth })
-    }
-  }
-
-  const focusFormula = (h: SessionFormulaHit) => {
     setHighlight(new Set(h.hit.cells.map((c) => `${h.sessionId}::${c}`)))
     if (h.hit.cells.length > 0) {
       const [hand, organ, depth] = h.hit.cells[0].split('|') as [CellRef['hand'], CellRef['organ'], CellRef['depth']]
@@ -840,7 +821,7 @@ export default function App() {
             onClick={() =>
               downloadText(
                 `${baseName}.md`,
-                toMarkdown(set, groupFilter, customSymbols, activeSessionId),
+                toMarkdown(set, undefined, customSymbols, activeSessionId),
                 'text/markdown',
               )
             }
@@ -1076,13 +1057,8 @@ export default function App() {
             hits={hits}
             formulaHits={formulaHits}
             onFocus={focusHit}
-            onFocusFormula={focusFormula}
             onOpenFormula={openFormula}
-            wuxingFilter={groupFilter.wuxing}
-            handFilter={groupFilter.hand}
-            onFilterChange={changeFilter}
             showStanding={showStanding}
-            onToggleStanding={toggleStanding}
           />
         </div>
       </TriadSection>

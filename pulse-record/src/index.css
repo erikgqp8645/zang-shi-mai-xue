@@ -2892,20 +2892,13 @@ button:disabled {
   margin-top: 3px;
 }
 
-.pr-hit-src {
-  margin-top: 2px;
-}
-
-/* 「看命中格子」—— 回 ① 主表标出这次命中的格子 */
-.pr-hit-locate {
-  margin-left: 6px;
-  color: var(--sage);
-  cursor: pointer;
-  text-decoration: underline dotted;
-}
-
-.pr-hit-locate:hover {
-  text-decoration: underline;
+/* 常驻条目的标记 —— 它们不依脉象，别混在「这次命中」里 */
+.pr-hit-standing {
+  padding: 0 5px;
+  border: 1px dashed var(--line-soft);
+  border-radius: 2px;
+  font-size: 11px;
+  color: var(--ink-3);
 }
 
 /* --------------------------------------------------------------------------
