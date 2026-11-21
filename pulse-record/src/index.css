@@ -636,6 +636,39 @@ button:disabled {
   margin-top: 20px;
 }
 
+
+/*
+ * ①判体质：宽屏（≥1400px）两栏 —— 左「记录表」，右「判体质 / 变脉 / 状态」批注栏。
+ * 设计方向一「医案册页」：正文页 ＋ 页边批注。
+ *
+ * 门槛定在 1400px：记录表本身要 900px 左右（日期越多越宽），
+ * 再窄就把表挤成横向滚动条了 —— 表是这个工具的正文，不能让它滚。
+ */
+@media (min-width: 1400px) {
+  .pr-split-1 {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 288px;
+    gap: 20px;
+    align-items: start;
+  }
+
+  .pr-split-1-aside {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .pr-split-1-main {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  /* 栏窄了，体质三张卡竖排 */
+  .pr-split-1-aside .pr-triad-pick-opts {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ---------- 底排：左列「符号录入 → 用药记录」｜ 右列「寸关尺图示」 ---------- */
 
 .pr-bottom {

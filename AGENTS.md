@@ -713,6 +713,8 @@ MCP 的 `queryPgDatabase` / `managePgDatabase` 把**首次**的 PG 就绪探测�
 | 表格配色**屏幕与导出一致性例外** | 屏幕用降饱和纸感色（`--cell: #e4eeda`／`--organ: #ecdbb2`），**导出 PNG 仍按讲义原表取色**（`export/table-painter.ts` 的 `#CCE8CF`／`#FFC000`）。这是**刻意不一致**：导出是复刻原表的病历附件，屏幕只是界面配色 —— 别顺手「统一」 |
 | 判读条目 | 标题用宋体（`--font-serif`）＋左侧 kind 竖条，像批注；信息不变（kind ｜ 条目名 ｜ 命中脉位 ｜ 疗法 ｜ 方名） |
 | p47 图框 | `max-width: 760px` 居中贴着图；**别用 `width: fit-content`**（内部 `width:100%` 的子元素会把高度撑大） |
+| ① 两栏（≥1400px） | 记录表在左、「判体质 ／ 变脉 ／ 状态」在右（`.pr-split-1`，栏宽 288px）。**门槛必须 1400px** —— 记录表本身要 900px 左右，再窄就出现横向滚动条；表是这个工具的正文，不能让它滚。窄屏仍是一列（判体质 → 变脉 → 状态 → 表格，DOM 顺序不变） |
+| ② 没做两栏 | 试过把「判读提示」做成右侧常驻栏（404px）：一条判读被挤成四行、左栏（疗法三张卡）下方留一大片空洞，两种改法都不如现在，已回退（2026-11-21）。别再试 |
 
 设计稿的预览页部署在 `https://1868788.xyz/design/`（`dist/design/`，静态页，不影响主应用）。
 ⚠️ **`npm run build` 会清空 `dist/`** ⇒ 每次发布都要重新 `mkdir -p dist/design && cp pulse-record/design-demos/*.html dist/design/`，否则预览页消失。

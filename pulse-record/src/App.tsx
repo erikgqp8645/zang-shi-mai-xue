@@ -993,34 +993,45 @@ export default function App() {
         state={triadSteps[0].state}
         result={manualConstitution ? `→ ${manualConstitution}体质` : undefined}
       >
-        <ConstitutionPicker
-          value={manualConstitution}
-          onChange={pickConstitution}
-          onClear={clearConstitution}
-        />
-        <BianmaiNote />
-        <StateHints constitution={manualConstitution} />
+        {/*
+          宽屏（≥1400px）：表格左边占满、把「判体质 / 变脉 / 状态」挪到右侧批注栏 ——
+          设计方向一「医案册页」的「正文页 ＋ 页边批注」。
+          窄屏仍是一列（判体质 → 变脉 → 状态 → 表格，顺序不变）。
+        */}
+        <div className="pr-split-1">
+          <div className="pr-split-1-aside">
+            <ConstitutionPicker
+              value={manualConstitution}
+              onChange={pickConstitution}
+              onClear={clearConstitution}
+            />
+            <BianmaiNote />
+            <StateHints constitution={manualConstitution} />
+          </div>
 
-        <PulseTable
-          set={set}
-          selected={selected}
-          onSelect={(ref) => {
-            setSelected(ref)
-            setHighlight(new Set())
-            // 点格子＝同时把这一列设为当前日期（图示随之变化）
-            setActiveSessionId(ref.sessionId)
-          }}
-          highlight={highlight}
-          activeSessionId={activeSessionId}
-          onSelectSession={setActiveSessionId}
-          onPickConstitution={(sessionId, c) => {
-            // 体质随治疗推进会变，所以每次就诊各记各的；选体质按图上的配对带出疗法
-            patchSession(sessionId, { constitution: c, therapy: therapyOf(c) })
-          }}
-          onClearConstitution={(sessionId) =>
-            patchSession(sessionId, { constitution: null, therapy: null })
-          }
-        />
+          <div className="pr-split-1-main">
+            <PulseTable
+              set={set}
+              selected={selected}
+              onSelect={(ref) => {
+                setSelected(ref)
+                setHighlight(new Set())
+                // 点格子＝同时把这一列设为当前日期（图示随之变化）
+                setActiveSessionId(ref.sessionId)
+              }}
+              highlight={highlight}
+              activeSessionId={activeSessionId}
+              onSelectSession={setActiveSessionId}
+              onPickConstitution={(sessionId, c) => {
+                // 体质随治疗推进会变，所以每次就诊各记各的；选体质按图上的配对带出疗法
+                patchSession(sessionId, { constitution: c, therapy: therapyOf(c) })
+              }}
+              onClearConstitution={(sessionId) =>
+                patchSession(sessionId, { constitution: null, therapy: null })
+              }
+            />
+          </div>
+        </div>
 
         {/* 底排：左列「符号录入」，右列「寸关尺图示」 */}
         <div className="pr-bottom">
