@@ -71,3 +71,6 @@ pulse-record/.secrets/
 # CloudBase CLI 从云端拉下来的函数配置（tcb config pull fn）
 # 里面含 PULSE_WX_APPSECRET 明文，绝不进版本库；需要时重新 pull 即可
 cloudbaserc.json
+
+# 设计稿截图（生成物，不入库）
+pulse-record/design-demos/shots/

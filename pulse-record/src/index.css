@@ -27,8 +27,13 @@
   --dai-soft: #6f8d8f;
 
   /* —— 表格（讲义原表体例，不改）—— */
-  --cell: #cce8cf;   /* 讲义原表底色 */
-  --organ: #ffc000;  /* 讲义原表部位标签色 */
+  /*
+   * 表格两色：**屏幕**用降饱和的纸感版（设计方向一「医案册页」）。
+   * ⚠️ 导出 PNG 仍按讲义原表取色（`export/table-painter.ts` 的 #FFC000 / #CCE8CF）——
+   *    那是复刻原表的病历附件，这边只是界面配色。两处刻意不一致，别顺手统一。
+   */
+  --cell: #e4eeda;   /* 讲义原表底色 · 屏幕降饱和 */
+  --organ: #ecdbb2;  /* 讲义原表部位标签色 · 屏幕降饱和 */
   --line: #000000;
 
   --high: #9c3a2f;
@@ -65,6 +70,93 @@ body {
   max-width: 1500px;
   margin: 0 auto;
   padding: 28px 24px 64px;
+  /* 设计方向一「医案册页」：左侧留出书眉的位置，正文列右移 */
+  padding-left: 118px;
+  position: relative;
+}
+
+/*
+ * 竖排书眉 —— 用**绝对定位**，不参与布局。
+ * ⚠️ 别改成 grid 的 `grid-row: 1 / -1` ＋ min-height：跨行的网格项会把
+ *    整行高度顶起来，连带把 p47 图框拉成一大片空白（2026-11-21 实测踩过）。
+ */
+.pr-spine {
+  position: absolute;
+  left: 24px;
+  top: 28px;
+  bottom: 64px;
+  width: 88px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 2px 16px 0 0;
+  border-right: 1px solid var(--divider);
+}
+
+.pr-spine-title {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  font-family: var(--font-serif);
+  font-size: 14px;
+  letter-spacing: 0.34em;
+  color: var(--ink-3);
+}
+
+.pr-spine-name {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  font-family: var(--font-serif);
+  font-size: 24px;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+}
+
+.pr-spine-meta {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  color: var(--ink-3);
+}
+
+.pr-spine-seal {
+  width: 44px;
+  height: 44px;
+  /* ⚠️ 别用 margin-top:auto —— 书眉是绝对定位、撑满整页，印章会被推到文档最底部 */
+  margin-top: 26px;
+  object-fit: contain;
+  mix-blend-mode: multiply;
+  opacity: 0.88;
+}
+
+@media (max-width: 1100px) {
+  .pr-app {
+    padding-left: 24px;
+  }
+  .pr-spine {
+    position: static;
+    width: auto;
+    bottom: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    min-height: 0;
+    padding: 0 0 10px;
+    margin-bottom: 14px;
+    border-right: none;
+    border-bottom: 1px solid var(--divider);
+  }
+  .pr-spine-title,
+  .pr-spine-name,
+  .pr-spine-meta {
+    writing-mode: horizontal-tb;
+    max-height: none;
+  }
+  .pr-spine-title { font-size: 12px; letter-spacing: 0.16em; }
+  .pr-spine-name { font-size: 18px; letter-spacing: 0.04em; }
+  .pr-spine-meta { font-size: 12px; letter-spacing: 0.04em; }
+  .pr-spine-seal { margin: 0 0 0 auto; width: 36px; height: 36px; }
 }
 
 /* ---------- 页头 ---------- */
@@ -2848,7 +2940,10 @@ button:disabled {
 }
 
 .pr-hit-title {
-  font-size: 13px;
+  font-family: var(--font-serif);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 /* 命中脉位：这次是哪几个格子把它判出来的 */
@@ -3245,7 +3340,9 @@ button:disabled {
    原图的**颜色一字不改**（它是资料图）。
    */
 .pr-triad-fig {
-  margin: 22px 0 26px;
+  /* 方向一：图框收窄到图本身（fit-content 会让内部 100% 宽的子元素把高度撑大，别用） */
+  max-width: 760px;
+  margin: 22px auto 26px;
   padding: 18px 20px 14px;
   position: relative;
   background: var(--card);

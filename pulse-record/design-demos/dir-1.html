@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>方向一 · 医案册页</title>
+<style>
+  :root{
+    --paper:#f4efe4; --paper-2:#fbf8f1; --sunk:#ebe3d2;
+    --ink:#2b2622; --ink-2:#4d463d; --ink-3:#8b8275;
+    --clay:#a8763e; --cinnabar:#9c3a2f; --sage:#6a7a5e;
+    --line:#d9cfba; --line-strong:#b9ad94;
+    --serif:"Songti SC","STSong","Noto Serif CJK SC","Source Han Serif SC",serif;
+    --sans:-apple-system,"PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans)}
+  body{
+    background-image:
+      radial-gradient(rgba(120,100,70,.045) 1px, transparent 1px),
+      radial-gradient(rgba(120,100,70,.035) 1px, transparent 1px);
+    background-size:7px 7px, 11px 11px;
+    background-position:0 0, 3px 5px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .frame{
+    max-width:1320px;margin:0 auto;padding:28px 32px 40px;
+    display:grid;grid-template-columns:92px minmax(0,1fr) 316px;gap:30px;
+    min-height:100vh;
+  }
+
+  /* ---------- 左：竖排书眉 ---------- */
+  .spine{
+    border-right:1px solid var(--line);
+    padding-right:18px;
+    display:flex;flex-direction:column;align-items:center;gap:18px;
+  }
+  .spine-title{
+    writing-mode:vertical-rl;text-orientation:upright;
+    font-family:var(--serif);font-size:15px;letter-spacing:.34em;
+    color:var(--ink-3);
+  }
+  .spine-name{
+    writing-mode:vertical-rl;text-orientation:upright;
+    font-family:var(--serif);font-size:26px;letter-spacing:.12em;
+    color:var(--ink);margin-top:6px;
+  }
+  .spine-meta{
+    writing-mode:vertical-rl;text-orientation:upright;
+    font-size:12px;letter-spacing:.18em;color:var(--ink-3);margin-top:2px;
+  }
+  .seal{
+    margin-top:auto;
+    width:52px;height:52px;border:1.5px solid var(--cinnabar);border-radius:3px;
+    display:grid;place-items:center;
+    font-family:var(--serif);font-size:13px;line-height:1.15;letter-spacing:.08em;
+    color:var(--cinnabar);opacity:.82;
+    transform:rotate(-1.5deg);
+    text-align:center;padding:4px;
+  }
+
+  /* ---------- 中：记录表 ---------- */
+  .main{min-width:0}
+  .masthead{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .masthead h1{
+    margin:0;font-family:var(--serif);font-weight:600;
+    font-size:21px;letter-spacing:.06em;
+  }
+  .masthead .sub{font-size:12px;color:var(--ink-3);letter-spacing:.04em}
+  .steps{
+    display:flex;align-items:center;gap:10px;margin-top:14px;
+    padding:10px 0 12px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  }
+  .step{display:flex;align-items:baseline;gap:7px;font-size:13px}
+  .step .no{font-family:var(--serif);font-size:12px;color:var(--cinnabar)}
+  .step .k{color:var(--ink-3);font-size:12px}
+  .step .v{font-weight:600}
+  .step.is-todo .v{color:var(--ink-3);font-weight:400}
+  .step-sep{width:22px;height:1px;background:var(--line-strong)}
+
+  .dates{display:flex;gap:8px;margin:18px 0 10px;flex-wrap:wrap}
+  .date{
+    padding:5px 12px;border:1px solid var(--line);border-radius:2px;
+    background:transparent;font:inherit;font-size:13px;color:var(--ink-2);cursor:pointer;
+    min-height:32px;
+  }
+  .date.is-on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .date .n{font-size:11px;opacity:.7;margin-left:5px}
+
+  table.pulse{width:100%;border-collapse:collapse;table-layout:fixed}
+  table.pulse th,table.pulse td{
+    border:1px solid var(--line-strong);padding:0;height:38px;text-align:center;
+    font-size:13px;color:var(--ink-2);
+  }
+  table.pulse thead th{height:34px;font-weight:500;font-size:12px;color:var(--ink-3);background:var(--paper-2)}
+  table.pulse th.part{
+    width:52px;background:#eee0c4;color:#5a4828;font-family:var(--serif);
+    font-size:15px;font-weight:600;letter-spacing:.12em;border-bottom-width:2px;
+  }
+  table.pulse td.take{width:52px;font-size:12px;color:var(--ink-3);background:var(--paper-2)}
+  table.pulse td.cell{font-variant-numeric:tabular-nums;letter-spacing:.02em}
+  table.pulse td.cell .none{color:#c3b9a6}
+  table.pulse col.is-now{background:rgba(156,58,47,.055)}
+  table.pulse td.cell.is-strong{font-weight:600;color:var(--ink)}
+  .legend{margin-top:10px;font-size:12px;color:var(--ink-3);line-height:1.9}
+  .legend b{font-weight:600;color:var(--ink-2);font-family:var(--serif)}
+
+  /* ---------- 右：判读批注 ---------- */
+  .aside{border-left:1px solid var(--line);padding-left:24px;min-width:0}
+  .aside h2{
+    margin:6px 0 4px;font-family:var(--serif);font-size:16px;font-weight:600;letter-spacing:.06em;
+  }
+  .aside .cnt{font-size:12px;color:var(--ink-3);margin:0 0 16px}
+  .note{padding:11px 0 13px;border-top:1px solid var(--line)}
+  .note:first-of-type{border-top:none}
+  .note-kind{
+    display:inline-block;font-size:11px;letter-spacing:.08em;color:var(--ink-3);
+    border-left:2px solid var(--clay);padding-left:7px;margin-bottom:4px;
+  }
+  .note-kind.is-禁忌{border-left-color:var(--ink)}
+  .note-kind.is-加味{border-left-color:var(--sage)}
+  .note h3{margin:0 0 3px;font-family:var(--serif);font-size:15px;font-weight:600;line-height:1.5}
+  .note .hit{font-size:12px;color:var(--ink-3);margin:0 0 5px}
+  .note .hit em{font-style:normal;color:var(--clay)}
+  .note .tx{font-size:12.5px;line-height:1.75;color:var(--ink-2);margin:0}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+  .chip{
+    font-size:12px;padding:2px 8px;border:1px solid var(--line);border-radius:2px;
+    color:var(--ink-2);background:var(--paper-2);
+  }
+  .foot{margin-top:22px;font-size:11.5px;color:var(--ink-3);line-height:1.8;border-top:1px solid var(--line);padding-top:10px}
+
+  @media (max-width:1080px){
+    .frame{grid-template-columns:64px minmax(0,1fr);padding:18px}
+    .aside{grid-column:1 / -1;border-left:none;border-top:1px solid var(--line);padding:16px 0 0;margin-top:8px}
+  }
+  @media (max-width:640px){
+    .frame{display:block;padding:14px 14px 28px}
+    .spine{flex-direction:row;align-items:center;border-right:none;border-bottom:1px solid var(--line);padding:0 0 10px;margin-bottom:14px;gap:10px}
+    .spine-title,.spine-name,.spine-meta{writing-mode:horizontal-tb;letter-spacing:.06em}
+    .spine-name{font-size:19px;margin:0}
+    .spine-meta{margin:0;font-size:11px}
+    .seal{margin:0 0 0 auto;width:36px;height:36px;font-size:10px;flex:0 0 auto}
+    .masthead h1{font-size:18px}
+    .steps{gap:0;flex-wrap:wrap;padding:8px 0 10px}
+    .step{gap:4px;font-size:12.5px;white-space:nowrap}
+    .step .k{font-size:11px}
+    .step-sep{display:none}
+    .steps .step{margin-right:14px}
+    .steps .step:last-child{margin-right:0}
+    table.pulse th,table.pulse td{height:34px;font-size:12px}
+    table.pulse th.part{width:40px;font-size:13px}
+    table.pulse td.take{width:38px;font-size:11px}
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <aside class="spine">
+    <div class="spine-title">臧氏脉学</div>
+    <div class="spine-name">示例·少娟</div>
+    <div class="spine-meta">六 次 复 诊</div>
+    <div class="seal">脉案<br>甲乙</div>
+  </aside>
+
+  <main class="main">
+    <div class="masthead">
+      <h1>脉象记录</h1>
+      <span class="sub">讲义 2026-10 · 开方三部曲</span>
+    </div>
+
+    <div class="steps">
+      <div class="step"><span class="no">①</span><span class="k">判体质</span><span class="v">肾虚体质</span></div>
+      <span class="step-sep"></span>
+      <div class="step"><span class="no">②</span><span class="k">定疗法</span><span class="v">三焦疗法</span></div>
+      <span class="step-sep"></span>
+      <div class="step is-todo"><span class="no">③</span><span class="k">开方药</span><span class="v">待记</span></div>
+    </div>
+
+    <div class="dates">
+      <button class="date is-on">21日<span class="n">5次</span></button>
+      <button class="date">2月5</button>
+      <button class="date">29日</button>
+      <button class="date">1月21日</button>
+      <button class="date">13日</button>
+    </div>
+
+    <table class="pulse">
+      <colgroup>
+        <col><col><col class="is-now"><col><col class="is-now"><col><col>
+      </colgroup>
+      <thead>
+        <tr>
+          <th></th><th></th><th colspan="2">21日</th><th colspan="2">2月5</th><th colspan="2">29日</th>
+        </tr>
+        <tr>
+          <th></th><th></th><th>左</th><th>右</th><th>左</th><th>右</th><th>左</th><th>右</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th class="part" rowspan="3">寸</th>
+          <td class="take">浮</td>
+          <td class="cell is-strong">+</td><td class="cell is-strong">+</td>
+          <td class="cell">+</td><td class="cell is-strong">++</td>
+          <td class="cell">+</td><td class="cell">+</td>
+        </tr>
+        <tr>
+          <td class="take">中</td>
+          <td class="cell is-strong">+</td><td class="cell is-strong">++</td>
+          <td class="cell">+</td><td class="cell">+</td>
+          <td class="cell">+</td><td class="cell">++</td>
+        </tr>
+        <tr>
+          <td class="take">沉</td>
+          <td class="cell">+</td><td class="cell">X|</td>
+          <td class="cell">+</td><td class="cell">X</td>
+          <td class="cell">-</td><td class="cell">X</td>
+        </tr>
+        <tr>
+          <th class="part" rowspan="3">关</th>
+          <td class="take">浮</td>
+          <td class="cell"><span class="none">0</span></td><td class="cell">-</td>
+          <td class="cell"><span class="none">0</span></td><td class="cell">-</td>
+          <td class="cell"><span class="none">0</span></td><td class="cell"><span class="none">0</span></td>
+        </tr>
+        <tr>
+          <td class="take">中</td>
+          <td class="cell">-</td><td class="cell is-strong">++</td>
+          <td class="cell">+</td><td class="cell is-strong">++</td>
+          <td class="cell">-</td><td class="cell">++</td>
+        </tr>
+        <tr>
+          <td class="take">沉</td>
+          <td class="cell">+</td><td class="cell is-strong">++</td>
+          <td class="cell">+</td><td class="cell">++</td>
+          <td class="cell">+</td><td class="cell">+</td>
+        </tr>
+        <tr>
+          <th class="part" rowspan="3">尺</th>
+          <td class="take">浮</td>
+          <td class="cell"><span class="none">0</span></td><td class="cell"><span class="none">0</span></td>
+          <td class="cell"><span class="none">0</span></td><td class="cell"><span class="none">0</span></td>
+          <td class="cell"><span class="none">0</span></td><td class="cell"><span class="none">0</span></td>
+        </tr>
+        <tr>
+          <td class="take">中</td>
+          <td class="cell is-strong">+</td><td class="cell is-strong">+</td>
+          <td class="cell">+</td><td class="cell">+</td>
+          <td class="cell">+</td><td class="cell">+</td>
+        </tr>
+        <tr>
+          <td class="take">沉</td>
+          <td class="cell is-strong">++</td><td class="cell is-strong">++</td>
+          <td class="cell">++</td><td class="cell">++</td>
+          <td class="cell">+</td><td class="cell">+</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p class="legend">
+      <b>符号</b>　0 无 · - 弱 · + 有 · ++ 有力 · ↑ 顶 · | 弦 · X 细　｜
+      <b>体例</b>　9 行（尺取浮中沉）
+    </p>
+  </main>
+
+  <aside class="aside">
+    <h2>依脉用方</h2>
+    <p class="cnt">本次命中 35 条 · 常驻 2 条</p>
+
+    <article class="note">
+      <span class="note-kind">主线</span>
+      <h3>有尺脉</h3>
+      <p class="hit"><em>命中</em> 右尺中、左尺沉、右尺沉</p>
+      <p class="tx">一体疗法（冷热水疗法）：右关浮大去热，右关无能量加温</p>
+      <div class="chips"><span class="chip">一体疗法（冷热水）</span></div>
+    </article>
+
+    <article class="note">
+      <span class="note-kind is-加味">加味</span>
+      <h3>引火归元的添加药</h3>
+      <p class="hit"><em>命中</em> 左尺中、右尺中、左尺沉、右尺沉</p>
+      <p class="tx">尺脉不平衡加知柏（顶手加羌活）；左关浮大加柴味归；右寸浮大加天冬、五味子</p>
+      <div class="chips"><span class="chip">知柏</span><span class="chip">羌活</span><span class="chip">柴味归</span></div>
+    </article>
+
+    <article class="note">
+      <span class="note-kind">挡路</span>
+      <h3>右关尺浮大顶手</h3>
+      <p class="hit"><em>命中</em> 右关浮、右尺浮</p>
+      <p class="tx">木香顺气治气，尤其肚子胀、下坠很重</p>
+      <div class="chips"><span class="chip">木香顺气</span></div>
+    </article>
+
+    <article class="note">
+      <span class="note-kind is-禁忌">禁忌 · 常驻</span>
+      <h3>三不用</h3>
+      <p class="tx">麻黄不用、黄连不用、大黄不用</p>
+    </article>
+
+    <p class="foot">
+      示例数据，非真实病例。本工具只做记录，不构成诊断。
+    </p>
+  </aside>
+
+</div>
+</body>
+</html>

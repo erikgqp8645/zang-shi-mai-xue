@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>方向三 · 分步向导</title>
+<style>
+  :root{
+    --bg:#fbf9f4; --card:#ffffff;
+    --ink:#22201d; --ink-2:#4f4b45; --ink-3:#8d8880;
+    --line:#e8e3d9; --line-2:#d8d1c3;
+    --deep:#2f4f4a;        /* 主色：深松绿 */
+    --deep-wash:rgba(47,79,74,.07);
+    --coral:#c25b4a;       /* 只给高危/挡路 */
+    --ochre:#b98a3e;
+    --sans:-apple-system,"PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
+    --num:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --r:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans)}
+  body{-webkit-font-smoothing:antialiased}
+
+  .page{max-width:720px;margin:0 auto;padding:20px 18px 40px}
+
+  /* 顶部：进度 */
+  .prog{display:flex;gap:6px;margin-bottom:18px}
+  .prog .p{flex:1}
+  .prog .bar{height:3px;border-radius:2px;background:var(--line-2)}
+  .prog .p.done .bar,.prog .p.now .bar{background:var(--deep)}
+  .prog .lb{display:flex;gap:6px;align-items:baseline;margin-top:8px;font-size:12px;color:var(--ink-3)}
+  .prog .p.now .lb{color:var(--deep);font-weight:600}
+  .prog .lb i{font-style:normal;font-size:11px}
+
+  .who{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px}
+  .who b{font-size:20px;letter-spacing:.01em}
+  .who span{font-size:13px;color:var(--ink-3)}
+
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+    padding:16px;margin-bottom:14px;
+  }
+  .card h2{margin:0 0 2px;font-size:15px;font-weight:600}
+  .card .hint{margin:0 0 12px;font-size:12.5px;color:var(--ink-3);line-height:1.6}
+
+  .dates{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px}
+  .d{
+    flex:0 0 auto;border:1px solid var(--line-2);background:transparent;border-radius:10px;
+    font:inherit;font-size:13.5px;color:var(--ink-2);padding:9px 14px;min-height:44px;cursor:pointer;
+  }
+  .d.is-on{background:var(--deep);border-color:var(--deep);color:#fff}
+
+  /* 部位卡：把 9 行拆成三张 */
+  .organ{padding:6px 0 10px;border-top:1px solid var(--line)}
+  .organ:first-of-type{border-top:none;padding-top:0}
+  .organ-head{font-size:15px;font-weight:600;color:var(--ink);padding:6px 0 8px;letter-spacing:.02em}
+  .organ-row{display:grid;grid-template-columns:34px 1fr 1fr;gap:8px;align-items:center;padding:3px 0}
+  .tk{font-size:12.5px;color:var(--ink-3)}
+  .val{
+    min-height:44px;border-radius:10px;border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;gap:6px;
+    font-size:14px;color:var(--ink-2);font-variant-numeric:tabular-nums;
+  }
+  .val b{font-weight:600;color:var(--ink);font-size:16px}
+  .val b.o{color:#c3beb4;font-weight:400}
+  .val .lab{font-size:10.5px;color:var(--ink-3)}
+  .val.is-on{background:var(--deep-wash);border-color:rgba(47,79,74,.3);color:var(--deep)}
+  .val.is-on b{color:var(--deep)}
+
+  .legend{font-size:12px;color:var(--ink-3);line-height:1.9;margin:4px 0 0}
+
+  /* 判读 */
+  .hit{
+    display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;
+    padding:12px 0;border-top:1px solid #f1eee7;
+  }
+  .hit:first-of-type{border-top:none;padding-top:2px}
+  .hit h3{margin:0 0 2px;font-size:14.5px;font-weight:600;line-height:1.45}
+  .hit .k{font-size:11px;color:var(--ink-3);margin-right:6px;font-weight:400}
+  .hit .cells{margin:0 0 4px;font-size:12px;color:var(--ink-3)}
+  .hit .cells b{color:var(--deep);font-weight:600}
+  .hit .tx{margin:0;font-size:13px;line-height:1.65;color:var(--ink-2)}
+  .hit .go{
+    align-self:center;width:36px;height:36px;border-radius:50%;border:1px solid var(--line-2);
+    background:transparent;color:var(--ink-3);font-size:15px;cursor:pointer;
+  }
+  .hit.is-alert .k{color:var(--coral)}
+
+  /* 底部主操作 */
+  .cta{display:flex;gap:10px;margin:2px 0 4px}
+  .cta button{
+    flex:1;min-height:50px;border-radius:12px;font:inherit;font-size:15px;font-weight:600;cursor:pointer;
+  }
+  .cta .ghost{background:var(--card);border:1px solid var(--line-2);color:var(--ink-2)}
+  .cta .main{background:var(--deep);border:1px solid var(--deep);color:#fff}
+
+  .foot{margin-top:18px;font-size:11.5px;color:var(--ink-3);text-align:center;line-height:1.8}
+
+  @media (min-width:900px){
+    .page{max-width:700px;padding:32px 24px 48px}
+    .who b{font-size:23px}
+    .card{padding:20px}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="prog">
+    <div class="p done"><div class="bar"></div><div class="lb"><i>①</i>判体质</div></div>
+    <div class="p done"><div class="bar"></div><div class="lb"><i>②</i>定疗法</div></div>
+    <div class="p now"><div class="bar"></div><div class="lb"><i>③</i>开方药</div></div>
+  </div>
+
+  <div class="who">
+    <b>示例·少娟</b>
+    <span>肾虚体质 · 三焦疗法</span>
+  </div>
+
+  <div class="dates">
+    <button class="d is-on">21日</button>
+    <button class="d">2月5</button>
+    <button class="d">29日</button>
+    <button class="d">1月21日</button>
+    <button class="d">13日</button>
+  </div>
+
+  <section class="card">
+    <h2>摸脉</h2>
+    <p class="hint">左右各一格。点格子录入符号：无 · 弱 · 有 · 有力 · 顶 · 弦 · 细。</p>
+
+    <div class="organ">
+      <div class="organ-head">寸 · 心肺</div>
+      <div class="organ-row">
+        <span class="tk">浮</span>
+        <div class="val is-on"><span class="lab">左</span><b>+</b></div>
+        <div class="val is-on"><span class="lab">右</span><b>+</b></div>
+      </div>
+      <div class="organ-row">
+        <span class="tk">中</span>
+        <div class="val is-on"><span class="lab">左</span><b>+</b></div>
+        <div class="val is-on"><span class="lab">右</span><b>++</b></div>
+      </div>
+      <div class="organ-row">
+        <span class="tk">沉</span>
+        <div class="val"><span class="lab">左</span><b>+</b></div>
+        <div class="val"><span class="lab">右</span><b>X·弦</b></div>
+      </div>
+    </div>
+
+    <div class="organ">
+      <div class="organ-head">关 · 肝脾</div>
+      <div class="organ-row">
+        <span class="tk">浮</span>
+        <div class="val"><span class="lab">左</span><b class="o">0</b></div>
+        <div class="val"><span class="lab">右</span><b>-</b></div>
+      </div>
+      <div class="organ-row">
+        <span class="tk">中</span>
+        <div class="val"><span class="lab">左</span><b>-</b></div>
+        <div class="val is-on"><span class="lab">右</span><b>++</b></div>
+      </div>
+      <div class="organ-row">
+        <span class="tk">沉</span>
+        <div class="val"><span class="lab">左</span><b>+</b></div>
+        <div class="val is-on"><span class="lab">右</span><b>++</b></div>
+      </div>
+    </div>
+
+    <div class="organ">
+      <div class="organ-head">尺 · 肾</div>
+      <div class="organ-row">
+        <span class="tk">浮</span>
+        <div class="val"><span class="lab">左</span><b class="o">0</b></div>
+        <div class="val"><span class="lab">右</span><b class="o">0</b></div>
+      </div>
+      <div class="organ-row">
+        <span class="tk">中</span>
+        <div class="val is-on"><span class="lab">左</span><b>+</b></div>
+        <div class="val is-on"><span class="lab">右</span><b>+</b></div>
+      </div>
+      <div class="organ-row">
+        <span class="tk">沉</span>
+        <div class="val is-on"><span class="lab">左</span><b>++</b></div>
+        <div class="val is-on"><span class="lab">右</span><b>++</b></div>
+      </div>
+    </div>
+
+    <p class="legend">0 无　- 弱　+ 有　++ 有力　X 细　| 弦　↑ 顶</p>
+  </section>
+
+  <section class="card">
+    <h2>依脉用方</h2>
+    <p class="hint">本次命中 35 条 · 常驻 2 条。只照抄原文，不加减方。</p>
+
+    <article class="hit">
+      <div>
+        <h3><span class="k">主线</span>有尺脉</h3>
+        <p class="cells"><b>命中</b> 右尺中 · 左尺沉 · 右尺沉</p>
+        <p class="tx">一体疗法（冷热水疗法）：右关浮大去热，右关无能量加温</p>
+      </div>
+      <button class="go" aria-label="展开">›</button>
+    </article>
+
+    <article class="hit">
+      <div>
+        <h3><span class="k">加味</span>引火归元的添加药</h3>
+        <p class="cells"><b>命中</b> 左尺中 · 右尺中 · 左尺沉 · 右尺沉</p>
+        <p class="tx">尺脉不平衡加知柏（顶手加羌活）；左关浮大加柴味归</p>
+      </div>
+      <button class="go" aria-label="展开">›</button>
+    </article>
+
+    <article class="hit is-alert">
+      <div>
+        <h3><span class="k">挡路</span>右关尺浮大顶手</h3>
+        <p class="cells"><b>命中</b> 右关浮 · 右尺浮</p>
+        <p class="tx">木香顺气治气，尤其肚子胀、下坠很重</p>
+      </div>
+      <button class="go" aria-label="展开">›</button>
+    </article>
+  </section>
+
+  <div class="cta">
+    <button class="ghost">上一步</button>
+    <button class="main">记这次用药</button>
+  </div>
+
+  <p class="foot">示例数据，非真实病例。本工具只做记录，不构成诊断。</p>
+</div>
+</body>
+</html>

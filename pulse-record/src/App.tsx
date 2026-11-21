@@ -790,12 +790,25 @@ export default function App() {
     <LibraryProvider>
     <PatternsProvider>
       <div className="pr-app">
+      {/*
+        竖排书眉（设计方向一「医案册页」）——
+        宽屏在左栏，像病案首页的书口：机构名、患者、记录数、印章；
+        窄屏（≤1100px）退化成顶部一行横排，不占竖向空间。
+      */}
+      <aside className="pr-spine">
+        <span className="pr-spine-title">臧氏脉学</span>
+        <span className="pr-spine-name">{set.name || '未命名'}</span>
+        <span className="pr-spine-meta">
+          {set.sessions.length > 0 ? `${set.sessions.length} 次记录` : '尚无记录'}
+        </span>
+        {/* 朱砂印章：multiply 混入宣纸底，不用去背也不出方块 */}
+        <img className="pr-spine-seal" src={sealUrl} alt="脉案" />
+      </aside>
+
       {/* ---- 讲义 p47 原图：整套工具的总纲，放在最顶端 ---- */}
       <TriadImage />
 
       <header className="pr-header">
-        {/* 左上角的朱砂印章（AI 生成的「脉案」篆刻）—— multiply 混入宣纸底 */}
-        <img className="pr-seal" src={sealUrl} alt="脉案" />
         <div className="pr-header-main">
           <h1>臧氏脉学 · 脉象记录表生成器</h1>
           <p className="pr-sub">

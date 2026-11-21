@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>方向二 · 诊台</title>
+<style>
+  :root{
+    --bg:#fbfbfa; --panel:#ffffff; --sunk:#f3f3f1;
+    --ink:#1c1c1a; --ink-2:#4a4a46; --ink-3:#8a8a84;
+    --line:#e4e4df; --line-2:#d2d2cc;
+    --accent:#2c4a6e; --accent-wash:rgba(44,74,110,.06);
+    --alert:#b3402f;
+    --sans:-apple-system,"PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
+    --num:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans)}
+  body{-webkit-font-smoothing:antialiased}
+
+  .topbar{
+    display:flex;align-items:center;gap:18px;
+    padding:14px 24px;border-bottom:1px solid var(--line);background:var(--panel);
+    position:sticky;top:0;z-index:5;
+  }
+  .brand{font-size:13px;letter-spacing:.02em;color:var(--ink-3)}
+  .patient{display:flex;align-items:baseline;gap:10px}
+  .patient b{font-size:16px;font-weight:600}
+  .patient span{font-size:12px;color:var(--ink-3)}
+  .tabs{display:flex;gap:2px;margin-left:8px;overflow-x:auto}
+  .tab{
+    border:none;background:none;font:inherit;font-size:13px;color:var(--ink-2);
+    padding:7px 12px;border-radius:6px;cursor:pointer;white-space:nowrap;min-height:36px;
+  }
+  .tab:hover{background:var(--sunk)}
+  .tab.is-on{background:var(--accent);color:#fff}
+  .spacer{flex:1}
+  .ghost{
+    border:1px solid var(--line-2);background:var(--panel);color:var(--ink-2);
+    font:inherit;font-size:13px;padding:7px 14px;border-radius:6px;cursor:pointer;min-height:36px;
+  }
+  .primary{
+    border:1px solid var(--accent);background:var(--accent);color:#fff;
+    font:inherit;font-size:13px;padding:7px 16px;border-radius:6px;cursor:pointer;min-height:36px;
+  }
+
+  .layout{
+    display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:0;
+    max-width:1400px;margin:0 auto;
+  }
+
+  /* ---------- 主表 ---------- */
+  .bench{padding:24px 24px 0}
+  .bench-head{display:flex;align-items:baseline;gap:14px;margin-bottom:14px}
+  .bench-head h1{margin:0;font-size:17px;font-weight:600;letter-spacing:.01em}
+  .bench-head .meta{font-size:12px;color:var(--ink-3)}
+  .bench-head .now{margin-left:auto;font-size:12px;color:var(--accent);font-weight:500}
+
+  table{width:100%;border-collapse:collapse;table-layout:fixed;background:var(--panel)}
+  th,td{padding:0;height:42px;text-align:center;font-size:13px;color:var(--ink-2);border-bottom:1px solid var(--line)}
+  thead th{height:36px;font-weight:500;font-size:12px;color:var(--ink-3);border-bottom:1px solid var(--line-2)}
+  th.part{
+    width:52px;text-align:left;padding-left:14px;font-size:14px;font-weight:600;color:var(--ink);
+  }
+  tr.grp-start td, tr.grp-start th{border-top:2px solid var(--line-2)}
+  thead tr:first-child th{border-top:none}
+  td.take{width:56px;text-align:left;padding-left:14px;font-size:12px;color:var(--ink-3)}
+  td.cell{font-variant-numeric:tabular-nums;font-size:13px}
+  td.cell.o{color:#c9c9c3}
+  td.cell.hi{background:var(--accent-wash);color:var(--accent);font-weight:600}
+  tr:hover td{background:#fafaf8}
+  col.now{background:var(--accent-wash)}
+
+  .legend{margin-top:12px;font-size:12px;color:var(--ink-3);display:flex;gap:16px;flex-wrap:wrap}
+  .legend span b{color:var(--ink-2);font-weight:600}
+
+  /* ---------- 右：判读 ---------- */
+  .rail{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:520px}
+  .rail-head{padding:18px 20px 12px;border-bottom:1px solid var(--line)}
+  .rail-head h2{margin:0 0 4px;font-size:14px;font-weight:600}
+  .rail-head p{margin:0;font-size:12px;color:var(--ink-3)}
+  .items{list-style:none;margin:0;padding:6px 0;overflow-y:auto;flex:1}
+  .item{
+    display:grid;grid-template-columns:3px 1fr;gap:12px;
+    padding:12px 18px 12px 0;border-bottom:1px solid var(--line);
+  }
+  .item .bar{background:var(--line-2);border-radius:2px}
+  .item.k-主线 .bar{background:var(--accent)}
+  .item.k-挡路 .bar{background:#a8763e}
+  .item.k-加味 .bar{background:#6a7a5e}
+  .item.k-禁忌 .bar{background:var(--ink-3)}
+  .item h3{margin:0 0 3px;font-size:14px;font-weight:600;line-height:1.45;display:flex;gap:8px;align-items:baseline}
+  .item h3 small{font-size:11px;font-weight:400;color:var(--ink-3)}
+  .item .hit{margin:0 0 4px;font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .item .hit b{color:var(--accent);font-weight:600}
+  .item .tx{margin:0;font-size:12.5px;line-height:1.7;color:var(--ink-2)}
+  .item .rx{margin:6px 0 0;font-size:12.5px;color:var(--ink)}
+  .item.always{background:var(--sunk)}
+
+  /* ---------- 底：三部曲 ---------- */
+  .dock{
+    grid-column:1 / -1;border-top:1px solid var(--line);background:var(--panel);
+    display:grid;grid-template-columns:repeat(3,1fr);gap:1px;
+  }
+  .dock .s{
+    padding:14px 20px;display:flex;align-items:center;gap:10px;background:var(--panel);
+  }
+  .dock .s + .s{border-left:1px solid var(--line)}
+  .dock .n{
+    width:22px;height:22px;border-radius:50%;display:grid;place-items:center;
+    font-size:12px;font-variant-numeric:tabular-nums;
+    border:1px solid var(--line-2);color:var(--ink-3);
+  }
+  .dock .s.done .n{background:var(--accent);border-color:var(--accent);color:#fff}
+  .dock .s.now{background:var(--accent-wash)}
+  .dock .s.now .n{border-color:var(--accent);color:var(--accent);font-weight:600}
+  .dock .lbl{font-size:12px;color:var(--ink-3)}
+  .dock .val{font-size:13px;font-weight:600}
+  .dock .s.now .val{color:var(--accent)}
+
+  .foot{padding:16px 24px 24px;font-size:11.5px;color:var(--ink-3)}
+
+  @media (max-width:1100px){
+    .layout{grid-template-columns:1fr}
+    .rail{border-left:none;border-top:1px solid var(--line)}
+  }
+  @media (max-width:640px){
+    .topbar{padding:10px 12px;gap:10px;flex-wrap:wrap}
+    .brand{display:none}
+    .bench{padding:16px 12px 0}
+    .bench-head{flex-wrap:wrap;gap:8px}
+    .bench-head .now{margin-left:0;width:100%}
+    th.part{width:40px;padding-left:8px;font-size:13px}
+    td.take{width:40px;padding-left:8px;font-size:11px}
+    th,td{height:38px;font-size:12px}
+    .dock{grid-template-columns:1fr}
+    .dock .s + .s{border-left:none;border-top:1px solid var(--line)}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <span class="brand">臧氏脉学</span>
+  <span class="patient"><b>示例·少娟</b><span>女 · 复诊</span></span>
+  <nav class="tabs">
+    <button class="tab is-on">21日</button>
+    <button class="tab">2月5</button>
+    <button class="tab">29日</button>
+    <button class="tab">1月21日</button>
+    <button class="tab">13日</button>
+  </nav>
+  <span class="spacer"></span>
+  <button class="ghost">导出</button>
+  <button class="primary">新增记录</button>
+</header>
+
+<div class="layout">
+
+  <main class="bench">
+    <div class="bench-head">
+      <h1>脉象记录</h1>
+      <span class="meta">9 行体例 · 尺取浮中沉</span>
+      <span class="now">当前 21日</span>
+    </div>
+
+    <table>
+      <colgroup>
+        <col style="width:52px"><col style="width:56px">
+        <col><col><col><col><col><col>
+      </colgroup>
+      <thead>
+        <tr>
+          <th></th><th></th>
+          <th colspan="2" style="color:var(--accent)">21日</th>
+          <th colspan="2">2月5</th>
+          <th colspan="2">29日</th>
+        </tr>
+        <tr>
+          <th></th><th></th>
+          <th>左</th><th>右</th><th>左</th><th>右</th><th>左</th><th>右</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="grp-start">
+          <th class="part" rowspan="3">寸</th>
+          <td class="take">浮</td>
+          <td class="cell hi">+</td><td class="cell hi">+</td>
+          <td class="cell">+</td><td class="cell">++</td>
+          <td class="cell">+</td><td class="cell">+</td>
+        </tr>
+        <tr>
+          <td class="take">中</td>
+          <td class="cell hi">+</td><td class="cell hi">++</td>
+          <td class="cell">+</td><td class="cell">+</td>
+          <td class="cell">+</td><td class="cell">++</td>
+        </tr>
+        <tr>
+          <td class="take">沉</td>
+          <td class="cell">+</td><td class="cell">X|</td>
+          <td class="cell">+</td><td class="cell">X</td>
+          <td class="cell">-</td><td class="cell">X</td>
+        </tr>
+        <tr class="grp-start">
+          <th class="part" rowspan="3">关</th>
+          <td class="take">浮</td>
+          <td class="cell o">0</td><td class="cell">-</td>
+          <td class="cell o">0</td><td class="cell">-</td>
+          <td class="cell o">0</td><td class="cell o">0</td>
+        </tr>
+        <tr>
+          <td class="take">中</td>
+          <td class="cell">-</td><td class="cell hi">++</td>
+          <td class="cell">+</td><td class="cell">++</td>
+          <td class="cell">-</td><td class="cell">++</td>
+        </tr>
+        <tr>
+          <td class="take">沉</td>
+          <td class="cell">+</td><td class="cell hi">++</td>
+          <td class="cell">+</td><td class="cell">++</td>
+          <td class="cell">+</td><td class="cell">+</td>
+        </tr>
+        <tr class="grp-start">
+          <th class="part" rowspan="3">尺</th>
+          <td class="take">浮</td>
+          <td class="cell o">0</td><td class="cell o">0</td>
+          <td class="cell o">0</td><td class="cell o">0</td>
+          <td class="cell o">0</td><td class="cell o">0</td>
+        </tr>
+        <tr>
+          <td class="take">中</td>
+          <td class="cell hi">+</td><td class="cell hi">+</td>
+          <td class="cell">+</td><td class="cell">+</td>
+          <td class="cell">+</td><td class="cell">+</td>
+        </tr>
+        <tr>
+          <td class="take">沉</td>
+          <td class="cell hi">++</td><td class="cell hi">++</td>
+          <td class="cell">++</td><td class="cell">++</td>
+          <td class="cell">+</td><td class="cell">+</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="legend">
+      <span><b>0</b> 无　<b>-</b> 弱　<b>+</b> 有　<b>++</b> 有力　<b>↑</b> 顶　<b>|</b> 弦　<b>X</b> 细</span>
+      <span>蓝色＝当前记录</span>
+    </div>
+
+    <p class="foot">示例数据，非真实病例。本工具只做记录，不构成诊断。</p>
+  </main>
+
+  <aside class="rail">
+    <div class="rail-head">
+      <h2>依脉用方</h2>
+      <p>命中 35 条 · 常驻 2 条</p>
+    </div>
+    <ul class="items">
+      <li class="item k-主线">
+        <span class="bar"></span>
+        <div>
+          <h3>有尺脉 <small>主线</small></h3>
+          <p class="hit"><b>命中</b> 右尺中 · 左尺沉 · 右尺沉</p>
+          <p class="tx">一体疗法（冷热水疗法）：右关浮大去热，右关无能量加温</p>
+          <p class="rx">一体疗法（冷热水）</p>
+        </div>
+      </li>
+      <li class="item k-加味">
+        <span class="bar"></span>
+        <div>
+          <h3>引火归元的添加药 <small>加味</small></h3>
+          <p class="hit"><b>命中</b> 左尺中 · 右尺中 · 左尺沉 · 右尺沉</p>
+          <p class="tx">尺脉不平衡加知柏（顶手加羌活）；左关浮大加柴味归；右寸浮大加天冬、五味子</p>
+          <p class="rx">知柏 · 羌活 · 柴味归（明目地黄） · 天冬 · 五味子</p>
+        </div>
+      </li>
+      <li class="item k-挡路">
+        <span class="bar"></span>
+        <div>
+          <h3>右关尺浮大顶手 <small>挡路</small></h3>
+          <p class="hit"><b>命中</b> 右关浮 · 右尺浮</p>
+          <p class="tx">木香顺气治气，尤其肚子胀、下坠很重</p>
+          <p class="rx">木香顺气</p>
+        </div>
+      </li>
+      <li class="item k-禁忌 always">
+        <span class="bar"></span>
+        <div>
+          <h3>三不用 <small>禁忌 · 常驻</small></h3>
+          <p class="tx">麻黄不用、黄连不用、大黄不用</p>
+        </div>
+      </li>
+      <li class="item k-禁忌 always">
+        <span class="bar"></span>
+        <div>
+          <h3>上盛用白虎汤／下虚用肾气丸 <small>禁忌 · 常驻</small></h3>
+          <p class="tx">讲者第一讲批评的用法</p>
+        </div>
+      </li>
+    </ul>
+  </aside>
+
+  <footer class="dock">
+    <div class="s done"><span class="n">1</span><span><span class="lbl">判体质</span><br><span class="val">肾虚体质</span></span></div>
+    <div class="s done"><span class="n">2</span><span><span class="lbl">定疗法</span><br><span class="val">三焦疗法</span></span></div>
+    <div class="s now"><span class="n">3</span><span><span class="lbl">开方药</span><br><span class="val">待记</span></span></div>
+  </footer>
+
+</div>
+</body>
+</html>

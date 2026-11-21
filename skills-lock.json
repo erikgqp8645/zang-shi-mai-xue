@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "skills": {
+    "huashu-design": {
+      "source": "alchaincyf/huashu-design",
+      "commit": "c4cc21943a8026d2d7aa33bd56b72b5be1926923",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "98daaae0e84bba0f81f940dfeacfb6dbebb12de8b8474de61b0f0b7747878187"
+    }
+  }
+}
