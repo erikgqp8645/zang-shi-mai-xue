@@ -1295,6 +1295,126 @@ button:disabled {
   color: var(--high);
   line-height: 1.6;
 }
+/* ---------- 附录：讲义 p42 原文对照（索引页，一行一条） ----------
+   28 行原先是张表，竖着 4042px 把 ③ 撑成一堵墙（2026-11-21 实测）。
+   改成索引后：每条一行（序号 ｜ 方名 ｜ 脉象 ｜ 剂量摘要），点开才见
+   科中比例、对照依据与「填入」。剂量摘要仍在行上 —— 不隐藏剂量。 */
+
+.pr-refindex {
+  border-top: 1px solid var(--divider);
+}
+
+.pr-refindex-head,
+.pr-refrow-line {
+  display: grid;
+  grid-template-columns: 40px 148px minmax(0, 0.9fr) minmax(0, 1.3fr) 22px;
+  gap: 10px;
+  align-items: center;
+}
+
+.pr-refindex-head {
+  padding: 6px 2px;
+  font-size: 11.5px;
+  color: var(--sage);
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--divider);
+}
+
+.pr-refrow {
+  border-bottom: 1px solid var(--soft);
+}
+
+.pr-refrow.is-open {
+  background: var(--paper-sunk);
+}
+
+.pr-refrow-line {
+  width: 100%;
+  padding: 7px 2px;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  text-align: left;
+  cursor: pointer;
+}
+
+.pr-refrow-line:hover {
+  background: #f6f1e5;
+}
+
+.pr-refno {
+  color: var(--sage);
+  font-size: 11.5px;
+  text-align: right;
+}
+
+.pr-refname {
+  font-family: var(--font-serif);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.pr-refind {
+  color: var(--ink-2);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pr-refdose {
+  color: var(--ink-2);
+  font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pr-refcaret {
+  color: var(--sage);
+  text-align: center;
+}
+
+.pr-refdetail {
+  padding: 2px 2px 12px 42px;
+  font-size: 12px;
+}
+
+.pr-refapply {
+  margin-top: 6px;
+}
+
+/* 窄屏：一行放不下四列，改成「名／脉象／剂量」三行一格 */
+@media (max-width: 760px) {
+  .pr-refindex-head {
+    display: none;
+  }
+
+  .pr-refrow-line {
+    grid-template-columns: 26px minmax(0, 1fr) 18px;
+    grid-template-areas:
+      'no name caret'
+      'no ind caret'
+      'dose dose dose';
+    row-gap: 2px;
+    padding: 9px 2px;
+  }
+
+  .pr-refno { grid-area: no; }
+  .pr-refname { grid-area: name; }
+  .pr-refind { grid-area: ind; white-space: normal; }
+  .pr-refdose { grid-area: dose; white-space: normal; margin-top: 2px; }
+  .pr-refcaret { grid-area: caret; }
+
+  .pr-refdetail {
+    padding-left: 26px;
+  }
+}
+
 /* 病例记录表与用药记录表共用同一套外观（边框／表头底色／字号） */
 .pr-history-list,
 .pr-med-table,

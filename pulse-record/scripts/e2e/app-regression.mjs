@@ -147,11 +147,28 @@ try {
     )
     await sleep(500)
     const r = await chrome.ev(
-      `(()=>{const rows=[...document.querySelectorAll('.pr-med-reftable tbody tr')];const blank=rows.filter(r=>!(r.children[3]?.innerText||'').trim()).length;const miss=rows.filter(r=>(r.children[3]?.innerText||'').includes('未载')).length;return {rows:rows.length,blank:blank,miss:miss}})()`,
+      `(()=>{const rows=[...document.querySelectorAll('.pr-refrow')];const blank=rows.filter(r=>!(r.querySelector('.pr-refdose')?.innerText||'').trim()).length;const miss=rows.filter(r=>(r.querySelector('.pr-refdose')?.innerText||'').includes('未载')).length;return {rows:rows.length,blank:blank,miss:miss}})()`,
     )
     console.log(`  ${src.padEnd(18)} ${r.rows} 行｜空格 ${r.blank}｜明说未载 ${r.miss}`)
-    c.check(`${src}：28 行且无空格`, r.rows === 28 && r.blank === 0, `实际 ${r.rows} 行 / 空格 ${r.blank}`)
+    c.check(`${src}：28 行且每行都有剂量摘要`, r.rows === 28 && r.blank === 0, `实际 ${r.rows} 行 / 空格 ${r.blank}`)
   }
+
+  /* 索引页：点一行要展开原文（科中／对照依据／填入），否则「一行一条」等于把细节弄丢了 */
+  await chrome.ev(`(()=>{const b=[...document.querySelectorAll('.pr-med-dosebar .pr-chip-btn')].find(b=>b.textContent.trim()==='同和堂版（克）');b&&b.click();return 1})()`)
+  await sleep(400)
+  await chrome.ev(
+    `(()=>{const line=document.querySelector('.pr-refrow-line');line&&line.click();return 1})()`,
+  )
+  await sleep(400)
+  const openRes = await chrome.ev(
+    `(()=>{
+       const detail=document.querySelector('.pr-refdetail');
+       const txt=detail?.innerText||'';
+       return {ok:!!detail && txt.length>20, len:txt.length, hasSource:/同和堂版|讲稿 2010/.test(txt)};
+     })()`,
+  )
+  console.log(`  展开首条：detail ${openRes.ok ? '有' : '无'}｜${openRes.len ?? 0} 字`)
+  c.check('索引行点开有原文（组成／出处）', !!openRes.ok && openRes.hasSource === true, JSON.stringify(openRes))
 
   /* ---- ④ 窄屏 500px ---- */
   console.log('\n【④】窄屏 500px 无横向溢出')

@@ -74,6 +74,21 @@ const DOSE_SOURCES: { key: DoseSource; label: string; hint: string }[] = [
 ]
 
 /** 一格「配伍与剂量」 */
+/**
+ * 索引行上的「剂量摘要」—— 一行装得下的那部分组成。
+ *
+ * 只做摘要，不替代原文：点开那一行仍是完整的 DoseCell（组成／注／科中／出处）。
+ * 三套剂量单位不同，这里按当前的「剂量来源」取一套，不混写。
+ */
+function doseSummary(r: FormulaReference, source: DoseSource): string {
+  const v = formulaDoseView(r)
+  const th = v.dose?.composition
+  const draft = v.drug?.composition
+  if (source === 'draft') return draft ? `组成：${draft}` : '讲稿 2010 未载'
+  if (source === 'th') return th ?? '同和堂版未载'
+  return th ?? (draft ? `组成：${draft}` : '两套资料均未载')
+}
+
 function DoseCell({ r, source }: { r: FormulaReference; source: DoseSource }) {
   const v = formulaDoseView(r)
   const showTh = source === 'th' || source === 'both'
@@ -171,6 +186,8 @@ export function MedicationPanel({
   /** 对照表是否展开 */
   /** 讲义 p42 对照表默认展开 —— 里面有「配伍与剂量」列，收起来就看不见了 */
   const [refOpen, setRefOpen] = useState(true)
+  /** 附录里展开了哪一条（序号）。同一时间只开一条 —— 一行一条的读法 */
+  const [openRef, setOpenRef] = useState<number | null>(null)
   /** 「配伍与剂量」列显示哪一套资料（默认同和堂版的克数） */
   const [doseSource, setDoseSource] = useState<DoseSource>('th')
   /** 脉位筛选（选择器右列；关掉弹窗也留着） */
@@ -628,49 +645,59 @@ export function MedicationPanel({
                 两套剂量单位不同（克 ／ 比例制），不可互相换算
               </span>
             </div>
-            <table className="pr-med-reftable">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>处方</th>
-                  <th>对应脉象及加减</th>
-                  <th>配伍与剂量</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {refRows.map((r) => (
-                  <tr key={r.no}>
-                    <td>{r.no}</td>
-                    <td>{r.name}</td>
-                    <td>{r.indication}</td>
-                    <td className="pr-med-dose">
-                      <DoseCell r={r} source={doseSource} />
-                    </td>
-                    <td className="pr-med-ops">
-                      <button
-                        type="button"
-                        className="pr-link"
-                        onClick={() => {
-                          const visitId = activeSessionId ?? sessions[0]?.id
-                          if (!visitId) return
-                          applyReference(visitId, r.name, r.indication)
-                        }}
-                      >
-                        填入
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {refRows.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="pr-muted">
-                      没有匹配的方。
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+            {/*
+              索引页（设计方向一 · 册页化，2026-11-21 用户选的变体 A）：
+              一条一行 —— 序号 ｜ 方名 ｜ 对应脉象 ｜ 剂量摘要，点开才见
+              科中比例、对照依据与「填入」。剂量摘要默认就在行上，
+              所以「收起就看不见配伍与剂量列」那条老担心不成立。
+            */}
+            <div className="pr-refindex">
+              <div className="pr-refindex-head">
+                <span>#</span>
+                <span>处方</span>
+                <span>对应脉象及加减</span>
+                <span>配伍与剂量</span>
+                <span />
+              </div>
+              {refRows.map((r) => {
+                const open = openRef === r.no
+                return (
+                  <div key={r.no} className={`pr-refrow${open ? ' is-open' : ''}`}>
+                    <button
+                      type="button"
+                      className="pr-refrow-line"
+                      aria-expanded={open}
+                      onClick={() => setOpenRef(open ? null : r.no)}
+                    >
+                      <span className="pr-refno">{r.no}</span>
+                      <span className="pr-refname">{r.name}</span>
+                      <span className="pr-refind">{r.indication}</span>
+                      <span className="pr-refdose">{doseSummary(r, doseSource)}</span>
+                      <span className="pr-refcaret">{open ? '▾' : '›'}</span>
+                    </button>
+
+                    {open && (
+                      <div className="pr-refdetail">
+                        {/* 对照依据由 DoseCell 自己渲染（.pr-dose-basis），这里别重复一遍 */}
+                        <DoseCell r={r} source={doseSource} />
+                        <button
+                          type="button"
+                          className="pr-link pr-refapply"
+                          onClick={() => {
+                            const visitId = activeSessionId ?? sessions[0]?.id
+                            if (!visitId) return
+                            applyReference(visitId, r.name, r.indication)
+                          }}
+                        >
+                          填入当前行
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+              {refRows.length === 0 && <p className="pr-muted">没有匹配的方。</p>}
+            </div>
           </>
         )}
       </div>
