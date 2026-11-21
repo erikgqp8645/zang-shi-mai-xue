@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>③ 开方药 · 变体 B（对页）</title>
+<style>
+  :root{
+    --paper:#faf7f0; --card:#fbf8f1; --ink:#2c2823; --ink2:#55504a; --ink3:#8b857c;
+    --line:#e2dbcc; --soft:#ece5d6; --clay:#b06a3b;
+    --serif:'Songti SC','STSong','Noto Serif CJK SC',serif;
+    --sans:-apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:14px}
+  .wrap{max-width:1280px;margin:0 auto;padding:26px 20px 48px}
+  .tag{font-size:11px;letter-spacing:.12em;color:var(--ink3)}
+  h1{font-family:var(--serif);font-size:20px;letter-spacing:.06em;margin:6px 0 4px}
+  .lead{font-size:12.5px;color:var(--ink3);line-height:1.8;margin:0 0 18px}
+  .card{background:var(--card);border:1px solid var(--soft);padding:16px 18px;margin-bottom:16px}
+  .card h2{font-family:var(--serif);font-size:15px;letter-spacing:.04em;margin:0 0 2px}
+  .card .sub{font-size:12px;color:var(--ink3);margin:0 0 14px;line-height:1.7}
+  .empty{color:var(--ink3);font-size:12.5px;padding:6px 0}
+
+  /* 对页：左正文 ｜ 右附录 */
+  .spread{display:grid;grid-template-columns:minmax(0,1fr) 430px;gap:26px;align-items:start}
+  .spread .card{margin-bottom:0}
+  .spread .spine{border-left:1px solid var(--line);padding-left:20px}
+
+  .days{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .day{border:1px solid var(--line);background:none;border-radius:3px;font:inherit;font-size:12.5px;color:var(--ink2);padding:5px 11px;cursor:pointer}
+  .day.on{background:var(--ink);border-color:var(--ink);color:#f7f2e7}
+  .mrow{display:grid;grid-template-columns:1fr 1fr 1fr 88px;gap:8px;border-top:1px solid var(--soft);padding:8px 0;font-size:12.5px}
+  .mrow:first-of-type{border-top:none}
+  .mh{color:var(--ink3);font-size:11.5px}
+  .ghost{border:1px dashed var(--line);background:none;border-radius:3px;color:var(--ink3);font:inherit;font-size:12px;padding:6px 10px;cursor:pointer}
+
+  /* 右栏：附录，自己滚动 */
+  .appx{position:sticky;top:16px;display:flex;flex-direction:column;max-height:calc(100vh - 40px)}
+  .appx-head{border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:8px}
+  .appx-head .name{font-family:var(--serif);font-size:14px;font-weight:600}
+  .appx-head .src{display:block;font-size:11px;color:var(--ink3);margin-top:2px}
+  .appx-head input{margin-top:8px;width:100%;border:1px solid var(--line);background:#fff;font:inherit;font-size:12px;padding:5px 9px;border-radius:3px}
+  .appx-list{overflow:auto;flex:1}
+  .a-row{border-bottom:1px solid var(--soft);padding:8px 2px;cursor:pointer}
+  .a-row:hover{background:#f6f1e5}
+  .a-top{display:flex;gap:8px;align-items:baseline}
+  .a-no{color:var(--ink3);font-size:11px;width:22px;text-align:right;flex:0 0 auto}
+  .a-name{font-family:var(--serif);font-weight:600;font-size:13.5px}
+  .a-pulse{font-size:11.5px;color:var(--ink3);margin-left:auto}
+  .a-dose{font-size:11.5px;color:var(--ink2);margin:3px 0 0 30px;line-height:1.7}
+  .a-row.on{background:#f6f1e5}
+  .a-detail{margin:6px 0 0 30px;font-size:11.5px;line-height:1.8;color:var(--ink2)}
+  .a-detail .k{color:var(--ink3)}
+  .note{font-size:11px;color:var(--ink3);margin-top:8px}
+
+  @media (max-width:1100px){
+    .spread{grid-template-columns:1fr}
+    .spread .spine{border-left:none;padding-left:0;border-top:1px solid var(--line);padding-top:16px}
+    .appx{position:static;max-height:none}
+    .appx-list{max-height:none;overflow:visible}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="tag">变体 B ／ ③ 开方药</div>
+  <h1>对页：正文在左、附录在右</h1>
+  <p class="lead">像摊开的书：左边是这次的用药记录，右边是 p42 原文对照（自己滚动，不把页面拉长）。<br>窄屏（≤1100px）自动上下排，顺序不变。</p>
+
+  <div class="spread">
+    <div>
+      <section class="card">
+        <h2>开方药</h2>
+        <p class="sub">按 ② 选的疗法列出讲义 p47 图上那一支的方名。</p>
+        <p class="empty">在 ② 选定疗法后，按 p47 图列出那一支的方（当前未选疗法）。</p>
+      </section>
+
+      <section class="card" style="margin-top:16px">
+        <h2>用药记录</h2>
+        <p class="sub">自己填实际用了什么方、加减与服法；工具不替加减方、不下诊断。</p>
+        <div class="days">
+          <button class="day">21日</button><button class="day">2月5</button><button class="day">29日</button>
+          <button class="day">1月21日</button><button class="day">13日</button><button class="day on">1月5日</button>
+        </div>
+        <div class="mrow mh"><span>方名</span><span>对应脉象</span><span>加减／服法</span><span></span></div>
+        <div class="mrow"><span>六味地黄丸</span><span>寸关浮大尺脉弱</span><span>肉桂另包后入</span><span></span></div>
+        <button class="ghost">＋ 添加一行</button>
+      </section>
+    </div>
+
+    <div class="spine">
+      <section class="card appx">
+        <div class="appx-head">
+          <span class="name">附录 · 讲义 p42「依脉用方表」</span>
+          <span class="src">28 行 · 原文照录 · 剂量按同和堂版（克）</span>
+          <input placeholder="搜方名 / 脉象">
+        </div>
+        <div class="appx-list">
+          <div class="a-row">
+            <div class="a-top"><span class="a-no">1</span><span class="a-name">六神散</span><span class="a-pulse">右关虚浮而软</span></div>
+            <div class="a-dose">党参9 白术9 茯苓9 甘草3 陈皮3 半夏6…</div>
+          </div>
+          <div class="a-row on">
+            <div class="a-top"><span class="a-no">17</span><span class="a-name">黄芪鳖甲</span><span class="a-pulse">双关右寸浮洪大</span></div>
+            <div class="a-dose">黄芪6 茯苓12 天冬12 生地9 鳖甲15 知母6…</div>
+            <div class="a-detail">
+              黄芪6 茯苓12 天冬12 生地9 鳖甲15 知母6 白芍6 地骨皮9 桑白皮6 紫菀9 半夏6 青蒿6 乌梅3 甘草3 干姜6 柴胡6 秦艽9 桔梗6<br>
+              <span class="k">科中</span>　黄芪鳖甲 3 ・ 泻白散 0.5 ・ 羌活 0.3 ・ 防风 0.3<br>
+              <span class="k">依据</span>　同名同方（讲义 p42 第 17 行 ⇔ 同和堂版 p2）
+            </div>
+          </div>
+          <div class="a-row">
+            <div class="a-top"><span class="a-no">18</span><span class="a-name">龙胆泻肝</span><span class="a-pulse">左关洪或弦</span></div>
+            <div class="a-dose">龙胆草9 柴胡6 黄芩6 当归3…</div>
+          </div>
+          <div class="a-row">
+            <div class="a-top"><span class="a-no">20</span><span class="a-name">六味地黄丸</span><span class="a-pulse">寸关浮大尺脉弱</span></div>
+            <div class="a-dose">熟地20 茯苓12 山药10 山茱萸10…</div>
+          </div>
+          <div class="a-row">
+            <div class="a-top"><span class="a-no">21</span><span class="a-name">明目六味地黄</span><span class="a-pulse">寸关浮大尺脉弱</span></div>
+            <div class="a-dose">柴胡6 当归5 六味桂…</div>
+          </div>
+          <div class="a-row">
+            <div class="a-top"><span class="a-no">22</span><span class="a-name">参苏饮</span><span class="a-pulse">右寸浮洪大</span></div>
+            <div class="a-dose">党参6 茯苓15 陈皮3 半夏6…</div>
+          </div>
+          <div class="a-row">
+            <div class="a-top"><span class="a-no">23</span><span class="a-name">木香顺气</span><span class="a-pulse">右关尺浮大顶手</span></div>
+            <div class="a-dose">木香6 砂仁3 陈皮3 厚朴6…</div>
+          </div>
+        </div>
+        <p class="note">示例数据，非真实病例 · 不构成诊断</p>
+      </section>
+    </div>
+  </div>
+</div>
+</body>
+</html>
