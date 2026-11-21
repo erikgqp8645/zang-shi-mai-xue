@@ -714,7 +714,12 @@ MCP 的 `queryPgDatabase` / `managePgDatabase` 把**首次**的 PG 就绪探测�
 | 判读条目 | 标题用宋体（`--font-serif`）＋左侧 kind 竖条，像批注；信息不变（kind ｜ 条目名 ｜ 命中脉位 ｜ 疗法 ｜ 方名） |
 | p47 图框 | `max-width: 760px` 居中贴着图；**别用 `width: fit-content`**（内部 `width:100%` 的子元素会把高度撑大） |
 
-设计稿的预览版曾部署在 `https://1868788.xyz/design/`（`dist/design/`，静态页，不影响主应用）。
+设计稿的预览页部署在 `https://1868788.xyz/design/`（`dist/design/`，静态页，不影响主应用）。
+⚠️ **`npm run build` 会清空 `dist/`** ⇒ 每次发布都要重新 `mkdir -p dist/design && cp pulse-record/design-demos/*.html dist/design/`，否则预览页消失。
+
+⚠️ **静态服务遇到目录要先找该目录的 `index.html`**（`server/index.mjs` 的 `serveStatic`）——
+直接回退到应用首页的话，`/design/` 会拿到应用那层 SPA 外壳，它引用的 `./assets/xxx.js`
+相对路径变成 `/design/assets/...` ⇒ 404 ⇒ **整页空白**（2026-11-21 用户报过一次）。
 
 ## 寸关尺图示（pulse-record）
 

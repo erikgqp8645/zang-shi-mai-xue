@@ -269,7 +269,19 @@ function serveStatic(req, res) {
   const safe = normalize(rel).replace(/^(\.\.[/\\])+/, '') // 防目录穿越
   let file = join(DIST, safe)
   if (!file.startsWith(DIST)) file = join(DIST, 'index.html')
-  if (!existsSync(file) || statSync(file).isDirectory()) file = join(DIST, 'index.html')
+  /*
+   * 目录 → 先试该目录自己的 index.html，没有才回退到应用首页。
+   *
+   * ⚠️ 直接回退应用首页的话，`/design/` 会拿到应用那层 SPA 外壳，
+   *    而它引用的 `./assets/xxx.js` 相对路径会指到 `/design/assets/...` ⇒ 404 ⇒ **整页空白**
+   *    （2026-11-21 用户报「/design/ 是空白」就是这个）。
+   */
+  if (existsSync(file) && statSync(file).isDirectory()) {
+    const dirIndex = join(file, 'index.html')
+    file = existsSync(dirIndex) ? dirIndex : join(DIST, 'index.html')
+  } else if (!existsSync(file)) {
+    file = join(DIST, 'index.html')
+  }
   if (!existsSync(file)) {
     sendJson(res, 404, { error: 'not found' })
     return
