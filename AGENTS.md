@@ -719,6 +719,10 @@ MCP 的 `queryPgDatabase` / `managePgDatabase` 把**首次**的 PG 就绪探测�
 设计稿的预览页部署在 `https://1868788.xyz/design/`（`dist/design/`，静态页，不影响主应用）。
 ⚠️ **`npm run build` 会清空 `dist/`** ⇒ 每次发布都要重新 `mkdir -p dist/design && cp pulse-record/design-demos/*.html dist/design/`，否则预览页消失。
 
+⚠️ **预览页的子目录要放进 `dist/design/<子目录>/`**，别放到 `dist/<子目录>/` ——
+路径是 `/design/c3/a.html` 就对应 `dist/design/c3/a.html`。放错层级时服务端找不到文件、
+回退成应用首页，浏览器里就是「**有标题、页面空白**」（2026-11-21 踩过：`/design/c3/*` 全部如此）。
+
 ⚠️ **静态服务遇到目录要先找该目录的 `index.html`**（`server/index.mjs` 的 `serveStatic`）——
 直接回退到应用首页的话，`/design/` 会拿到应用那层 SPA 外壳，它引用的 `./assets/xxx.js`
 相对路径变成 `/design/assets/...` ⇒ 404 ⇒ **整页空白**（2026-11-21 用户报过一次）。
