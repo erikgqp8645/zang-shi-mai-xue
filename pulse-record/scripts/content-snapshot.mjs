@@ -29,10 +29,11 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(HERE, '..')
 
 function parseArgs(argv) {
-  const out = { check: false, db: '' }
+  const out = { check: false, db: '', force: false }
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i]
     if (a === '--check') out.check = true
+    else if (a === '--force') out.force = true
     else if (a === '--db') out.db = resolve(process.cwd(), String(argv[++i] ?? ''))
     else if (a === '--help' || a === '-h') out.help = true
     else throw new Error(`未知参数：${a}`)
@@ -46,6 +47,7 @@ function main() {
     console.log(`用法：node scripts/content-snapshot.mjs [选项]
 
   --check       只报告哪些文件会变，不写盘
+  --force       允许「从有到无」的覆盖（默认拒绝，防把人工补的字段删掉）
   --db <路径>   内容库路径（默认 local-data/content.sqlite）
 `)
     return
@@ -53,7 +55,7 @@ function main() {
 
   const dbPath = args.db || defaultDbPath()
   const db = openDb(dbPath)
-  const result = writeSnapshot(db, { write: !args.check })
+  const result = writeSnapshot(db, { write: !args.check, force: args.force })
 
   console.log(`内容库：${dbPath}\n`)
   let changed = 0
@@ -64,6 +66,24 @@ function main() {
     }
   }
   if (!changed) console.log(`  ${result.length} 个快照都没变`)
+
+  // 闸门：有文件会被「删掉非空内容」时，列出来并退出码 1（除非 --force）
+  const blocked = result.filter((r) => r.blocked?.length)
+  if (blocked.length) {
+    console.log('\n⛔ 以下文件会**删掉已有的非空内容**，已拒绝写入：')
+    for (const r of blocked) {
+      console.log(`  ${r.name}.json`)
+      for (const d of r.blocked.slice(0, 8)) {
+        console.log(`     ${d.path}：${JSON.stringify(d.before)} → ${JSON.stringify(d.after)}`)
+      }
+      if (r.blocked.length > 8) console.log(`     ……另有 ${r.blocked.length - 8} 处`)
+    }
+    console.log(
+      '\n这通常说明本地内容库比快照旧（库里没这些字段/行）。确认要删就加 --force。\n',
+    )
+    process.exitCode = 1
+    return
+  }
 
   console.log(
     args.check

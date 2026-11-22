@@ -303,7 +303,11 @@ function serveStatic(req, res) {
       ? 'no-cache'
       : safe.startsWith('/assets/')
         ? 'public, max-age=31536000, immutable'
-        : 'public, max-age=3600'
+        : // 下载目录（导出的 xlsx 等）会**原地被覆盖**，文件名不变 ⇒ 必须 no-cache，
+          // 否则 Cloudflare 会缓存 1 小时，用户下到的是上一版（2026-11-21 踩过）
+          safe.startsWith('/downloads/')
+          ? 'no-cache'
+          : 'public, max-age=3600'
 
   const { body, encoding } = encodedStatic(
     file,

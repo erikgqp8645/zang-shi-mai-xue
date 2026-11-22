@@ -59,6 +59,58 @@ export function buildSnapshot(db) {
   return buildContentFromRows(readAllRows(db))
 }
 
+/**
+ * 「会删东西」的差异 —— 写盘前的闸门。
+ *
+ * ## 为什么要有
+ *
+ * 2026-11-21 差点丢数据：`content-snapshot` 把人工补的 `parentDoseId`、`理中汤` 的 `notes`
+ * 整块覆盖掉（库里没有那两个字段，快照里的值就被当成多余的删了），当场 `git checkout` 救回。
+ *
+ * 库里读不到的字段 / 空值，**不等于**「应该删掉」—— 很可能是「本地库落后于快照」。
+ * 所以：新版比旧版少了非空内容时**拒绝写盘**，把差异列出来，让人确认。
+ * 确认要删就加 `--force`。
+ *
+ * 判定（只看「从有到无」）：
+ *   · 旧值是**非空字符串**，新值是 undefined／null／'' → 算删除
+ *   · 旧值是**非空数组**，新数组更短 → 算删除（列出缺的元素）
+ *   · 对象递归
+ *
+ * @returns {{path: string, before: unknown, after: unknown}[]}
+ */
+export function destructiveChanges(before, after, path = '') {
+  const out = []
+  const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v)
+
+  if (typeof before === 'string') {
+    if (before.trim() && (after === undefined || after === null || String(after).trim() === '')) {
+      out.push({ path, before, after })
+    }
+    return out
+  }
+
+  if (Array.isArray(before)) {
+    const next = Array.isArray(after) ? after : []
+    // ⚠️ 逐元素比 —— 只比长度会漏掉「同位置上的字段被清空」
+    const n = Math.min(before.length, next.length)
+    for (let i = 0; i < n; i += 1) {
+      out.push(...destructiveChanges(before[i], next[i], `${path}[${i}]`))
+    }
+    if (next.length < before.length) {
+      out.push({ path, before: `[${before.length} 项]`, after: `[${next.length} 项]` })
+    }
+    return out
+  }
+
+  if (isObj(before)) {
+    if (after !== undefined && after !== null && !isObj(after)) return out
+    for (const k of Object.keys(before)) {
+      out.push(...destructiveChanges(before[k], after?.[k], path ? `${path}.${k}` : k))
+    }
+  }
+  return out
+}
+
 /** 序列化（2 空格缩进 ＋ 末尾换行，与现有文件完全一致） */
 export function serialize(content) {
   return `${JSON.stringify(content, null, 2)}\n`
@@ -71,9 +123,11 @@ export function serialize(content) {
  * @param {object} [opts]
  * @param {string} [opts.dir] 目标目录（默认 `src/content`）
  * @param {boolean} [opts.write] 真的写盘（false = 只报告会不会变）
- * @returns {{name: string, file: string, changed: boolean, bytes: number}[]}
+ * @param {boolean} [opts.force] 允许「从有到无」的覆盖（默认拒绝）
+ * @returns {{name: string, file: string, changed: boolean, bytes: number,
+ *            blocked: {path: string, before: unknown, after: unknown}[]}[]}
  */
-export function writeSnapshot(db, { dir = CONTENT_DIR, write = true } = {}) {
+export function writeSnapshot(db, { dir = CONTENT_DIR, write = true, force = false } = {}) {
   const content = buildSnapshot(db)
   const out = []
   for (const name of SNAPSHOT_FILES) {
@@ -81,8 +135,19 @@ export function writeSnapshot(db, { dir = CONTENT_DIR, write = true } = {}) {
     const text = serialize(content[name])
     const before = existsSync(file) ? readFileSync(file, 'utf8') : null
     const changed = before !== text
-    if (changed && write) writeFileSync(file, text)
-    out.push({ name, file, changed, bytes: Buffer.byteLength(text) })
+
+    // ⚠️ 闸门：新版比旧版「少了非空内容」就拒绝写盘（见 destructiveChanges 的注释）
+    let blocked = []
+    if (changed && before) {
+      try {
+        blocked = destructiveChanges(JSON.parse(before), content[name])
+      } catch {
+        blocked = []
+      }
+    }
+
+    if (changed && write && (!blocked.length || force)) writeFileSync(file, text)
+    out.push({ name, file, changed, bytes: Buffer.byteLength(text), blocked })
   }
   return out
 }

@@ -1040,6 +1040,8 @@ node scripts/content-status.mjs / content-rollback.mjs # 发布状态／回滚
 | 部署脚本 | `scripts/deploy/`：`install.sh`（初始化）、`deploy.sh`（发布，失败自动回滚）、`backup.sh`、`restore.sh` |
 | **`deploy.sh` 按扁平布局发布** | 与 `pulse-record.service` 的 `WorkingDirectory=/opt/pulse-record` 对齐：先远端快照到 `.backup/<时间戳>/` → `rsync --delete` 覆盖 `dist/` 与 `server/` → 重启 → **核对线上 index.html 指向的 bundle 就是本地这份**（只探活不够，页面没换也会 200） → 失败自动回滚。`--dry-run` 只看差异、`--no-build` 用现有 dist |
 | ⚠️ `deploy.sh` 的两个坑 | ① 旧版把代码推到 `releases/<时间戳>/` 再切 `current` 软链，而服务读的是扁平树 ⇒ **打印「发布完成」而线上没变**（假成功）；② `${DRY_RUN:+-n}` 在 `DRY_RUN=0` 时**也会展开成 `-n`**（变量非空即展开）⇒ server 同步一直是空跑，改完要 `[ "$DRY_RUN" = 1 ] && extra=(-n)` |
+| 快照写入闸门 | `content-snapshot` 写盘前比对：新版**少了非空内容**（字段变空／数组变短）就**拒绝写入**并列出差异，`--force` 才照写。根因是 2026-11-21 差点把人工补的 `parentDoseId`／`notes` 覆盖掉（库比快照旧时就会发生） |
+| 下载目录缓存 | `dist/downloads/*` 用 `no-cache`（文件名不变、内容会覆盖）＋ 每次发布另存一份带时间戳的文件。**Cloudflare 会忽略已缓存的旧文件**，所以对外给**带时间戳的链接**才稳 |
 | 内容层来源 | `PULSE_CONTENT=snapshot｜pg`（缺省跟随 `PULSE_STORE`）。生产是 `PULSE_STORE=pg` ＋ `PULSE_CONTENT=snapshot`：患者数据走 CloudBase PG，内容读 `dist/content/*.json`（`postbuild` 从 `src/content` 复制）。**京东云那台 PG 上没有 `content_read` 函数**，读 PG 必 500 |
 
 ---

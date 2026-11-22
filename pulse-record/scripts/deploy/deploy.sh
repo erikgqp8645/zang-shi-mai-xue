@@ -73,6 +73,8 @@ if [ "$DO_BUILD" = 1 ]; then
     # ASCII 文件名：中文名在 URL 里要编码，手机上下载容易出问题
     LATEST_XLSX="$(ls -1t exports/*.xlsx | head -1)"
     cp "$LATEST_XLSX" dist/downloads/formula-master.xlsx
+    # 再放一份带时间戳的（稳定名可能被 CDN 缓存；这份永远是新的）
+    cp "$LATEST_XLSX" "dist/downloads/formula-master-$(date +%Y%m%d-%H%M).xlsx"
   fi
 fi
 
