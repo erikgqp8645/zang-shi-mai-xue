@@ -1,0 +1,686 @@
+{
+ "$schema": "./schema/rule-formulas.schema.json",
+ "note": "由 local-data/formulas.db 的 rule_formulas 导出；writing 是原文写法，formulaId 是归一后的方",
+ "edges": [
+  {
+   "ruleId": "fx-bianmai-wuli",
+   "formulaId": "sanjiao-liaocheng",
+   "writing": "三焦疗法"
+  },
+  {
+   "ruleId": "fx-bianmai-youli",
+   "formulaId": "f-a7021f1007",
+   "writing": "上中焦方（护航）"
+  },
+  {
+   "ruleId": "fx-bianmai-youli",
+   "formulaId": "f-1ee117b78d",
+   "writing": "凉右关及尺脉"
+  },
+  {
+   "ruleId": "fx-bianmai-youli",
+   "formulaId": "jianban-sanjiao",
+   "writing": "减半三焦疗法"
+  },
+  {
+   "ruleId": "fx-bianmai-youli",
+   "formulaId": "f-2e02433cd2",
+   "writing": "清左寸"
+  },
+  {
+   "ruleId": "fx-dl1-hongda-huhang",
+   "formulaId": "th-3",
+   "writing": "三号上焦方（护航）"
+  },
+  {
+   "ruleId": "fx-dl1-hongda-huhang",
+   "formulaId": "th-xiajiao",
+   "writing": "下焦方（科中）"
+  },
+  {
+   "ruleId": "fx-dl1-jiawei-sijun",
+   "formulaId": "f-15616cc755",
+   "writing": "加味四君（五昇／理中）"
+  },
+  {
+   "ruleId": "fx-dl1-liushen",
+   "formulaId": "f-635632d3fc",
+   "writing": "六神"
+  },
+  {
+   "ruleId": "fx-dl1-yinyang",
+   "formulaId": "f-525aaa13ff",
+   "writing": "加味四君子"
+  },
+  {
+   "ruleId": "fx-dl1-yinyang",
+   "formulaId": "f-c0f5f13499",
+   "writing": "干姜"
+  },
+  {
+   "ruleId": "fx-dl1-yinyang",
+   "formulaId": "f-c91b184331",
+   "writing": "阴阳方"
+  },
+  {
+   "ruleId": "fx-dl1-yinyang",
+   "formulaId": "f-f980d26ea2",
+   "writing": "麦冬"
+  },
+  {
+   "ruleId": "fx-dl1-yinyang",
+   "formulaId": "f-171ad5607d",
+   "writing": "黄芪"
+  },
+  {
+   "ruleId": "fx-dl1-zengye",
+   "formulaId": "f-496f6855d0",
+   "writing": "增液（安卫）"
+  },
+  {
+   "ruleId": "fx-dl2-shuangguan-youcun-da",
+   "formulaId": "th-huangqibiejia",
+   "writing": "黄芪鳖甲"
+  },
+  {
+   "ruleId": "fx-dl2-youcun-da",
+   "formulaId": "f-8c5cce13eb",
+   "writing": "参苏"
+  },
+  {
+   "ruleId": "fx-dl2-youcun-da",
+   "formulaId": "th-ganfei",
+   "writing": "肝肺同治"
+  },
+  {
+   "ruleId": "fx-dl2-youcun-hongda",
+   "formulaId": "f-272576e8a7",
+   "writing": "参苏加减"
+  },
+  {
+   "ruleId": "fx-dl2-youcun-hongda",
+   "formulaId": "th-ganfei",
+   "writing": "肝肺同治"
+  },
+  {
+   "ruleId": "fx-dl2-zuocun-guan-fu",
+   "formulaId": "f-5a3908d296",
+   "writing": "天王（补心丹）"
+  },
+  {
+   "ruleId": "fx-dl2-zuocun-guan-fu",
+   "formulaId": "th-ganxin",
+   "writing": "肝心同治"
+  },
+  {
+   "ruleId": "fx-dl2-zuoguan-fuwu",
+   "formulaId": "f-a660e06451",
+   "writing": "滋肾以补肝"
+  },
+  {
+   "ruleId": "fx-dl2-zuoguan-hongxian",
+   "formulaId": "f-a6a20c2b7a",
+   "writing": "加味龙胆"
+  },
+  {
+   "ruleId": "fx-dl2-zuoguan-xuzang-ladun",
+   "formulaId": "f-00950b3847",
+   "writing": "六味 + 天冬"
+  },
+  {
+   "ruleId": "fx-dl2-zuoguan-xuzang-ladun",
+   "formulaId": "f-8c5cce13eb",
+   "writing": "参苏"
+  },
+  {
+   "ruleId": "fx-dl2-zuoguan-youcun-da",
+   "formulaId": "th-ganfei",
+   "writing": "肝肺同治"
+  },
+  {
+   "ruleId": "fx-dl2-zuoguan-zhongyouli",
+   "formulaId": "f-8837d8d2ac",
+   "writing": "散泻两走"
+  },
+  {
+   "ruleId": "fx-dl2-zuoguan-zhongyouli",
+   "formulaId": "f-6f0cbd4806",
+   "writing": "补中带泻"
+  },
+  {
+   "ruleId": "fx-dl3-bianmai-wuli",
+   "formulaId": "f-a22bf11ad5",
+   "writing": "上焦方"
+  },
+  {
+   "ruleId": "fx-dl3-zuocun-da",
+   "formulaId": "th-tianwang",
+   "writing": "天王芪（天王补心丹 + 黄芪）"
+  },
+  {
+   "ruleId": "fx-dl3-zuocun-ding",
+   "formulaId": "f-306918665c",
+   "writing": "天王 + 防风"
+  },
+  {
+   "ruleId": "fx-dl4-chi-bupingheng",
+   "formulaId": "th-zhibai",
+   "writing": "知柏六味桂"
+  },
+  {
+   "ruleId": "fx-dl5-shuangguan",
+   "formulaId": "th-shuangguan",
+   "writing": "双关同治"
+  },
+  {
+   "ruleId": "fx-dl6-ganxin",
+   "formulaId": "th-ganxin",
+   "writing": "肝心同治"
+  },
+  {
+   "ruleId": "fx-jinji-baihu-shenqi",
+   "formulaId": "f-d868f60718",
+   "writing": "白虎汤"
+  },
+  {
+   "ruleId": "fx-jinji-baihu-shenqi",
+   "formulaId": "f-1fe9680137",
+   "writing": "肾气丸（桂附八味肾气丸）"
+  },
+  {
+   "ruleId": "fx-jinji-sanyong",
+   "formulaId": "f-96dc47f70f",
+   "writing": "不用大黄"
+  },
+  {
+   "ruleId": "fx-jinji-sanyong",
+   "formulaId": "f-b8d797b274",
+   "writing": "不用麻黄"
+  },
+  {
+   "ruleId": "fx-jinji-sanyong",
+   "formulaId": "f-533737a10f",
+   "writing": "不用黄连"
+  },
+  {
+   "ruleId": "fx-shenyong-mubiao",
+   "formulaId": "th-xiajiao",
+   "writing": "下焦方"
+  },
+  {
+   "ruleId": "fx-ssx-qingdanglu",
+   "formulaId": "f-e16f6fedef",
+   "writing": "清挡路"
+  },
+  {
+   "ruleId": "fx-ssx-yinhuo",
+   "formulaId": "th-liuwei",
+   "writing": "六味桂（入肾）"
+  },
+  {
+   "ruleId": "fx-ssx-yinhuo",
+   "formulaId": "yinhui-guiyuan",
+   "writing": "引火归元"
+  },
+  {
+   "ruleId": "fx-toutou-bianmai",
+   "formulaId": "sanjiao-liaocheng",
+   "writing": "三焦疗法"
+  },
+  {
+   "ruleId": "fx-toutou-cunguan",
+   "formulaId": "yinhui-guiyuan",
+   "writing": "引火归元"
+  },
+  {
+   "ruleId": "fx-toutou-cunguan",
+   "formulaId": "f-e16f6fedef",
+   "writing": "清挡路"
+  },
+  {
+   "ruleId": "fx-toutou-shuangguan",
+   "formulaId": "f-2effb43548",
+   "writing": "上焦方（护航）"
+  },
+  {
+   "ruleId": "fx-toutou-shuangguan",
+   "formulaId": "th-shuangguan",
+   "writing": "双关同治"
+  },
+  {
+   "ruleId": "fx-yao-bianbian",
+   "formulaId": "f-ee92d4ccd2",
+   "writing": "三焦疗法／下焦方"
+  },
+  {
+   "ruleId": "fx-yao-bianbian",
+   "formulaId": "th-zengye",
+   "writing": "增液汤（元参、麦冬、生地、当归、大麻仁或郁李仁、秦艽、枳壳、厚朴）"
+  },
+  {
+   "ruleId": "fx-yao-bianbian",
+   "formulaId": "yinhui-guiyuan",
+   "writing": "引火归元"
+  },
+  {
+   "ruleId": "fx-yao-huangqi-biejia",
+   "formulaId": "f-a8c74dfb0a",
+   "writing": "乌梅"
+  },
+  {
+   "ruleId": "fx-yao-huangqi-biejia",
+   "formulaId": "f-478fcce768",
+   "writing": "柴鳖骨（柴胡、鳖甲、地骨皮）"
+  },
+  {
+   "ruleId": "fx-yao-huangqi-biejia",
+   "formulaId": "f-3c36ff7193",
+   "writing": "羌活"
+  },
+  {
+   "ruleId": "fx-yao-huangqi-biejia",
+   "formulaId": "f-991604dc39",
+   "writing": "防风"
+  },
+  {
+   "ruleId": "fx-yao-huangqi-biejia",
+   "formulaId": "f-10364459fa",
+   "writing": "青蒿"
+  },
+  {
+   "ruleId": "fx-yao-huangqi-biejia",
+   "formulaId": "f-368af970be",
+   "writing": "黄芪鳖甲散"
+  },
+  {
+   "ruleId": "fx-yao-jiawei-sijun-peifang",
+   "formulaId": "f-95d11ee457",
+   "writing": "四君子汤"
+  },
+  {
+   "ruleId": "fx-yao-jiawei-sijun-peifang",
+   "formulaId": "f-c0f5f13499",
+   "writing": "干姜"
+  },
+  {
+   "ruleId": "fx-yao-jiawei-sijun-peifang",
+   "formulaId": "th-lizhong",
+   "writing": "理中汤"
+  },
+  {
+   "ruleId": "fx-yao-jiawei-sijun-peifang",
+   "formulaId": "f-7dd64eb10e",
+   "writing": "白术"
+  },
+  {
+   "ruleId": "fx-yao-jiawei-sijun-peifang",
+   "formulaId": "f-13dad3f207",
+   "writing": "葛根"
+  },
+  {
+   "ruleId": "fx-yao-jiawei-sijun-peifang",
+   "formulaId": "f-1b43015a06",
+   "writing": "陈皮"
+  },
+  {
+   "ruleId": "fx-yao-jiawei-sijun-peifang",
+   "formulaId": "f-171ad5607d",
+   "writing": "黄芪"
+  },
+  {
+   "ruleId": "fx-yao-liushen-peifang",
+   "formulaId": "f-f08c113309",
+   "writing": "六神散 + 陈皮 + 黄芪"
+  },
+  {
+   "ruleId": "fx-yao-liushen-peifang",
+   "formulaId": "f-0d2927b459",
+   "writing": "四君子汤 + 黄芪 + 陈皮"
+  },
+  {
+   "ruleId": "fx-yao-xiaoyao",
+   "formulaId": "th-yangxin",
+   "writing": "养心汤"
+  },
+  {
+   "ruleId": "fx-yao-xiaoyao",
+   "formulaId": "f-139b92477c",
+   "writing": "天王补心丹"
+  },
+  {
+   "ruleId": "fx-yao-xiaoyao",
+   "formulaId": "th-xiaoyao",
+   "writing": "逍遥散"
+  },
+  {
+   "ruleId": "fx-yao-xiaoyao",
+   "formulaId": "f-991604dc39",
+   "writing": "防风"
+  },
+  {
+   "ruleId": "fx-yao-yangxu",
+   "formulaId": "f-bb009c67ae",
+   "writing": "四君子汤 + 温热药"
+  },
+  {
+   "ruleId": "fx-yao-yinxu",
+   "formulaId": "f-e9cf13f279",
+   "writing": "六味汤 + 温热药"
+  },
+  {
+   "ruleId": "fx2-chi-bupingheng-zhibai",
+   "formulaId": "th-zhibai",
+   "writing": "知柏六味地黄"
+  },
+  {
+   "ruleId": "fx2-jianban-sanjiao",
+   "formulaId": "f-293c474f6e",
+   "writing": "二仁茯芪（苓为君）"
+  },
+  {
+   "ruleId": "fx2-jianban-sanjiao",
+   "formulaId": "f-90909dbb2b",
+   "writing": "六神（苓为君）"
+  },
+  {
+   "ruleId": "fx2-jianban-sanjiao",
+   "formulaId": "jianban-sanjiao",
+   "writing": "减半三焦疗法"
+  },
+  {
+   "ruleId": "fx2-jianban-sanjiao",
+   "formulaId": "f-097a4f1843",
+   "writing": "天王补心丹／增液汤／知柏六味地黄"
+  },
+  {
+   "ruleId": "fx2-liumai-fuhongdaxian",
+   "formulaId": "f-a22bf11ad5",
+   "writing": "上焦方"
+  },
+  {
+   "ruleId": "fx2-liumai-fuhongdaxian",
+   "formulaId": "zhongjiao",
+   "writing": "中焦方"
+  },
+  {
+   "ruleId": "fx2-liumai-fuhongdaxian",
+   "formulaId": "f-a6a20c2b7a",
+   "writing": "加味龙胆"
+  },
+  {
+   "ruleId": "fx2-liumai-fuhongdaxian",
+   "formulaId": "th-zengye",
+   "writing": "增液汤"
+  },
+  {
+   "ruleId": "fx2-liumai-fuhongdaxian",
+   "formulaId": "f-7d6392b066",
+   "writing": "易简地黄"
+  },
+  {
+   "ruleId": "fx2-liumai-fuhongdaxian",
+   "formulaId": "th-ganxin",
+   "writing": "肝心同治"
+  },
+  {
+   "ruleId": "fx2-liumai-fuhongdaxian",
+   "formulaId": "f-f679d9b30c",
+   "writing": "防风通圣"
+  },
+  {
+   "ruleId": "fx2-liumai-fuhongdaxian",
+   "formulaId": "th-huangqibiejia",
+   "writing": "黄芪鳖甲"
+  },
+  {
+   "ruleId": "fx2-liumai-xianxi",
+   "formulaId": "th-3",
+   "writing": "三号上焦方"
+  },
+  {
+   "ruleId": "fx2-liumai-xianxi",
+   "formulaId": "f-5def6c4f39",
+   "writing": "凉尺脉"
+  },
+  {
+   "ruleId": "fx2-liumai-xianxi",
+   "formulaId": "f-c0c8af5923",
+   "writing": "加姜"
+  },
+  {
+   "ruleId": "fx2-liumai-xianxi",
+   "formulaId": "f-e34de3d008",
+   "writing": "天王补心丹加芪"
+  },
+  {
+   "ruleId": "fx2-liumai-xianxi",
+   "formulaId": "f-844506b642",
+   "writing": "重加中温"
+  },
+  {
+   "ruleId": "fx2-sanjiao-wuli",
+   "formulaId": "f-a22bf11ad5",
+   "writing": "上焦方"
+  },
+  {
+   "ruleId": "fx2-sanjiao-wuli",
+   "formulaId": "th-xiajiao",
+   "writing": "下焦方"
+  },
+  {
+   "ruleId": "fx2-sanjiao-wuli",
+   "formulaId": "zhongjiao",
+   "writing": "中焦方"
+  },
+  {
+   "ruleId": "fx2-shuangcun-fuda",
+   "formulaId": "f-34aa5dd2d0",
+   "writing": "六味桂加天冬"
+  },
+  {
+   "ruleId": "fx2-shuangcun-fuda",
+   "formulaId": "th-jiawei-lizhong",
+   "writing": "加味理中（加中温）"
+  },
+  {
+   "ruleId": "fx2-shuangcun-fuda",
+   "formulaId": "f-8c5cce13eb",
+   "writing": "参苏"
+  },
+  {
+   "ruleId": "fx2-shuangcun-fuda",
+   "formulaId": "f-e34de3d008",
+   "writing": "天王补心丹加芪"
+  },
+  {
+   "ruleId": "fx2-shuangguan-fuda-buzhong",
+   "formulaId": "f-2effb43548",
+   "writing": "上焦方（护航）"
+  },
+  {
+   "ruleId": "fx2-shuangguan-fuda-buzhong",
+   "formulaId": "f-0d60add19d",
+   "writing": "散泻药"
+  },
+  {
+   "ruleId": "fx2-shuangguan-fuda-buzhong",
+   "formulaId": "th-shuangguan",
+   "writing": "肝脾（双关）同治"
+  },
+  {
+   "ruleId": "fx2-ssx-yinhuo",
+   "formulaId": "yinhui-guiyuan",
+   "writing": "引火归元"
+  },
+  {
+   "ruleId": "fx2-xiajiao-rukemen",
+   "formulaId": "th-xiajiao",
+   "writing": "下焦方"
+  },
+  {
+   "ruleId": "fx2-yinhuo-guiyuan",
+   "formulaId": "f-91290d99de",
+   "writing": "六味地黄加桂"
+  },
+  {
+   "ruleId": "fx2-yinhuo-guiyuan",
+   "formulaId": "yinhui-guiyuan",
+   "writing": "引火归元"
+  },
+  {
+   "ruleId": "fx2-yinhuo-jiazi",
+   "formulaId": "f-0fb70caf6f",
+   "writing": "五味子"
+  },
+  {
+   "ruleId": "fx2-yinhuo-jiazi",
+   "formulaId": "f-ffd55c6cef",
+   "writing": "天冬"
+  },
+  {
+   "ruleId": "fx2-yinhuo-jiazi",
+   "formulaId": "f-e8d1dc4923",
+   "writing": "柴味归（明目地黄）"
+  },
+  {
+   "ruleId": "fx2-yinhuo-jiazi",
+   "formulaId": "f-b55aad61ca",
+   "writing": "知柏"
+  },
+  {
+   "ruleId": "fx2-yinhuo-jiazi",
+   "formulaId": "f-3c36ff7193",
+   "writing": "羌活"
+  },
+  {
+   "ruleId": "fx2-yiti-lengreshui",
+   "formulaId": "yiti-leng-re-shui",
+   "writing": "一体疗法（冷热水）"
+  },
+  {
+   "ruleId": "fx2-youguan-fuda-zengye",
+   "formulaId": "th-zengye",
+   "writing": "增液汤"
+  },
+  {
+   "ruleId": "fx2-youguan-fuda-zengye",
+   "formulaId": "f-87c1ad765c",
+   "writing": "引火归元加麦、味（八仙长寿丸）"
+  },
+  {
+   "ruleId": "fx2-youguan-fuda-zengye",
+   "formulaId": "th-yijian",
+   "writing": "易简地黄饮子"
+  },
+  {
+   "ruleId": "fx2-youguan-xuzang-lizhong",
+   "formulaId": "f-5856192fec",
+   "writing": "四君子加大白术量"
+  },
+  {
+   "ruleId": "fx2-youguan-xuzang-lizhong",
+   "formulaId": "f-ebedef03cd",
+   "writing": "理中加陈芪"
+  },
+  {
+   "ruleId": "fx2-youguanchi-fuda-ding-muxiang",
+   "formulaId": "th-muxiang",
+   "writing": "木香顺气"
+  },
+  {
+   "ruleId": "fx2-youguanchi-zuoguan-fuda-soufeng",
+   "formulaId": "soufeng-shunqi",
+   "writing": "搜风顺气"
+  },
+  {
+   "ruleId": "fx2-zuocun-ding-tianwang",
+   "formulaId": "f-139b92477c",
+   "writing": "天王补心丹"
+  },
+  {
+   "ruleId": "fx2-zuocun-ding-tianwang",
+   "formulaId": "f-c0f5f13499",
+   "writing": "干姜"
+  },
+  {
+   "ruleId": "fx2-zuocun-ding-tianwang",
+   "formulaId": "f-991604dc39",
+   "writing": "防风"
+  },
+  {
+   "ruleId": "fx2-zuocun-ding-tianwang",
+   "formulaId": "f-171ad5607d",
+   "writing": "黄芪"
+  },
+  {
+   "ruleId": "fx2-zuocunguan-ganyan",
+   "formulaId": "f-d5a58f0e9c",
+   "writing": "丹参"
+  },
+  {
+   "ruleId": "fx2-zuocunguan-ganyan",
+   "formulaId": "f-f068e1014e",
+   "writing": "丹皮"
+  },
+  {
+   "ruleId": "fx2-zuocunguan-ganyan",
+   "formulaId": "f-ffd55c6cef",
+   "writing": "天冬"
+  },
+  {
+   "ruleId": "fx2-zuocunguan-ganyan",
+   "formulaId": "th-ganxin",
+   "writing": "肝心同治"
+  },
+  {
+   "ruleId": "fx2-zuocunguan-ganyan",
+   "formulaId": "f-f980d26ea2",
+   "writing": "麦冬"
+  },
+  {
+   "ruleId": "fx2-zuoguan-fuda-longdan",
+   "formulaId": "f-c3b0a94b49",
+   "writing": "加味龙胆泻肝"
+  },
+  {
+   "ruleId": "fx2-zuoguan-fuda-longdan",
+   "formulaId": "f-1950757211",
+   "writing": "苍耳散"
+  },
+  {
+   "ruleId": "fx2-zuoguan-xuzang-zishen",
+   "formulaId": "f-8412d10774",
+   "writing": "养胃之药"
+  },
+  {
+   "ruleId": "fx2-zuoguan-xuzang-zishen",
+   "formulaId": "f-a660e06451",
+   "writing": "滋肾以补肝"
+  },
+  {
+   "ruleId": "fx2-zuoguan-youcun-huangqi",
+   "formulaId": "th-zhibai",
+   "writing": "知柏六味桂"
+  },
+  {
+   "ruleId": "fx2-zuoguan-youcun-huangqi",
+   "formulaId": "f-b7e1a1a90f",
+   "writing": "秦艽扶羸"
+  },
+  {
+   "ruleId": "fx2-zuoguan-youcun-huangqi",
+   "formulaId": "f-dc1b391461",
+   "writing": "逍遥散加柴胡鳖甲地骨皮乌梅"
+  },
+  {
+   "ruleId": "fx2-zuoguan-youcun-huangqi",
+   "formulaId": "th-huangqibiejia",
+   "writing": "黄芪鳖甲"
+  },
+  {
+   "ruleId": "fx2-zuoyou-bupingheng-renshen",
+   "formulaId": "th-renshenyangrong",
+   "writing": "人参养荣汤"
+  }
+ ]
+}

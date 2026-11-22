@@ -729,6 +729,9 @@ MCP 的 `queryPgDatabase` / `managePgDatabase` 把**首次**的 PG 就绪探测�
   组成文字取自快照的 `compositionTh` / `compositionDraft` / `science`，
   **页码与注仍取自 doses.json** —— 页码是出处、不是正文
 - 改方名归一：改核对表 → `build-formula-db.py` → `export-formulas-json.py` → 重新 build
+- 规则侧也接了：`src/content/rule-formulas.json`（136 条边，带原文写法）＋
+  `formula-db.ts` 的 `resolveFormula` / `displayFormulaName` / `canonicalNamesOfRule`。
+  ② 一行的方名 chips 显示**规范名**，原文写法进 `title`；检索与「点方名定位」都按归一后的方走。
 
 **三条硬规矩**：
 

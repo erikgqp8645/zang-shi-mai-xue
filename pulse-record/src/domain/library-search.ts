@@ -22,6 +22,7 @@
  */
 
 import { HAND_LABEL, type Hand } from './types'
+import { canonicalNamesOfRule } from './formula-db'
 import type { Drug } from './drugs'
 import type { FormulaRule } from './formulas'
 import type { FormulaReference } from './medication'
@@ -90,6 +91,8 @@ export function ruleSearchText(rule: FormulaRule, patterns: PulsePattern[] = [])
     rule.quote,
   ]
   for (const name of rule.formulas ?? []) out.push(name)
+  // 归一后的规范名也进索引：搜「加味理中」要能找到写法为「右关虚脏 · 软而无力（加味理中）」的条目
+  for (const name of canonicalNamesOfRule(rule.id)) out.push(name)
   for (const name of rule.adds ?? []) out.push(name)
   for (const pattern of patterns) out.push(patternSearchText(pattern))
   return out.join('\n')

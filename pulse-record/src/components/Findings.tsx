@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { displayFormulaName } from '../domain/formula-db'
 import type { RuleHit } from '../domain/rules'
 import {
   CONSTITUTION_TABLE,
@@ -596,14 +597,17 @@ function FormulaHitRow({ item }: { item: SessionFormulaHit }) {
           </span>
         ) : null}
       </div>
-      {/* 方名 chips（纯文字） */}
+      {/* 方名 chips（纯文字）—— 显示**归一后的规范名**，原文写法不同的放进 title */}
       {hit.formulas.length > 0 && (
         <div className="pr-formula-list-inline">
-          {hit.formulas.map((f, i) => (
-            <span key={`${f}-${i}`} className="pr-formula-chip">
-              {f}
-            </span>
-          ))}
+          {hit.formulas.map((f, i) => {
+            const shown = displayFormulaName(f)
+            return (
+              <span key={`${f}-${i}`} className="pr-formula-chip" title={shown === f ? undefined : `原文写法：${f}`}>
+                {shown}
+              </span>
+            )
+          })}
         </div>
       )}
     </div>

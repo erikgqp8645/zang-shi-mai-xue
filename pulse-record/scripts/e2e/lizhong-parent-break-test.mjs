@@ -97,11 +97,20 @@ function runE2E() {
 
 /** 重新编译 core —— 改了 src/domain/*.ts 或 src/content/*.json 就必须做，否则测的是旧产物 */
 function rebuildCore() {
-  const r = spawnSync(process.env.ComSpec, ['/d', '/c', 'npm', 'run', 'build:core'], {
-    cwd: ROOT,
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-  })
+  // ⚠️ 原来写死 `process.env.ComSpec`（Windows 才有）—— 在 macOS/Linux 上是 undefined，
+  //    直接抛 ERR_INVALID_ARG_TYPE，这条 break-test 在这两台机器上从来没真跑过。
+  const r =
+    process.platform === 'win32'
+      ? spawnSync(process.env.ComSpec, ['/d', '/c', 'npm', 'run', 'build:core'], {
+          cwd: ROOT,
+          encoding: 'utf8',
+          maxBuffer: 64 * 1024 * 1024,
+        })
+      : spawnSync('npm', ['run', 'build:core'], {
+          cwd: ROOT,
+          encoding: 'utf8',
+          maxBuffer: 64 * 1024 * 1024,
+        })
   return r.status === 0
 }
 

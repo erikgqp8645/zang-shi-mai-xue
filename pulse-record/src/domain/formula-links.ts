@@ -29,6 +29,7 @@
  *   都没有 → 明说未载
  */
 import { getEffectiveDrugs } from './drugs'
+import { resolveFormula } from './formula-db'
 import { getEffectiveRules } from './formulas'
 import { FORMULA_ALIAS } from './medication'
 
@@ -130,8 +131,14 @@ export function resolveFormulaLink(name: string): FormulaLink | null {
     }
   }
 
-  // ⑤ 讲义 p44 规则条目：方名完全相等
-  const rule = getEffectiveRules().find((r) => r.formulas.includes(q))
+  // ⑤ 讲义 p44 规则条目：先按**归一后的方**倒查（写法不同也能定位），再退回方名完全相等
+  const canon = resolveFormula(q)
+  const rule =
+    (canon &&
+      getEffectiveRules().find((r) =>
+        (r.formulas ?? []).some((w) => resolveFormula(w)?.id === canon.id),
+      )) ||
+    getEffectiveRules().find((r) => r.formulas.includes(q))
   if (rule) {
     return {
       kind: 'rule',

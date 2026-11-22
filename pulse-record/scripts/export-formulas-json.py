@@ -12,6 +12,7 @@ import json, sqlite3, collections
 
 DB='local-data/formulas.db'
 OUT='src/content/formulas.json'
+EDGES='src/content/rule-formulas.json'
 
 c=sqlite3.connect(DB); c.row_factory=sqlite3.Row
 
@@ -53,6 +54,17 @@ doc={
   'formulas': items,
 }
 open(OUT,'w',encoding='utf-8').write(json.dumps(doc, ensure_ascii=False, indent=1)+'\n')
+
+# 规则 ↔ 方 的多对多边（含原文写法）—— 单独一份，规则文件保持原文不动
+edges=[]
+for r in c.execute('SELECT rule_id, formula_id, writing FROM rule_formulas ORDER BY rule_id, writing'):
+    edges.append({'ruleId': r['rule_id'], 'formulaId': r['formula_id'], 'writing': r['writing']})
+open(EDGES,'w',encoding='utf-8').write(json.dumps({
+    '$schema': './schema/rule-formulas.schema.json',
+    'note': '由 local-data/formulas.db 的 rule_formulas 导出；writing 是原文写法，formulaId 是归一后的方',
+    'edges': edges,
+}, ensure_ascii=False, indent=1)+'\n')
+print('→', EDGES, len(edges), '条边')
 print('→', OUT, len(items), '条')
 print('   有 p42 行号:', sum(1 for x in items if x['p42No']))
 print('   两套组成都有的:', sum(1 for x in items if x['compositionTh'] and x['compositionDraft']))
