@@ -22,9 +22,20 @@
 
 const STORE = process.env.PULSE_STORE ?? 'sqlite'
 
-const impl = STORE === 'pg' ? await import('./content-pg.mjs') : await import('./content-local.mjs')
+/**
+ * 内容层可以单独指定来源：`PULSE_CONTENT=snapshot|pg`。
+ *
+ * ⚠️ 为什么需要这个开关：生产是 `PULSE_STORE=pg`（患者数据走 CloudBase PG），
+ *    但京东云那台 PG 上并没有内容层的函数（`content_read` 不存在），
+ *    而网站本身**从不调用** `/api/content` —— 之前这个接口一直是 500。
+ *    内容层的单一真相源是 `src/content/*.json`（发布命令的产物），
+ *    所以生产配 `PULSE_CONTENT=snapshot`：患者数据照旧 PG，内容读快照。
+ */
+const CONTENT = process.env.PULSE_CONTENT ?? STORE
+
+const impl = CONTENT === 'pg' ? await import('./content-pg.mjs') : await import('./content-local.mjs')
 
 export const { readContent, readContentState } = impl
 
 /** 当前内容层实际读的是哪儿（`/api/content` 会带上这个字段，便于排查） */
-export const CONTENT_SOURCE = STORE === 'pg' ? 'pg' : 'snapshot'
+export const CONTENT_SOURCE = CONTENT === 'pg' ? 'pg' : 'snapshot'

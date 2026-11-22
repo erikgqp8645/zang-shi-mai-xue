@@ -19,7 +19,26 @@
  * 生产环境是 `PULSE_STORE=pg`，走 `content-pg.mjs`。
  */
 
-import { CONTENT_DIR, loadContent } from './content-schema.mjs'
+import { readdirSync } from 'node:fs'
+import { join } from 'node:path'
+import { ROOT, CONTENT_DIR, loadContent } from './content-schema.mjs'
+
+/**
+ * 运行期真正读哪个目录。
+ *
+ * 生产服务器上只有 `dist/` 与 `server/`（**没有 src/**），所以运行期读
+ * `dist/content/`（`npm run build` 的 postbuild 会把快照复制过去）；
+ * 本地开发没有 dist/content 时回退到仓库里的 `src/content`。
+ */
+function resolvedDir() {
+  const distDir = join(ROOT, 'dist', 'content')
+  try {
+    if (readdirSync(distDir).length) return distDir
+  } catch {
+    /* 没有 dist/content */
+  }
+  return CONTENT_DIR
+}
 
 /**
  * 读已发布内容包。
@@ -28,11 +47,11 @@ import { CONTENT_DIR, loadContent } from './content-schema.mjs'
  */
 export function readContent() {
   return {
-    content: loadContent(),
+    content: loadContent(resolvedDir()),
     // 本地快照不带版本号（版本号是远端发布时递增的，见 content_meta.content_state）
     version: null,
     source: 'snapshot',
-    path: CONTENT_DIR,
+    path: resolvedDir(),
   }
 }
 

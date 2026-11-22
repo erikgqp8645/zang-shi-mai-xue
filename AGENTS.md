@@ -1038,6 +1038,9 @@ node scripts/content-status.mjs / content-rollback.mjs # 发布状态／回滚
 | 恢复演练 | **每月一次**：`scripts/deploy/restore.sh` 把备份恢复到临时位置、验完整性、比行数，**不动生产库** |
 | 日志 | `journalctl -u pulse-record`；访问日志**只记方法/路径/状态/耗时/user id，不含请求体**（病例数据敏感） |
 | 部署脚本 | `scripts/deploy/`：`install.sh`（初始化）、`deploy.sh`（发布，失败自动回滚）、`backup.sh`、`restore.sh` |
+| **`deploy.sh` 按扁平布局发布** | 与 `pulse-record.service` 的 `WorkingDirectory=/opt/pulse-record` 对齐：先远端快照到 `.backup/<时间戳>/` → `rsync --delete` 覆盖 `dist/` 与 `server/` → 重启 → **核对线上 index.html 指向的 bundle 就是本地这份**（只探活不够，页面没换也会 200） → 失败自动回滚。`--dry-run` 只看差异、`--no-build` 用现有 dist |
+| ⚠️ `deploy.sh` 的两个坑 | ① 旧版把代码推到 `releases/<时间戳>/` 再切 `current` 软链，而服务读的是扁平树 ⇒ **打印「发布完成」而线上没变**（假成功）；② `${DRY_RUN:+-n}` 在 `DRY_RUN=0` 时**也会展开成 `-n`**（变量非空即展开）⇒ server 同步一直是空跑，改完要 `[ "$DRY_RUN" = 1 ] && extra=(-n)` |
+| 内容层来源 | `PULSE_CONTENT=snapshot｜pg`（缺省跟随 `PULSE_STORE`）。生产是 `PULSE_STORE=pg` ＋ `PULSE_CONTENT=snapshot`：患者数据走 CloudBase PG，内容读 `dist/content/*.json`（`postbuild` 从 `src/content` 复制）。**京东云那台 PG 上没有 `content_read` 函数**，读 PG 必 500 |
 
 ---
 

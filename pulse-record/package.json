@@ -87,7 +87,8 @@
     "content:creds": "node scripts/cb-credentials.mjs --",
     "test:e2e:content": "node scripts/e2e/content-schema-break.mjs",
     "test:e2e:content:admin": "node scripts/e2e/content-admin-break.mjs",
-    "test:e2e:content:pg": "node scripts/e2e/content-pg.mjs"
+    "test:e2e:content:pg": "node scripts/e2e/content-pg.mjs",
+    "postbuild": "node scripts/copy-content-snapshot.mjs"
   },
   "dependencies": {
     "@cloudbase/node-sdk": "^3.18.7",
