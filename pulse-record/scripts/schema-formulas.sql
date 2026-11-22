@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS formulas (
   relation          TEXT,                 -- 同一方·组成一致 / 同方·别名写法 / 加减方 / 单套
   p42_no            INTEGER,              -- 讲义 p42 行号
   p42_indication    TEXT,                 -- 讲义 p42「对应脉象及加减」
+  dose_id           TEXT,                 -- 同和堂成方 id（用于取页码／注，不用于取文字）
   composition_th    TEXT,                 -- 同和堂版 · 克（原文串）
   composition_draft TEXT,                 -- 讲稿 2010 · 比例制（原文串）
   science           TEXT,                 -- 科中（科学中药）比例（原文串）

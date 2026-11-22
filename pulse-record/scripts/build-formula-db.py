@@ -52,6 +52,11 @@ def fid(name, dose, drug):
 
 conn=sqlite3.connect(DB)
 conn.executescript(open(SCHEMA,encoding='utf-8').read())
+# 老库补列：CREATE TABLE IF NOT EXISTS 不会给已存在的表加列
+cols={r[1] for r in conn.execute('PRAGMA table_info(formulas)')}
+if 'dose_id' not in cols:
+    conn.execute('ALTER TABLE formulas ADD COLUMN dose_id TEXT')
+    print('   （迁移）formulas 补列 dose_id')
 conn.execute('DELETE FROM rule_formulas'); conn.execute('DELETE FROM formula_patterns')
 conn.execute('DELETE FROM formula_aliases'); conn.execute('DELETE FROM formulas')
 conn.execute('DELETE FROM formula_rules')
@@ -71,10 +76,11 @@ for r in rows:
     if dose in dose_by_name:
         did=dose_by_name[dose]['id']; code=sci_code.get(did); sci=sci_by_doseid.get(code,'') if code else ''
     conn.execute('''INSERT OR REPLACE INTO formulas
-      (id,name,base_name,qualifier,relation,p42_no,p42_indication,composition_th,composition_draft,
+      (id,name,base_name,qualifier,relation,p42_no,p42_indication,dose_id,composition_th,composition_draft,
        science,usage,adjustments,contraindications,note)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',(
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',(
       key,name,b,q,r.get('关系',''),r.get('p42 行号') or None,r.get('p42 对应脉象及加减',''),
+      (d.get('id') if (dose and dose in dose_by_name) else None),
       (d.get('composition') or ''), (g.get('composition') or ''), sci,
       g.get('usage') or '', '；'.join(g.get('adjustments') or []), g.get('contraindication') or '',
       (r.get('备注') or '')))

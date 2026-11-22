@@ -1,0 +1,3695 @@
+{
+ "$schema": "./schema/formulas.schema.json",
+ "note": "由 local-data/formulas.db 导出；原始资料仍是 src/content/*.json 与讲义原文，本文件是归一后的只读快照",
+ "counts": {
+  "formulas": 129
+ },
+ "formulas": [
+  {
+   "id": "th-1",
+   "name": "一号上焦方",
+   "baseName": "一号上焦方",
+   "qualifier": "",
+   "relation": "同方·别名写法",
+   "p42No": 1,
+   "p42Indication": "变脉，六弱脉",
+   "doseId": "th-1",
+   "drugName": "一号上焦方",
+   "compositionTh": "茯苓12 茯神10 酸枣仁10 柏子仁10 黄芪6 山药12 莲子10 枸杞10 鹿角霜15",
+   "compositionDraft": "茯苓4、茯神3、酸枣仁3、柏子仁3、黄芪2、山药4、莲子3、枸杞子3、鹿角霜5",
+   "science": "",
+   "usage": "六碗水煎二碗，当茶时时饮。（或研细粉布包，分五小包）",
+   "adjustments": "",
+   "contraindications": "有力量的尽量不要用它，服了之后会产生心悸、胸闷、头晕、口干、舌燥、咽干痛等情形",
+   "note": "同名同方（讲义 p42 第 1 行 ↔ 同和堂版 p1「1号上焦方」）；同名同方（讲义 p42 第 1 行 ↔ 同和堂版 p1「1号上焦方」）",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "1号上焦方"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "一号上焦方"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "一号上焦方"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "th-2",
+   "name": "二号上焦方",
+   "baseName": "二号上焦方",
+   "qualifier": "",
+   "relation": "同方·别名写法",
+   "p42No": 2,
+   "p42Indication": "同上，素食者",
+   "doseId": "th-2",
+   "drugName": "二号上焦方",
+   "compositionTh": "茯苓12 茯神10 酸枣仁10 柏子仁10 黄芪6 山药12 莲子10 枸杞10",
+   "compositionDraft": "茯苓4、茯神3、酸枣仁3、柏子仁3、黄芪2、山药4、莲子3、枸杞子3",
+   "science": "",
+   "usage": "六碗水煎二碗，当茶时时饮。",
+   "adjustments": "",
+   "contraindications": "同一号上焦方：有力量者服后会产生心悸、胸闷、头晕、口干、舌燥、咽干痛",
+   "note": "同名同方（讲义 p42 第 2 行 ↔ 同和堂版 p1「2号上焦方」）；同名同方（讲义 p42 第 2 行 ↔ 同和堂版 p1「2号上焦方」）",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "2号上焦方"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "二号上焦方"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "二号上焦方"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "th-3",
+   "name": "三号上焦方",
+   "baseName": "三号上焦方",
+   "qualifier": "",
+   "relation": "同一方·组成一致",
+   "p42No": 3,
+   "p42Indication": "变脉；左寸弱且右脉有",
+   "doseId": "th-3",
+   "drugName": "三号上焦方（二仁茯芪）",
+   "compositionTh": "茯苓15 茯神12 酸枣仁12 柏子仁12 黄芪6 山药12",
+   "compositionDraft": "茯苓5、茯神4、酸枣仁4、柏子仁4、黄芪2、山药4",
+   "science": "",
+   "usage": "六碗水煎二碗，当茶时时饮。",
+   "adjustments": "",
+   "contraindications": "右关如果是虚脏的时候，三号方喝了之后会出现胸部有一点焦虑的情形——要配合中焦方，或用一号、二号方",
+   "note": "同名同方（讲义 p42 第 3 行 ↔ 同和堂版 p1「3号上焦方」）；同名同方（讲义 p42 第 3 行 ↔ 同和堂版 p1「3号上焦方」）",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "3号上焦方"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "三号上焦方"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "三号上焦方（二仁茯芪）"
+    }
+   ],
+   "ruleIds": [
+    "fx-dl1-hongda-huhang",
+    "fx2-liumai-xianxi"
+   ]
+  },
+  {
+   "id": "th-wuwei",
+   "name": "五味异功散",
+   "baseName": "五味异功散",
+   "qualifier": "",
+   "relation": "同一方·组成一致",
+   "p42No": 4,
+   "p42Indication": "右关弱则拉高白术；右关浮大则拉高茯苓",
+   "doseId": "th-wuwei",
+   "drugName": "右关虚脏 · 软而无力（加味理中）",
+   "compositionTh": "党参6 白术12 茯苓12 甘草3 黄芪8 陈皮4 葛根10 干姜3",
+   "compositionDraft": "党参2、白术6、茯苓4、陈皮1、黄芪2、葛根4、甘草1、干姜2",
+   "science": "",
+   "usage": "午、晚餐后半小时温服",
+   "adjustments": "把白术圈一下，干姜加一下，这两个俟机再加大药量；然后如果需要的话，再加生姜；科学中药，依需要，干姜可以加上一克",
+   "contraindications": "",
+   "note": "注意：同和堂「五味异功（五异）」的组成是 8 味（含黄芪、葛根、干姜），不是经典五味异功散（5 味）；它与讲稿「右关虚脏·软而无力（加味理中）」一字不差 ⇒ p42 第 4 行与第 10 行在组成上可能互换，请人工确认；同方异名（讲义作「五味异功散」，同和堂版作「五味异功（五异）」）；同方异名（讲义作「五味异功散」，同和堂版作「五味异功（五异）」）",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "五味异功（五异）"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "五味异功散"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "右关虚脏 · 软而无力（加味理中）"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "th-shenling",
+   "name": "参苓白术散",
+   "baseName": "参苓白术散",
+   "qualifier": "",
+   "relation": "仅同和堂有组成",
+   "p42No": 5,
+   "p42Indication": "右关弱；治疗慢性腹泻",
+   "doseId": "th-shenling",
+   "drugName": "",
+   "compositionTh": "党参6 白术12 茯苓18 甘草3 陈皮5 黄芪8 砂仁6（另包后入）莲子10 白扁豆12 薏仁15 桔梗6 山药15 粳米15",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "同名同方（讲义 p42 第 5 行 ↔ 同和堂版 p1「参苓白术散」）；同名同方（讲义 p42 第 5 行 ↔ 同和堂版 p1「参苓白术散」）",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "参苓白术散"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "参苓白术散"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "th-liushen",
+   "name": "六神散",
+   "baseName": "六神散",
+   "qualifier": "",
+   "relation": "加减方",
+   "p42No": 6,
+   "p42Indication": "右关浮软；治疗烧退又烧",
+   "doseId": "th-liushen",
+   "drugName": "右关虚脏 · 浮大而软（六神汤）",
+   "compositionTh": "党参6 白术12 茯苓18 甘草3 山药12 扁豆10 陈皮3 黄芪6 大枣12 干姜3 粳米15 克",
+   "compositionDraft": "党参2、白术4、茯苓5、山药4、扁豆3、陈皮1、黄芪2、甘草1、干姜1、大枣4个",
+   "science": "",
+   "usage": "午、晚餐后半小时温服",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "同名同方（讲义 p42 第 6 行 ↔ 同和堂版 p1「六神散」）；同名同方（讲义 p42 第 6 行 ↔ 同和堂版 p1「六神散」）",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "六神散"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "六神散"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "右关虚脏 · 浮大而软（六神汤）"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "th-zengye",
+   "name": "增液汤",
+   "baseName": "增液汤",
+   "qualifier": "",
+   "relation": "仅同和堂有组成",
+   "p42No": 7,
+   "p42Indication": "右关浮大",
+   "doseId": "th-zengye",
+   "drugName": "",
+   "compositionTh": "玄参9 麦冬9 生地9",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "同名同方（讲义 p42 第 7 行 ↔ 同和堂版 p1「增液汤」）；同名同方（讲义 p42 第 7 行 ↔ 同和堂版 p1「增液汤」）",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "增液汤"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "增液汤"
+    }
+   ],
+   "ruleIds": [
+    "fx-yao-bianbian",
+    "fx2-youguan-fuda-zengye",
+    "fx2-liumai-fuhongdaxian"
+   ]
+  },
+  {
+   "id": "th-jiawei-zengye",
+   "name": "加味增液汤",
+   "baseName": "加味增液汤",
+   "qualifier": "",
+   "relation": "加减方",
+   "p42No": 8,
+   "p42Indication": "右关浮大；加当归郁李仁缓解便秘",
+   "doseId": "th-jiawei-zengye",
+   "drugName": "右关尺浮大（增液汤加减）",
+   "compositionTh": "玄参9 麦冬9 生地9 枳壳9 秦艽9 甘草3 黄芪9",
+   "compositionDraft": "元参3、麦冬3、生地3、枳壳2、秦艽3、甘草1",
+   "science": "",
+   "usage": "空腹温服",
+   "adjustments": "便秘：加当归2、郁李仁5、厚朴3",
+   "contraindications": "这个方治便秘非常好用，但是要右关跟尺脉有浮大的现象，才能用，不在这个脉象，千万不要用",
+   "note": "同名同方（讲义 p42 第 8 行 ↔ 同和堂版 p1「加味增液汤」）；同名同方（讲义 p42 第 8 行 ↔ 同和堂版 p1「加味增液汤」）",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "加味增液汤"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "加味增液汤"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "右关尺浮大（增液汤加减）"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "th-yijian",
+   "name": "易简地黄饮子",
+   "baseName": "易简地黄饮子",
+   "qualifier": "",
+   "relation": "同一方·组成一致",
+   "p42No": 9,
+   "p42Indication": "右三部脉浮洪大",
+   "doseId": "th-yijian",
+   "drugName": "右脉浮大微弦（易简地黄饮子）",
+   "compositionTh": "党参6 黄芪9 石斛15 枳壳6 天冬9 麦冬9 生地9 熟地9 泽泻6 枇杷叶6 甘草3 白芷3 防风3 干姜3",
+   "compositionDraft": "党参2、黄芪3、石斛5、枳壳2、天冬3、麦冬3、生地3、熟地3、泽泻2、枇杷叶2、甘草1、白芷1、防风1、干姜2",
+   "science": "",
+   "usage": "餐间温服，微取汗",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "同名同方（讲义 p42 第 9 行 ↔ 同和堂版 p1「易简地黄饮子」）；同名同方（讲义 p42 第 9 行 ↔ 同和堂版 p1「易简地黄饮子」）",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "易简地黄饮子"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "易简地黄饮子"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "右脉浮大微弦（易简地黄饮子）"
+    }
+   ],
+   "ruleIds": [
+    "fx2-youguan-fuda-zengye"
+   ]
+  },
+  {
+   "id": "th-jiawei-lizhong",
+   "name": "加味理中",
+   "baseName": "加味理中",
+   "qualifier": "",
+   "relation": "仅同和堂有组成",
+   "p42No": 10,
+   "p42Indication": "右关弱且左关有",
+   "doseId": "th-jiawei-lizhong",
+   "drugName": "",
+   "compositionTh": "党参6 白术15~20 生姜5片 炙甘草3 黄芪6~15 茯苓12 陈皮4 柴葛12 小茴香3 当归5",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "讲稿侧参考条目「右关虚脏 · 软而无力（加味理中）」，与同和堂这条的组成相似度仅 0.50，未并入；同和堂「加味理中汤」的组成与讲稿三焦疗法的「中焦方」一致；讲稿五脏疗法那张「加味理中」的组成等于同和堂「五味异功（五异）」—— 这一组三处方名与组成需人工归一；同方异名（讲义作「加味理中」，同和堂版作「加味理中汤」）。母方＝理中汤（同和堂版 p1）—— 讲稿 2010·第二讲原文：「原先我们是以理中汤为母方，但是理中汤太燥，所以用理中易四君，换成四君子，再加白术、葛根，适合长期服用（注：即本门加味理中）。」注意讲稿另有三焦疗法的「中焦方（加味理中）」，与本条不是同一张方；同方异名（讲义作「加味理中」，同和堂版作「加味理中汤」）。母方＝理中汤（同和堂版 p1）—— 讲稿 2010·第二讲原文：「原先我们是以理中汤为母方，但是理中汤太燥，所以用理中易四君，换成四君子，再加白术、葛根，适合长期服用（注：即本门加味理中）。」注意讲稿另有三焦疗法的「中焦方（加味理中）」，与本条不是同一张方",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "加味理中汤"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "加味理中"
+    }
+   ],
+   "ruleIds": [
+    "fx2-shuangcun-fuda"
+   ]
+  },
+  {
+   "id": "th-lizhong-shujiangqi",
+   "name": "理中术姜芪",
+   "baseName": "理中术姜芪",
+   "qualifier": "",
+   "relation": "仅同和堂有组成",
+   "p42No": 11,
+   "p42Indication": "右关微；治疗伤寒感冒",
+   "doseId": "th-lizhong-shujiangqi",
+   "drugName": "",
+   "compositionTh": "党参6g 当归4g 小茴香6g 白术40 甘草3 陈皮3 乾姜20 黄芪8",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "同名同方（讲义 p42 第 11 行 ↔ 同和堂版 p1「理中术姜芪」）；同名同方（讲义 p42 第 11 行 ↔ 同和堂版 p1「理中术姜芪」）",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "理中术姜芪"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "理中术姜芪"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "th-muxiang",
+   "name": "木香顺气",
+   "baseName": "木香顺气",
+   "qualifier": "",
+   "relation": "仅同和堂有组成",
+   "p42No": 12,
+   "p42Indication": "右关尺浮大顶手",
+   "doseId": "th-muxiang",
+   "drugName": "",
+   "compositionTh": "当归9 木香3 厚朴9 陈皮3 青皮3 苍术9 半夏6 吴茱萸6 草豆蔻9 益智仁6 升麻6 柴胡6 茯苓卷12 泽泻6 甘草3 干姜6",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "同名同方（讲义 p42 第 12 行 ↔ 同和堂版 p1「木香顺气」）；同名同方（讲义 p42 第 12 行 ↔ 同和堂版 p1「木香顺气」）",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "木香顺气"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "木香顺气"
+    }
+   ],
+   "ruleIds": [
+    "fx2-youguanchi-fuda-ding-muxiang"
+   ]
+  },
+  {
+   "id": "th-yangxin",
+   "name": "养心汤",
+   "baseName": "养心汤",
+   "qualifier": "",
+   "relation": "同方·别名写法",
+   "p42No": 13,
+   "p42Indication": "左寸弱迟",
+   "doseId": "th-yangxin",
+   "drugName": "左寸浮大 · 脉迟（养心汤）",
+   "compositionTh": "党参6 黄芪6 茯苓12 茯神9 柏子仁9 酸枣仁9 远志12 五味子4 半夏6 桂皮6 川芎6 当归5 甘草3 干姜6",
+   "compositionDraft": "党参2、黄芪2、茯苓4、茯神3、柏子仁3、酸枣仁3、远志4、五味子1.5、半夏2、桂心2、川芎2、当归1.5、甘草1、干姜2",
+   "science": "",
+   "usage": "睡前温服",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "同名同方（讲义 p42 第 13 行 ↔ 同和堂版 p1「养心汤」）；同名同方（讲义 p42 第 13 行 ↔ 同和堂版 p1「养心汤」）",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "养心汤"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "养心汤"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "左寸浮大 · 脉迟（养心汤）"
+    }
+   ],
+   "ruleIds": [
+    "fx-yao-xiaoyao"
+   ]
+  },
+  {
+   "id": "th-tianwang",
+   "name": "天王芪",
+   "baseName": "天王芪",
+   "qualifier": "",
+   "relation": "同方·别名写法",
+   "p42No": 14,
+   "p42Indication": "左寸浮大数",
+   "doseId": "th-tianwang",
+   "drugName": "左寸浮大 · 脉数（天王补心丹加芪）",
+   "compositionTh": "黄芪6 茯苓12 柏子仁9 酸枣仁9 五味子3 桔梗6 远志15 甘草3 玄参9 天冬9 麦冬6 当归5 生地9 丹参9",
+   "compositionDraft": "黄芪2、茯苓4、柏子仁3、酸枣仁3、五味子1、桔梗2、远志5、甘草1、元参3、天冬3、麦冬2、当归1.5、生地3、丹参3",
+   "science": "",
+   "usage": "睡前温服",
+   "adjustments": "尺脉没有力量的，记住要加干姜0.3g；尺脉有力的，黄芪易防风0.3g",
+   "contraindications": "",
+   "note": "同方异名（讲义作「天王芪」，同和堂版作「天王补心+芪（天王芪）」）；同方异名（讲义作「天王芪」，同和堂版作「天王补心+芪（天王芪）」）",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "天王补心+芪（天王芪）"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "天王芪"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "左寸浮大 · 脉数（天王补心丹加芪）"
+    }
+   ],
+   "ruleIds": [
+    "fx-dl3-zuocun-da"
+   ]
+  },
+  {
+   "id": "th-ganxin",
+   "name": "肝心同治",
+   "baseName": "肝心同治",
+   "qualifier": "",
+   "relation": "加减方",
+   "p42No": 15,
+   "p42Indication": "左寸关浮大",
+   "doseId": "th-ganxin",
+   "drugName": "肝心同治（逍遥散加芪）",
+   "compositionTh": "当归5 白芍6 茯苓12 白术9 柴胡6 薄荷3 陈皮3 黄芪6 甘草3 酸枣仁9 柏子仁9 干姜6",
+   "compositionDraft": "当归1.5、白芍2、茯苓4、白术3、柴胡2、薄荷1、陈皮1、酸枣仁3、柏子仁3、甘草1、干姜2",
+   "science": "",
+   "usage": "睡前温服一碗",
+   "adjustments": "右寸更浮大，加天冬；右关更浮大，加麦冬；左寸更浮大，加丹参；左关更浮大，加丹皮；脉数，逍遥散对天王补心丹；如果脉迟的话，用逍遥散对养心汤",
+   "contraindications": "",
+   "note": "同名同方（讲义 p42 第 15 行 ↔ 同和堂版 p2「肝心同治」）；同名同方（讲义 p42 第 15 行 ↔ 同和堂版 p2「肝心同治」）",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "肝心同治"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "肝心同治"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "肝心同治（逍遥散加芪）"
+    }
+   ],
+   "ruleIds": [
+    "fx-dl2-zuocun-guan-fu",
+    "fx-dl6-ganxin",
+    "fx2-zuocunguan-ganyan",
+    "fx2-liumai-fuhongdaxian"
+   ]
+  },
+  {
+   "id": "th-ganfei",
+   "name": "肝肺同治",
+   "baseName": "肝肺同治",
+   "qualifier": "",
+   "relation": "加减方",
+   "p42No": 16,
+   "p42Indication": "左关右寸浮大",
+   "doseId": "th-ganfei",
+   "drugName": "左关右寸 · 浮大带点（黄芪鳖甲／秦艽扶羸）",
+   "compositionTh": "当归3 地骨皮9 秦艽9 柴胡6 鳖甲15 乌梅3 党参6 紫菀9 半夏6 桔梗6 五味子3 甘草3 干姜3",
+   "compositionDraft": "当归1、地骨皮3、秦艽3、柴胡2、鳖甲5、党参2、紫菀3、半夏2、桔梗2、五味子1、甘草1、干姜2、乌梅1、青蒿2",
+   "science": "",
+   "usage": "二餐间温服",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "讲稿这条原名写「黄芪鳖甲／秦艽扶羸」，但组成是「肝肺同治 ＋ 青蒿」（与黄芪鳖甲那张 20 味的方不同）—— 名字与组成不符，已按组成并入本行；同名同方（讲义 p42 第 16 行 ↔ 同和堂版 p2「肝肺同治」）。讲义 p44「依脉用方」图把它列为（二）肝肺同治，治法名与方名在此合用；同名同方（讲义 p42 第 16 行 ↔ 同和堂版 p2「肝肺同治」）。讲义 p44「依脉用方」图把它列为（二）肝肺同治，治法名与方名在此合用",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "肝肺同治"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "肝肺同治"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "左关右寸 · 浮大带点（黄芪鳖甲／秦艽扶羸）"
+    }
+   ],
+   "ruleIds": [
+    "fx-dl2-youcun-da",
+    "fx-dl2-youcun-hongda",
+    "fx-dl2-zuoguan-youcun-da"
+   ]
+  },
+  {
+   "id": "th-huangqibiejia",
+   "name": "黄芪鳖甲",
+   "baseName": "黄芪鳖甲",
+   "qualifier": "",
+   "relation": "加减方",
+   "p42No": 17,
+   "p42Indication": "双关右寸浮洪大",
+   "doseId": "th-huangqibiejia",
+   "drugName": "左关右寸 · 浮洪大（黄芪鳖甲）",
+   "compositionTh": "黄芪6 茯苓12 天冬12 生地9 鳖甲15 知母6 白芍6 地骨皮9 桑白皮6 紫菀9 半夏6 青蒿6 乌梅3 甘草3 干姜6 柴胡6 秦艽9 桔梗6",
+   "compositionDraft": "黄芪2、茯苓4、天冬4、生地3、鳖甲5、知母2、芍药2、地骨皮3、桑白皮2、紫菀3、半夏2、防风2、青蒿2、乌梅1、羌活2、甘草1、干姜2、柴胡2、秦艽3、桔梗2",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "同名同方（讲义 p42 第 17 行 ↔ 同和堂版 p2「黄芪鳖甲」）。脉位表述两套资料不同：讲义作「双关右寸浮洪大」，讲稿作「左关右寸浮洪大」；同名同方（讲义 p42 第 17 行 ↔ 同和堂版 p2「黄芪鳖甲」）。脉位表述两套资料不同：讲义作「双关右寸浮洪大」，讲稿作「左关右寸浮洪大」",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "黄芪鳖甲"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "黄芪鳖甲"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "左关右寸 · 浮洪大（黄芪鳖甲）"
+    }
+   ],
+   "ruleIds": [
+    "fx-dl2-shuangguan-youcun-da",
+    "fx2-zuoguan-youcun-huangqi",
+    "fx2-liumai-fuhongdaxian"
+   ]
+  },
+  {
+   "id": "th-longdan",
+   "name": "龙胆泻肝",
+   "baseName": "龙胆泻肝",
+   "qualifier": "",
+   "relation": "仅同和堂有组成",
+   "p42No": 18,
+   "p42Indication": "左关洪或弦",
+   "doseId": "th-longdan",
+   "drugName": "",
+   "compositionTh": "龙胆草9 柴胡6 黄芩6 当归3 栀子6 泽泻9 生地9 车前子6 滑石15 灯芯草1.5 茯苓12 甘草3 干姜3",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "讲稿侧参考条目「左关浮洪大（加味龙胆泻肝）」，与同和堂这条的组成相似度仅 0.75，未并入；同名同方（讲义 p42 第 18 行 ↔ 同和堂版 p2「龙胆泻肝」）；同名同方（讲义 p42 第 18 行 ↔ 同和堂版 p2「龙胆泻肝」）",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "龙胆泻肝"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "龙胆泻肝"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "th-cansuyin",
+   "name": "参苏饮",
+   "baseName": "参苏饮",
+   "qualifier": "",
+   "relation": "同一方·组成一致",
+   "p42No": 19,
+   "p42Indication": "右寸浮洪大",
+   "doseId": "th-cansuyin",
+   "drugName": "右寸浮大（参苏饮）",
+   "compositionTh": "党参6 茯苓15 陈皮3 半夏6 紫苏6 葛根15 前胡6 枳壳6 桔梗6 木香3 甘草3 干姜3",
+   "compositionDraft": "党参2、茯苓5、陈皮1、半夏2、紫苏2、葛根5、前胡2、枳壳2、桔梗2、木香1、甘草1、干姜2",
+   "science": "",
+   "usage": "二餐间服",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "同名同方（讲义 p42 第 19 行 ↔ 同和堂版 p2「参苏饮」）；同名同方（讲义 p42 第 19 行 ↔ 同和堂版 p2「参苏饮」）",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "参苏饮"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "参苏饮"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "右寸浮大（参苏饮）"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "th-liuwei",
+   "name": "六味地黄丸",
+   "baseName": "六味地黄丸",
+   "qualifier": "",
+   "relation": "仅同和堂有组成",
+   "p42No": 20,
+   "p42Indication": "寸关浮大尺脉弱",
+   "doseId": "th-liuwei",
+   "drugName": "",
+   "compositionTh": "熟地20 茯苓12 山药10 山茱萸10 丹皮10 泽泻10 肉桂2（另包后入）天冬8 五味子4",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "讲稿侧参考条目「引火归元（肾脏疗法）」，与同和堂这条的组成相似度仅 0.67，未并入；同方异名（讲义作「六味地黄丸」，同和堂版作「六味桂」＝六味地黄＋肉桂，另带天冬、五味子）；同方异名（讲义作「六味地黄丸」，同和堂版作「六味桂」＝六味地黄＋肉桂，另带天冬、五味子）",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "六味桂"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "六味地黄丸"
+    }
+   ],
+   "ruleIds": [
+    "fx-ssx-yinhuo"
+   ]
+  },
+  {
+   "id": "th-mingmu-liuwei",
+   "name": "明目六味地黄",
+   "baseName": "明目六味地黄",
+   "qualifier": "",
+   "relation": "仅同和堂有组成",
+   "p42No": 21,
+   "p42Indication": "寸关浮大尺脉弱 且左关大",
+   "doseId": "th-mingmu-liuwei",
+   "drugName": "",
+   "compositionTh": "柴胡6 当归5 六味桂",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "讲稿侧参考条目「引火归元（肾脏疗法）」，与同和堂这条的组成相似度仅 0.00，未并入；同方异名（讲义作「明目六味地黄」，同和堂版作「明目六味桂」＝柴胡＋当归＋六味桂）；同方异名（讲义作「明目六味地黄」，同和堂版作「明目六味桂」＝柴胡＋当归＋六味桂）",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "明目六味桂"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "明目六味地黄"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "th-zhibai",
+   "name": "知柏六味地黄",
+   "baseName": "知柏六味地黄",
+   "qualifier": "",
+   "relation": "仅同和堂有组成",
+   "p42No": 22,
+   "p42Indication": "左右尺脉不平衡；尺脉亢",
+   "doseId": "th-zhibai",
+   "drugName": "",
+   "compositionTh": "知母4~6 黄柏4~6（不很大可不加。顶手加羌活）+六味桂天味（熟地20 茯苓12 山药10 丹皮10 泽泻10 山茱萸10+肉桂（出锅前5分钟下）5 天冬6 五味子4）",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "讲稿侧参考条目「引火归元（肾脏疗法）」，与同和堂这条的组成相似度仅 0.00，未并入；同方异名（讲义作「知柏六味地黄」，同和堂版作「知柏六味桂」＝知母黄柏＋六味桂天味）；同方异名（讲义作「知柏六味地黄」，同和堂版作「知柏六味桂」＝知母黄柏＋六味桂天味）",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "知柏六味桂"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "知柏六味地黄"
+    }
+   ],
+   "ruleIds": [
+    "fx-dl4-chi-bupingheng",
+    "fx2-zuoguan-youcun-huangqi",
+    "fx2-chi-bupingheng-zhibai"
+   ]
+  },
+  {
+   "id": "th-mingmu-zhibai",
+   "name": "明目知柏地黄",
+   "baseName": "明目知柏地黄",
+   "qualifier": "",
+   "relation": "仅同和堂有组成",
+   "p42No": 23,
+   "p42Indication": "左右尺脉不平衡；尺脉亢；外加左关大",
+   "doseId": "th-mingmu-zhibai",
+   "drugName": "",
+   "compositionTh": "柴胡6 当归5 知柏六味桂",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "讲稿侧参考条目「引火归元（肾脏疗法）」，与同和堂这条的组成相似度仅 0.00，未并入；同方异名（讲义作「明目知柏地黄」，同和堂版作「明目知柏六味桂」＝柴胡＋当归＋知柏六味桂）；同方异名（讲义作「明目知柏地黄」，同和堂版作「明目知柏六味桂」＝柴胡＋当归＋知柏六味桂）",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "明目知柏六味桂"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "明目知柏地黄"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "th-xiajiao",
+   "name": "七宝美髯丹",
+   "baseName": "七宝美髯丹",
+   "qualifier": "",
+   "relation": "组成差异大（需核）",
+   "p42No": 24,
+   "p42Indication": "变脉",
+   "doseId": "th-xiajiao",
+   "drugName": "下焦方（天乙丹）",
+   "compositionTh": "制何首乌24 茯苓15 怀牛膝8 当归5 枸杞10 菟丝子10 补骨脂6 小茴香6",
+   "compositionDraft": "何首乌8、茯苓5、怀牛膝4、当归1.5、枸杞子3、菟丝子3、故纸花2、小茴香2",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "下焦方只要寸关不浮大，就可以进得去。寸关浮大进不去，或有顶手的脉，就进不去了",
+   "note": "同方异名：两套资料都把「七宝美髯丹」列为**下焦方**的科学中药 —— 同和堂版 p4「下焦方：七宝美髯丹3 小茴香0.3」，讲稿「下焦方（天乙丹）」同；讲义 p42 作「七宝美髯丹」、脉象「变脉」，与下焦方的适应症一致，故列其成方「下焦方」；同方异名：两套资料都把「七宝美髯丹」列为**下焦方**的科学中药 —— 同和堂版 p4「下焦方：七宝美髯丹3 小茴香0.3」，讲稿「下焦方（天乙丹）」同；讲义 p42 作「七宝美髯丹」、脉象「变脉」，与下焦方的适应症一致，故列其成方「下焦方」；组成 Jaccard=0.60",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "下焦方"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "七宝美髯丹"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "下焦方（天乙丹）"
+    }
+   ],
+   "ruleIds": [
+    "fx-shenyong-mubiao",
+    "fx-dl1-hongda-huhang",
+    "fx2-sanjiao-wuli",
+    "fx2-xiajiao-rukemen"
+   ]
+  },
+  {
+   "id": "th-dabuyin",
+   "name": "大补阴丸",
+   "baseName": "大补阴丸",
+   "qualifier": "",
+   "relation": "仅同和堂有组成",
+   "p42No": 25,
+   "p42Indication": "尺脉洪大",
+   "doseId": "th-dabuyin",
+   "drugName": "",
+   "compositionTh": "熟地15 醋龟甲15 知母6 黄柏6",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "同名同方（讲义 p42 第 25 行 ↔ 同和堂版 p3「大补阴丸」）；同名同方（讲义 p42 第 25 行 ↔ 同和堂版 p3「大补阴丸」）",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "大补阴丸"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "大补阴丸"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "th-huanshaodan",
+   "name": "还少丹",
+   "baseName": "还少丹",
+   "qualifier": "",
+   "relation": "加减方",
+   "p42No": 26,
+   "p42Indication": "食疗补肾方（一付五天）",
+   "doseId": "th-huanshaodan",
+   "drugName": "食补肾（还少丹加减）",
+   "compositionTh": "茯苓15 熟地15 山药12 山茱萸9 杜仲6 远志15 枸杞9 五味子6 楮实子9 小茴香6 巴戟天9 肉苁蓉9 石菖蒲9 石斛15 麦冬9 桂皮6（大枣15个）",
+   "compositionDraft": "茯苓5、熟地5、山药4、山茱萸3、杜仲2、远志5、枸杞子3、五味子2、楮实子3、小茴香2、巴戟天3、肉苁蓉3、石菖蒲3、石斛5、麦冬3、桂皮2、大枣15个",
+   "science": "",
+   "usage": "羊肉或排骨斤半，慢火炖，分五次空腹用",
+   "adjustments": "还少丹加上石斛跟麦冬、桂皮",
+   "contraindications": "",
+   "note": "同名同方（讲义 p42 第 26 行 ↔ 同和堂版 p3「还少丹」）；同名同方（讲义 p42 第 26 行 ↔ 同和堂版 p3「还少丹」）",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "还少丹"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "还少丹"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "食补肾（还少丹加减）"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "th-renshenyangrong",
+   "name": "人参养荣汤",
+   "baseName": "人参养荣汤",
+   "qualifier": "",
+   "relation": "同方·别名写法",
+   "p42No": 27,
+   "p42Indication": "左右脉不平衡；治疗脱发、产后虚、大病初愈",
+   "doseId": "th-renshenyangrong",
+   "drugName": "左右脉不平衡（人参养荣汤）",
+   "compositionTh": "党参6 白术10 茯苓15 当归5 白芍6 熟地12 黄芪6 桂皮6 陈皮4 远志15 五味子3 甘草3 干姜6",
+   "compositionDraft": "党参2、白术3、茯苓5、当归1.5、白芍2、熟地4、黄芪2、桂心2、陈皮1、远志5、五味子1、甘草1、干姜2",
+   "science": "",
+   "usage": "睡前温服",
+   "adjustments": "可作收底药（散泻后调理）；可食补（鸡半只，桂心易桂皮，加枸杞子3、莲子3、大枣15个）",
+   "contraindications": "",
+   "note": "同名同方（讲义 p42 第 27 行 ↔ 同和堂版 p1「人参养荣汤」）；同名同方（讲义 p42 第 27 行 ↔ 同和堂版 p1「人参养荣汤」）",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "人参养荣汤"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "人参养荣汤"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "左右脉不平衡（人参养荣汤）"
+    }
+   ],
+   "ruleIds": [
+    "fx2-zuoyou-bupingheng-renshen"
+   ]
+  },
+  {
+   "id": "th-shuangguan",
+   "name": "补中益气汤",
+   "baseName": "补中益气汤",
+   "qualifier": "",
+   "relation": "同一方·组成一致",
+   "p42No": 28,
+   "p42Indication": "双关浮大；加散药用于虚人感冒",
+   "doseId": "th-shuangguan",
+   "drugName": "肝脾（双关）同治（补中益气加散药）",
+   "compositionTh": "党参6 白术9 黄芪6 当归3 升麻6 柴胡6 陈皮4 葛根12 枳壳6 厚朴6 甘草3 干姜3",
+   "compositionDraft": "党参2、白术3、黄芪2、当归1、升麻2、柴胡2、陈皮1、葛根4、枳壳2、厚朴2、甘草1、干姜2",
+   "science": "",
+   "usage": "午、晚餐半小时后温服一碗",
+   "adjustments": "右关顶手，加白芷、防风。尺有加黄芩，尺弱或无加麦冬；左关顶手，加柴胡、白芍。尺有加羌活、黄芩；右寸浮大，俟尺脉添加风火药，参考1或直接加入复方，如参苏饮；左寸浮大，同上，或直接加入复方，如天王补心丹",
+   "contraindications": "双寸脉弱的不宜。双寸脉弱的话，我们都是用上焦方来处理",
+   "note": "同方异名（讲义作「补中益气汤」，同和堂版作「双关同治（补中益气）」）；讲稿作「肝脾（双关）同治（补中益气加散药）」；同方异名（讲义作「补中益气汤」，同和堂版作「双关同治（补中益气）」）；讲稿作「肝脾（双关）同治（补中益气加散药）」",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "双关同治（补中益气）"
+    },
+    {
+     "source": "讲义 p42",
+     "name": "补中益气汤"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "肝脾（双关）同治（补中益气加散药）"
+    }
+   ],
+   "ruleIds": [
+    "fx-dl5-shuangguan",
+    "fx-toutou-shuangguan",
+    "fx2-shuangguan-fuda-buzhong"
+   ]
+  },
+  {
+   "id": "yiti-leng-re-shui",
+   "name": "一体疗法",
+   "baseName": "一体疗法",
+   "qualifier": "",
+   "relation": "仅讲稿有组成",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "一体疗法",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "热的就给他冷水，冷的就给他热水",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "",
+   "aliases": [
+    {
+     "source": "讲稿 2010",
+     "name": "一体疗法"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "一体疗法（冷热水疗法）"
+    }
+   ],
+   "ruleIds": [
+    "fx2-yiti-lengreshui"
+   ]
+  },
+  {
+   "id": "sanjiao-liaocheng",
+   "name": "三焦疗法",
+   "baseName": "三焦疗法",
+   "qualifier": "",
+   "relation": "仅讲稿有组成",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "三焦疗法",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "水药疗程大概12—14天",
+   "adjustments": "用正宗的下焦方，水药最少要12天以上；用科学中药最少要1个月以上；其间上、中焦方可以减半；下焦方最少12帖方可建功；服药约3天，累就会明显改善；其他免疫系统所引发的诸症，大概6—8天，会减轻，或缓解",
+   "contraindications": "",
+   "note": "",
+   "aliases": [
+    {
+     "source": "讲稿 2010",
+     "name": "三焦疗法"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "三焦疗法（疗程）"
+    }
+   ],
+   "ruleIds": [
+    "fx-bianmai-wuli",
+    "fx-toutou-bianmai"
+   ]
+  },
+  {
+   "id": "f-ee92d4ccd2",
+   "name": "三焦疗法／下焦方",
+   "baseName": "三焦疗法／下焦方",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "三焦疗法／下焦方"
+    }
+   ],
+   "ruleIds": [
+    "fx-yao-bianbian"
+   ]
+  },
+  {
+   "id": "f-a7021f1007",
+   "name": "上中焦方（护航）",
+   "baseName": "上中焦方",
+   "qualifier": "护航",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "上中焦方（护航）"
+    }
+   ],
+   "ruleIds": [
+    "fx-bianmai-youli"
+   ]
+  },
+  {
+   "id": "f-a22bf11ad5",
+   "name": "上焦方",
+   "baseName": "上焦方",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "上焦方"
+    }
+   ],
+   "ruleIds": [
+    "fx-dl3-bianmai-wuli",
+    "fx2-sanjiao-wuli",
+    "fx2-liumai-fuhongdaxian"
+   ]
+  },
+  {
+   "id": "f-2effb43548",
+   "name": "上焦方（护航）",
+   "baseName": "上焦方",
+   "qualifier": "护航",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "上焦方（护航）"
+    }
+   ],
+   "ruleIds": [
+    "fx-toutou-shuangguan",
+    "fx2-shuangguan-fuda-buzhong"
+   ]
+  },
+  {
+   "id": "f-96dc47f70f",
+   "name": "不用大黄",
+   "baseName": "不用大黄",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "不用大黄"
+    }
+   ],
+   "ruleIds": [
+    "fx-jinji-sanyong"
+   ]
+  },
+  {
+   "id": "f-b8d797b274",
+   "name": "不用麻黄",
+   "baseName": "不用麻黄",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "不用麻黄"
+    }
+   ],
+   "ruleIds": [
+    "fx-jinji-sanyong"
+   ]
+  },
+  {
+   "id": "f-533737a10f",
+   "name": "不用黄连",
+   "baseName": "不用黄连",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "不用黄连"
+    }
+   ],
+   "ruleIds": [
+    "fx-jinji-sanyong"
+   ]
+  },
+  {
+   "id": "zhongjiao",
+   "name": "中焦方",
+   "baseName": "中焦方",
+   "qualifier": "",
+   "relation": "仅讲稿有组成",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "中焦方",
+   "compositionTh": "",
+   "compositionDraft": "党参3、归尾1.5、小茴香1、白术5、甘草1、陈皮1、干姜3、黄芪2。（酌加葛根4、茯苓3可长期服用）",
+   "science": "",
+   "usage": "六碗水煎二碗，午晚餐后半小时温服",
+   "adjustments": "中温加不起来的时候，加重白术的剂量；在水煎的时候加上生姜5片，中温就加的起来了",
+   "contraindications": "",
+   "note": "同和堂「加味理中汤」的组成与本条最接近（归尾／当归、生姜／干姜、柴葛等写法不同，Jaccard≈0.80），那条已登记在 p42 第 10 行",
+   "aliases": [
+    {
+     "source": "讲稿 2010",
+     "name": "中焦方"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "中焦方（加味理中）"
+    }
+   ],
+   "ruleIds": [
+    "fx2-sanjiao-wuli",
+    "fx2-liumai-fuhongdaxian"
+   ]
+  },
+  {
+   "id": "f-d5a58f0e9c",
+   "name": "丹参",
+   "baseName": "丹参",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "丹参"
+    }
+   ],
+   "ruleIds": [
+    "fx2-zuocunguan-ganyan"
+   ]
+  },
+  {
+   "id": "f-f068e1014e",
+   "name": "丹皮",
+   "baseName": "丹皮",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "丹皮"
+    }
+   ],
+   "ruleIds": [
+    "fx2-zuocunguan-ganyan"
+   ]
+  },
+  {
+   "id": "f-a8c74dfb0a",
+   "name": "乌梅",
+   "baseName": "乌梅",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "乌梅"
+    }
+   ],
+   "ruleIds": [
+    "fx-yao-huangqi-biejia"
+   ]
+  },
+  {
+   "id": "f-293c474f6e",
+   "name": "二仁茯芪（苓为君）",
+   "baseName": "二仁茯芪",
+   "qualifier": "苓为君",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "二仁茯芪（苓为君）"
+    }
+   ],
+   "ruleIds": [
+    "fx2-jianban-sanjiao"
+   ]
+  },
+  {
+   "id": "f-0fb70caf6f",
+   "name": "五味子",
+   "baseName": "五味子",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "五味子"
+    }
+   ],
+   "ruleIds": [
+    "fx2-yinhuo-jiazi"
+   ]
+  },
+  {
+   "id": "f-00950b3847",
+   "name": "六味 + 天冬",
+   "baseName": "六味 + 天冬",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）；组合方写法，照录原文，未展开",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "六味 + 天冬"
+    }
+   ],
+   "ruleIds": [
+    "fx-dl2-zuoguan-xuzang-ladun"
+   ]
+  },
+  {
+   "id": "f-91290d99de",
+   "name": "六味地黄加桂",
+   "baseName": "六味地黄加桂",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "六味地黄加桂"
+    }
+   ],
+   "ruleIds": [
+    "fx2-yinhuo-guiyuan"
+   ]
+  },
+  {
+   "id": "f-34aa5dd2d0",
+   "name": "六味桂加天冬",
+   "baseName": "六味桂加天冬",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "六味桂加天冬"
+    }
+   ],
+   "ruleIds": [
+    "fx2-shuangcun-fuda"
+   ]
+  },
+  {
+   "id": "f-e9cf13f279",
+   "name": "六味汤 + 温热药",
+   "baseName": "六味汤 + 温热药",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）；组合方写法，照录原文，未展开",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "六味汤 + 温热药"
+    }
+   ],
+   "ruleIds": [
+    "fx-yao-yinxu"
+   ]
+  },
+  {
+   "id": "f-635632d3fc",
+   "name": "六神",
+   "baseName": "六神",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "六神"
+    }
+   ],
+   "ruleIds": [
+    "fx-dl1-liushen"
+   ]
+  },
+  {
+   "id": "f-f08c113309",
+   "name": "六神散 + 陈皮 + 黄芪",
+   "baseName": "六神散 + 陈皮 + 黄芪",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）；组合方写法，照录原文，未展开；基础方＝「六神散」",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "六神散 + 陈皮 + 黄芪"
+    }
+   ],
+   "ruleIds": [
+    "fx-yao-liushen-peifang"
+   ]
+  },
+  {
+   "id": "f-90909dbb2b",
+   "name": "六神（苓为君）",
+   "baseName": "六神",
+   "qualifier": "苓为君",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "六神（苓为君）"
+    }
+   ],
+   "ruleIds": [
+    "fx2-jianban-sanjiao"
+   ]
+  },
+  {
+   "id": "f-8412d10774",
+   "name": "养胃之药",
+   "baseName": "养胃之药",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "养胃之药"
+    }
+   ],
+   "ruleIds": [
+    "fx2-zuoguan-xuzang-zishen"
+   ]
+  },
+  {
+   "id": "f-1ee117b78d",
+   "name": "凉右关及尺脉",
+   "baseName": "凉右关及尺脉",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "凉右关及尺脉"
+    }
+   ],
+   "ruleIds": [
+    "fx-bianmai-youli"
+   ]
+  },
+  {
+   "id": "f-5def6c4f39",
+   "name": "凉尺脉",
+   "baseName": "凉尺脉",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "凉尺脉"
+    }
+   ],
+   "ruleIds": [
+    "fx2-liumai-xianxi"
+   ]
+  },
+  {
+   "id": "jianban-sanjiao",
+   "name": "减半三焦疗法",
+   "baseName": "减半三焦疗法",
+   "qualifier": "",
+   "relation": "仅讲稿有组成",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "减半三焦疗法",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "减半就是中焦方减掉一次、下焦方也是吃一次；上焦方修正为二仁茯芪，并以苓为君；中焦方用六神，亦以苓为君；下焦方亦以苓为君；其间穿插天王补心丹，或增液汤，或知柏六味地黄等方加减",
+   "contraindications": "变脉有力的，可能治疗稍微困难一点。或者出现浮大带点，会出现头晕、胸闷、腹泻等症，必须用减半三焦疗法护航",
+   "note": "",
+   "aliases": [
+    {
+     "source": "讲稿 2010",
+     "name": "减半三焦疗法"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "减半三焦疗法（变脉有力三部曲）"
+    }
+   ],
+   "ruleIds": [
+    "fx-bianmai-youli",
+    "fx2-jianban-sanjiao"
+   ]
+  },
+  {
+   "id": "f-525aaa13ff",
+   "name": "加味四君子",
+   "baseName": "加味四君子",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "加味四君子"
+    }
+   ],
+   "ruleIds": [
+    "fx-dl1-yinyang"
+   ]
+  },
+  {
+   "id": "f-15616cc755",
+   "name": "加味四君（五昇／理中）",
+   "baseName": "加味四君",
+   "qualifier": "五昇／理中",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "加味四君（五昇／理中）"
+    }
+   ],
+   "ruleIds": [
+    "fx-dl1-jiawei-sijun"
+   ]
+  },
+  {
+   "id": "f-a6a20c2b7a",
+   "name": "加味龙胆",
+   "baseName": "加味龙胆",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "加味龙胆"
+    }
+   ],
+   "ruleIds": [
+    "fx-dl2-zuoguan-hongxian",
+    "fx2-liumai-fuhongdaxian"
+   ]
+  },
+  {
+   "id": "f-c3b0a94b49",
+   "name": "加味龙胆泻肝",
+   "baseName": "加味龙胆泻肝",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "加味龙胆泻肝"
+    }
+   ],
+   "ruleIds": [
+    "fx2-zuoguan-fuda-longdan"
+   ]
+  },
+  {
+   "id": "f-c0c8af5923",
+   "name": "加姜",
+   "baseName": "加姜",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "加姜"
+    }
+   ],
+   "ruleIds": [
+    "fx2-liumai-xianxi"
+   ]
+  },
+  {
+   "id": "f-8c5cce13eb",
+   "name": "参苏",
+   "baseName": "参苏",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "参苏"
+    }
+   ],
+   "ruleIds": [
+    "fx-dl2-youcun-da",
+    "fx-dl2-zuoguan-xuzang-ladun",
+    "fx2-shuangcun-fuda"
+   ]
+  },
+  {
+   "id": "f-272576e8a7",
+   "name": "参苏加减",
+   "baseName": "参苏加减",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "参苏加减"
+    }
+   ],
+   "ruleIds": [
+    "fx-dl2-youcun-hongda"
+   ]
+  },
+  {
+   "id": "th-shuangguan-cansu",
+   "name": "双关+参苏",
+   "baseName": "双关+参苏",
+   "qualifier": "",
+   "relation": "仅同和堂",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": "th-shuangguan-cansu",
+   "drugName": "",
+   "compositionTh": "双关+茯苓15 半夏6 紫苏6 前胡6 桔梗6 木香3",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "双关+参苏"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "th-shuangguan-ganfei",
+   "name": "双关+肝肺",
+   "baseName": "双关+肝肺",
+   "qualifier": "",
+   "relation": "仅同和堂",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": "th-shuangguan-ganfei",
+   "drugName": "",
+   "compositionTh": "双关+地骨皮9 秦艽9 鳖甲15 乌梅3 紫菀9 半夏6 桔梗6 五味子3",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "双关+肝肺"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "th-shuangguan-ganfei-cansu",
+   "name": "双关+肝肺+参苏",
+   "baseName": "双关+肝肺+参苏",
+   "qualifier": "",
+   "relation": "仅同和堂",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": "th-shuangguan-ganfei-cansu",
+   "drugName": "",
+   "compositionTh": "双关+地骨皮9 秦艽9 鳖甲15 乌梅3 紫菀9 半夏6 桔梗6 五味子3 茯苓15 紫苏6 前胡6 木香3",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "双关+肝肺+参苏"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "th-shuangguan-ganfei-tianwang",
+   "name": "双关+肝肺+天王",
+   "baseName": "双关+肝肺+天王",
+   "qualifier": "",
+   "relation": "仅同和堂",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": "th-shuangguan-ganfei-tianwang",
+   "drugName": "",
+   "compositionTh": "双关+地骨皮9 秦艽9 鳖甲15 乌梅3 紫菀9 半夏6 桔梗6 五味子3 茯苓12 柏子仁9 酸枣仁9 远志15 玄参9 天冬9 麦冬6 生地9 丹参9",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "双关+肝肺+天王"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "youguanchi-dingshou-muxiang",
+   "name": "右关尺浮大顶手",
+   "baseName": "右关尺浮大顶手",
+   "qualifier": "",
+   "relation": "仅讲稿有组成",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "右关尺浮大顶手",
+   "compositionTh": "",
+   "compositionDraft": "当归3、木香1、厚朴3、陈皮1、青皮1、苍朮3、半夏2、吴茱萸2、草豆蔻3、益智仁2、升麻2、柴胡2、茯苓4、泽泻2、甘草1、干姜2",
+   "science": "",
+   "usage": "二餐间温服",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "",
+   "aliases": [
+    {
+     "source": "讲稿 2010",
+     "name": "右关尺浮大顶手"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "右关尺浮大顶手（木香顺气）"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "youguanchi-fuhongda-fangfeng",
+   "name": "右关尺浮洪大",
+   "baseName": "右关尺浮洪大",
+   "qualifier": "",
+   "relation": "仅讲稿有组成",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "右关尺浮洪大",
+   "compositionTh": "",
+   "compositionDraft": "当归2、白芍2、川芎2、白术5、荆芥1.5、防风2、薄荷1、桔梗2、黄芩2、栀子2、滑石5、连翘2、甘草1、石膏5、干姜2",
+   "science": "",
+   "usage": "二餐间温服，取汗",
+   "adjustments": "防风通圣散里面该拿掉的药，我绝对不用，给拿掉了：麻黄、大黄、黄芩、芒硝",
+   "contraindications": "",
+   "note": "",
+   "aliases": [
+    {
+     "source": "讲稿 2010",
+     "name": "右关尺浮洪大"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "右关尺浮洪大（防风通圣散）"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "f-5856192fec",
+   "name": "四君子加大白术量",
+   "baseName": "四君子加大白术量",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "四君子加大白术量"
+    }
+   ],
+   "ruleIds": [
+    "fx2-youguan-xuzang-lizhong"
+   ]
+  },
+  {
+   "id": "f-95d11ee457",
+   "name": "四君子汤",
+   "baseName": "四君子汤",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "四君子汤"
+    }
+   ],
+   "ruleIds": [
+    "fx-yao-jiawei-sijun-peifang"
+   ]
+  },
+  {
+   "id": "f-bb009c67ae",
+   "name": "四君子汤 + 温热药",
+   "baseName": "四君子汤 + 温热药",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）；组合方写法，照录原文，未展开",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "四君子汤 + 温热药"
+    }
+   ],
+   "ruleIds": [
+    "fx-yao-yangxu"
+   ]
+  },
+  {
+   "id": "f-0d2927b459",
+   "name": "四君子汤 + 黄芪 + 陈皮",
+   "baseName": "四君子汤 + 黄芪 + 陈皮",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）；组合方写法，照录原文，未展开",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "四君子汤 + 黄芪 + 陈皮"
+    }
+   ],
+   "ruleIds": [
+    "fx-yao-liushen-peifang"
+   ]
+  },
+  {
+   "id": "f-496f6855d0",
+   "name": "增液（安卫）",
+   "baseName": "增液",
+   "qualifier": "安卫",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "增液（安卫）"
+    }
+   ],
+   "ruleIds": [
+    "fx-dl1-zengye"
+   ]
+  },
+  {
+   "id": "f-ffd55c6cef",
+   "name": "天冬",
+   "baseName": "天冬",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "天冬"
+    }
+   ],
+   "ruleIds": [
+    "fx2-yinhuo-jiazi",
+    "fx2-zuocunguan-ganyan"
+   ]
+  },
+  {
+   "id": "f-306918665c",
+   "name": "天王 + 防风",
+   "baseName": "天王 + 防风",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）；组合方写法，照录原文，未展开",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "天王 + 防风"
+    }
+   ],
+   "ruleIds": [
+    "fx-dl3-zuocun-ding"
+   ]
+  },
+  {
+   "id": "f-139b92477c",
+   "name": "天王补心丹",
+   "baseName": "天王补心丹",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "天王补心丹"
+    }
+   ],
+   "ruleIds": [
+    "fx-yao-xiaoyao",
+    "fx2-zuocun-ding-tianwang"
+   ]
+  },
+  {
+   "id": "f-e34de3d008",
+   "name": "天王补心丹加芪",
+   "baseName": "天王补心丹加芪",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "天王补心丹加芪"
+    }
+   ],
+   "ruleIds": [
+    "fx2-shuangcun-fuda",
+    "fx2-liumai-xianxi"
+   ]
+  },
+  {
+   "id": "f-097a4f1843",
+   "name": "天王补心丹／增液汤／知柏六味地黄",
+   "baseName": "天王补心丹／增液汤／知柏六味地黄",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "天王补心丹／增液汤／知柏六味地黄"
+    }
+   ],
+   "ruleIds": [
+    "fx2-jianban-sanjiao"
+   ]
+  },
+  {
+   "id": "f-5a3908d296",
+   "name": "天王（补心丹）",
+   "baseName": "天王",
+   "qualifier": "补心丹",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "天王（补心丹）"
+    }
+   ],
+   "ruleIds": [
+    "fx-dl2-zuocun-guan-fu"
+   ]
+  },
+  {
+   "id": "th-jiangcong",
+   "name": "姜葱水",
+   "baseName": "姜葱水",
+   "qualifier": "",
+   "relation": "仅同和堂",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": "th-jiangcong",
+   "drugName": "",
+   "compositionTh": "姜半两切片煮15分钟。大葱葱白连须一段竖着劈开四份放入煮5分钟。（也可以用9根小葱的连须葱白代替不吃葱用黄芪8~12克替代）捞出姜葱分两次喝水。",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "姜葱水"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "zuoguan-fuhongda-longdan",
+   "name": "左关浮洪大",
+   "baseName": "左关浮洪大",
+   "qualifier": "",
+   "relation": "仅讲稿有组成",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "左关浮洪大",
+   "compositionTh": "",
+   "compositionDraft": "龙胆草3、柴胡2、黄芩2、当归1、栀子2、车前子2、泽泻3、生地3、滑石5、灯心草0.5、茯苓4、甘草1、干姜2、瞿麦2、扁蓄2",
+   "science": "",
+   "usage": "二餐间温服",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "",
+   "aliases": [
+    {
+     "source": "讲稿 2010",
+     "name": "左关浮洪大"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "左关浮洪大（加味龙胆泻肝）"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "zuoguan-xuzang-tongzhi",
+   "name": "左关虚脏",
+   "baseName": "左关虚脏",
+   "qualifier": "",
+   "relation": "仅讲稿有组成",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "左关虚脏",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "左关弱不可以用柴胡跟黄芩；尺脉弱也是一样",
+   "contraindications": "左关弱忌用柴胡跟黄芩",
+   "note": "",
+   "aliases": [
+    {
+     "source": "讲稿 2010",
+     "name": "左关虚脏"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "左关虚脏（滋肾以补肝）"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "f-c0f5f13499",
+   "name": "干姜",
+   "baseName": "干姜",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "干姜"
+    }
+   ],
+   "ruleIds": [
+    "fx-dl1-yinyang",
+    "fx-yao-jiawei-sijun-peifang",
+    "fx2-zuocun-ding-tianwang"
+   ]
+  },
+  {
+   "id": "yinhui-guiyuan",
+   "name": "引火归元",
+   "baseName": "引火归元",
+   "qualifier": "",
+   "relation": "仅讲稿有组成",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "引火归元",
+   "compositionTh": "",
+   "compositionDraft": "熟地5、茯苓4、山药3、丹皮3、泽泻3、山茱萸3、肉桂1.5",
+   "science": "",
+   "usage": "六碗水煎二碗，肉桂后下，早晚空腹冷服",
+   "adjustments": "尺脉不平衡：六味地黄里面添加知柏（顶手加羌活）；左关浮大：添加柴味归，就是明目地黄；右寸浮大：添加天冬、五味子；右寸关浮大：加上天冬、麦冬、五味子",
+   "contraindications": "若不在3号脉象的，服后会有胸闷、心悸、腹泻等等等等。如果寸关出现顶手或浮洪大，可参考后面疗法来扫除障碍，调到3号脉象的时候再用这个方",
+   "note": "",
+   "aliases": [
+    {
+     "source": "讲稿 2010",
+     "name": "引火归元"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "引火归元（肾脏疗法）"
+    }
+   ],
+   "ruleIds": [
+    "fx-ssx-yinhuo",
+    "fx-toutou-cunguan",
+    "fx-yao-bianbian",
+    "fx2-yinhuo-guiyuan",
+    "fx2-ssx-yinhuo"
+   ]
+  },
+  {
+   "id": "f-87c1ad765c",
+   "name": "引火归元加麦、味（八仙长寿丸）",
+   "baseName": "引火归元加麦、味",
+   "qualifier": "八仙长寿丸",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "引火归元加麦、味（八仙长寿丸）"
+    }
+   ],
+   "ruleIds": [
+    "fx2-youguan-fuda-zengye"
+   ]
+  },
+  {
+   "id": "th-guipi",
+   "name": "归脾汤",
+   "baseName": "归脾汤",
+   "qualifier": "",
+   "relation": "仅同和堂",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": "th-guipi",
+   "drugName": "",
+   "compositionTh": "党参10 茯苓12 炒白术18 炙甘草4 炒酸枣仁10 黄芪6 龙眼肉12 当归6 远志12 木香4",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "归脾汤"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "th-mofang",
+   "name": "抹方",
+   "baseName": "抹方",
+   "qualifier": "",
+   "relation": "组成差异大（需核）",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": "th-mofang",
+   "drugName": "抹方",
+   "compositionTh": "白芷45 藁本15 贝母15 香附15 丹参15（黄芩10 黄柏10）",
+   "compositionDraft": "白芷15、白芨8、藁本5、贝母5、香附5",
+   "science": "",
+   "usage": "研细粉，冷水调涂，每次以一小时为限",
+   "adjustments": "异位性皮肤炎，如果流水的话，可以加上黄芩、黄柏、丹参，研细粉用",
+   "contraindications": "",
+   "note": "组成 Jaccard=0.67",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "抹方"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "抹方"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "soufeng-shunqi",
+   "name": "搜风顺气",
+   "baseName": "搜风顺气",
+   "qualifier": "",
+   "relation": "仅讲稿有组成",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "搜风顺气",
+   "compositionTh": "",
+   "compositionDraft": "当归2、白芍2、川芎2、生地4、大麻仁5、郁李仁5、枳壳2、槟榔1.5、山茱萸3、山药5、菟丝子3、车前子2、牛膝4、独活2、防风2、甘草1、柴胡2",
+   "science": "",
+   "usage": "空腹温服，忌风",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "",
+   "aliases": [
+    {
+     "source": "讲稿 2010",
+     "name": "搜风顺气"
+    }
+   ],
+   "ruleIds": [
+    "fx2-youguanchi-zuoguan-fuda-soufeng"
+   ]
+  },
+  {
+   "id": "f-8837d8d2ac",
+   "name": "散泻两走",
+   "baseName": "散泻两走",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "散泻两走"
+    }
+   ],
+   "ruleIds": [
+    "fx-dl2-zuoguan-zhongyouli"
+   ]
+  },
+  {
+   "id": "f-0d60add19d",
+   "name": "散泻药",
+   "baseName": "散泻药",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "散泻药"
+    }
+   ],
+   "ruleIds": [
+    "fx2-shuangguan-fuda-buzhong"
+   ]
+  },
+  {
+   "id": "th-yijian-shuangguan",
+   "name": "易简+双关",
+   "baseName": "易简+双关",
+   "qualifier": "",
+   "relation": "仅同和堂",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": "th-yijian-shuangguan",
+   "drugName": "",
+   "compositionTh": "白术9 当归5 升麻6 柴胡6 陈皮4 葛根12 厚朴6",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "易简+双关"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "f-7d6392b066",
+   "name": "易简地黄",
+   "baseName": "易简地黄",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "易简地黄"
+    }
+   ],
+   "ruleIds": [
+    "fx2-liumai-fuhongdaxian"
+   ]
+  },
+  {
+   "id": "f-e8d1dc4923",
+   "name": "柴味归（明目地黄）",
+   "baseName": "柴味归",
+   "qualifier": "明目地黄",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "柴味归（明目地黄）"
+    }
+   ],
+   "ruleIds": [
+    "fx2-yinhuo-jiazi"
+   ]
+  },
+  {
+   "id": "f-478fcce768",
+   "name": "柴鳖骨（柴胡、鳖甲、地骨皮）",
+   "baseName": "柴鳖骨",
+   "qualifier": "柴胡、鳖甲、地骨皮",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "柴鳖骨（柴胡、鳖甲、地骨皮）"
+    }
+   ],
+   "ruleIds": [
+    "fx-yao-huangqi-biejia"
+   ]
+  },
+  {
+   "id": "th-xifang",
+   "name": "洗方",
+   "baseName": "洗方",
+   "qualifier": "",
+   "relation": "组成差异大（需核）",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": "th-xifang",
+   "drugName": "洗方",
+   "compositionTh": "浮萍30 苍耳子15 羌活15 香附9 荆芥9 防风6",
+   "compositionDraft": "浮萍10、苍耳子5、羌活5、香附3、荆芥3",
+   "science": "",
+   "usage": "十碗水煎五碗，入浴缸中浸泡，布包可煎二次用",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "组成 Jaccard=0.83",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "洗方"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "洗方"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "f-2e02433cd2",
+   "name": "清左寸",
+   "baseName": "清左寸",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "清左寸"
+    }
+   ],
+   "ruleIds": [
+    "fx-bianmai-youli"
+   ]
+  },
+  {
+   "id": "f-e16f6fedef",
+   "name": "清挡路",
+   "baseName": "清挡路",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "清挡路"
+    }
+   ],
+   "ruleIds": [
+    "fx-ssx-qingdanglu",
+    "fx-toutou-cunguan"
+   ]
+  },
+  {
+   "id": "f-a660e06451",
+   "name": "滋肾以补肝",
+   "baseName": "滋肾以补肝",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "滋肾以补肝"
+    }
+   ],
+   "ruleIds": [
+    "fx-dl2-zuoguan-fuwu",
+    "fx2-zuoguan-xuzang-zishen"
+   ]
+  },
+  {
+   "id": "f-ebedef03cd",
+   "name": "理中加陈芪",
+   "baseName": "理中加陈芪",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "理中加陈芪"
+    }
+   ],
+   "ruleIds": [
+    "fx2-youguan-xuzang-lizhong"
+   ]
+  },
+  {
+   "id": "th-lizhong",
+   "name": "理中汤",
+   "baseName": "理中汤",
+   "qualifier": "",
+   "relation": "仅同和堂",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": "th-lizhong",
+   "drugName": "",
+   "compositionTh": "党参9 白术18 干姜9 甘草4 黄芪8",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "理中汤"
+    }
+   ],
+   "ruleIds": [
+    "fx-yao-jiawei-sijun-peifang"
+   ]
+  },
+  {
+   "id": "th-tongjing",
+   "name": "痛经方",
+   "baseName": "痛经方",
+   "qualifier": "",
+   "relation": "仅同和堂",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": "th-tongjing",
+   "drugName": "",
+   "compositionTh": "川芎6 当归3 生地9 赤芍6 桃仁6 红花6 三棱6 莪术6 香附6 干姜6 小茴香6 川楝子9 桂皮9 甘草5",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "痛经方"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "th-fufang",
+   "name": "瘀血撞伤",
+   "baseName": "瘀血撞伤",
+   "qualifier": "",
+   "relation": "同一方·组成一致",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": "th-fufang",
+   "drugName": "瘀血撞伤（外敷方）",
+   "compositionTh": "归尾6 苏木30 桃仁15 红花6 羌活15 桂枝9 香附9 三棱9",
+   "compositionDraft": "归尾2、苏木10、桃仁5、红花2、羌活5、桂枝3、香附3、三棱3",
+   "science": "",
+   "usage": "十碗水煎五碗，毛巾浸湿，热敷",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "敷方"
+    },
+    {
+     "source": "同和堂版",
+     "name": "瘀血撞伤"
+    },
+    {
+     "source": "讲稿 2010",
+     "name": "瘀血撞伤（外敷方）"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "f-7dd64eb10e",
+   "name": "白术",
+   "baseName": "白术",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "白术"
+    }
+   ],
+   "ruleIds": [
+    "fx-yao-jiawei-sijun-peifang"
+   ]
+  },
+  {
+   "id": "f-d868f60718",
+   "name": "白虎汤",
+   "baseName": "白虎汤",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "白虎汤"
+    }
+   ],
+   "ruleIds": [
+    "fx-jinji-baihu-shenqi"
+   ]
+  },
+  {
+   "id": "th-baihe",
+   "name": "百合固金汤",
+   "baseName": "百合固金汤",
+   "qualifier": "",
+   "relation": "仅同和堂",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": "th-baihe",
+   "drugName": "",
+   "compositionTh": "百合6 熟地10 玄参6 生地6 桔梗6 麦冬8 甘草3 当归4 白芍4 天冬8 黄芪8",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "百合固金汤"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "f-b55aad61ca",
+   "name": "知柏",
+   "baseName": "知柏",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "知柏"
+    }
+   ],
+   "ruleIds": [
+    "fx2-yinhuo-jiazi"
+   ]
+  },
+  {
+   "id": "f-b7e1a1a90f",
+   "name": "秦艽扶羸",
+   "baseName": "秦艽扶羸",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "秦艽扶羸"
+    }
+   ],
+   "ruleIds": [
+    "fx2-zuoguan-youcun-huangqi"
+   ]
+  },
+  {
+   "id": "th-qinjiaobiejia",
+   "name": "秦艽鳖甲散",
+   "baseName": "秦艽鳖甲散",
+   "qualifier": "",
+   "relation": "仅同和堂",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": "th-qinjiaobiejia",
+   "drugName": "",
+   "compositionTh": "醋鳖甲15 地骨皮9 秦艽6 知母6 当归6 柴胡6 黄芪6 乌梅一个 青蒿6（关火前五分钟）",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "秦艽鳖甲散"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "f-3c36ff7193",
+   "name": "羌活",
+   "baseName": "羌活",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "羌活"
+    }
+   ],
+   "ruleIds": [
+    "fx-yao-huangqi-biejia",
+    "fx2-yinhuo-jiazi"
+   ]
+  },
+  {
+   "id": "th-ganxin-cansu",
+   "name": "肝心+参苏",
+   "baseName": "肝心+参苏",
+   "qualifier": "",
+   "relation": "仅同和堂",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": "th-ganxin-cansu",
+   "drugName": "",
+   "compositionTh": "肝心同治+党参6 茯苓3 半夏6 紫苏6 葛根15 前胡6 枳壳6 桔梗6 木香3",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "肝心+参苏"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "th-ganxin-shuangguan",
+   "name": "肝心+双关",
+   "baseName": "肝心+双关",
+   "qualifier": "",
+   "relation": "仅同和堂",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": "th-ganxin-shuangguan",
+   "drugName": "",
+   "compositionTh": "肝心同治+党参6 升麻6 葛根12 枳壳6 厚朴6",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "肝心+双关"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "th-ganxin-shuangguan-cansu",
+   "name": "肝心+双关+参苏",
+   "baseName": "肝心+双关+参苏",
+   "qualifier": "",
+   "relation": "仅同和堂",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": "th-ganxin-shuangguan-cansu",
+   "drugName": "",
+   "compositionTh": "肝心同治+党参6 茯苓3 半夏6 紫苏6 葛根15 前胡6 枳壳6 桔梗6 木香3 升麻6 厚朴6",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "肝心+双关+参苏"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "th-ganxin-tianwang",
+   "name": "肝心+天王",
+   "baseName": "肝心+天王",
+   "qualifier": "",
+   "relation": "仅同和堂",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": "th-ganxin-tianwang",
+   "drugName": "",
+   "compositionTh": "肝心同治+五味子3 桔梗6 远志15 玄参9 天冬9 麦冬6 生地9 丹参9",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "肝心+天王"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "th-ganxin-ganfei",
+   "name": "肝心+肝肺",
+   "baseName": "肝心+肝肺",
+   "qualifier": "",
+   "relation": "仅同和堂",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": "th-ganxin-ganfei",
+   "drugName": "",
+   "compositionTh": "当归5 白芍6 茯苓12 白术9 柴胡6 薄荷3 陈皮3 黄芪6 甘草3 酸枣仁9 柏子仁9 干姜3 地骨皮9 秦艽9 鳖甲15 乌梅3 党参6 紫菀9 半夏6 桔梗6 五味子3",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "肝心+肝肺"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "f-1fe9680137",
+   "name": "肾气丸（桂附八味肾气丸）",
+   "baseName": "肾气丸",
+   "qualifier": "桂附八味肾气丸",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "肾气丸（桂附八味肾气丸）"
+    }
+   ],
+   "ruleIds": [
+    "fx-jinji-baihu-shenqi"
+   ]
+  },
+  {
+   "id": "f-1950757211",
+   "name": "苍耳散",
+   "baseName": "苍耳散",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "苍耳散"
+    }
+   ],
+   "ruleIds": [
+    "fx2-zuoguan-fuda-longdan"
+   ]
+  },
+  {
+   "id": "f-13dad3f207",
+   "name": "葛根",
+   "baseName": "葛根",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "葛根"
+    }
+   ],
+   "ruleIds": [
+    "fx-yao-jiawei-sijun-peifang"
+   ]
+  },
+  {
+   "id": "f-6f0cbd4806",
+   "name": "补中带泻",
+   "baseName": "补中带泻",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "补中带泻"
+    }
+   ],
+   "ruleIds": [
+    "fx-dl2-zuoguan-zhongyouli"
+   ]
+  },
+  {
+   "id": "th-xiaoyao",
+   "name": "逍遥散",
+   "baseName": "逍遥散",
+   "qualifier": "",
+   "relation": "仅同和堂",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": "th-xiaoyao",
+   "drugName": "",
+   "compositionTh": "柴胡6 白芍9 当归6 薄荷6 茯苓15 生姜3 白术15 甘草6",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "逍遥散"
+    }
+   ],
+   "ruleIds": [
+    "fx-yao-xiaoyao"
+   ]
+  },
+  {
+   "id": "f-dc1b391461",
+   "name": "逍遥散加柴胡鳖甲地骨皮乌梅",
+   "baseName": "逍遥散加柴胡鳖甲地骨皮乌梅",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "逍遥散加柴胡鳖甲地骨皮乌梅"
+    }
+   ],
+   "ruleIds": [
+    "fx2-zuoguan-youcun-huangqi"
+   ]
+  },
+  {
+   "id": "f-844506b642",
+   "name": "重加中温",
+   "baseName": "重加中温",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "重加中温"
+    }
+   ],
+   "ruleIds": [
+    "fx2-liumai-xianxi"
+   ]
+  },
+  {
+   "id": "f-991604dc39",
+   "name": "防风",
+   "baseName": "防风",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "防风"
+    }
+   ],
+   "ruleIds": [
+    "fx-yao-xiaoyao",
+    "fx-yao-huangqi-biejia",
+    "fx2-zuocun-ding-tianwang"
+   ]
+  },
+  {
+   "id": "f-f679d9b30c",
+   "name": "防风通圣",
+   "baseName": "防风通圣",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "防风通圣"
+    }
+   ],
+   "ruleIds": [
+    "fx2-liumai-fuhongdaxian"
+   ]
+  },
+  {
+   "id": "f-c91b184331",
+   "name": "阴阳方",
+   "baseName": "阴阳方",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "阴阳方"
+    }
+   ],
+   "ruleIds": [
+    "fx-dl1-yinyang"
+   ]
+  },
+  {
+   "id": "f-1b43015a06",
+   "name": "陈皮",
+   "baseName": "陈皮",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "陈皮"
+    }
+   ],
+   "ruleIds": [
+    "fx-yao-jiawei-sijun-peifang"
+   ]
+  },
+  {
+   "id": "f-10364459fa",
+   "name": "青蒿",
+   "baseName": "青蒿",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "青蒿"
+    }
+   ],
+   "ruleIds": [
+    "fx-yao-huangqi-biejia"
+   ]
+  },
+  {
+   "id": "f-f980d26ea2",
+   "name": "麦冬",
+   "baseName": "麦冬",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "麦冬"
+    }
+   ],
+   "ruleIds": [
+    "fx-dl1-yinyang",
+    "fx2-zuocunguan-ganyan"
+   ]
+  },
+  {
+   "id": "f-171ad5607d",
+   "name": "黄芪",
+   "baseName": "黄芪",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "黄芪"
+    }
+   ],
+   "ruleIds": [
+    "fx-dl1-yinyang",
+    "fx-yao-jiawei-sijun-peifang",
+    "fx2-zuocun-ding-tianwang"
+   ]
+  },
+  {
+   "id": "th-huangqibiejia-shuangguan",
+   "name": "黄芪鳖甲+双关",
+   "baseName": "黄芪鳖甲+双关",
+   "qualifier": "",
+   "relation": "仅同和堂",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": "th-huangqibiejia-shuangguan",
+   "drugName": "",
+   "compositionTh": "黄芪鳖甲+党参6 白术9 当归3 升麻6 陈皮4 葛根12 枳壳6 厚朴6",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "",
+   "aliases": [
+    {
+     "source": "同和堂版",
+     "name": "黄芪鳖甲+双关"
+    }
+   ],
+   "ruleIds": []
+  },
+  {
+   "id": "f-368af970be",
+   "name": "黄芪鳖甲散",
+   "baseName": "黄芪鳖甲散",
+   "qualifier": "",
+   "relation": "仅 p44 条目",
+   "p42No": null,
+   "p42Indication": "",
+   "doseId": null,
+   "drugName": "",
+   "compositionTh": "",
+   "compositionDraft": "",
+   "science": "",
+   "usage": "",
+   "adjustments": "",
+   "contraindications": "",
+   "note": "只在 p44 条目里出现（讲义图上的方名）",
+   "aliases": [
+    {
+     "source": "讲义 p44",
+     "name": "黄芪鳖甲散"
+    }
+   ],
+   "ruleIds": [
+    "fx-yao-huangqi-biejia"
+   ]
+  }
+ ]
+}

@@ -1,6 +1,7 @@
 import { DRUGS, type Drug } from './drugs'
 import GROUP_DATA from '../content/pulse-groups.json'
 import REF_DATA from '../content/formula-reference.json'
+import { P42_FORMULAS } from './formula-db'
 import {
   DOSE_SCIENCE_NAME,
   FORMULA_DOSE_BY_ID,
@@ -274,6 +275,16 @@ export interface FormulaReference {
   draftName?: string
   /** 讲稿侧查不到时的说明（讲稿未载／无同名方条） */
   draftNote?: string
+  /**
+   * 三处原文串 —— 来自 `content/formulas.json`（归一后的快照）。
+   *
+   * 有值时**以它为准**：`formulaDoseView` 会用这三串覆盖 doses.json / drugs.json
+   * 里的组成文字，只保留后者的页码与注（页码属于出处，不属于正文）。
+   * 这样「同一个方的组成」只在一处维护（formulas 表）。
+   */
+  thText?: string
+  draftText?: string
+  scienceText?: string
 }
 
 /**
@@ -291,7 +302,38 @@ export interface FormulaReference {
  * 方名沿用各资料原样（「天王芪」「理中术姜芪」「六味桂」等），不改写成现代教材方名；
  * 某套资料没有的，一律留空并写明「未载」，不臆造。
  */
-export const FORMULA_REFERENCE: FormulaReference[] = REF_DATA.rows as FormulaReference[]
+export const FORMULA_REFERENCE: FormulaReference[] = buildReferenceFromFormulas()
+
+/**
+ * p42 原表的 28 行，从**方剂库快照**（`content/formulas.json`）构建。
+ *
+ * 原来直接读 `content/formula-reference.json` 的 28 行；归一后那 28 行已经
+ * 进 `formulas` 表（带规范名、别名、两套组成），这里只是在运行期投影成
+ * 界面对照表要的形状 —— 方名与归一关系**不再有第二份**。
+ *
+ * 母方／讲稿侧说明（parentDoseId / draftNote）仍从老文件补：那是原文附注，
+ * 不属于归一结论。
+ */
+function buildReferenceFromFormulas(): FormulaReference[] {
+  const legacy = new Map<number, Partial<FormulaReference>>()
+  for (const r of REF_DATA.rows as FormulaReference[]) legacy.set(r.no, r)
+  return P42_FORMULAS.map((f) => {
+    const old = legacy.get(f.p42No as number) ?? {}
+    return {
+      no: f.p42No as number,
+      name: f.name,
+      indication: f.p42Indication,
+      doseId: f.doseId ?? undefined,
+      doseBasis: f.note || old.doseBasis,
+      parentDoseId: old.parentDoseId,
+      draftName: f.drugName || old.draftName,
+      draftNote: old.draftNote,
+      thText: f.compositionTh || undefined,
+      draftText: f.compositionDraft || undefined,
+      scienceText: f.science || undefined,
+    }
+  })
+}
 
 /**
  * 讲稿 2010 里写明了组成、但**不在第二讲**的方 —— 单列，出处标到讲次。
@@ -325,17 +367,21 @@ export interface FormulaDoseView {
 
 /** 取某一行方剂的配伍与剂量（讲义 p42 行 → 同和堂版 / 讲稿） */
 export function formulaDoseView(r: FormulaReference): FormulaDoseView {
-  const dose = r.doseId ? FORMULA_DOSE_BY_ID[r.doseId] : undefined
+  let dose = r.doseId ? FORMULA_DOSE_BY_ID[r.doseId] : undefined
   const parentDose = r.parentDoseId ? FORMULA_DOSE_BY_ID[r.parentDoseId] : undefined
   const scienceName = r.doseId ? DOSE_SCIENCE_NAME[r.doseId] : undefined
-  const science = scienceName ? FORMULA_SCIENCE_BY_NAME[scienceName] : undefined
+  let science = scienceName ? FORMULA_SCIENCE_BY_NAME[scienceName] : undefined
+  // 组成文字以方剂库快照为准（页码／注仍取自 doses.json）
+  if (dose && r.thText) dose = { ...dose, composition: r.thText }
+  if (science && r.scienceText) science = { ...science, ratio: r.scienceText }
 
   let drug: Drug | undefined
   let draftExtra: FormulaDoseView['draftExtra']
   if (r.draftName?.startsWith('DRAFT-')) {
     draftExtra = DRAFT_EXTRA[r.draftName]
   } else if (r.draftName) {
-    drug = DRUGS.find((d) => d.name === r.draftName)
+    const hit = DRUGS.find((d) => d.name === r.draftName)
+    drug = hit && r.draftText ? { ...hit, composition: r.draftText } : hit
   }
 
   const missing: string[] = []

@@ -721,6 +721,15 @@ MCP 的 `queryPgDatabase` / `managePgDatabase` 把**首次**的 PG 就绪探测�
 - 输入：`exports/方剂主表-*.xlsx`（人工核对过的归一结果）＋ `src/content/*.json`（原始真相）
 - 原始 JSON **一个都不改**；库是派生视图，重建即可重来
 
+**前端怎么读**（2026-11-21 接通）：
+
+- 快照：`python3 scripts/export-formulas-json.py` → `src/content/formulas.json`（129 条，只读）
+- 读取层：`src/domain/formula-db.ts`（`FORMULAS` ／ `P42_FORMULAS` ／ `findFormula`）
+- ③ 的 p42 对照表 28 行 = `P42_FORMULAS` 投影（`medication.ts` 的 `buildReferenceFromFormulas`），
+  组成文字取自快照的 `compositionTh` / `compositionDraft` / `science`，
+  **页码与注仍取自 doses.json** —— 页码是出处、不是正文
+- 改方名归一：改核对表 → `build-formula-db.py` → `export-formulas-json.py` → 重新 build
+
 **三条硬规矩**：
 
 1. **方名归一以核对表为准**：库里 `formulas` 一行 = Excel 的一行；写法进 `formula_aliases`，不再散落。
