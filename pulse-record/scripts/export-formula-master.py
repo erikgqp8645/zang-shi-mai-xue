@@ -95,7 +95,8 @@ for r in ref['rows']:
     cand=alias.get(name); drug=None
     if cand and cand in G:
         j = jac(GH.get(cand,set()), DH.get(dose,set())) if dose else 0
-        if not GH.get(cand) or j>=0.85: drug=cand
+        same_name = name_key(cand)==name_key(dose) if dose else False
+        if not GH.get(cand) or j>=0.85 or same_name: drug=cand
         else: note.append(f'讲稿侧参考条目「{cand}」，与同和堂这条的组成相似度仅 {j:.2f}，未并入')
     # 别名没有登记时，按组成找（≥0.85 才算同一方）
     if drug is None and dose and DH.get(dose):
@@ -124,13 +125,17 @@ for r in ref['rows']:
 # ---- 2. 剩下的讲稿方剂 ----
 for gname,g in G.items():
     if gname in used_drug: continue
+    # 先按名字同源挂（哪怕组成差得多 —— 那是「同方异写待核」，不是不同方）
+    same=[d for d in D if name_key(d)==name_key(base(gname))]
+    same.sort(key=lambda d: (d in used_dose, -jac(GH[gname],DH[d])))
     best=None
     for dname in D:
         if dname in used_dose: continue
         j=jac(GH[gname],DH[dname])
         if best is None or j>best[0]: best=(j,dname)
     dname=None; note=[]
-    if best and best[0]>=0.85: dname=best[1]
+    if same: dname=same[0]
+    elif best and best[0]>=0.85: dname=best[1]
     else:
         # 已登记在别的行上的成方，组成接近也要指出来
         best_used=None
@@ -160,6 +165,38 @@ for x in rows:
 for f in rule_by_name:
     if f in known or base(f) in known: continue
     rows.append(dict(canonical=f,p42no=None,p42ind='',drug=None,dose=None,note='',basis='',kind='rule'))
+
+# ---- 合并：指向同一个成方（或同一张讲稿方剂）的多行，合成一行 ----
+def merge_rows(rows):
+    buckets={}
+    order=[]
+    for x in rows:
+        k = ('dose:'+x['dose']) if x['dose'] else (('drug:'+x['drug']) if x['drug'] else 'row:'+x['canonical'])
+        if k not in buckets:
+            buckets[k]=dict(x); buckets[k]['_all']=[x]; order.append(k)
+        else:
+            b=buckets[k]; b['_all'].append(x)
+            # 优先保留带 p42 行号的那条做规范名
+            if x['p42no'] and not b['p42no']:
+                keep={kk:vv for kk,vv in b.items() if not kk.startswith('_')}
+                keep.update({kk:vv for kk,vv in x.items() if not kk.startswith('_')})
+                keep['_all']=b['_all']; b.clear(); b.update(keep)
+            if x['drug'] and not b['drug']: b['drug']=x['drug']
+            if x['dose'] and not b['dose']: b['dose']=x['dose']
+            if x['p42no'] and not b['p42no']: b['p42no']=x['p42no']; b['p42ind']=x['p42ind']
+    out=[]
+    for k in order:
+        b=buckets[k]
+        notes=[]
+        for y in b['_all']:
+            if y['note']: notes.append(y['note'])
+            if y['basis']: notes.append(y['basis'])
+        b['note']='；'.join(dict.fromkeys(notes))
+        b.pop('_all',None)
+        out.append(b)
+    return out
+
+rows=merge_rows(rows)
 
 ORDER={'同一方·组成一致':0,'同方·别名写法':1,'加减方':2,'组成差异大（需核）':3,
        '仅同和堂有组成':4,'仅同和堂':5,'仅讲稿有组成':6,'仅 p44 条目':7}
