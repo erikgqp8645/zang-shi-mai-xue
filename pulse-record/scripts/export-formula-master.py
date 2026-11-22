@@ -76,7 +76,8 @@ for r in rules:
 
 rows=[]; used_drug=set(); used_dose=set()
 
-def rel_of(drug,dose,has_p42):
+def rel_of(drug,dose,has_p42,forced=None):
+    if forced: return forced
     if drug and dose:
         gs,ds=herbs_strict(G[drug].get('composition')), herbs_strict(D[dose].get('composition'))
         if gs and gs==ds: return '同一方·组成一致'
@@ -84,15 +85,47 @@ def rel_of(drug,dose,has_p42):
         j=jac(GH[drug],DH[dose])
         if j>=0.85: return '加减方'
         return '组成差异大（需核）'
+    if has_p42 and not dose and not drug: return '仅 p42 有方名（两套资料未载组成）'
     if dose and has_p42: return '仅同和堂有组成'
     if dose: return '仅同和堂'
     if drug: return '仅讲稿有组成'
     return '仅 p44 条目'
 
 # ---- 1. p42 28 行（按登记的 doseId，不擅自改） ----
+# ⚠️ 人工归一（按组成核对，优先于 alias／自动匹配）：
+#    p42 第 10 行「加味理中」↔ 讲稿「右关虚脏·软而无力（加味理中）」↔ 同和堂「五味异功（五异）」（8 味一字不差）
+#    p42 第 4 行「五味异功散」——同和堂没有它的独立组成（那条名为「五味异功」的其实是第 10 行的方），留空不硬套
+#    同和堂「加味理中汤」= 讲稿三焦疗法的「中焦方」
+MANUAL_P42 = {
+  4: dict(
+    dose=None, drug=None,
+    note='同和堂版没有「五味异功散」的独立组成 —— 它那条名为「五味异功（五异）」的 8 味其实是 p42 第 10 行的加味理中。本行按经典五味异功散（四君子＋陈皮）处理，组成留空，不拿别的方顶替',
+  ),
+  10: dict(
+    dose='五味异功（五异）', drug='右关虚脏 · 软而无力（加味理中）',
+    note='按组成核对：讲稿「右关虚脏·软而无力（加味理中）」与同和堂「五味异功（五异）」8 味一字不差。同和堂的「加味理中汤」是**另一张方**（组成对应讲稿三焦疗法的「中焦方」），已挂到那一行',
+  ),
+}
+MANUAL_DRUG = {
+  '中焦方（加味理中）': dict(
+    dose='加味理中汤', rel='加减方',
+    note='同和堂「加味理中汤」的组成与本条一致（归尾／当归、生姜／干姜、柴葛等写法不同），按组成归到这里；p42 第 10 行的「加味理中」是另一张方（＝五味异功）',
+  ),
+}
+
 for r in ref['rows']:
     name=r['name']; dose=DID.get(r.get('doseId')); note=[]
     cand=alias.get(name); drug=None
+    m = MANUAL_P42.get(r['no'])
+    if m:
+        dose = m['dose']
+        drug = m['drug']
+        note = [m['note']]
+        rows.append(dict(canonical=name,p42no=r['no'],p42ind=r.get('indication',''),drug=drug,dose=dose,
+                         note='；'.join(note),basis=r.get('doseBasis',''),kind='p42'))
+        if drug: used_drug.add(drug)
+        if dose: used_dose.add(dose)
+        continue
     if cand and cand in G:
         j = jac(GH.get(cand,set()), DH.get(dose,set())) if dose else 0
         same_name = name_key(cand)==name_key(dose) if dose else False
@@ -125,6 +158,13 @@ for r in ref['rows']:
 # ---- 2. 剩下的讲稿方剂 ----
 for gname,g in G.items():
     if gname in used_drug: continue
+    if gname in MANUAL_DRUG:
+        m = MANUAL_DRUG[gname]
+        rows.append(dict(canonical=base(gname) or gname,p42no=None,p42ind='',drug=gname,dose=m['dose'],
+                         note=m['note'],basis='',kind='drug',rel=m.get('rel')))
+        used_drug.add(gname)
+        if m['dose']: used_dose.add(m['dose'])
+        continue
     # 先按名字同源挂（哪怕组成差得多 —— 那是「同方异写待核」，不是不同方）
     same=[d for d in D if name_key(d)==name_key(base(gname))]
     same.sort(key=lambda d: (d in used_dose, -jac(GH[gname],DH[d])))
@@ -258,7 +298,7 @@ hdr_fill=PatternFill('solid',fgColor='E8E0CE')
 
 for i,x in enumerate(rows,1):
     drug,dose=x['drug'],x['dose']
-    rel=rel_of(drug,dose,bool(x['p42no']))
+    rel=rel_of(drug,dose,bool(x['p42no']), x.get('rel'))
     dg,d_d=GH.get(drug,set()) if drug else set(), DH.get(dose,set()) if dose else set()
     only_g='、'.join(sorted(dg-d_d)) if drug and dose else ''
     only_d='、'.join(sorted(d_d-dg)) if drug and dose else ''

@@ -399,7 +399,7 @@
   },
   {
    "ruleId": "fx2-liumai-fuhongdaxian",
-   "formulaId": "zhongjiao",
+   "formulaId": "th-jiawei-lizhong",
    "writing": "中焦方"
   },
   {
@@ -469,7 +469,7 @@
   },
   {
    "ruleId": "fx2-sanjiao-wuli",
-   "formulaId": "zhongjiao",
+   "formulaId": "th-jiawei-lizhong",
    "writing": "中焦方"
   },
   {
@@ -479,7 +479,7 @@
   },
   {
    "ruleId": "fx2-shuangcun-fuda",
-   "formulaId": "th-jiawei-lizhong",
+   "formulaId": "th-wuwei",
    "writing": "加味理中（加中温）"
   },
   {
