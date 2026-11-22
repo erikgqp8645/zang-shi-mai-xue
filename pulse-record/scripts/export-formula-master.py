@@ -26,6 +26,7 @@ doses = json.load(open(BASE+'doses.json', encoding='utf-8'))
 drugs = json.load(open(BASE+'drugs.json', encoding='utf-8'))
 ref   = json.load(open(BASE+'formula-reference.json', encoding='utf-8'))
 rules = json.load(open(BASE+'formula-rules.json', encoding='utf-8'))['rules']
+patterns = json.load(open(BASE+'pulse-patterns.json', encoding='utf-8'))['patterns']
 
 LOOSE={'枸杞子':'枸杞','元参':'玄参','桂心':'桂皮','术':'白术','芍药':'白芍','炙甘草':'甘草'}
 UNITS={'克','g','G','片','钱','个','只','枚','两'}
@@ -184,8 +185,9 @@ def p44_for(x):
 
 wb=Workbook(); ws=wb.active; ws.title='方剂主表'
 headers=['序号','规范名','别名1（讲稿 2010）','别名2（同和堂版）','p42 行号','p42 对应脉象及加减',
-         'p44 命中（条）','p44 条目（条件 → 疗法）','p44 治法','p44 出处','p44 原文摘录',
-         '讲稿组成（比例制）','成方组成（克）','科中比例',
+         'p44 命中（条）','路线','类别','五行','左右手','常驻条目','添加药','关联讲稿方剂 id','脉象图',
+         'p44 条目（条件 → 疗法）','p44 治法','p44 出处','p44 原文摘录',
+         '讲稿组成（比例制）','服法','加减','禁忌','成方组成（克）','科中比例',
          '关系','差异：仅讲稿有','差异：仅成方有','疑似重复（同组其它写法）','备注']
 ws.append(headers)
 SCI_BY_CODE={x.get('name'):x.get('ratio','') for x in doses.get('sciences',[]) if isinstance(x,dict)}
@@ -249,21 +251,36 @@ for i,x in enumerate(rows,1):
     therapies='、'.join(dict.fromkeys(h[0].get('therapy','') for h in hits if h[0].get('therapy')))
     sources='；'.join(dict.fromkeys(h[0].get('source','') for h in hits if h[0].get('source')))
     quotes=' ｜ '.join(dict.fromkeys((h[0].get('quote','') or '').strip('「」')[:60] for h in hits if h[0].get('quote')))
+    def agg(field):
+        return '／'.join(dict.fromkeys(str(h[0].get(field,'')) for h in hits if h[0].get(field) not in (None,'')))
+    kinds=agg('kind'); wux=agg('wuxing'); sides=agg('side')
+    always='是' if any(h[0].get('always') for h in hits) else ''
+    adds='；'.join(dict.fromkeys('、'.join(h[0].get('adds') or []) for h in hits if h[0].get('adds')))
+    drug_ids='；'.join(dict.fromkeys('、'.join(h[0].get('drugs') or []) for h in hits if h[0].get('drugs')))
+    pats=[]
+    for h in hits:
+        pid=h[0].get('id'); pat=patterns.get(pid)
+        pats.append(f"{pat.get('title','有图')}（{len(pat.get('cells') or [])} 格）" if pat else '无图')
+    pattern_txt='；'.join(dict.fromkeys(pats)) if pats else ''
     ws.append([i, x['canonical'],
                drug if drug and drug!=x['canonical'] else '',
                dose if dose and dose!=x['canonical'] else '',
-               x['p42no'] or '', x['p42ind'], len(hits) or '', p44txt,
-               therapies, sources, quotes,
+               x['p42no'] or '', x['p42ind'], len(hits) or '',
+               agg('route'), kinds, wux, sides, always, adds, drug_ids, pattern_txt,
+               p44txt, therapies, sources, quotes,
                G[drug].get('composition','') if drug else '',
+               G[drug].get('usage','') if drug else '',
+               '；'.join(G[drug].get('adjustments') or []) if drug else '',
+               G[drug].get('contraindication','') if drug else '',
                D[dose].get('composition','') if dose else '',
                sci, rel, only_g, only_d, dup_others(x), '；'.join(notes)])
 
-widths=[5,20,36,24,8,26,10,42,28,40,46,36,44,18,20,22,22,34,60]
+widths=[5,20,36,24,8,26,10,20,12,10,14,10,26,26,30,42,28,40,46,36,26,34,34,44,18,20,22,22,34,60]
 for i,w in enumerate(widths,1): ws.column_dimensions[get_column_letter(i)].width=w
 for c in ws[1]:
     c.font=Font(bold=True); c.fill=hdr_fill; c.border=border
     c.alignment=Alignment(horizontal='center',vertical='center',wrap_text=True)
-ws.freeze_panes='C2'; ws.auto_filter.ref=f"A1:S{ws.max_row}"
+ws.freeze_panes='C2'; ws.auto_filter.ref=f"A1:AD{ws.max_row}"
 for row in ws.iter_rows(min_row=2,max_row=ws.max_row):
     for c in row:
         c.border=border; c.alignment=Alignment(vertical='top',wrap_text=True)
@@ -309,6 +326,31 @@ for row in ws3.iter_rows():
 for c in ws3[1]:
     c.font=Font(bold=True); c.fill=hdr_fill
 ws3.freeze_panes='A2'
+
+# ---- sheet: 规则明细（一条规则一行，界面上的字段一个不丢）----
+ws4=wb.create_sheet('规则明细')
+ws4.append(['序号','条目 id','路线','脉象（条件）','治法','类别','五行','左右手','常驻条目','知识库显示',
+            '方名（原文写法）','添加药','关联讲稿方剂 id','出处','原文','脉象图','图名（格子数）'])
+for i,r in enumerate(sorted(rules, key=lambda x:(x.get('route',''), x.get('id',''))),1):
+    pat=patterns.get(r.get('id'))
+    ws4.append([
+        i, r.get('id',''), r.get('route',''), r.get('condition',''), r.get('therapy',''),
+        r.get('kind',''), r.get('wuxing',''), r.get('side',''),
+        '是' if r.get('always') else '', '是' if r.get('visible') else '否',
+        '、'.join(r.get('formulas') or []),
+        '、'.join(r.get('adds') or []),
+        '、'.join(r.get('drugs') or []),
+        r.get('source',''), (r.get('quote','') or '').strip('「」'),
+        '有图' if pat else '无图',
+        f"{pat.get('title','')}（{len(pat.get('cells') or [])} 格）" if pat else '',
+    ])
+for i,w in enumerate([5,26,22,26,40,10,8,12,10,10,34,20,32,44,80,8,30],1):
+    ws4.column_dimensions[get_column_letter(i)].width=w
+for row in ws4.iter_rows():
+    for c in row: c.border=border; c.alignment=Alignment(vertical='top',wrap_text=True)
+for c in ws4[1]:
+    c.font=Font(bold=True); c.fill=hdr_fill
+ws4.freeze_panes='C2'; ws4.auto_filter.ref=f"A1:Q{ws4.max_row}"
 
 out='exports/方剂主表-2026-11-21.xlsx'
 wb.save(out)
