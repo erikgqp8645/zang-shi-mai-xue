@@ -9,6 +9,10 @@
 formula-reference.json（讲义 p42 原表）、formula-rules.json（讲义 p44 条目）。
 不改任何数据文件，只产出一张核对用的表。
 
+两张 sheet：
+  方剂主表    —— 一个规范方名一行；含 p44 条目的条件／治法／出处／原文摘录
+  疑似重复组  —— 按「名字归一」找出来的同方异写（组成无从比对时的兜底线索）
+
 口径：去掉剂量与括注、只留药味；别名写法并成同味（枸杞子=枸杞、元参=玄参、
 桂心=桂皮、芍药=白芍、炙甘草=甘草），再算 Jaccard。
 """
@@ -44,6 +48,17 @@ def herbs(comp): return _tokens(comp, True)
 def herbs_strict(comp): return _tokens(comp, False)
 def jac(a,b): return len(a&b)/len(a|b) if a and b else 0.0
 def base(n): return re.sub(r'[（(].*?[）)]','',n).strip()
+
+CN={'一':'1','二':'2','三':'3','四':'4','五':'5','六':'6','七':'7','八':'8','九':'9','十':'10'}
+def name_key(n):
+    """名字归一 —— 去括注、中文数字转阿拉伯、去「汤散丸饮丹方」后缀；组合方单列。"""
+    t=re.sub(r'[（(].*?[）)]','',n).replace('＋','+')
+    combo='+' in t
+    t=re.split(r'\s*\+\s*',t)[0]
+    t=re.sub(r'([一二三四五六七八九十])号', lambda m: CN[m.group(1)]+'号', t)
+    t=re.sub(r'\s+','',t)
+    t=re.sub(r'(饮子|汤|散|丸|饮|丹|方)$','',t)
+    return ('组合:' if combo else '')+t.strip()
 
 D={x['name']:x for x in doses['doses']}
 DID={x['id']:x['name'] for x in doses['doses']}
@@ -150,22 +165,54 @@ ORDER={'同一方·组成一致':0,'同方·别名写法':1,'加减方':2,'组�
 rows.sort(key=lambda x:(0,x['p42no']) if x['p42no'] else (1, ORDER.get(rel_of(x['drug'],x['dose'],False),9), x['canonical']))
 
 def p44_for(x):
+    """返回 [(规则, 命中的写法)] —— 命中的写法必须是原文里的方名写法，方便判断是不是同方异写。"""
     names={n for n in (x['canonical'],x['drug'],x['dose']) if n}
     names|={alias[n] for n in list(names) if n in alias}
     bases={base(n) for n in names}
     hits={}
     for f,rs in rule_by_name.items():
-        if f in names or base(f) in bases:
-            for r in rs: hits[r['id']]=r
+        bf=base(f)
+        combo=any(bf==n or bf.startswith(n+' +') or bf.startswith(n+'＋') for n in bases)
+        if f in names or bf in bases or combo:
+            for r in rs:
+                prev=hits.get(r['id'])
+                if prev:
+                    prev[1].add(f)
+                else:
+                    hits[r['id']]=(r,{f})
     return list(hits.values())
 
 wb=Workbook(); ws=wb.active; ws.title='方剂主表'
 headers=['序号','规范名','别名1（讲稿 2010）','别名2（同和堂版）','p42 行号','p42 对应脉象及加减',
-         'p44 命中（条）','p44 条目（条件 → 疗法）','讲稿组成（比例制）','成方组成（克）','科中比例',
-         '关系','差异：仅讲稿有','差异：仅成方有','备注']
+         'p44 命中（条）','p44 条目（条件 → 疗法）','p44 治法','p44 出处','p44 原文摘录',
+         '讲稿组成（比例制）','成方组成（克）','科中比例',
+         '关系','差异：仅讲稿有','差异：仅成方有','疑似重复（同组其它写法）','备注']
 ws.append(headers)
 SCI_BY_CODE={x.get('name'):x.get('ratio','') for x in doses.get('sciences',[]) if isinstance(x,dict)}
 DID_BY_NAME={x['name']:x['id'] for x in doses['doses']}
+
+# ---- 疑似重复：按名字归一，把同方异写聚在一起（组成比不了时的兜底线索）----
+allnames=set()
+for x in rows:
+    for n in (x['canonical'],x['drug'],x['dose']):
+        if n: allnames.add(n)
+for f in rule_by_name: allnames.add(f)
+dup_groups={}
+for n in allnames: dup_groups.setdefault(name_key(n), set()).add(n)
+dup_groups={k:v for k,v in dup_groups.items() if len(v)>1}
+dup_of={}
+for k,members in dup_groups.items():
+    for m in members: dup_of[m]=k
+
+def dup_others(x):
+    names=[n for n in (x['canonical'],x['drug'],x['dose']) if n]
+    keys={dup_of.get(n) for n in names}
+    out=set()
+    for k in keys:
+        if not k: continue
+        for m in dup_groups[k]:
+            if m not in names: out.add(m)
+    return '、'.join(sorted(out))
 
 thin=Side(style='thin',color='D9D2C2'); border=Border(left=thin,right=thin,top=thin,bottom=thin)
 hdr_fill=PatternFill('solid',fgColor='E8E0CE')
@@ -186,27 +233,37 @@ for i,x in enumerate(rows,1):
             hit = base_name if (base_name in known) else ''
             notes.append('组合方写法，照录原文，未展开' + (f'；基础方＝「{hit}」' if hit else ''))
     hits=p44_for(x)
-    p44txt='；'.join(f"{h.get('condition','')} → {h.get('therapy','')}" for h in hits[:3])
+    own={n for n in (x['canonical'],x['drug'],x['dose']) if n}
+    def one(h):
+        rule,writings=h
+        extra=[w for w in sorted(writings) if w not in own]
+        tail=f'〔原文写法：{"、".join(extra)}〕' if extra else ''
+        return f"{rule.get('condition','')} → {rule.get('therapy','')}{tail}"
+    p44txt='；'.join(one(h) for h in hits[:3])
     if len(hits)>3: p44txt+=f'（另 {len(hits)-3} 条）'
     sci=''
     if dose:
         did=DID_BY_NAME.get(dose)
         code=SCI.get(did) if isinstance(SCI,dict) else None
         sci=SCI_BY_CODE.get(code,'') if code else ''
+    therapies='、'.join(dict.fromkeys(h[0].get('therapy','') for h in hits if h[0].get('therapy')))
+    sources='；'.join(dict.fromkeys(h[0].get('source','') for h in hits if h[0].get('source')))
+    quotes=' ｜ '.join(dict.fromkeys((h[0].get('quote','') or '').strip('「」')[:60] for h in hits if h[0].get('quote')))
     ws.append([i, x['canonical'],
                drug if drug and drug!=x['canonical'] else '',
                dose if dose and dose!=x['canonical'] else '',
                x['p42no'] or '', x['p42ind'], len(hits) or '', p44txt,
+               therapies, sources, quotes,
                G[drug].get('composition','') if drug else '',
                D[dose].get('composition','') if dose else '',
-               sci, rel, only_g, only_d, '；'.join(notes)])
+               sci, rel, only_g, only_d, dup_others(x), '；'.join(notes)])
 
-widths=[5,20,36,24,8,26,10,42,36,44,18,20,22,22,60]
+widths=[5,20,36,24,8,26,10,42,28,40,46,36,44,18,20,22,22,34,60]
 for i,w in enumerate(widths,1): ws.column_dimensions[get_column_letter(i)].width=w
 for c in ws[1]:
     c.font=Font(bold=True); c.fill=hdr_fill; c.border=border
     c.alignment=Alignment(horizontal='center',vertical='center',wrap_text=True)
-ws.freeze_panes='C2'; ws.auto_filter.ref=f"A1:O{ws.max_row}"
+ws.freeze_panes='C2'; ws.auto_filter.ref=f"A1:S{ws.max_row}"
 for row in ws.iter_rows(min_row=2,max_row=ws.max_row):
     for c in row:
         c.border=border; c.alignment=Alignment(vertical='top',wrap_text=True)
@@ -229,6 +286,29 @@ ws2.column_dimensions['A'].width=18; ws2.column_dimensions['B'].width=110
 for row in ws2.iter_rows():
     row[0].font=Font(bold=True)
     for c in row: c.alignment=Alignment(vertical='top',wrap_text=True)
+
+# ---- sheet: 疑似重复组 ----
+ws3=wb.create_sheet('疑似重复组')
+ws3.append(['组号','归一写法','成员写法','成员数','类型','组内是否已有组成印证','说明'])
+def kind_of(key,members):
+    if key.startswith('组合:'): return '组合方（同一基础方的不同加味）'
+    if any('（' in m or '(' in m for m in members): return '带括注的同方异写'
+    if any(re.search(r'[一二三四五六七八九十]号',m) for m in members) and any(re.search(r'[0-9]号',m) for m in members):
+        return '中文数字／阿拉伯数字写法'
+    return '疑似同方异写'
+def evidence(members, rows_):
+    hit=[x for x in rows_ if (x['canonical'] in members or x['drug'] in members or x['dose'] in members) and x['drug'] and x['dose']]
+    if not hit: return '无（缺组成，只按名字归一）'
+    return '；'.join(f"{x['canonical']}：{rel_of(x['drug'],x['dose'],bool(x['p42no']))}" for x in hit[:3])
+for gi,(k,members) in enumerate(sorted(dup_groups.items(), key=lambda t:-len(t[1])),1):
+    ws3.append([gi, k, ' / '.join(sorted(members)), len(members), kind_of(k,members), evidence(members, rows), ''])
+for i,w in enumerate([6,18,60,8,30,34,20],1):
+    ws3.column_dimensions[get_column_letter(i)].width=w
+for row in ws3.iter_rows():
+    for c in row: c.border=border; c.alignment=Alignment(vertical='top',wrap_text=True)
+for c in ws3[1]:
+    c.font=Font(bold=True); c.fill=hdr_fill
+ws3.freeze_panes='A2'
 
 out='exports/方剂主表-2026-11-21.xlsx'
 wb.save(out)
