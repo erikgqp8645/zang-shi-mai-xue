@@ -12,10 +12,16 @@
  *   · 若干 mutation（`apply(src) => mutated`）
  *   · 每个 mutation 期望哪条断言变红、哪条仍绿
  *
- * ## 不迁就旧脚本
+ * ## 迁移状态（2026-11-21 更新）
  *
- * 已有的 break-test **保持原样**（它们跑得好好的，改造的收益不抵风险）。
- * 新写的 break-test 用这里；旧的哪天要动，再顺手迁过来。
+ * 这条注释原来写「已有的保持原样、它们跑得好好的」—— **已被证伪**：
+ *   · `lizhong-parent-break-test` 有 3 处锚点漂移（LZM1／LZM6／LZM8），
+ *     其中 LZM1 的 from 把 JSON 两个键的顺序写反了，**从来没匹配到过**；
+ *   · 它还把重新编译写死成 `process.env.ComSpec`（Windows 才有），
+ *     在 macOS 上直接抛错 ⇒ 这条 break-test 在 Mac 上从来没真跑过。
+ *
+ * 现状：`app-nested-button` 已迁到这里（5727 → 2880 字符，行为不变）。
+ * 其余待迁的见 `docs/break-test-migration.md`；迁移时**只搬样板，mutation 原样保留**。
  *
  * ## 两条硬规矩
  *

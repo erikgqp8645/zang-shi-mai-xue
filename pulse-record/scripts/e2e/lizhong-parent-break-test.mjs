@@ -164,8 +164,10 @@ const MUTATIONS = [
         path: REF,
         replacements: [
           {
+            // ⚠️ 2026-11-21：JSON 里这两个键的顺序是 parentDoseId 在前、draftName 在后，
+            //    原来写的 from 把它们顺序写反了 ⇒ 永远匹配不到 ⇒ 这条断言其实一直没跑
             from:
-              '      "draftName": "右关虚脏 · 软而无力（加味理中）",\n      "parentDoseId": "th-lizhong"',
+              '      "parentDoseId": "th-lizhong",\n      "draftName": "右关虚脏 · 软而无力（加味理中）"',
             to: '      "draftName": "右关虚脏 · 软而无力（加味理中）"',
           },
         ],
@@ -305,9 +307,9 @@ const MUTATIONS = [
         path: DOMAIN,
         replacements: [
           {
-            from: '  const p = FORMULA_DOSE_BY_ID[row.parentDoseId]',
+            from: '  const p = effectiveDoseById(row.parentDoseId)',
             // `row.doseId` 是可选字段 ⇒ 要写 `!` 才编得过（否则 TS2537）
-            to: '  const p = FORMULA_DOSE_BY_ID[row.doseId!]',
+            to: '  const p = effectiveDoseById(row.doseId!)',
           },
         ],
       },
@@ -355,8 +357,8 @@ const MUTATIONS = [
         path: LINES,
         replacements: [
           {
-            from: "  const cands = view.entries.filter((e) => e.role !== 'parent')",
-            to: '  const cands = view.entries',
+            from: "  const cands = shown.filter((e) => e.role !== 'parent')",
+            to: '  const cands = shown',
           },
         ],
       },

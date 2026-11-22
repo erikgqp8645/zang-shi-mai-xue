@@ -31,40 +31,14 @@
  * 需要本机装了 Google Chrome（用 CHROME_PATH 指定可执行文件）。
  */
 
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join, dirname } from 'node:path'
-import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { join, dirname } from 'node:path'
+import { runBreakMutations } from './lib-break.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const TARGET = join(ROOT, 'src', 'components', 'TriadFrame.tsx')
 const REGRESSION = join(ROOT, 'scripts', 'e2e', 'app-regression.mjs')
 
-/* ------------------------------ 断言 ------------------------------ */
-
-let pass = 0
-let fail = 0
-const failures = []
-
-function ok(name, cond, detail = '') {
-  if (cond) {
-    pass++
-    console.log(`  ✓ ${name}`)
-  } else {
-    fail++
-    failures.push(`${name}${detail ? ' —— ' + detail : ''}`)
-    console.log(`  ✗ ${name}${detail ? ` —— ${detail}` : ''}`)
-  }
-  return cond
-}
-
-/* --------------------------- 源码改动片段 --------------------------- */
-
-/**
- * 内层方名链接那一块（当前修好的版本：span ＋ stopPropagation）。
- * 用正则匹配，行尾差异（CRLF / LF）不影响。
- */
 const RE_SPAN_BLOCK =
   /<span\s+role="button"\s+tabIndex=\{0\}\s+className="pr-link pr-link-inline"[\s\S]*?<\/span>/
 
@@ -91,25 +65,6 @@ const NO_STOP = ['onClick={() => {', '                          onOpenFormula?.(
 
 /* ------------------------------ 跑回归 ------------------------------ */
 
-function runRegression() {
-  const r = spawnSync(process.execPath, [REGRESSION], {
-    cwd: ROOT,
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-  })
-  return { code: r.status, out: `${r.stdout ?? ''}\n${r.stderr ?? ''}` }
-}
-
-/** 某条断言在输出里是红（✗）还是绿（✓） */
-function isRed(out, name) {
-  return out.includes(`✗ ${name}`)
-}
-function isGreen(out, name) {
-  return out.includes(`✓ ${name}`)
-}
-
-/* ------------------------------ mutation ------------------------------ */
-
 const MUTATIONS = [
   {
     id: 'A',
@@ -134,59 +89,11 @@ const MUTATIONS = [
   },
 ]
 
-/* ------------------------------ 主流程 ------------------------------ */
-
-const original = readFileSync(TARGET, 'utf8')
-const backupDir = mkdtempSync(join(tmpdir(), 'pulse-break-'))
-const backup = join(backupDir, 'TriadFrame.tsx')
-writeFileSync(backup, original, 'utf8')
-
-console.log('\n网站端「嵌套 button」break-test\n')
-
-try {
-  for (const m of MUTATIONS) {
-    console.log(`【mutation ${m.id}】${m.title}`)
-    const mutated = m.apply(original)
-    if (mutated === original) {
-      ok(`mutation ${m.id} 真的改动了源码`, false, 'apply() 之后文件内容一模一样 —— 规则失效')
-      continue
-    }
-    ok(`mutation ${m.id} 真的改动了源码`, true)
-
-    writeFileSync(TARGET, mutated, 'utf8')
-    const { code, out } = runRegression()
-    const failed = code !== 0
-    ok(`mutation ${m.id} 跑回归失败（说明写坏了）`, failed, `退出码 ${code}`)
-
-    for (const name of m.expectRed) {
-      ok(`mutation ${m.id}｜「${name}」变红`, isRed(out, name), out.slice(-600))
-    }
-    for (const name of m.expectGreen) {
-      ok(`mutation ${m.id}｜「${name}」仍然绿`, isGreen(out, name), out.slice(-600))
-    }
-
-    // 还原 —— 必须在下一个 mutation 之前还原，且逐字节核对
-    writeFileSync(TARGET, original, 'utf8')
-    const back = readFileSync(TARGET, 'utf8')
-    ok(`mutation ${m.id} 之后源码已还原（逐字节一致）`, back === original)
-    console.log('')
-  }
-
-  // 全部还原之后，基线必须仍然全绿
-  console.log('【基线】还原之后再跑一遍，必须全绿')
-  const { code, out } = runRegression()
-  ok('还原后网站端浏览器回归全绿', code === 0, out.slice(-800))
-} finally {
-  // 无论怎么退出，源码都要还原
-  writeFileSync(TARGET, original, 'utf8')
-  const back = readFileSync(TARGET, 'utf8')
-  ok('退出时源码已还原（逐字节一致）', back === original)
-  rmSync(backupDir, { recursive: true, force: true })
-}
-
-console.log(`\n=== 通过 ${pass} ｜ 失败 ${fail} ===`)
-if (failures.length) {
-  console.log('失败项：')
-  for (const f of failures) console.log('  · ' + f)
-}
-process.exit(fail === 0 ? 0 : 1)
+const ok = runBreakMutations({
+  title: '网站端「嵌套 button」break-test',
+  target: TARGET,
+  regression: REGRESSION,
+  cwd: ROOT,
+  mutations: MUTATIONS,
+})
+process.exit(ok ? 0 : 1)

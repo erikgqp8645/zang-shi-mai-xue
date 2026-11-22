@@ -1357,6 +1357,10 @@ npm run test:e2e:harmony                     # 57 项：鸿蒙工程静态检查
 - [ ] 升了 Electron 版本后，是否跑过 `node scripts/e2e/electron-probe.mjs`（确认 `node:sqlite` 还在）？
 - [ ] 网页端导出行为有没有被桌面端改动波及？（`downloadBlob` 的兜底分支必须与原来逐字节一致）
 - [ ] 改过**用方知识库覆盖层**（`server/library-schema.mjs` / `scripts/lib/library-cli.mjs` / `library_items` 表）后：删除是不是写了**墓碑**（靠「没有行」表达删除会被读成「没改过」→ 静默回落基线，刚删的条目又冒出来）？墓碑里有没有带**原内容快照**（没有的话 `revive` 放不回来）？`library apply` 在**引用断了**时有没有拒绝写盘（不能写出半坏数据）？**讲义 p44 能不能被绕过命令行新增**（判定函数表里没有它 → 前端启动就崩；**删除是放开的**）？`apply` 是不是**幂等**、有没有往内容文件里塞自己的键（写入时间戳之类）？`library-admin` 与 `library-admin-break-test` 是否都跑过？
+- [ ] 改过 **break-test** 后：迁移清单在 `pulse-record/docs/break-test-migration.md`。两个坑一定要记：
+      ① 「替换片段对得上」这类断言是在验**锚点**，锚点漂了它就会红 —— 别把它当噪音删掉
+      （`lizhong-parent-break-test` 的 LZM1 曾把 JSON 两个键顺序写反，长期没跑）；
+      ② 脚本里用 `process.env.ComSpec` 重新编译的是 Windows-only，跨平台要按 `process.platform` 分支。
 - [ ] 改过 `src/domain/formulas.ts` 的装载器（`loadRules`）后：两个方向还**刻意不对称**吗 ——「数据有、判定函数没有」必须**抛错**（不许静默降级：那条规则永远不命中，界面却看不出来），「判定函数有、数据没有」必须**跳过**（条目被管理员删了，判定函数是残留代码）？`npm run test:e2e:rule-delete-loader` 与 `npm run test:e2e:rule-delete-loader:break` 是否都跑过？
 - [ ] 改过 `src/domain/formula-links.ts` 的对照表后：指向的规则**被删掉**之后，链接是不是降级成「用方页未载」（而不是点过去没反应）？
 - [ ] 知识库改完之后：覆盖层里的改动是不是跑过 `library apply`（合并回 `src/content/*.json`）**再** `npm run build`（只改 SQLite 的话前端看不到）？若改的是**内容层**（本地后台／JSON Schema），是不是走 `content:publish`（自检→对拍→原子发布→快照→三方对拍），而不是手改快照？
