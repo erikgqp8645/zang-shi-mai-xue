@@ -261,7 +261,44 @@ def p44_for(x):
     return list(hits.values())
 
 wb=Workbook(); ws=wb.active; ws.title='方剂主表'
-headers=['规范名','别名1（讲稿 2010）','别名2（同和堂版）','讲义 p42 行号','讲义 p42 对应脉象及加减',
+
+# p42 第二列的拆分 —— **只拆原文，不改写、不补写**：
+#   · 脉象：脉位＋脉象描述
+#   · 症状：原文写明「治疗／用于」的是什么病
+#   · 加减：原文写明的加减药
+# 原文整串仍留在 `formula-reference.json` 的 indication 里（拆的是展示，不是数据）。
+P42_SPLIT = {
+  1:  ('变脉，六弱脉', '', ''),
+  2:  ('变脉，六弱脉', '', ''),
+  3:  ('变脉，任何一个脉有力', '', ''),
+  4:  ('右关弱；右关浮大', '', '右关弱则拉高白术；右关浮大则拉高茯苓'),
+  5:  ('右关弱', '慢性腹泻', ''),
+  6:  ('右关浮软', '烧退又烧', ''),
+  7:  ('右关浮大', '', ''),
+  8:  ('右关浮大', '便秘', '加当归郁李仁'),
+  9:  ('右三部脉浮洪大', '', ''),
+  10: ('右关弱且左关有', '', ''),
+  11: ('右关微', '伤寒感冒', ''),
+  12: ('右关尺浮大顶手', '', ''),
+  13: ('左寸弱迟', '', ''),
+  14: ('左寸浮大数', '', ''),
+  15: ('左寸关浮大', '', ''),
+  16: ('左关右寸浮大', '', ''),
+  17: ('双关右寸浮洪大', '', ''),
+  18: ('左关洪或弦', '', ''),
+  19: ('右寸浮洪大', '', ''),
+  20: ('寸关浮大尺脉弱', '', ''),
+  21: ('寸关浮大尺脉弱 且左关大', '', ''),
+  22: ('左右尺脉不平衡；尺脉亢', '', ''),
+  23: ('左右尺脉不平衡；尺脉亢；外加左关大', '', ''),
+  24: ('变脉', '', ''),
+  25: ('尺脉洪大', '', ''),
+  26: ('', '食疗补肾方（一付五天）', ''),
+  27: ('左右脉不平衡', '脱发、产后虚、大病初愈', ''),
+  28: ('双关浮大', '虚人感冒', '加散药'),
+}
+
+headers=['规范名','别名1（讲稿 2010）','别名2（同和堂版）','讲义 p42 行号','脉象','症状','加减',
          'p44 命中（条）','路线','类别','五行','左右手','常驻条目','添加药','关联讲稿方剂 id','脉象图',
          'p44 条目（条件 → 疗法）','p44 治法','p44 出处','p44 原文摘录',
          '讲稿组成（比例制）','服法','加减','禁忌','成方组成（克）','科中比例',
@@ -342,7 +379,11 @@ for i,x in enumerate(rows,1):
     ws.append([x['canonical'],
                drug if drug and drug!=x['canonical'] else '',
                dose if dose and dose!=x['canonical'] else '',
-               x['p42no'] or '', x['p42ind'], len(hits) or '',
+               x['p42no'] or '',
+               (P42_SPLIT.get(x['p42no'], (x['p42ind'], '', ''))[0] if x['p42no'] else ''),
+               (P42_SPLIT.get(x['p42no'], ('', '', ''))[1] if x['p42no'] else ''),
+               (P42_SPLIT.get(x['p42no'], ('', '', ''))[2] if x['p42no'] else ''),
+               len(hits) or '',
                agg('route'), kinds, wux, sides, always, adds, drug_ids, pattern_txt,
                p44txt, therapies, sources, quotes,
                G[drug].get('composition','') if drug else '',
@@ -352,12 +393,12 @@ for i,x in enumerate(rows,1):
                D[dose].get('composition','') if dose else '',
                sci, rel, only_g, only_d, dup_others(x), '；'.join(notes)])
 
-widths=[20,36,24,13,34,10,20,12,10,14,10,26,26,30,42,28,40,46,36,26,34,34,44,18,20,22,22,34,60]
+widths=[20,36,24,13,26,20,24,10,20,12,10,14,10,26,26,30,42,28,40,46,36,26,34,34,44,18,20,22,22,34,60]
 for i,w in enumerate(widths,1): ws.column_dimensions[get_column_letter(i)].width=w
 for c in ws[1]:
     c.font=Font(bold=True); c.fill=hdr_fill; c.border=border
     c.alignment=Alignment(horizontal='center',vertical='center',wrap_text=True)
-ws.freeze_panes='B2'; ws.auto_filter.ref=f"A1:AC{ws.max_row}"
+ws.freeze_panes='B2'; ws.auto_filter.ref=f"A1:AE{ws.max_row}"
 for row in ws.iter_rows(min_row=2,max_row=ws.max_row):
     for c in row:
         c.border=border; c.alignment=Alignment(vertical='top',wrap_text=True)
@@ -374,6 +415,7 @@ lines=[
  ['加味理中的坑','p42 第 10 行登记对照指向同和堂「加味理中汤」；但按组成核，讲稿五脏疗法那张「加味理中」（8 味）与同和堂「五味异功（五异）」完全相同，而「加味理中汤」的组成对应的是讲稿三焦疗法的「中焦方」。两条都在表里，备注已写明，请确认要不要改登记。'],
  ['肝肺同治','讲稿「左关右寸·浮大带点（黄芪鳖甲／秦羒扶羸）」的组成是「肝肺同治 ＋ 青蒿」，按组成并入肝肺同治这一行，差异列写明只差青蒿。'],
  ['差异两列','「仅讲稿有／仅成方有」＝两套组成逐味相减，只在两边都有组成时填。'],
+ ['脉象／症状／加减','讲义 p42 第二列原文是一整句（如「右关弱；治疗慢性腹泻」），表里拆成三列方便筛：脉象＝脉位＋脉象，症状＝原文写明治疗什么病，加减＝原文写明的加减药。**只拆原文，不改写、不补写**；整串仍存在 formula-reference.json 的 indication 里。'],
  ['单位','讲稿是比例制、同和堂是克，本表并排显示，不换算、不合并。'],
  ['生成日期','2026-11-21'],
 ]
