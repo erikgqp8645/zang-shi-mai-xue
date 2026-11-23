@@ -261,7 +261,7 @@ def p44_for(x):
     return list(hits.values())
 
 wb=Workbook(); ws=wb.active; ws.title='方剂主表'
-headers=['序号','规范名','别名1（讲稿 2010）','别名2（同和堂版）','p42 行号','p42 对应脉象及加减',
+headers=['规范名','别名1（讲稿 2010）','别名2（同和堂版）','讲义 p42 行号','讲义 p42 对应脉象及加减',
          'p44 命中（条）','路线','类别','五行','左右手','常驻条目','添加药','关联讲稿方剂 id','脉象图',
          'p44 条目（条件 → 疗法）','p44 治法','p44 出处','p44 原文摘录',
          '讲稿组成（比例制）','服法','加减','禁忌','成方组成（克）','科中比例',
@@ -339,7 +339,7 @@ for i,x in enumerate(rows,1):
         pid=h[0].get('id'); pat=patterns.get(pid)
         pats.append(f"{pat.get('title','有图')}（{len(pat.get('cells') or [])} 格）" if pat else '无图')
     pattern_txt='；'.join(dict.fromkeys(pats)) if pats else ''
-    ws.append([i, x['canonical'],
+    ws.append([x['canonical'],
                drug if drug and drug!=x['canonical'] else '',
                dose if dose and dose!=x['canonical'] else '',
                x['p42no'] or '', x['p42ind'], len(hits) or '',
@@ -352,15 +352,17 @@ for i,x in enumerate(rows,1):
                D[dose].get('composition','') if dose else '',
                sci, rel, only_g, only_d, dup_others(x), '；'.join(notes)])
 
-widths=[5,20,36,24,8,26,10,20,12,10,14,10,26,26,30,42,28,40,46,36,26,34,34,44,18,20,22,22,34,60]
+widths=[20,36,24,13,34,10,20,12,10,14,10,26,26,30,42,28,40,46,36,26,34,34,44,18,20,22,22,34,60]
 for i,w in enumerate(widths,1): ws.column_dimensions[get_column_letter(i)].width=w
 for c in ws[1]:
     c.font=Font(bold=True); c.fill=hdr_fill; c.border=border
     c.alignment=Alignment(horizontal='center',vertical='center',wrap_text=True)
-ws.freeze_panes='C2'; ws.auto_filter.ref=f"A1:AD{ws.max_row}"
+ws.freeze_panes='B2'; ws.auto_filter.ref=f"A1:AC{ws.max_row}"
 for row in ws.iter_rows(min_row=2,max_row=ws.max_row):
     for c in row:
         c.border=border; c.alignment=Alignment(vertical='top',wrap_text=True)
+    # 「讲义 p42 行号」居中：右对齐会贴着「脉象」那一列，看着像连在一起
+    row[3].alignment=Alignment(horizontal='center', vertical='top')
 ws.row_dimensions[1].height=34
 
 ws2=wb.create_sheet('核对说明')

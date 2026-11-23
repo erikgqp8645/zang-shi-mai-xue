@@ -79,13 +79,15 @@ for r in rows:
       (id,name,base_name,qualifier,relation,p42_no,p42_indication,dose_id,composition_th,composition_draft,
        science,usage,adjustments,contraindications,note)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',(
-      key,name,b,q,r.get('关系',''),r.get('p42 行号') or None,r.get('p42 对应脉象及加减',''),
+      key,name,b,q,r.get('关系',''),
+      (r.get('讲义 p42 行号') or r.get('p42 行号') or None),
+      (r.get('讲义 p42 对应脉象及加减') or r.get('p42 对应脉象及加减') or ''),
       (d.get('id') if (dose and dose in dose_by_name) else None),
       (d.get('composition') or ''), (g.get('composition') or ''), sci,
       g.get('usage') or '', '；'.join(g.get('adjustments') or []), g.get('contraindication') or '',
       (r.get('备注') or '')))
     formula_id_by_name[name]=key
-    src_of_name = '讲义 p42' if r.get('p42 行号') else ('同和堂版' if (dose and dose in dose_by_name) else ('讲稿 2010' if (drug and drug in drug_by_name) else '讲义 p44'))
+    src_of_name = '讲义 p42' if (r.get('讲义 p42 行号') or r.get('p42 行号')) else ('同和堂版' if (dose and dose in dose_by_name) else ('讲稿 2010' if (drug and drug in drug_by_name) else '讲义 p44'))
     for src,nm in ((src_of_name, name), ('讲稿 2010', drug), ('同和堂版', dose)):
         if nm:
             conn.execute('INSERT OR IGNORE INTO formula_aliases (formula_id,source,name) VALUES (?,?,?)',(key,src,nm))
