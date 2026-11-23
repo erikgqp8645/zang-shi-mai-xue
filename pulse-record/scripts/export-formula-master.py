@@ -48,6 +48,21 @@ def _tokens(comp, loose):
 def herbs(comp): return _tokens(comp, True)
 def herbs_strict(comp): return _tokens(comp, False)
 def jac(a,b): return len(a&b)/len(a|b) if a and b else 0.0
+
+def alias_cell(alias_name, canonical):
+    """别名列只放**实质不同**的写法。
+
+    只差数字写法（1号／一号）、方剂后缀（汤／散／丸）或括注的，不往别名列里重复一遍 ——
+    那些在「疑似重复组」sheet 里已经单列了。用户 2026-11-23 指出这几行看着像重复。
+    """
+    if not alias_name or not canonical:
+        return ''
+    if alias_name == canonical:
+        return ''
+    if name_key(alias_name) == name_key(canonical):
+        return ''
+    return alias_name
+
 def base(n): return re.sub(r'[（(].*?[）)]','',n).strip()
 
 CN={'一':'1','二':'2','三':'3','四':'4','五':'5','六':'6','七':'7','八':'8','九':'9','十':'10'}
@@ -377,8 +392,8 @@ for i,x in enumerate(rows,1):
         pats.append(f"{pat.get('title','有图')}（{len(pat.get('cells') or [])} 格）" if pat else '无图')
     pattern_txt='；'.join(dict.fromkeys(pats)) if pats else ''
     ws.append([x['canonical'],
-               drug if drug and drug!=x['canonical'] else '',
-               dose if dose and dose!=x['canonical'] else '',
+               alias_cell(drug, x['canonical']),
+               alias_cell(dose, x['canonical']),
                x['p42no'] or '',
                (P42_SPLIT.get(x['p42no'], (x['p42ind'], '', ''))[0] if x['p42no'] else ''),
                (P42_SPLIT.get(x['p42no'], ('', '', ''))[1] if x['p42no'] else ''),
@@ -415,6 +430,7 @@ lines=[
  ['加味理中的坑','p42 第 10 行登记对照指向同和堂「加味理中汤」；但按组成核，讲稿五脏疗法那张「加味理中」（8 味）与同和堂「五味异功（五异）」完全相同，而「加味理中汤」的组成对应的是讲稿三焦疗法的「中焦方」。两条都在表里，备注已写明，请确认要不要改登记。'],
  ['肝肺同治','讲稿「左关右寸·浮大带点（黄芪鳖甲／秦羒扶羸）」的组成是「肝肺同治 ＋ 青蒿」，按组成并入肝肺同治这一行，差异列写明只差青蒿。'],
  ['差异两列','「仅讲稿有／仅成方有」＝两套组成逐味相减，只在两边都有组成时填。'],
+ ['别名两列','只放**实质不同**的写法。只差数字写法（1号／一号）、方剂后缀（汤／散／丸）或括注的不再重复列 —— 那些在「疑似重复组」sheet 里单列。'],
  ['脉象／症状／加减','讲义 p42 第二列原文是一整句（如「右关弱；治疗慢性腹泻」），表里拆成三列方便筛：脉象＝脉位＋脉象，症状＝原文写明治疗什么病，加减＝原文写明的加减药。**只拆原文，不改写、不补写**；整串仍存在 formula-reference.json 的 indication 里。'],
  ['单位','讲稿是比例制、同和堂是克，本表并排显示，不换算、不合并。'],
  ['生成日期','2026-11-21'],
