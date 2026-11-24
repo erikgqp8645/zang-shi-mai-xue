@@ -26,6 +26,19 @@ doses = json.load(open(BASE+'doses.json', encoding='utf-8'))
 drugs = json.load(open(BASE+'drugs.json', encoding='utf-8'))
 ref   = json.load(open(BASE+'formula-reference.json', encoding='utf-8'))
 rules = json.load(open(BASE+'formula-rules.json', encoding='utf-8'))['rules']
+
+# 人工修订：用户在 Excel 里手改过的「保留哪些行 ＋ 改了哪些格子」
+# （2026-11-23 他把 129 行裁到 81 行，并纠正了几处脉象／别名）
+_CUR_PATH = BASE + 'formula-master-curation.json'
+try:
+    CURATION = json.load(open(_CUR_PATH, encoding='utf-8'))
+except FileNotFoundError:
+    CURATION = {'keep': [], 'overrides': {}}
+KEEP = set(CURATION.get('keep') or [])
+OVR = CURATION.get('overrides') or {}
+
+def row_key(x):
+    return f"{x['p42no'] if x['p42no'] else ''}|{x['canonical']}"
 patterns = json.load(open(BASE+'pulse-patterns.json', encoding='utf-8'))['patterns']
 
 LOOSE={'枸杞子':'枸杞','元参':'玄参','桂心':'桂皮','术':'白术','芍药':'白芍','炙甘草':'甘草'}
@@ -253,6 +266,12 @@ def merge_rows(rows):
 
 rows=merge_rows(rows)
 
+# 只保留人工修订里留下的行（没有修订文件时全留）
+if KEEP:
+    before_n = len(rows)
+    rows = [x for x in rows if row_key(x) in KEEP]
+    print(f'人工修订：{before_n} 行 → 保留 {len(rows)} 行')
+
 ORDER={'同一方·组成一致':0,'同方·别名写法':1,'加减方':2,'组成差异大（需核）':3,
        '仅同和堂有组成':4,'仅同和堂':5,'仅讲稿有组成':6,'仅 p44 条目':7}
 rows.sort(key=lambda x:(0,x['p42no']) if x['p42no'] else (1, ORDER.get(rel_of(x['drug'],x['dose'],False),9), x['canonical']))
@@ -391,7 +410,7 @@ for i,x in enumerate(rows,1):
         pid=h[0].get('id'); pat=patterns.get(pid)
         pats.append(f"{pat.get('title','有图')}（{len(pat.get('cells') or [])} 格）" if pat else '无图')
     pattern_txt='；'.join(dict.fromkeys(pats)) if pats else ''
-    ws.append([x['canonical'],
+    _vals = [x['canonical'],
                alias_cell(drug, x['canonical']),
                alias_cell(dose, x['canonical']),
                x['p42no'] or '',
@@ -406,7 +425,13 @@ for i,x in enumerate(rows,1):
                '；'.join(G[drug].get('adjustments') or []) if drug else '',
                G[drug].get('contraindication','') if drug else '',
                D[dose].get('composition','') if dose else '',
-               sci, rel, only_g, only_d, dup_others(x), '；'.join(notes)])
+               sci, rel, only_g, only_d, dup_others(x), '；'.join(notes)]
+
+    # 人工修订优先（用户手改过的格子，原样盖回去）
+    for _col, _v in (OVR.get(row_key(x)) or {}).items():
+        if _col in headers:
+            _vals[headers.index(_col)] = _v or None
+    ws.append(_vals)
 
 widths=[20,36,24,13,26,20,24,10,20,12,10,14,10,26,26,30,42,28,40,46,36,26,34,34,44,18,20,22,22,34,60]
 for i,w in enumerate(widths,1): ws.column_dimensions[get_column_letter(i)].width=w
