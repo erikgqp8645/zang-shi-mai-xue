@@ -367,6 +367,9 @@ def dup_others(x):
 thin=Side(style='thin',color='D9D2C2'); border=Border(left=thin,right=thin,top=thin,bottom=thin)
 hdr_fill=PatternFill('solid',fgColor='E8E0CE')
 
+# 手工新增的行（源数据里没有这一方，用户直接在表里补的）
+EXTRAS = CURATION.get('extras') or []
+
 for i,x in enumerate(rows,1):
     drug,dose=x['drug'],x['dose']
     rel=rel_of(drug,dose,bool(x['p42no']), x.get('rel'))
@@ -444,6 +447,10 @@ for row in ws.iter_rows(min_row=2,max_row=ws.max_row):
         c.border=border; c.alignment=Alignment(vertical='top',wrap_text=True)
     # 「讲义 p42 行号」居中：右对齐会贴着「脉象」那一列，看着像连在一起
     row[3].alignment=Alignment(horizontal='center', vertical='top')
+# 手工新增行：按 headers 顺序写进去（放在最后，与用户的表一致）
+for e in EXTRAS:
+    ws.append([e.get(h, None) for h in headers])
+
 ws.row_dimensions[1].height=34
 
 ws2=wb.create_sheet('核对说明')
