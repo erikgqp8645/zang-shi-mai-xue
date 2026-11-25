@@ -13,6 +13,27 @@
 
 ---
 
+## 0.0 服务器与登录（京东云）
+
+| 项 | 值 |
+|---|---|
+| 云厂商 | **京东云**（不是腾讯云；腾讯云那条线只用于 CloudBase 的 PG／云开发） |
+| SSH | `ssh jdy24`（`~/.ssh/cindy.conf` 里的别名 → `117.72.75.250`） |
+| 钥匙 | `~/.ssh/cindy`，**有口令** |
+
+⚠️ **钥匙有口令 ⇒ 必须先进 ssh-agent**，否则会报 `Permission denied (publickey,password)`：
+
+```bash
+ssh-add --apple-use-keychain ~/.ssh/cindy   # 输一次口令，之后存钥匙串
+ssh-add -l                                   # 确认列表里有 XKxlm1… 这把
+```
+
+`cindy.conf` 已给 `jdy24` 配了 `AddKeysToAgent yes` / `UseKeychain yes`。
+症状对照：如果 `ssh-add -l` 里只有 `4bVRQF…`（那是 `workubuntuai` 那把），
+就说明 cindy 钥匙没进 agent —— 2026-11-25 踩过一次，部署全部失败。
+
+---
+
 ## 0. 先看这张表
 
 | 事项 | 结论 |
